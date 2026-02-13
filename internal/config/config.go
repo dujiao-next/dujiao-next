@@ -262,7 +262,7 @@ func Load() *Config {
 	viper.SetDefault("upload.max_width", 4096)
 	viper.SetDefault("upload.max_height", 4096)
 	viper.SetDefault("cors.allowed_origins", []string{"*"})
-	viper.SetDefault("cors.allowed_methods", []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"})
+	viper.SetDefault("cors.allowed_methods", []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"})
 	viper.SetDefault("cors.allowed_headers", []string{
 		"Content-Type",
 		"Content-Length",

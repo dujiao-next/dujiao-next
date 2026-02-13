@@ -33,7 +33,18 @@ func CORSMiddleware(cfg config.CORSConfig) gin.HandlerFunc {
 	}
 	allowedMethods := cfg.AllowedMethods
 	if len(allowedMethods) == 0 {
-		allowedMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
+		allowedMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
+	}
+	// 确保 PATCH 始终在允许的方法列表中（RESTful API 必需）
+	hasPatch := false
+	for _, m := range allowedMethods {
+		if strings.EqualFold(m, "PATCH") {
+			hasPatch = true
+			break
+		}
+	}
+	if !hasPatch {
+		allowedMethods = append(allowedMethods, "PATCH")
 	}
 	allowedHeaders := cfg.AllowedHeaders
 	if len(allowedHeaders) == 0 {
