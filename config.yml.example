@@ -14,8 +14,10 @@ log:
   compress: true
 
 database:
-  driver: sqlite  # sqlite / postgres
+  driver: sqlite  # sqlite / mysql / postgres
   dsn: ./db/dujiao.db
+  # MySQL DSN 示例: root:password@tcp(127.0.0.1:3306)/dujiao?charset=utf8mb4&parseTime=True&loc=Local
+  # PostgreSQL DSN 示例: host=127.0.0.1 port=5432 user=postgres password=password dbname=dujiao sslmode=disable
   pool:
     max_open_conns: 1
     max_idle_conns: 1

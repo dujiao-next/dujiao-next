@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/glebarez/sqlite" // 纯 Go SQLite 驱动（基于 modernc.org/sqlite）
+	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -31,6 +32,8 @@ func InitDB(driver, dsn string, pool DBPoolConfig) error {
 	case "", "sqlite":
 		// glebarez/sqlite 是基于 modernc.org/sqlite 的纯 Go 驱动
 		dialector = sqlite.Open(dsn)
+	case "mysql", "mariadb":
+		dialector = mysql.Open(dsn)
 	case "postgres", "postgresql":
 		dialector = postgres.Open(dsn)
 	default:

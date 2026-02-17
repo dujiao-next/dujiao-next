@@ -7,7 +7,7 @@ Dujiao-Next API is the backend service for the Dujiao-Next ecosystem. It provide
 - Go
 - Gin
 - GORM
-- SQLite / PostgreSQL
+- SQLite / MySQL / PostgreSQL
 
 ## What This Service Does
 

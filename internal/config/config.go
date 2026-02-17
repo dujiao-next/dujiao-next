@@ -65,7 +65,7 @@ type DatabasePoolConfig struct {
 
 // DatabaseConfig 数据库配置
 type DatabaseConfig struct {
-	Driver string             `mapstructure:"driver"` // 数据库驱动（sqlite/postgres）
+	Driver string             `mapstructure:"driver"` // 数据库驱动（sqlite/mysql/postgres）
 	DSN    string             `mapstructure:"dsn"`    // 数据库连接串
 	Pool   DatabasePoolConfig `mapstructure:"pool"`
 }
