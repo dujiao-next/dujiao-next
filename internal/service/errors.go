@@ -16,6 +16,7 @@ var (
 	ErrInvalidEmail                  = errors.New("invalid email")
 	ErrInvalidVerifyPurpose          = errors.New("invalid verify purpose")
 	ErrAgreementRequired             = errors.New("agreement required")
+	ErrRegistrationDisabled          = errors.New("registration disabled")
 	ErrVerifyCodeInvalid             = errors.New("verify code invalid")
 	ErrVerifyCodeExpired             = errors.New("verify code expired")
 	ErrVerifyCodeTooFrequent         = errors.New("verify code too frequent")

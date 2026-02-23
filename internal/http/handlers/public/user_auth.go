@@ -87,7 +87,7 @@ func (h *Handler) SendUserVerifyCode(c *gin.Context) {
 type UserRegisterRequest struct {
 	Email             string `json:"email" binding:"required"`
 	Password          string `json:"password" binding:"required"`
-	Code              string `json:"code" binding:"required"`
+	Code              string `json:"code"`
 	AgreementAccepted bool   `json:"agreement_accepted"`
 }
 
@@ -114,6 +114,8 @@ func (h *Handler) UserRegister(c *gin.Context) {
 			respondError(c, response.CodeBadRequest, "error.verify_code_attempts_exceeded", nil)
 		case errors.Is(err, service.ErrAgreementRequired):
 			respondError(c, response.CodeBadRequest, "error.agreement_required", nil)
+		case errors.Is(err, service.ErrRegistrationDisabled):
+			respondError(c, response.CodeForbidden, "error.registration_disabled", nil)
 		case errors.Is(err, service.ErrWeakPassword):
 			locale := i18n.ResolveLocale(c)
 			if perr, ok := err.(interface {

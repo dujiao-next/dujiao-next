@@ -28,6 +28,7 @@ type UserAuthService struct {
 	codeRepo              repository.EmailVerifyCodeRepository
 	emailService          *EmailService
 	telegramAuthService   *TelegramAuthService
+	settingService        *SettingService
 }
 
 // NewUserAuthService 创建用户认证服务
@@ -38,6 +39,7 @@ func NewUserAuthService(
 	codeRepo repository.EmailVerifyCodeRepository,
 	emailService *EmailService,
 	telegramAuthService *TelegramAuthService,
+	settingService *SettingService,
 ) *UserAuthService {
 	return &UserAuthService{
 		cfg:                   cfg,
@@ -46,6 +48,7 @@ func NewUserAuthService(
 		codeRepo:              codeRepo,
 		emailService:          emailService,
 		telegramAuthService:   telegramAuthService,
+		settingService:        settingService,
 	}
 }
 
@@ -156,6 +159,26 @@ func (s *UserAuthService) Register(email, password, code string, agreementAccept
 	if !agreementAccepted {
 		return nil, "", time.Time{}, ErrAgreementRequired
 	}
+
+	// 检查注册是否开启
+	registrationEnabled := true
+	requireEmailVerify := true
+	if s.settingService != nil {
+		if siteConfig, err := s.settingService.GetByKey(constants.SettingKeySiteConfig); err == nil && siteConfig != nil {
+			if regConfig, ok := siteConfig["user_registration"].(map[string]interface{}); ok {
+				if v, ok := regConfig["enabled"].(bool); ok {
+					registrationEnabled = v
+				}
+				if v, ok := regConfig["require_email_verify"].(bool); ok {
+					requireEmailVerify = v
+				}
+			}
+		}
+	}
+	if !registrationEnabled {
+		return nil, "", time.Time{}, ErrRegistrationDisabled
+	}
+
 	normalized, err := normalizeEmail(email)
 	if err != nil {
 		return nil, "", time.Time{}, err
@@ -172,8 +195,10 @@ func (s *UserAuthService) Register(email, password, code string, agreementAccept
 		return nil, "", time.Time{}, ErrEmailExists
 	}
 
-	if _, err := s.verifyCode(normalized, constants.VerifyPurposeRegister, code); err != nil {
-		return nil, "", time.Time{}, err
+	if requireEmailVerify {
+		if _, err := s.verifyCode(normalized, constants.VerifyPurposeRegister, code); err != nil {
+			return nil, "", time.Time{}, err
+		}
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)

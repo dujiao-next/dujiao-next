@@ -103,6 +103,23 @@ func (h *Handler) GetConfig(c *gin.Context) {
 	}
 	data["telegram_auth"] = telegramAuthConfig
 
+	// 用户注册配置
+	userRegConfig := map[string]interface{}{
+		"enabled":              true,
+		"require_email_verify": true,
+	}
+	if siteConfig, err := h.SettingService.GetByKey(constants.SettingKeySiteConfig); err == nil && siteConfig != nil {
+		if regConfig, ok := siteConfig["user_registration"].(map[string]interface{}); ok {
+			if v, ok := regConfig["enabled"].(bool); ok {
+				userRegConfig["enabled"] = v
+			}
+			if v, ok := regConfig["require_email_verify"].(bool); ok {
+				userRegConfig["require_email_verify"] = v
+			}
+		}
+	}
+	data["user_registration"] = userRegConfig
+
 	_ = cache.SetJSON(c.Request.Context(), publicConfigCacheKey, data, publicConfigCacheTTL)
 	response.Success(c, data)
 }

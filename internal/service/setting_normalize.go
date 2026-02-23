@@ -70,6 +70,7 @@ func normalizeSiteSetting(value map[string]interface{}) models.JSON {
 	normalized["seo"] = normalizeSiteLocalizedBlock(value["seo"], []string{"title", "keywords", "description"})
 	normalized["legal"] = normalizeSiteLocalizedBlock(value["legal"], []string{"terms", "privacy"})
 	normalized["about"] = normalizeSiteAbout(value["about"])
+	normalized["user_registration"] = normalizeSiteUserRegistration(value["user_registration"])
 	normalized["scripts"] = normalizeSiteScripts(value["scripts"])
 	normalized[constants.SettingFieldSiteCurrency] = normalizeSiteCurrency(value[constants.SettingFieldSiteCurrency])
 
@@ -125,6 +126,26 @@ func normalizeSiteCurrency(raw interface{}) string {
 	}
 	return currency
 }
+
+// normalizeSiteUserRegistration 归一化用户注册配置。
+func normalizeSiteUserRegistration(raw interface{}) map[string]interface{} {
+	result := map[string]interface{}{
+		"enabled":              true,
+		"require_email_verify": true,
+	}
+	regMap, ok := raw.(map[string]interface{})
+	if !ok {
+		return result
+	}
+	if v, ok := regMap["enabled"].(bool); ok {
+		result["enabled"] = v
+	}
+	if v, ok := regMap["require_email_verify"].(bool); ok {
+		result["require_email_verify"] = v
+	}
+	return result
+}
+
 
 func normalizeSiteContact(raw interface{}) map[string]interface{} {
 	result := map[string]interface{}{
