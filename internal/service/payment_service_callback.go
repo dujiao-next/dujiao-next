@@ -68,7 +68,7 @@ func (s *PaymentService) HandleCallback(input PaymentCallbackInput) (*models.Pay
 		)
 		return nil, ErrPaymentInvalid
 	}
-	if input.OrderNo != "" && input.OrderNo != order.OrderNo {
+	if input.OrderNo != "" && input.OrderNo != order.OrderNo && input.OrderNo != fmt.Sprintf("%s-%d", order.OrderNo, payment.ID) {
 		log.Warnw("payment_callback_order_no_mismatch",
 			"stored_order_no", order.OrderNo,
 			"callback_order_no", input.OrderNo,
@@ -160,7 +160,8 @@ func (s *PaymentService) handleWalletRechargeCallback(payment *models.Payment, s
 		)
 		return nil, ErrPaymentInvalid
 	}
-	if input.OrderNo != "" && input.OrderNo != recharge.RechargeNo {
+	uniqueOrderNo := fmt.Sprintf("%s-%d", recharge.RechargeNo, payment.ID)
+	if input.OrderNo != "" && input.OrderNo != recharge.RechargeNo && input.OrderNo != uniqueOrderNo {
 		log.Warnw("wallet_recharge_callback_order_no_mismatch",
 			"stored_recharge_no", recharge.RechargeNo,
 			"callback_order_no", input.OrderNo,

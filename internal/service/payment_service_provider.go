@@ -24,6 +24,7 @@ import (
 func (s *PaymentService) applyProviderPayment(input CreatePaymentInput, order *models.Order, channel *models.PaymentChannel, payment *models.Payment) (err error) {
 	providerType := strings.ToLower(strings.TrimSpace(channel.ProviderType))
 	channelType := strings.ToLower(strings.TrimSpace(channel.ChannelType))
+	uniqueOrderNo := fmt.Sprintf("%s-%d", order.OrderNo, payment.ID)
 	log := paymentLogger(
 		"order_id", order.ID,
 		"order_no", order.OrderNo,
@@ -61,7 +62,7 @@ func (s *PaymentService) applyProviderPayment(input CreatePaymentInput, order *m
 		subject := buildOrderSubject(order)
 		param := strconv.FormatUint(uint64(payment.ID), 10)
 		result, err := epay.CreatePayment(ctx, cfg, epay.CreateInput{
-			OrderNo:     order.OrderNo,
+			OrderNo:     uniqueOrderNo,
 			PaymentID:   payment.ID,
 			Amount:      payment.Amount.String(),
 			Subject:     subject,
@@ -123,7 +124,7 @@ func (s *PaymentService) applyProviderPayment(input CreatePaymentInput, order *m
 		}
 		subject := buildOrderSubject(order)
 		result, err := epusdt.CreatePayment(ctx, cfg, epusdt.CreateInput{
-			OrderNo:   order.OrderNo,
+			OrderNo:   uniqueOrderNo,
 			PaymentID: payment.ID,
 			Amount:    payment.Amount.String(),
 			Name:      subject,
@@ -178,7 +179,7 @@ func (s *PaymentService) applyProviderPayment(input CreatePaymentInput, order *m
 			redirectURL = appendURLQuery(redirectURL, buildOrderReturnQuery(order, "tokenpay_return", ""))
 		}
 		createResult, err := tokenpay.CreatePayment(ctx, cfg, tokenpay.CreateInput{
-			OutOrderID:      strings.TrimSpace(order.OrderNo),
+			OutOrderID:      uniqueOrderNo,
 			OrderUserKey:    resolveTokenPayOrderUserKey(order),
 			ActualAmount:    payment.Amount.String(),
 			Currency:        strings.TrimSpace(cfg.Currency),
@@ -226,7 +227,7 @@ func (s *PaymentService) applyProviderPayment(input CreatePaymentInput, order *m
 				ctx = context.Background()
 			}
 			createResult, err := paypal.CreateOrder(ctx, cfg, paypal.CreateInput{
-				OrderNo:     order.OrderNo,
+				OrderNo:     uniqueOrderNo,
 				PaymentID:   payment.ID,
 				Amount:      payment.Amount.String(),
 				Currency:    payment.Currency,
@@ -272,7 +273,7 @@ func (s *PaymentService) applyProviderPayment(input CreatePaymentInput, order *m
 				ctx = context.Background()
 			}
 			createResult, err := alipay.CreatePayment(ctx, cfg, alipay.CreateInput{
-				OrderNo:        order.OrderNo,
+				OrderNo:        uniqueOrderNo,
 				PaymentID:      payment.ID,
 				Amount:         payment.Amount.String(),
 				Subject:        buildOrderSubject(order),
@@ -320,7 +321,7 @@ func (s *PaymentService) applyProviderPayment(input CreatePaymentInput, order *m
 				ctx = context.Background()
 			}
 			createResult, err := wechatpay.CreatePayment(ctx, &cfgForCreate, wechatpay.CreateInput{
-				OrderNo:     order.OrderNo,
+				OrderNo:     uniqueOrderNo,
 				PaymentID:   payment.ID,
 				Amount:      payment.Amount.String(),
 				Currency:    payment.Currency,
@@ -365,7 +366,7 @@ func (s *PaymentService) applyProviderPayment(input CreatePaymentInput, order *m
 				ctx = context.Background()
 			}
 			createResult, err := stripe.CreatePayment(ctx, cfg, stripe.CreateInput{
-				OrderNo:     order.OrderNo,
+				OrderNo:     uniqueOrderNo,
 				PaymentID:   payment.ID,
 				Amount:      payment.Amount.String(),
 				Currency:    payment.Currency,
