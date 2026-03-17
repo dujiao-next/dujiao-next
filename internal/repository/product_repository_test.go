@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/dujiao-next/internal/constants"
@@ -17,8 +18,8 @@ func setupProductRepositoryTest(t *testing.T) (*GormProductRepository, *gorm.DB)
 	if err != nil {
 		t.Fatalf("open sqlite failed: %v", err)
 	}
-	if err := db.AutoMigrate(&models.Product{}, &models.ProductSKU{}); err != nil {
-		t.Fatalf("migrate product/sku failed: %v", err)
+	if err := db.AutoMigrate(&models.Category{}, &models.Product{}, &models.ProductSKU{}); err != nil {
+		t.Fatalf("migrate category/product/sku failed: %v", err)
 	}
 	return NewProductRepository(db), db
 }
@@ -171,6 +172,68 @@ func TestManualStockUnlimitedDoesNotReserve(t *testing.T) {
 	}
 	if affected != 0 {
 		t.Fatalf("consume unlimited affected want 0 got %d", affected)
+	}
+}
+
+func TestUpdatePersistsChangedCategoryIDWithPreloadedCategory(t *testing.T) {
+	repo, db := setupProductRepositoryTest(t)
+
+	sourceCategory := &models.Category{
+		Slug:     "source-category",
+		NameJSON: models.JSON{"zh-CN": "source"},
+	}
+	targetCategory := &models.Category{
+		Slug:     "target-category",
+		NameJSON: models.JSON{"zh-CN": "target"},
+	}
+	if err := db.Create(sourceCategory).Error; err != nil {
+		t.Fatalf("create source category failed: %v", err)
+	}
+	if err := db.Create(targetCategory).Error; err != nil {
+		t.Fatalf("create target category failed: %v", err)
+	}
+
+	product := &models.Product{
+		CategoryID:      sourceCategory.ID,
+		Slug:            "category-switch-product",
+		TitleJSON:       models.JSON{"zh-CN": "测试商品"},
+		PriceAmount:     models.NewMoneyFromDecimal(decimal.NewFromInt(100)),
+		PurchaseType:    constants.ProductPurchaseMember,
+		FulfillmentType: constants.FulfillmentTypeManual,
+		IsActive:        true,
+	}
+	if err := repo.Create(product); err != nil {
+		t.Fatalf("create product failed: %v", err)
+	}
+
+	loaded, err := repo.GetByID(strconv.FormatUint(uint64(product.ID), 10))
+	if err != nil {
+		t.Fatalf("load product failed: %v", err)
+	}
+	if loaded == nil {
+		t.Fatal("expected product to exist")
+	}
+	if loaded.Category.ID != sourceCategory.ID {
+		t.Fatalf("expected preloaded category id=%d, got %d", sourceCategory.ID, loaded.Category.ID)
+	}
+
+	loaded.CategoryID = targetCategory.ID
+	if err := repo.Update(loaded); err != nil {
+		t.Fatalf("update product failed: %v", err)
+	}
+
+	reloaded, err := repo.GetByID(strconv.FormatUint(uint64(product.ID), 10))
+	if err != nil {
+		t.Fatalf("reload product failed: %v", err)
+	}
+	if reloaded == nil {
+		t.Fatal("expected reloaded product to exist")
+	}
+	if reloaded.CategoryID != targetCategory.ID {
+		t.Fatalf("expected category_id=%d, got %d", targetCategory.ID, reloaded.CategoryID)
+	}
+	if reloaded.Category.ID != targetCategory.ID {
+		t.Fatalf("expected preloaded category id=%d after update, got %d", targetCategory.ID, reloaded.Category.ID)
 	}
 }
 

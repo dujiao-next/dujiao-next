@@ -9,6 +9,7 @@ import (
 	"github.com/dujiao-next/internal/models"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // ProductRepository 商品数据访问接口
@@ -214,7 +215,7 @@ func (r *GormProductRepository) Create(product *models.Product) error {
 
 // Update 更新商品
 func (r *GormProductRepository) Update(product *models.Product) error {
-	return r.db.Save(product).Error
+	return r.db.Omit(clause.Associations).Save(product).Error
 }
 
 // Delete 删除商品
