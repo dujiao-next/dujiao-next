@@ -29,6 +29,11 @@ func (m *mockSettingRepo) Upsert(key string, value models.JSON) (*models.Setting
 	return &models.Setting{Key: key, ValueJSON: value}, nil
 }
 
+func (m *mockSettingRepo) DeleteByKey(key string) error {
+	delete(m.store, key)
+	return nil
+}
+
 func TestNormalizeSMTPSetting(t *testing.T) {
 	setting := NormalizeSMTPSetting(SMTPSetting{})
 	if setting.Port != 587 {

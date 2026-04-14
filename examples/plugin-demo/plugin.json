@@ -1,0 +1,25 @@
+{
+  "id": "demo-feature",
+  "name": "演示功能插件",
+  "type": "feature",
+  "version": "1.0.1",
+  "author": "VIPMAX",
+  "summary": "一个最小可运行的功能插件示例",
+  "description": "用于演示插件注册页面、路由、事件与配置能力。",
+  "host_api_version": "v1",
+  "go_version": "1.25.0",
+  "build_target": "linux/amd64",
+  "entry_symbol": "PluginEntrypoint",
+  "permissions": [
+    "plugin.config",
+    "plugin.db",
+    "plugin.db.main",
+    "plugin.route.public",
+    "plugin.route.admin",
+    "plugin.event.order"
+  ],
+  "config_schema": {
+    "greeting": "string"
+  },
+  "assets": ["assets/icon.txt"]
+}

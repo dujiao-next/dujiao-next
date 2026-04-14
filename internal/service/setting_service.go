@@ -68,6 +68,14 @@ func (s *SettingService) Update(key string, value map[string]interface{}) (model
 	return setting.ValueJSON, nil
 }
 
+// Delete 删除指定配置键。
+func (s *SettingService) Delete(key string) error {
+	if s == nil || s.repo == nil || key == "" {
+		return nil
+	}
+	return s.repo.DeleteByKey(key)
+}
+
 // GetOrderPaymentExpireMinutes 获取订单超时分钟配置
 func (s *SettingService) GetOrderPaymentExpireMinutes(defaultValue int) (int, error) {
 	if s == nil {

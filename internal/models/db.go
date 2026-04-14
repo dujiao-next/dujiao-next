@@ -148,6 +148,21 @@ func AutoMigrate() error {
 		&MemberLevel{},
 		&MemberLevelPrice{},
 		&Media{},
+		&Plugin{},
+		&PluginVersion{},
+		&PluginRuntimeLog{},
+		&PluginRouteRegistry{},
+		&PluginPageRegistry{},
+		&PluginEventSubscription{},
+		&PluginMarketRegistry{},
+		&PluginMarketCache{},
+		&PluginMarketPublisher{},
+		&PluginMarketCatalogPlugin{},
+		&PluginMarketVersion{},
+		&PluginMarketPlan{},
+		&PluginLicense{},
+		&PluginLicenseActivation{},
+		&PluginLicenseHeartbeat{},
 	); err != nil {
 		return err
 	}

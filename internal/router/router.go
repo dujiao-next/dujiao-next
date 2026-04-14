@@ -68,8 +68,9 @@ func SetupRouter(cfg *config.Config, c *provider.Container) *gin.Engine {
 	r.Use(CORSMiddleware(cfg.CORS))
 	r.Use(CallbackRouteMiddleware(c.SettingService, publicHandler, upstreamHandler))
 
-	// 静态文件服务（上传的图片）- 必须放在最前面
+	// 静态文件服务（上传图片与插件包）- 必须放在最前面
 	r.Static("/uploads", "./uploads")
+	r.Static("/plugin-market/packages", "./plugin-market/packages")
 
 	// API 路由组
 	apiV1 := r.Group("/api/v1")
@@ -78,6 +79,12 @@ func SetupRouter(cfg *config.Config, c *provider.Container) *gin.Engine {
 		public := apiV1.Group("/public")
 		{
 			public.GET("/config", publicHandler.GetConfig)
+			public.GET("/plugin-market/feed", publicHandler.GetPluginMarketFeed)
+			public.GET("/plugin-market/plugins", publicHandler.GetPluginMarketPublicPlugins)
+			public.GET("/plugin-market/plugins/:plugin_id", publicHandler.GetPluginMarketPublicPlugin)
+			public.GET("/plugin-market/plugins/:plugin_id/versions", publicHandler.GetPluginMarketPublicVersions)
+			public.GET("/plugin-market/plugins/:plugin_id/plans", publicHandler.GetPluginMarketPublicPlans)
+			public.GET("/plugin-market/plugins/:plugin_id/download", publicHandler.GetPluginMarketPublicDownload)
 			public.GET("/products", publicHandler.GetProducts)
 			public.GET("/products/:slug", publicHandler.GetProductBySlug)
 			public.GET("/posts", publicHandler.GetPosts)
@@ -87,6 +94,13 @@ func SetupRouter(cfg *config.Config, c *provider.Container) *gin.Engine {
 			public.GET("/captcha/image", publicHandler.GetImageCaptcha)
 			public.POST("/affiliate/click", publicHandler.TrackAffiliateClick)
 			public.GET("/member-levels", publicHandler.GetPublicMemberLevels)
+		}
+
+		licenses := apiV1.Group("/licenses")
+		{
+			licenses.POST("/activate", publicHandler.ActivatePluginLicense)
+			licenses.POST("/heartbeat", publicHandler.HeartbeatPluginLicense)
+			licenses.POST("/validate", publicHandler.ValidatePluginLicense)
 		}
 
 		// 游客接口
@@ -227,6 +241,7 @@ func SetupRouter(cfg *config.Config, c *provider.Container) *gin.Engine {
 		apiV1.GET("/payments/callback", publicHandler.PaymentCallback)
 		apiV1.POST("/payments/webhook/paypal", publicHandler.PaypalWebhook)
 		apiV1.POST("/payments/webhook/stripe", publicHandler.StripeWebhook)
+		apiV1.Any("/plugins/:plugin_id/*path", publicHandler.HandlePluginPublicRoute)
 
 		// 管理员接口
 		admin := apiV1.Group("/admin")
@@ -246,6 +261,54 @@ func SetupRouter(cfg *config.Config, c *provider.Container) *gin.Engine {
 				// 广告代理
 				authorized.GET("/ads/render/:slotCode", adminHandler.GetAdRender)
 				authorized.POST("/ads/impression", adminHandler.PostAdImpression)
+
+				// 插件中心
+				authorized.GET("/plugins", adminHandler.ListPlugins)
+				authorized.POST("/plugins/upload", adminHandler.UploadPlugin)
+				authorized.POST("/plugins/restart-apply", adminHandler.ApplyPluginReload)
+				authorized.GET("/plugins/runtime-pages", adminHandler.ListPluginRuntimePages)
+				authorized.GET("/plugins/:id", adminHandler.GetPlugin)
+				authorized.POST("/plugins/:id/install", adminHandler.InstallPlugin)
+				authorized.POST("/plugins/:id/enable", adminHandler.EnablePlugin)
+				authorized.POST("/plugins/:id/disable", adminHandler.DisablePlugin)
+				authorized.POST("/plugins/:id/restart-apply", adminHandler.ApplyPluginReload)
+				authorized.POST("/plugins/:id/rollback", adminHandler.RollbackPlugin)
+				authorized.DELETE("/plugins/:id", adminHandler.DeletePlugin)
+				authorized.GET("/plugins/:id/logs", adminHandler.GetPluginLogs)
+				authorized.GET("/plugins/:id/config", adminHandler.GetPluginConfig)
+				authorized.PUT("/plugins/:id/config", adminHandler.UpdatePluginConfig)
+				authorized.Any("/plugins/:id/runtime/*path", adminHandler.HandlePluginAdminRoute)
+
+				// 在线插件库
+				authorized.GET("/plugin-market/registries", adminHandler.ListPluginMarketRegistries)
+				authorized.GET("/plugin-market/plugins", adminHandler.ListPluginMarketItems)
+				authorized.GET("/plugin-market/plugins/:plugin_id", adminHandler.GetPluginMarketItem)
+				authorized.GET("/plugin-market/plugins/:plugin_id/versions", adminHandler.GetPluginMarketVersions)
+				authorized.POST("/plugin-market/plugins/:plugin_id/install", adminHandler.InstallPluginMarketItem)
+				authorized.POST("/plugin-market/refresh", adminHandler.RefreshPluginMarket)
+
+				// 在线插件中心
+				authorized.GET("/plugin-market-center/publishers", adminHandler.ListPluginMarketCenterPublishers)
+				authorized.POST("/plugin-market-center/publishers", adminHandler.CreatePluginMarketCenterPublisher)
+				authorized.PUT("/plugin-market-center/publishers/:id", adminHandler.UpdatePluginMarketCenterPublisher)
+				authorized.DELETE("/plugin-market-center/publishers/:id", adminHandler.DeletePluginMarketCenterPublisher)
+				authorized.GET("/plugin-market-center/plugins", adminHandler.ListPluginMarketCenterPlugins)
+				authorized.GET("/plugin-market-center/plugins/:plugin_id", adminHandler.GetPluginMarketCenterPlugin)
+				authorized.POST("/plugin-market-center/plugins", adminHandler.CreatePluginMarketCenterPlugin)
+				authorized.PUT("/plugin-market-center/plugins/:plugin_id", adminHandler.UpdatePluginMarketCenterPlugin)
+				authorized.DELETE("/plugin-market-center/plugins/:plugin_id", adminHandler.DeletePluginMarketCenterPlugin)
+				authorized.POST("/plugin-market-center/plugins/:plugin_id/versions", adminHandler.CreatePluginMarketCenterVersion)
+				authorized.PUT("/plugin-market-center/versions/:id", adminHandler.UpdatePluginMarketCenterVersion)
+				authorized.DELETE("/plugin-market-center/versions/:id", adminHandler.DeletePluginMarketCenterVersion)
+				authorized.POST("/plugin-market-center/plugins/:plugin_id/plans", adminHandler.CreatePluginMarketCenterPlan)
+				authorized.PUT("/plugin-market-center/plans/:id", adminHandler.UpdatePluginMarketCenterPlan)
+				authorized.DELETE("/plugin-market-center/plans/:id", adminHandler.DeletePluginMarketCenterPlan)
+
+				// 在线授权中心
+				authorized.GET("/plugin-license-center/licenses", adminHandler.ListPluginLicenseCenterLicenses)
+				authorized.GET("/plugin-license-center/licenses/:license_id", adminHandler.GetPluginLicenseCenterLicense)
+				authorized.POST("/plugin-license-center/licenses", adminHandler.CreatePluginLicenseCenterLicense)
+				authorized.PUT("/plugin-license-center/licenses/:license_id", adminHandler.UpdatePluginLicenseCenterLicense)
 
 				// 商品管理
 				authorized.GET("/products", adminHandler.GetAdminProducts)

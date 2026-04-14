@@ -12,6 +12,7 @@ import (
 type SettingRepository interface {
 	GetByKey(key string) (*models.Setting, error)
 	Upsert(key string, value models.JSON) (*models.Setting, error)
+	DeleteByKey(key string) error
 }
 
 // GormSettingRepository GORM 实现
@@ -58,4 +59,12 @@ func (r *GormSettingRepository) Upsert(key string, value models.JSON) (*models.S
 		return nil, err
 	}
 	return setting, nil
+}
+
+// DeleteByKey 删除指定设置。
+func (r *GormSettingRepository) DeleteByKey(key string) error {
+	if r == nil || r.db == nil || key == "" {
+		return nil
+	}
+	return r.db.Delete(&models.Setting{}, "key = ?", key).Error
 }

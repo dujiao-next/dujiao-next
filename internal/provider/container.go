@@ -17,89 +17,95 @@ type Container struct {
 	QueueClient *queue.Client
 
 	// Repositories
-	AdminRepo              repository.AdminRepository
-	UserRepo               repository.UserRepository
-	UserOAuthIdentityRepo  repository.UserOAuthIdentityRepository
-	EmailVerifyCodeRepo    repository.EmailVerifyCodeRepository
-	OrderRepo              repository.OrderRepository
-	PaymentRepo            repository.PaymentRepository
-	PaymentChannelRepo     repository.PaymentChannelRepository
-	CardSecretRepo         repository.CardSecretRepository
-	CardSecretBatchRepo    repository.CardSecretBatchRepository
-	GiftCardRepo           repository.GiftCardRepository
-	FulfillmentRepo        repository.FulfillmentRepository
-	ProductRepo            repository.ProductRepository
-	ProductSKURepo         repository.ProductSKURepository
-	CartRepo               repository.CartRepository
-	CouponRepo             repository.CouponRepository
-	CouponUsageRepo        repository.CouponUsageRepository
-	PromotionRepo          repository.PromotionRepository
-	WalletRepo             repository.WalletRepository
-	OrderRefundRecordRepo  repository.OrderRefundRecordRepository
-	PostRepo               repository.PostRepository
-	CategoryRepo           repository.CategoryRepository
-	BannerRepo             repository.BannerRepository
-	SettingRepo            repository.SettingRepository
-	UserLoginLogRepo       repository.UserLoginLogRepository
-	AuthzAuditLogRepo      repository.AuthzAuditLogRepository
-	NotificationLogRepo    repository.NotificationLogRepository
-	DashboardRepo          repository.DashboardRepository
-	AffiliateRepo          repository.AffiliateRepository
-	ApiCredentialRepo      repository.ApiCredentialRepository
-	SiteConnectionRepo     repository.SiteConnectionRepository
-	ProductMappingRepo     repository.ProductMappingRepository
-	SKUMappingRepo         repository.SKUMappingRepository
-	ProcurementOrderRepo   repository.ProcurementOrderRepository
-	DownstreamOrderRefRepo repository.DownstreamOrderRefRepository
-	ReconciliationJobRepo  repository.ReconciliationJobRepository
-	ReconciliationItemRepo repository.ReconciliationItemRepository
-	ChannelClientRepo      repository.ChannelClientRepository
-	TelegramBroadcastRepo  repository.TelegramBroadcastRepository
-	MemberLevelRepo        repository.MemberLevelRepository
-	MemberLevelPriceRepo   repository.MemberLevelPriceRepository
-	MediaRepo              repository.MediaRepository
+	AdminRepo                 repository.AdminRepository
+	UserRepo                  repository.UserRepository
+	UserOAuthIdentityRepo     repository.UserOAuthIdentityRepository
+	EmailVerifyCodeRepo       repository.EmailVerifyCodeRepository
+	OrderRepo                 repository.OrderRepository
+	PaymentRepo               repository.PaymentRepository
+	PaymentChannelRepo        repository.PaymentChannelRepository
+	CardSecretRepo            repository.CardSecretRepository
+	CardSecretBatchRepo       repository.CardSecretBatchRepository
+	GiftCardRepo              repository.GiftCardRepository
+	FulfillmentRepo           repository.FulfillmentRepository
+	ProductRepo               repository.ProductRepository
+	ProductSKURepo            repository.ProductSKURepository
+	CartRepo                  repository.CartRepository
+	CouponRepo                repository.CouponRepository
+	CouponUsageRepo           repository.CouponUsageRepository
+	PromotionRepo             repository.PromotionRepository
+	WalletRepo                repository.WalletRepository
+	OrderRefundRecordRepo     repository.OrderRefundRecordRepository
+	PostRepo                  repository.PostRepository
+	CategoryRepo              repository.CategoryRepository
+	BannerRepo                repository.BannerRepository
+	SettingRepo               repository.SettingRepository
+	UserLoginLogRepo          repository.UserLoginLogRepository
+	AuthzAuditLogRepo         repository.AuthzAuditLogRepository
+	NotificationLogRepo       repository.NotificationLogRepository
+	DashboardRepo             repository.DashboardRepository
+	AffiliateRepo             repository.AffiliateRepository
+	ApiCredentialRepo         repository.ApiCredentialRepository
+	SiteConnectionRepo        repository.SiteConnectionRepository
+	ProductMappingRepo        repository.ProductMappingRepository
+	SKUMappingRepo            repository.SKUMappingRepository
+	ProcurementOrderRepo      repository.ProcurementOrderRepository
+	DownstreamOrderRefRepo    repository.DownstreamOrderRefRepository
+	ReconciliationJobRepo     repository.ReconciliationJobRepository
+	ReconciliationItemRepo    repository.ReconciliationItemRepository
+	ChannelClientRepo         repository.ChannelClientRepository
+	TelegramBroadcastRepo     repository.TelegramBroadcastRepository
+	MemberLevelRepo           repository.MemberLevelRepository
+	MemberLevelPriceRepo      repository.MemberLevelPriceRepository
+	MediaRepo                 repository.MediaRepository
+	PluginRepo                repository.PluginRepository
+	PluginMarketPlatformRepo  repository.PluginMarketPlatformRepository
+	PluginLicensePlatformRepo repository.PluginLicensePlatformRepository
 
 	// Services
-	AuthzService              *authz.Service
-	AuthService               *service.AuthService
-	UserAuthService           *service.UserAuthService
-	TelegramAuthService       *service.TelegramAuthService
-	EmailService              *service.EmailService
-	CaptchaService            *service.CaptchaService
-	UploadService             *service.UploadService
-	ProductService            *service.ProductService
-	PostService               *service.PostService
-	CategoryService           *service.CategoryService
-	SettingService            *service.SettingService
-	CartService               *service.CartService
-	WalletService             *service.WalletService
-	OrderRefundService        *service.OrderRefundService
-	OrderService              *service.OrderService
-	FulfillmentService        *service.FulfillmentService
-	CouponAdminService        *service.CouponAdminService
-	PromotionAdminService     *service.PromotionAdminService
-	BannerService             *service.BannerService
-	PaymentService            *service.PaymentService
-	CardSecretService         *service.CardSecretService
-	GiftCardService           *service.GiftCardService
-	UserLoginLogService       *service.UserLoginLogService
-	AuthzAuditService         *service.AuthzAuditService
-	NotificationLogService    *service.NotificationLogService
-	DashboardService          *service.DashboardService
-	NotificationService       *service.NotificationService
-	AffiliateService          *service.AffiliateService
-	ApiCredentialService      *service.ApiCredentialService
-	SiteConnectionService     *service.SiteConnectionService
-	ProductMappingService     *service.ProductMappingService
-	ProcurementOrderService   *service.ProcurementOrderService
-	DownstreamCallbackService *service.DownstreamCallbackService
-	ReconciliationService     *service.ReconciliationService
-	ChannelClientService      *service.ChannelClientService
-	TelegramBroadcastService  *service.TelegramBroadcastService
-	MemberLevelService        *service.MemberLevelService
-	AdProxyService            *service.AdProxyService
-	MediaService              *service.MediaService
-	OrderRiskControlService   *service.OrderRiskControlService
+	AuthzService               *authz.Service
+	AuthService                *service.AuthService
+	UserAuthService            *service.UserAuthService
+	TelegramAuthService        *service.TelegramAuthService
+	EmailService               *service.EmailService
+	CaptchaService             *service.CaptchaService
+	UploadService              *service.UploadService
+	ProductService             *service.ProductService
+	PostService                *service.PostService
+	CategoryService            *service.CategoryService
+	SettingService             *service.SettingService
+	CartService                *service.CartService
+	WalletService              *service.WalletService
+	OrderRefundService         *service.OrderRefundService
+	OrderService               *service.OrderService
+	FulfillmentService         *service.FulfillmentService
+	CouponAdminService         *service.CouponAdminService
+	PromotionAdminService      *service.PromotionAdminService
+	BannerService              *service.BannerService
+	PaymentService             *service.PaymentService
+	CardSecretService          *service.CardSecretService
+	GiftCardService            *service.GiftCardService
+	UserLoginLogService        *service.UserLoginLogService
+	AuthzAuditService          *service.AuthzAuditService
+	NotificationLogService     *service.NotificationLogService
+	DashboardService           *service.DashboardService
+	NotificationService        *service.NotificationService
+	AffiliateService           *service.AffiliateService
+	ApiCredentialService       *service.ApiCredentialService
+	SiteConnectionService      *service.SiteConnectionService
+	ProductMappingService      *service.ProductMappingService
+	ProcurementOrderService    *service.ProcurementOrderService
+	DownstreamCallbackService  *service.DownstreamCallbackService
+	ReconciliationService      *service.ReconciliationService
+	ChannelClientService       *service.ChannelClientService
+	TelegramBroadcastService   *service.TelegramBroadcastService
+	MemberLevelService         *service.MemberLevelService
+	AdProxyService             *service.AdProxyService
+	MediaService               *service.MediaService
+	OrderRiskControlService    *service.OrderRiskControlService
+	PluginCenterService        *service.PluginCenterService
+	OnlinePluginCenterService  *service.OnlinePluginCenterService
+	OnlinePluginLicenseService *service.OnlinePluginLicenseService
 }
 
 // NewContainer 初始化容器
@@ -177,6 +183,9 @@ func (c *Container) initRepositories() {
 	c.MemberLevelRepo = repository.NewMemberLevelRepository(db)
 	c.MemberLevelPriceRepo = repository.NewMemberLevelPriceRepository(db)
 	c.MediaRepo = repository.NewMediaRepository(db)
+	c.PluginRepo = repository.NewPluginRepository(db)
+	c.PluginMarketPlatformRepo = repository.NewPluginMarketPlatformRepository(db)
+	c.PluginLicensePlatformRepo = repository.NewPluginLicensePlatformRepository(db)
 }
 
 func (c *Container) initServices() {
@@ -228,6 +237,8 @@ func (c *Container) initServices() {
 	c.OrderRefundService = service.NewOrderRefundService(c.OrderRepo, c.UserRepo, c.OrderRefundRecordRepo, c.AffiliateService)
 	c.MemberLevelService = service.NewMemberLevelService(c.MemberLevelRepo, c.MemberLevelPriceRepo, c.UserRepo)
 	c.OrderRiskControlService = service.NewOrderRiskControlService(c.SettingService, c.OrderRepo)
+	c.OnlinePluginCenterService = service.NewOnlinePluginCenterService(c.PluginMarketPlatformRepo)
+	c.OnlinePluginLicenseService = service.NewOnlinePluginLicenseService(c.PluginLicensePlatformRepo)
 	c.OrderService = service.NewOrderService(service.OrderServiceOptions{
 		OrderRepo:             c.OrderRepo,
 		OrderRefundRecordRepo: c.OrderRefundRecordRepo,
@@ -311,4 +322,18 @@ func (c *Container) initServices() {
 	c.MediaService = service.NewMediaService(c.MediaRepo)
 	c.ProductMappingService.SetMediaService(c.MediaService)
 	c.AdProxyService = service.NewAdProxyService()
+	c.PluginCenterService = service.NewPluginCenterService(c.PluginRepo, c.SettingService)
+	if c.OnlinePluginCenterService != nil {
+		c.PluginCenterService.SetBuiltinFeedProvider("official", func() (*service.MarketFeed, error) {
+			return c.OnlinePluginCenterService.BuildPublicFeed("official")
+		})
+		c.PluginCenterService.SetBuiltinFeedProvider("public", func() (*service.MarketFeed, error) {
+			return c.OnlinePluginCenterService.BuildPublicFeed("public")
+		})
+	}
+	c.PluginCenterService.SetHostExtension("main_gorm_db", models.DB)
+	c.PluginCenterService.SetHostExtension("main_db_driver", models.DB.Dialector.Name())
+	if err := c.PluginCenterService.ReloadRuntime(); err != nil {
+		logger.Warnw("provider_reload_plugin_runtime_failed", "error", err)
+	}
 }

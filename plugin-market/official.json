@@ -1,0 +1,33 @@
+{
+  "items": [
+    {
+      "plugin_id": "demo-feature",
+      "name": "演示功能插件",
+      "author": "VIPMAX",
+      "type": "feature",
+      "version": "1.0.0",
+      "summary": "官方示例插件，用于验证插件中心安装链路。",
+      "description": "提供最小公共接口、后台接口、事件订阅与配置演示。",
+      "host_api_version": "v1",
+      "go_version": "1.25.0",
+      "build_target": "linux/amd64",
+      "permissions": [
+        "plugin.config",
+        "plugin.db",
+        "plugin.route.public",
+        "plugin.route.admin",
+        "plugin.event.order"
+      ],
+      "download_url": "builtin://packages/demo-feature-1.0.0.zip",
+      "checksum": "",
+      "review_status": "approved",
+      "changelog": "1.0.0：首次发布官方演示插件。",
+      "config_schema": {
+        "greeting": "string"
+      },
+      "meta": {
+        "channel": "official"
+      }
+    }
+  ]
+}
