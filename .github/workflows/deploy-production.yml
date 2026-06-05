@@ -1,0 +1,166 @@
+name: Deploy Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      user_ref:
+        description: 'Frontend user repo ref to build'
+        required: true
+        default: 'viva-custom'
+      admin_ref:
+        description: 'Admin repo ref to build'
+        required: true
+        default: 'main'
+      deploy_note:
+        description: 'Optional deployment note'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout API/fullstack repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout admin frontend
+        uses: actions/checkout@v4
+        with:
+          repository: dujiao-next/admin
+          ref: ${{ inputs.admin_ref }}
+          path: admin-src
+
+      - name: Checkout Viva user frontend
+        uses: actions/checkout@v4
+        with:
+          repository: LTXWorld/viva-faka-user
+          ref: ${{ inputs.user_ref }}
+          path: user-src
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.11.1'
+
+      - name: Build admin frontend
+        working-directory: admin-src
+        run: |
+          npm ci
+          npm run build:fullstack
+
+      - name: Build Viva user frontend
+        working-directory: user-src
+        run: |
+          npm ci
+          npm run build
+
+      - name: Embed frontend assets
+        run: |
+          rm -rf internal/web/dist
+          mkdir -p internal/web/dist
+          cp -r admin-src/dist internal/web/dist/admin
+          cp -r user-src/dist  internal/web/dist/user
+          test -f internal/web/dist/admin/index.html
+          test -f internal/web/dist/user/index.html
+          ls -la internal/web/dist/admin internal/web/dist/user | head -20
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.3'
+          cache: true
+
+      - name: Build fullstack Linux binary
+        run: |
+          go mod download
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+            -trimpath \
+            -tags=release,fullstack \
+            -ldflags="-s -w -X github.com/dujiao-next/internal/version.Version=viva-${{ github.sha }}" \
+            -o dujiao-server ./cmd/server
+          chmod +x dujiao-server
+          ./dujiao-server --help >/dev/null 2>&1 || true
+          ls -lh dujiao-server
+
+      - name: Prepare SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VMISS_SSH_KEY }}" > ~/.ssh/vmiss_deploy_key
+          chmod 600 ~/.ssh/vmiss_deploy_key
+          ssh-keyscan -p "${{ secrets.VMISS_PORT || '22' }}" "${{ secrets.VMISS_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Upload release binary
+        id: upload
+        run: |
+          TS=$(date +%Y%m%d-%H%M%S)
+          echo "ts=$TS" >> "$GITHUB_OUTPUT"
+          REMOTE="${{ secrets.VMISS_USER }}@${{ secrets.VMISS_HOST }}"
+          PORT="${{ secrets.VMISS_PORT || '22' }}"
+          DEPLOY_PATH="${{ secrets.DEPLOY_PATH || '/srv/faka' }}"
+          ssh -i ~/.ssh/vmiss_deploy_key -p "$PORT" "$REMOTE" "mkdir -p '$DEPLOY_PATH/releases' '$DEPLOY_PATH/backup'"
+          scp -i ~/.ssh/vmiss_deploy_key -P "$PORT" dujiao-server "$REMOTE:$DEPLOY_PATH/releases/dujiao-server-$TS"
+
+      - name: Deploy on server with backup and rollback
+        run: |
+          REMOTE="${{ secrets.VMISS_USER }}@${{ secrets.VMISS_HOST }}"
+          PORT="${{ secrets.VMISS_PORT || '22' }}"
+          DEPLOY_PATH="${{ secrets.DEPLOY_PATH || '/srv/faka' }}"
+          TS="${{ steps.upload.outputs.ts }}"
+          ssh -i ~/.ssh/vmiss_deploy_key -p "$PORT" "$REMOTE" "DEPLOY_PATH='$DEPLOY_PATH' TS='$TS' bash -s" <<'EOF'
+          set -euo pipefail
+
+          RELEASE="$DEPLOY_PATH/releases/dujiao-server-$TS"
+          CURRENT="$DEPLOY_PATH/app/dujiao-server"
+          BACKUP="$DEPLOY_PATH/backup/dujiao-server-before-gha-$TS"
+
+          test -x "$RELEASE" || chmod +x "$RELEASE"
+          test -f "$CURRENT"
+
+          echo "[deploy] backup database/uploads/logs"
+          /usr/local/bin/faka-backup.sh || true
+
+          echo "[deploy] backup current binary: $BACKUP"
+          cp -a "$CURRENT" "$BACKUP"
+
+          rollback() {
+            echo "[deploy] rollback to $BACKUP"
+            systemctl stop dujiao-next || true
+            cp -a "$BACKUP" "$CURRENT"
+            chmod +x "$CURRENT"
+            systemctl start dujiao-next
+          }
+          trap 'rollback' ERR
+
+          echo "[deploy] install new binary"
+          systemctl stop dujiao-next
+          cp -a "$RELEASE" "$CURRENT"
+          chmod +x "$CURRENT"
+          systemctl start dujiao-next
+
+          echo "[deploy] health check"
+          sleep 5
+          systemctl is-active --quiet dujiao-next
+          curl -fsS --max-time 20 https://faka.bfsmlt.com/ >/dev/null
+
+          trap - ERR
+          echo "[deploy] success: $TS"
+          EOF
+
+      - name: Deployment summary
+        run: |
+          echo "### Viva production deploy complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "- User frontend ref: ${{ inputs.user_ref }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Admin frontend ref: ${{ inputs.admin_ref }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Release timestamp: ${{ steps.upload.outputs.ts }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Note: ${{ inputs.deploy_note }}" >> "$GITHUB_STEP_SUMMARY"
