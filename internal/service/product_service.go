@@ -132,6 +132,8 @@ type CreateProductInput struct {
 }
 
 type WholesalePriceInput struct {
+	SKUID       uint
+	SKUCode     string
 	MinQuantity int
 	UnitPrice   decimal.Decimal
 }

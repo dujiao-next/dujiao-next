@@ -122,6 +122,8 @@ type ProductSKURequest struct {
 }
 
 type WholesalePriceRequest struct {
+	SKUID       uint    `json:"sku_id"`
+	SKUCode     string  `json:"sku_code"`
 	MinQuantity int     `json:"min_quantity"`
 	UnitPrice   float64 `json:"unit_price"`
 }
@@ -163,6 +165,8 @@ func toWholesalePriceInputs(items *[]WholesalePriceRequest) *[]service.Wholesale
 	result := make([]service.WholesalePriceInput, 0, len(*items))
 	for _, item := range *items {
 		result = append(result, service.WholesalePriceInput{
+			SKUID:       item.SKUID,
+			SKUCode:     strings.TrimSpace(item.SKUCode),
 			MinQuantity: item.MinQuantity,
 			UnitPrice:   decimal.NewFromFloat(item.UnitPrice),
 		})

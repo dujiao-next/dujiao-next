@@ -120,7 +120,7 @@ func (s *OrderService) buildOrderResult(input orderCreateParams) (*orderBuildRes
 		if wholesaleMatchQuantity <= 0 {
 			wholesaleMatchQuantity = item.Quantity
 		}
-		wholesaleUnitPrice, wholesaleDiscount, wholesaleMatched := ResolveWholesaleUnitPriceWithMatchQuantity(product, basePrice, wholesaleMatchQuantity, item.Quantity)
+		wholesaleUnitPrice, wholesaleDiscount, wholesaleMatched := ResolveWholesaleUnitPriceForSKU(product, basePrice, sku.ID, sku.SKUCode, wholesaleMatchQuantity, item.Quantity)
 		if wholesaleMatched && wholesaleUnitPrice.LessThan(unitPriceAmount) {
 			unitPriceAmount = wholesaleUnitPrice
 			promotion = nil

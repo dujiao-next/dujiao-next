@@ -74,6 +74,29 @@ func TestNormalizeWholesalePriceInputsRejectsInvalidTiers(t *testing.T) {
 	}
 }
 
+func TestNormalizeWholesalePriceInputsAllowsSameQuantityForDifferentSKUs(t *testing.T) {
+	tiers, err := normalizeWholesalePriceInputs([]WholesalePriceInput{
+		{SKUID: 2, SKUCode: "SKU-B", MinQuantity: 5, UnitPrice: decimal.NewFromInt(70)},
+		{SKUID: 1, SKUCode: "SKU-A", MinQuantity: 5, UnitPrice: decimal.NewFromInt(80)},
+		{MinQuantity: 5, UnitPrice: decimal.NewFromInt(90)},
+	})
+	if err != nil {
+		t.Fatalf("normalizeWholesalePriceInputs returned error: %v", err)
+	}
+	if len(tiers) != 3 {
+		t.Fatalf("expected 3 tiers, got %d", len(tiers))
+	}
+	if tiers[0].SKUID != 0 || tiers[0].MinQuantity != 5 {
+		t.Fatalf("expected universal tier first, got %+v", tiers[0])
+	}
+	if tiers[1].SKUID != 1 || tiers[1].SKUCode != "SKU-A" {
+		t.Fatalf("expected SKU-A tier second, got %+v", tiers[1])
+	}
+	if tiers[2].SKUID != 2 || tiers[2].SKUCode != "SKU-B" {
+		t.Fatalf("expected SKU-B tier third, got %+v", tiers[2])
+	}
+}
+
 func TestResolveWholesaleUnitPriceMatchesBestTier(t *testing.T) {
 	product := &models.Product{
 		WholesalePrices: models.WholesalePriceTiers{
@@ -107,6 +130,62 @@ func TestResolveWholesaleUnitPriceDoesNotMatchBelowQuantity(t *testing.T) {
 	}
 	if !unitPrice.Equal(decimal.NewFromInt(100)) || !discount.IsZero() {
 		t.Fatalf("unexpected price result: unit=%s discount=%s", unitPrice.String(), discount.String())
+	}
+}
+
+func TestResolveWholesaleUnitPriceForSKUPrefersSpecificTier(t *testing.T) {
+	product := &models.Product{
+		WholesalePrices: models.WholesalePriceTiers{
+			{MinQuantity: 5, UnitPrice: models.NewMoneyFromDecimal(decimal.NewFromInt(80))},
+			{SKUID: 11, SKUCode: "SKU-A", MinQuantity: 5, UnitPrice: models.NewMoneyFromDecimal(decimal.NewFromInt(70))},
+		},
+	}
+
+	unitPrice, discount, matched := ResolveWholesaleUnitPriceForSKU(product, decimal.NewFromInt(100), 11, "SKU-A", 12, 6)
+	if !matched {
+		t.Fatalf("expected SKU specific wholesale tier to match")
+	}
+	if !unitPrice.Equal(decimal.NewFromInt(70)) {
+		t.Fatalf("expected unit price 70, got %s", unitPrice.String())
+	}
+	if !discount.Equal(decimal.NewFromInt(180)) {
+		t.Fatalf("expected discount 180, got %s", discount.String())
+	}
+}
+
+func TestResolveWholesaleUnitPriceForSKUDoesNotFallbackWhenSpecificTierExists(t *testing.T) {
+	product := &models.Product{
+		WholesalePrices: models.WholesalePriceTiers{
+			{MinQuantity: 10, UnitPrice: models.NewMoneyFromDecimal(decimal.NewFromInt(80))},
+			{SKUID: 11, SKUCode: "SKU-A", MinQuantity: 10, UnitPrice: models.NewMoneyFromDecimal(decimal.NewFromInt(70))},
+		},
+	}
+
+	unitPrice, discount, matched := ResolveWholesaleUnitPriceForSKU(product, decimal.NewFromInt(100), 11, "SKU-A", 12, 6)
+	if matched {
+		t.Fatalf("expected no match because SKU specific threshold uses current SKU quantity")
+	}
+	if !unitPrice.Equal(decimal.NewFromInt(100)) || !discount.IsZero() {
+		t.Fatalf("unexpected price result: unit=%s discount=%s", unitPrice.String(), discount.String())
+	}
+}
+
+func TestResolveWholesaleUnitPriceForSKUUsesProductQuantityForUniversalTier(t *testing.T) {
+	product := &models.Product{
+		WholesalePrices: models.WholesalePriceTiers{
+			{MinQuantity: 10, UnitPrice: models.NewMoneyFromDecimal(decimal.NewFromInt(80))},
+		},
+	}
+
+	unitPrice, discount, matched := ResolveWholesaleUnitPriceForSKU(product, decimal.NewFromInt(100), 12, "SKU-B", 12, 6)
+	if !matched {
+		t.Fatalf("expected universal wholesale tier to match by product quantity")
+	}
+	if !unitPrice.Equal(decimal.NewFromInt(80)) {
+		t.Fatalf("expected unit price 80, got %s", unitPrice.String())
+	}
+	if !discount.Equal(decimal.NewFromInt(120)) {
+		t.Fatalf("expected discount 120, got %s", discount.String())
 	}
 }
 

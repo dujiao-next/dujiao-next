@@ -55,6 +55,8 @@ type ProductResp struct {
 
 // WholesalePriceResp 商品批发价响应，unit_price 固定输出为两位小数字符串。
 type WholesalePriceResp struct {
+	SKUID       uint   `json:"sku_id,omitempty"`
+	SKUCode     string `json:"sku_code,omitempty"`
 	MinQuantity int    `json:"min_quantity"`
 	UnitPrice   string `json:"unit_price"`
 }
@@ -70,6 +72,8 @@ func NewWholesalePriceRespList(tiers models.WholesalePriceTiers) []WholesalePric
 			continue
 		}
 		result = append(result, WholesalePriceResp{
+			SKUID:       tier.SKUID,
+			SKUCode:     tier.SKUCode,
 			MinQuantity: tier.MinQuantity,
 			UnitPrice:   tier.UnitPrice.String(),
 		})
