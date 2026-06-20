@@ -60,6 +60,18 @@ func (s *PostService) GetPublicBySlug(slug string) (*models.Post, error) {
 	return post, nil
 }
 
+// GetPublicByID 根据 ID 获取公开文章详情
+func (s *PostService) GetPublicByID(id string) (*models.Post, error) {
+	post, err := s.repo.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if post == nil || !post.IsPublished {
+		return nil, ErrNotFound
+	}
+	return post, nil
+}
+
 // ListAdmin 获取后台文章列表
 func (s *PostService) ListAdmin(postType, search string, page, pageSize int) ([]models.Post, int64, error) {
 	filter := repository.PostListFilter{

@@ -232,6 +232,21 @@ func (s *ProductService) GetPublicBySlug(slug string) (*models.Product, error) {
 	return product, nil
 }
 
+// GetPublicByID 根据 ID 获取公开商品详情
+func (s *ProductService) GetPublicByID(id string) (*models.Product, error) {
+	product, err := s.repo.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if product == nil {
+		return nil, ErrNotFound
+	}
+	if !product.IsActive {
+		return nil, ErrNotFound
+	}
+	return product, nil
+}
+
 // GetPublicBySlugForTenant 获取当前租户上下文的公开商品详情。
 func (s *ProductService) GetPublicBySlugForTenant(tenant TenantContext, resellerRepo repository.ResellerRepository, slug string) (*models.Product, error) {
 	product, err := s.GetPublicBySlug(slug)
@@ -250,6 +265,30 @@ func (s *ProductService) GetPublicBySlugForTenant(tenant TenantContext, reseller
 	}
 	for _, id := range hiddenIDs {
 		if id == product.ID {
+			return nil, ErrNotFound
+		}
+	}
+	return product, nil
+}
+
+// GetPublicByIDForTenant 获取当前租户上下文的公开商品详情(按ID)。
+func (s *ProductService) GetPublicByIDForTenant(tenant TenantContext, resellerRepo repository.ResellerRepository, id string) (*models.Product, error) {
+	product, err := s.GetPublicByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if !isResellerOrderContext(tenant) {
+		return product, nil
+	}
+	if tenant.ResellerID == nil || resellerRepo == nil {
+		return nil, ErrNotFound
+	}
+	hiddenIDs, err := resellerRepo.ListHiddenProductIDs(*tenant.ResellerID)
+	if err != nil {
+		return nil, err
+	}
+	for _, hiddenID := range hiddenIDs {
+		if hiddenID == product.ID {
 			return nil, ErrNotFound
 		}
 	}

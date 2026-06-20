@@ -535,6 +535,87 @@ func (h *Handler) GetProductBySlug(c *gin.Context) {
 	response.Success(c, decorated)
 }
 
+// GetProductByID 根据 ID 获取公开商品详情
+func (h *Handler) GetProductByID(c *gin.Context) {
+	id := c.Param("id")
+	tenant := tenantFromRequest(c)
+
+	product, err := h.ProductService.GetPublicByIDForTenant(tenant, h.ResellerRepo, id)
+	if err != nil {
+		if errors.Is(err, service.ErrNotFound) {
+			shared.RespondError(c, response.CodeNotFound, "error.product_not_found", nil)
+			return
+		}
+		shared.RespondError(c, response.CodeInternal, "error.product_fetch_failed", err)
+		return
+	}
+
+	var promotionService *service.PromotionService
+	if h.PromotionRepo != nil {
+		promotionService = service.NewPromotionService(h.PromotionRepo)
+	}
+
+	temp := []models.Product{*product}
+	if err := h.ProductService.ApplyAutoStockCounts(temp); err != nil {
+		shared.RespondError(c, response.CodeInternal, "error.product_fetch_failed", err)
+		return
+	}
+	*product = temp[0]
+
+	var resellerBatch *service.ResellerDisplayPricingBatch
+	if isResellerTenant(tenant) {
+		if h.ResellerPricingResolver == nil {
+			shared.RespondError(c, response.CodeNotFound, "error.product_not_found", nil)
+			return
+		}
+		resellerBatch, err = h.ResellerPricingResolver.LoadDisplayPricingBatch(tenant, []models.Product{*product})
+		if err != nil {
+			shared.RespondError(c, response.CodeInternal, "error.product_fetch_failed", err)
+			return
+		}
+	}
+
+	decorated, derr := h.decoratePublicProductForTenant(product, promotionService, tenant, resellerBatch)
+	if derr != nil {
+		if errors.Is(derr, service.ErrResellerProductNotListed) {
+			shared.RespondError(c, response.CodeNotFound, "error.product_not_found", nil)
+			return
+		}
+		shared.RespondError(c, response.CodeInternal, "error.product_fetch_failed", derr)
+		return
+	}
+
+	if posts, perr := h.PostService.ListPostsForProduct(product.ID, publicRelatedPostsLimit); perr == nil {
+		decorated.RelatedPosts = dto.NewRelatedPostCardList(posts)
+	}
+
+	response.Success(c, decorated)
+}
+
+// GetPostByID 根据 ID 获取公开文章详情
+func (h *Handler) GetPostByID(c *gin.Context) {
+	id := c.Param("id")
+
+	post, err := h.PostService.GetPublicByID(id)
+	if err != nil {
+		if errors.Is(err, service.ErrNotFound) {
+			shared.RespondError(c, response.CodeNotFound, "error.post_not_found", nil)
+			return
+		}
+		shared.RespondError(c, response.CodeInternal, "error.post_fetch_failed", err)
+		return
+	}
+
+	resp := dto.NewPostResp(post)
+	if post.Type == constants.PostTypeBlog {
+		products, perr := h.PostService.ListRelatedProducts(post.ID)
+		if perr == nil {
+			resp.RelatedProducts = dto.NewRelatedProductCardList(products)
+		}
+	}
+	response.Success(c, resp)
+}
+
 const publicRelatedPostsLimit = 6
 
 func tenantFromRequest(c *gin.Context) service.TenantContext {
