@@ -417,7 +417,7 @@ func TestSyncConnectionStockMarksDeletedWhenFullSyncMissing(t *testing.T) {
 	)
 	defer cleanup()
 
-	if err := svc.syncConnectionStock(mapping.ConnectionID, []models.ProductMapping{*mapping}); err != nil {
+	if err := svc.syncConnectionStock(mapping.ConnectionID, []models.ProductMapping{*mapping}, 50, 200); err != nil {
 		t.Fatalf("syncConnectionStock returned error: %v", err)
 	}
 
@@ -450,7 +450,7 @@ func TestSyncConnectionStockKeepsLegacyUpstreamMissing(t *testing.T) {
 	)
 	defer cleanup()
 
-	if err := svc.syncConnectionStock(mapping.ConnectionID, []models.ProductMapping{*mapping}); err != nil {
+	if err := svc.syncConnectionStock(mapping.ConnectionID, []models.ProductMapping{*mapping}, 50, 200); err != nil {
 		t.Fatalf("syncConnectionStock returned error: %v", err)
 	}
 
@@ -512,7 +512,7 @@ func TestSyncConnectionStockKeepsMappingWhenFullSyncIncomplete(t *testing.T) {
 	)
 	defer cleanup()
 
-	if err := svc.syncConnectionStock(mapping.ConnectionID, []models.ProductMapping{*mapping}); err != nil {
+	if err := svc.syncConnectionStock(mapping.ConnectionID, []models.ProductMapping{*mapping}, 50, 200); err != nil {
 		t.Fatalf("syncConnectionStock returned error: %v", err)
 	}
 

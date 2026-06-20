@@ -416,7 +416,8 @@ func (c *Consumer) handleUpstreamSyncStock(_ context.Context, _ *asynq.Task) err
 		logger.Debugw("worker_upstream_sync_stock_skip_nil", "consumer_nil", c == nil)
 		return nil
 	}
-	if err := c.ProductMappingService.SyncAllStock(); err != nil {
+	cfg, _ := c.SettingService.GetUpstreamSyncConfig("5m")
+	if err := c.ProductMappingService.SyncAllStock(cfg); err != nil {
 		logger.Warnw("worker_upstream_sync_stock_failed", "error", err)
 		return err
 	}

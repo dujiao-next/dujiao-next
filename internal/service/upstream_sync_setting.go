@@ -12,12 +12,25 @@ const (
 	upstreamSyncIntervalMinDefault = 5
 	upstreamSyncIntervalMinMin     = 5
 	upstreamSyncIntervalMinMax     = 1440 // 24h 上限，避免误填超长间隔
+
+	upstreamSyncPageSizeDefault    = 50
+	upstreamSyncPageSizeMin        = 10
+	upstreamSyncPageSizeMax        = 200
+	upstreamSyncMaxPagesDefault    = 200
+	upstreamSyncMaxPagesMin        = 10
+	upstreamSyncMaxPagesMax        = 500
+	upstreamSyncConnConcurrencyDef = 3
+	upstreamSyncConnConcurrencyMin = 1
+	upstreamSyncConnConcurrencyMax = 10
 )
 
 // UpstreamSyncConfig 上游同步配置。
 type UpstreamSyncConfig struct {
 	IntervalMinutes           int  `json:"interval_minutes"`
 	PreOrderStockCheckEnabled bool `json:"pre_order_stock_check_enabled"`
+	SyncPageSize              int  `json:"sync_page_size"`
+	SyncMaxPages              int  `json:"sync_max_pages"`
+	SyncConnConcurrency       int  `json:"sync_conn_concurrency"`
 }
 
 // DefaultUpstreamSyncConfig 默认上游同步配置。
@@ -25,6 +38,9 @@ func DefaultUpstreamSyncConfig() UpstreamSyncConfig {
 	return UpstreamSyncConfig{
 		IntervalMinutes:           upstreamSyncIntervalMinDefault,
 		PreOrderStockCheckEnabled: true,
+		SyncPageSize:              upstreamSyncPageSizeDefault,
+		SyncMaxPages:              upstreamSyncMaxPagesDefault,
+		SyncConnConcurrency:       upstreamSyncConnConcurrencyDef,
 	}
 }
 
@@ -35,6 +51,24 @@ func NormalizeUpstreamSyncConfig(cfg UpstreamSyncConfig) UpstreamSyncConfig {
 	}
 	if cfg.IntervalMinutes > upstreamSyncIntervalMinMax {
 		cfg.IntervalMinutes = upstreamSyncIntervalMinMax
+	}
+	if cfg.SyncPageSize < upstreamSyncPageSizeMin {
+		cfg.SyncPageSize = upstreamSyncPageSizeDefault
+	}
+	if cfg.SyncPageSize > upstreamSyncPageSizeMax {
+		cfg.SyncPageSize = upstreamSyncPageSizeMax
+	}
+	if cfg.SyncMaxPages < upstreamSyncMaxPagesMin {
+		cfg.SyncMaxPages = upstreamSyncMaxPagesDefault
+	}
+	if cfg.SyncMaxPages > upstreamSyncMaxPagesMax {
+		cfg.SyncMaxPages = upstreamSyncMaxPagesMax
+	}
+	if cfg.SyncConnConcurrency < upstreamSyncConnConcurrencyMin {
+		cfg.SyncConnConcurrency = upstreamSyncConnConcurrencyDef
+	}
+	if cfg.SyncConnConcurrency > upstreamSyncConnConcurrencyMax {
+		cfg.SyncConnConcurrency = upstreamSyncConnConcurrencyMax
 	}
 	return cfg
 }
@@ -51,6 +85,15 @@ func upstreamSyncConfigFromJSON(raw models.JSON, fallback UpstreamSyncConfig) Up
 	if v, ok := raw[constants.SettingFieldUpstreamPreOrderCheck]; ok {
 		result.PreOrderStockCheckEnabled = parseSettingBool(v)
 	}
+	if v, err := parseSettingInt(raw[constants.SettingFieldUpstreamSyncPageSize]); err == nil {
+		result.SyncPageSize = v
+	}
+	if v, err := parseSettingInt(raw[constants.SettingFieldUpstreamSyncMaxPages]); err == nil {
+		result.SyncMaxPages = v
+	}
+	if v, err := parseSettingInt(raw[constants.SettingFieldUpstreamSyncConcurrency]); err == nil {
+		result.SyncConnConcurrency = v
+	}
 	return NormalizeUpstreamSyncConfig(result)
 }
 
@@ -60,6 +103,9 @@ func UpstreamSyncConfigToMap(cfg UpstreamSyncConfig) models.JSON {
 	return models.JSON{
 		constants.SettingFieldUpstreamSyncIntervalMin: normalized.IntervalMinutes,
 		constants.SettingFieldUpstreamPreOrderCheck:   normalized.PreOrderStockCheckEnabled,
+		constants.SettingFieldUpstreamSyncPageSize:    normalized.SyncPageSize,
+		constants.SettingFieldUpstreamSyncMaxPages:    normalized.SyncMaxPages,
+		constants.SettingFieldUpstreamSyncConcurrency: normalized.SyncConnConcurrency,
 	}
 }
 

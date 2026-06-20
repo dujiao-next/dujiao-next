@@ -454,6 +454,9 @@ const (
 	SettingKeyUpstreamSyncConfig        = "upstream_sync_config"
 	SettingFieldUpstreamSyncIntervalMin = "interval_minutes"
 	SettingFieldUpstreamPreOrderCheck   = "pre_order_stock_check_enabled"
+	SettingFieldUpstreamSyncPageSize    = "sync_page_size"
+	SettingFieldUpstreamSyncMaxPages    = "sync_max_pages"
+	SettingFieldUpstreamSyncConcurrency = "sync_conn_concurrency"
 
 	SettingKeyCallbackRoutesConfig = "callback_routes_config"
 
