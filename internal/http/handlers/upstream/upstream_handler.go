@@ -12,6 +12,7 @@ import (
 
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/http/handlers/shared"
+	"github.com/dujiao-next/internal/i18n"
 	"github.com/dujiao-next/internal/logger"
 	"github.com/dujiao-next/internal/models"
 	"github.com/dujiao-next/internal/provider"
@@ -61,6 +62,21 @@ func getUpstreamCredentialID(c *gin.Context) uint {
 
 // ---- response helpers ----
 
+// upstreamErrorI18nMap 将上游错误 code 映射到 i18n 翻译 key
+var upstreamErrorI18nMap = map[string]string{
+	"unauthorized":         "error.upstream_unauthorized",
+	"bad_request":          "error.upstream_bad_request",
+	"internal_error":       "error.upstream_internal_error",
+	"product_not_found":    "error.upstream_product_not_found",
+	"product_unavailable":  "error.upstream_product_unavailable",
+	"sku_unavailable":      "error.upstream_sku_unavailable",
+	"order_not_found":      "error.upstream_order_not_found",
+	"insufficient_stock":   "error.upstream_insufficient_stock",
+	"insufficient_balance": "error.upstream_insufficient_balance",
+	"cancel_not_allowed":   "error.upstream_cancel_not_allowed",
+	"invalid_callback_url": "error.upstream_invalid_callback_url",
+}
+
 func successResponse(c *gin.Context, data interface{}) {
 	if data == nil {
 		c.JSON(http.StatusOK, gin.H{"ok": true})
@@ -69,11 +85,19 @@ func successResponse(c *gin.Context, data interface{}) {
 	c.JSON(http.StatusOK, data)
 }
 
-func errorResponse(c *gin.Context, status int, code, message string) {
+func errorResponse(c *gin.Context, status int, code, fallbackMsg string) {
+	loc := i18n.ResolveLocale(c)
+	msg := fallbackMsg
+	if key, ok := upstreamErrorI18nMap[code]; ok {
+		// i18n.T 在未找到翻译时返回 key 本身，此时回退到原始英文 fallback
+		if translated := i18n.T(loc, key); translated != key {
+			msg = translated
+		}
+	}
 	c.JSON(status, gin.H{
 		"ok":            false,
 		"error_code":    code,
-		"error_message": message,
+		"error_message": msg,
 	})
 }
 
