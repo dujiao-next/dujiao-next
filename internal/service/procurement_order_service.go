@@ -192,6 +192,29 @@ func (s *ProcurementOrderService) SubmitToUpstream(procurementOrderID uint) erro
 		return ErrProcurementStatusInvalid
 	}
 
+	// 加载本地订单获取 SKU 信息
+	localOrder, err := s.orderRepo.GetByID(procOrder.LocalOrderID)
+	if err != nil {
+		s.markProcurementError(procOrder, fmt.Sprintf("load local order failed: %v", err))
+		return fmt.Errorf("load local order: %w", err)
+	}
+	if localOrder == nil {
+		s.rejectProcurement(procOrder, fmt.Sprintf("local order %d not found", procOrder.LocalOrderID))
+		return nil
+	}
+	if len(localOrder.Items) == 0 {
+		s.rejectProcurement(procOrder, fmt.Sprintf("local order %d has no items", localOrder.ID))
+		return nil
+	}
+	item := localOrder.Items[0]
+
+	// 负利润防呆：售价低于或等于成本时拒单（风控开关关闭时生效）
+	riskCfg := s.getOrderRiskControlConfig()
+	if !riskCfg.AllowNegativeMargin && item.UnitPrice.Decimal.LessThanOrEqual(item.CostPrice.Decimal) {
+		s.rejectProcurement(procOrder, fmt.Sprintf("negative margin for local order %d", localOrder.ID))
+		return nil
+	}
+
 	// 获取连接和适配器
 	conn, err := s.connSvc.GetByID(procOrder.ConnectionID)
 	if err != nil {
@@ -208,22 +231,6 @@ func (s *ProcurementOrderService) SubmitToUpstream(procurementOrderID uint) erro
 		s.rejectProcurement(procOrder, fmt.Sprintf("get adapter failed: %v", err))
 		return nil // 配置错误，不重试
 	}
-
-	// 加载本地订单获取 SKU 信息
-	localOrder, err := s.orderRepo.GetByID(procOrder.LocalOrderID)
-	if err != nil {
-		s.markProcurementError(procOrder, fmt.Sprintf("load local order failed: %v", err))
-		return fmt.Errorf("load local order: %w", err)
-	}
-	if localOrder == nil {
-		s.rejectProcurement(procOrder, fmt.Sprintf("local order %d not found", procOrder.LocalOrderID))
-		return nil // 永久性错误，不重试
-	}
-	if len(localOrder.Items) == 0 {
-		s.rejectProcurement(procOrder, fmt.Sprintf("local order %d has no items", localOrder.ID))
-		return nil // 永久性错误，不重试
-	}
-	item := localOrder.Items[0]
 
 	// 查找 SKU 映射
 	skuMapping, err := s.skuMapRepo.GetByLocalSKUID(item.SKUID)
@@ -329,6 +336,19 @@ func (s *ProcurementOrderService) rejectProcurement(procOrder *models.Procuremen
 		"error", errMsg,
 	)
 	s.rollbackLocalOrderOnProcurementFailure(procOrder, errMsg)
+}
+
+// getOrderRiskControlConfig 获取订单风控配置，失败时返回默认配置（含防呆开启）
+func (s *ProcurementOrderService) getOrderRiskControlConfig() OrderRiskControlConfig {
+	if s.settingService == nil {
+		return DefaultOrderRiskControlConfig()
+	}
+	cfg, err := s.settingService.GetOrderRiskControlConfig()
+	if err != nil {
+		logger.Warnw("get_order_risk_config_failed", "error", err.Error())
+		return DefaultOrderRiskControlConfig()
+	}
+	return cfg
 }
 
 // rollbackLocalOrderOnProcurementFailure 采购单终态失败时回退本地订单状态并通知管理员

@@ -20,6 +20,7 @@ type OrderRateLimitConfig struct {
 // OrderRiskControlConfig 订单风控配置
 type OrderRiskControlConfig struct {
 	Enabled                       bool                 `json:"enabled"`
+	AllowNegativeMargin           bool                 `json:"allow_negative_margin"`
 	MaxPendingOrdersPerUser       int                  `json:"max_pending_orders_per_user"`
 	MaxPendingOrdersPerIP         int                  `json:"max_pending_orders_per_ip"`
 	MaxPendingOrdersPerGuestEmail int                  `json:"max_pending_orders_per_guest_email"`

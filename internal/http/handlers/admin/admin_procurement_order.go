@@ -202,3 +202,21 @@ func (h *Handler) CancelProcurementOrder(c *gin.Context) {
 	}
 	response.Success(c, gin.H{"ok": true})
 }
+
+// DirectSubmit 直接调用 SubmitToUpstream（绕过队列，同步执行）
+func (h *Handler) DirectSubmit(c *gin.Context) {
+	if h.ProcurementOrderService == nil {
+		shared.RespondErrorWithMsg(c, response.CodeInternal, "service not available", nil)
+		return
+	}
+	id, err := shared.ParseParamUint(c, "id")
+	if err != nil {
+		shared.RespondError(c, response.CodeBadRequest, "error.bad_request", err)
+		return
+	}
+	if err := h.ProcurementOrderService.SubmitToUpstream(uint(id)); err != nil {
+		shared.RespondError(c, response.CodeInternal, "error.procurement_submit_failed", err)
+		return
+	}
+	response.Success(c, gin.H{"ok": true})
+}

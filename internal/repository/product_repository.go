@@ -53,7 +53,10 @@ func (r *GormProductRepository) WithTx(tx *gorm.DB) ProductRepository {
 func (r *GormProductRepository) List(filter ProductListFilter) ([]models.Product, int64, error) {
 	var products []models.Product
 
-	query := r.db.Model(&models.Product{})
+	query := r.db.Model(&models.Product{}).Select(
+		"products.*",
+		"COALESCE((SELECT sc.name FROM product_mappings pm JOIN site_connections sc ON sc.id = pm.connection_id AND sc.deleted_at IS NULL WHERE pm.local_product_id = products.id AND pm.deleted_at IS NULL ORDER BY pm.id LIMIT 1), '') AS supplier_name",
+	)
 	if filter.WithCategory {
 		query = query.Preload("Category")
 	}
