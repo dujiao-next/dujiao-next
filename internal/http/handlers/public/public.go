@@ -110,7 +110,9 @@ func (v *publicProductView) toProductResp() dto.ProductResp {
 		FulfillmentType:      v.Product.FulfillmentType,
 		ManualFormSchema:     v.Product.ManualFormSchemaJSON,
 		ManualStockAvailable: maskPublicStockInt(mode, v.ManualStockAvailable),
+		ManualStockSold:      maskPublicStockSold(mode, v.Product.ManualStockSold),
 		AutoStockAvailable:   maskPublicStockInt64(mode, v.AutoStockAvailable),
+		AutoStockSold:        maskPublicStockSold64(mode, v.AutoStockSold),
 		StockStatus:          v.StockStatus,
 		IsSoldOut:            v.IsSoldOut,
 		PaymentChannelIDs:    service.DecodeChannelIDs(v.Product.PaymentChannelIDs),
@@ -237,10 +239,11 @@ func maskPublicStockInt64(mode string, value int64) int64 {
 }
 
 func maskPublicStockSold(mode string, value int) int {
-	if normalizePublicStockDisplayMode(mode) == constants.ProductStockDisplayExact {
-		return value
-	}
-	return 0
+	return value
+}
+
+func maskPublicStockSold64(mode string, value int64) int64 {
+	return value
 }
 
 func (v *publicProductView) productStockQuantity() int64 {

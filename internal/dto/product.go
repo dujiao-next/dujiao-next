@@ -30,7 +30,9 @@ type ProductResp struct {
 	FulfillmentType      string               `json:"fulfillment_type"`
 	ManualFormSchema     models.JSON          `json:"manual_form_schema"`
 	ManualStockAvailable int                  `json:"manual_stock_available"`
+	ManualStockSold      int                  `json:"manual_stock_sold"`
 	AutoStockAvailable   int64                `json:"auto_stock_available"`
+	AutoStockSold        int64                `json:"auto_stock_sold"`
 	StockStatus          string               `json:"stock_status"`
 	IsSoldOut            bool                 `json:"is_sold_out"`
 
