@@ -148,3 +148,29 @@ func TestExtractCryptoWalletInfo_DujiaoPayWrappedPayload(t *testing.T) {
 		t.Fatalf("unexpected info: %+v", info)
 	}
 }
+
+func TestExtractCryptoPaymentMethods(t *testing.T) {
+	payload := models.JSON{
+		"data": map[string]any{
+			"payment_methods": []map[string]any{
+				{"currency": "usdt", "network": "TRON", "actual_amount": "4.25"},
+				{"currency": "USDT", "network": "tron", "actual_amount": "4.25"},
+				{"currency": "USDC", "network": "base", "actual_amount": "4.01"},
+			},
+			"selected_currency": "usdc",
+			"selected_network":  "BASE",
+		},
+	}
+
+	methods := ExtractCryptoPaymentMethods(constants.PaymentProviderBepusdt, constants.PaymentInteractionQR, payload)
+	if len(methods) != 2 {
+		t.Fatalf("methods len = %d, want 2", len(methods))
+	}
+	if methods[0].Currency != "USDT" || methods[0].Network != "tron" {
+		t.Fatalf("unexpected normalized method: %+v", methods[0])
+	}
+	currency, network := ExtractSelectedCryptoPaymentMethod(payload)
+	if currency != "USDC" || network != "base" {
+		t.Fatalf("selected method = %s/%s", currency, network)
+	}
+}

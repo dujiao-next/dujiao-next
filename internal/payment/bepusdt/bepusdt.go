@@ -50,6 +50,8 @@ const (
 	bepusdtChannelTypeTRX       = "trx"
 
 	bepusdtCreateTransactionPath = "/api/v1/order/create-transaction"
+	bepusdtCreateOrderPath       = "/api/v1/order/create-order"
+	bepusdtUpdateOrderPath       = "/api/v1/pay/update-order"
 	bepusdtStatusSuccessMsg      = "status is not success"
 )
 
@@ -58,6 +60,7 @@ type Config struct {
 	GatewayURL string `json:"gateway_url"` // 网关地址，如 https://usdt.example.com
 	AuthToken  string `json:"auth_token"`  // API Token
 	TradeType  string `json:"trade_type"`  // 交易类型，如 usdt.trc20
+	Currencies string `json:"currencies"`  // 收银台模式允许的币种，逗号分隔
 	Fiat       string `json:"fiat"`        // 法币类型，默认 CNY
 	NotifyURL  string `json:"notify_url"`  // 异步通知地址
 	ReturnURL  string `json:"return_url"`  // 同步跳转地址
@@ -80,7 +83,21 @@ type CreateResult struct {
 	ActualAmount string                 // 实际支付金额（加密货币）
 	Token        string                 // 收款地址
 	PaymentURL   string                 // 收银台地址
+	TradeType    string                 // 实际交易类型
+	Methods      []PaymentMethod        // 可选付款方式
 	Raw          map[string]interface{} // 原始响应
+}
+
+type PaymentMethod struct {
+	Amount          string `json:"amount"`
+	ActualAmount    string `json:"actual_amount"`
+	Fiat            string `json:"fiat"`
+	ExchangeRate    string `json:"exchange_rate"`
+	Currency        string `json:"currency"`
+	Network         string `json:"network"`
+	TokenNetName    string `json:"token_net_name"`
+	TokenCustomName string `json:"token_custom_name"`
+	IsPopular       bool   `json:"is_popular"`
 }
 
 // CallbackData 回调数据
@@ -150,6 +167,7 @@ func (c *Config) Normalize() {
 	c.GatewayURL = strings.TrimRight(strings.TrimSpace(c.GatewayURL), "/")
 	c.AuthToken = strings.TrimSpace(c.AuthToken)
 	c.TradeType = strings.TrimSpace(c.TradeType)
+	c.Currencies = strings.TrimSpace(c.Currencies)
 	c.Fiat = strings.TrimSpace(c.Fiat)
 	c.NotifyURL = strings.TrimSpace(c.NotifyURL)
 	c.ReturnURL = strings.TrimSpace(c.ReturnURL)
@@ -159,6 +177,124 @@ func (c *Config) Normalize() {
 	if c.Fiat == "" {
 		c.Fiat = constants.SiteCurrencyDefault
 	}
+}
+
+// CreateSelectableOrder 创建由商户前台选择付款币种/网络的订单。
+func CreateSelectableOrder(ctx context.Context, cfg *Config, input CreateInput) (*CreateResult, error) {
+	if cfg == nil || input.OrderNo == "" || input.Amount == "" {
+		return nil, ErrConfigInvalid
+	}
+	amount, err := strconv.ParseFloat(input.Amount, 64)
+	if err != nil {
+		return nil, fmt.Errorf("%w: invalid amount", ErrConfigInvalid)
+	}
+	notifyURL := pickCreateURL(input.NotifyURL, cfg.NotifyURL)
+	returnURL := pickCreateURL(input.ReturnURL, cfg.ReturnURL)
+	params := map[string]interface{}{
+		"order_id":     input.OrderNo,
+		"amount":       amount,
+		"notify_url":   notifyURL,
+		"redirect_url": returnURL,
+		"fiat":         cfg.Fiat,
+		"reselect":     true,
+	}
+	if input.Name != "" {
+		params["name"] = input.Name
+	}
+	if cfg.Currencies != "" {
+		params["currencies"] = cfg.Currencies
+	}
+	params["signature"] = Sign(params, cfg.AuthToken)
+
+	respBytes, err := postJSON(ctx, cfg.GatewayURL+bepusdtCreateOrderPath, params)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrRequestFailed, err)
+	}
+	var resp struct {
+		StatusCode int    `json:"status_code"`
+		Message    string `json:"message"`
+		Data       struct {
+			Fiat           string          `json:"fiat"`
+			TradeID        string          `json:"trade_id"`
+			OrderID        string          `json:"order_id"`
+			Amount         string          `json:"amount"`
+			ExpirationTime int             `json:"expiration_time"`
+			PaymentURL     string          `json:"payment_url"`
+			Methods        []PaymentMethod `json:"network"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(respBytes, &resp); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrResponseInvalid, err)
+	}
+	if resp.StatusCode != 200 || strings.TrimSpace(resp.Data.TradeID) == "" {
+		return nil, fmt.Errorf("%w: %s", ErrResponseInvalid, resp.Message)
+	}
+	var raw map[string]interface{}
+	_ = json.Unmarshal(respBytes, &raw)
+	return &CreateResult{
+		TradeID:    resp.Data.TradeID,
+		OrderID:    resp.Data.OrderID,
+		Amount:     resp.Data.Amount,
+		PaymentURL: resp.Data.PaymentURL,
+		Methods:    resp.Data.Methods,
+		Raw:        raw,
+	}, nil
+}
+
+// UpdateSelectableOrder 为待支付订单选定币种和网络，返回对应收款地址。
+func UpdateSelectableOrder(ctx context.Context, cfg *Config, tradeID, currency, network string) (*CreateResult, error) {
+	if cfg == nil || strings.TrimSpace(tradeID) == "" || strings.TrimSpace(currency) == "" || strings.TrimSpace(network) == "" {
+		return nil, ErrConfigInvalid
+	}
+	params := map[string]interface{}{
+		"trade_id": strings.TrimSpace(tradeID),
+		"currency": strings.ToUpper(strings.TrimSpace(currency)),
+		"network":  strings.ToLower(strings.TrimSpace(network)),
+	}
+	respBytes, err := postJSON(ctx, cfg.GatewayURL+bepusdtUpdateOrderPath, params)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrRequestFailed, err)
+	}
+	var resp struct {
+		StatusCode int    `json:"status_code"`
+		Message    string `json:"message"`
+		Data       struct {
+			Fiat           string `json:"fiat"`
+			TradeType      string `json:"trade_type"`
+			TradeID        string `json:"trade_id"`
+			OrderID        string `json:"order_id"`
+			Amount         string `json:"amount"`
+			ActualAmount   string `json:"actual_amount"`
+			Token          string `json:"token"`
+			ExpirationTime int    `json:"expiration_time"`
+			PaymentURL     string `json:"payment_url"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(respBytes, &resp); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrResponseInvalid, err)
+	}
+	if resp.StatusCode != 200 || strings.TrimSpace(resp.Data.Token) == "" {
+		return nil, fmt.Errorf("%w: %s", ErrResponseInvalid, resp.Message)
+	}
+	var raw map[string]interface{}
+	_ = json.Unmarshal(respBytes, &raw)
+	return &CreateResult{
+		TradeID:      resp.Data.TradeID,
+		OrderID:      resp.Data.OrderID,
+		Amount:       resp.Data.Amount,
+		ActualAmount: resp.Data.ActualAmount,
+		Token:        resp.Data.Token,
+		PaymentURL:   resp.Data.PaymentURL,
+		TradeType:    resp.Data.TradeType,
+		Raw:          raw,
+	}, nil
+}
+
+func pickCreateURL(primary, fallback string) string {
+	if value := strings.TrimSpace(primary); value != "" {
+		return value
+	}
+	return strings.TrimSpace(fallback)
 }
 
 // CreatePayment 创建支付订单

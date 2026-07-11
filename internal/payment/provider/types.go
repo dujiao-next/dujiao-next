@@ -44,6 +44,17 @@ type CreateResult struct {
 	CurrencySent string
 }
 
+type SelectPaymentMethodInput struct {
+	ProviderRef string
+	Currency    string
+	Network     string
+}
+
+type SelectPaymentMethodResult struct {
+	QRCodeURL string
+	Payload   models.JSON
+}
+
 // QueryResult 主动查询订单状态返回。
 type QueryResult struct {
 	ProviderRef string
@@ -74,6 +85,12 @@ type Provider interface {
 	Type() string
 	ValidateConfig(cfg models.JSON, channelType string) error
 	CreatePayment(ctx context.Context, cfg models.JSON, input CreateInput) (*CreateResult, error)
+}
+
+// PaymentMethodSelector 是支持在订单创建后选择链上付款方式的可选能力。
+type PaymentMethodSelector interface {
+	Provider
+	SelectPaymentMethod(ctx context.Context, cfg models.JSON, input SelectPaymentMethodInput) (*SelectPaymentMethodResult, error)
 }
 
 // Capturer 可选能力:主动查询订单状态(stripe/paypal/wechat 实现)。

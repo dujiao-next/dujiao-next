@@ -23,12 +23,48 @@ func setupPaymentRepositoryTest(t *testing.T) (*GormPaymentRepository, *gorm.DB)
 	if err := db.AutoMigrate(
 		&models.User{},
 		&models.Order{},
+		&models.PaymentChannel{},
 		&models.Payment{},
 		&models.WalletRechargeOrder{},
 	); err != nil {
 		t.Fatalf("auto migrate failed: %v", err)
 	}
 	return NewPaymentRepository(db), db
+}
+
+func TestPaymentRepositoryFindsBepusdtMethodSelectionPayment(t *testing.T) {
+	repo, db := setupPaymentRepositoryTest(t)
+	now := time.Now().UTC().Truncate(time.Second)
+	expiresAt := now.Add(10 * time.Minute)
+
+	payment := models.Payment{
+		OrderID:         101,
+		ChannelID:       7,
+		ProviderType:    constants.PaymentProviderBepusdt,
+		ChannelType:     constants.PaymentChannelTypeUsdtTrc20,
+		InteractionMode: constants.PaymentInteractionQR,
+		Amount:          models.NewMoneyFromDecimal(decimal.NewFromInt(10)),
+		FeeRate:         models.NewMoneyFromDecimal(decimal.Zero),
+		FixedFee:        models.NewMoneyFromDecimal(decimal.Zero),
+		FeeAmount:       models.NewMoneyFromDecimal(decimal.Zero),
+		Currency:        "CNY",
+		Status:          constants.PaymentStatusPending,
+		ProviderRef:     "BEP-METHOD-1",
+		ExpiredAt:       &expiresAt,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+	if err := db.Create(&payment).Error; err != nil {
+		t.Fatalf("create payment failed: %v", err)
+	}
+
+	got, err := repo.GetLatestPendingByOrderChannel(payment.OrderID, payment.ChannelID, now)
+	if err != nil {
+		t.Fatalf("get pending payment failed: %v", err)
+	}
+	if got == nil || got.ID != payment.ID {
+		t.Fatalf("expected method-selection payment %d, got %+v", payment.ID, got)
+	}
 }
 
 func TestPaymentRepositoryListAdminByUserIncludesWalletRechargePayments(t *testing.T) {

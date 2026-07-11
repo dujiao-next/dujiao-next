@@ -1403,6 +1403,62 @@ type CaptureGuestPaymentRequest struct {
 	OrderPassword string `json:"order_password" binding:"required"`
 }
 
+// SelectGuestPaymentMethodRequest 游客选择二维码支付的币种和网络。
+type SelectGuestPaymentMethodRequest struct {
+	Email         string `json:"email" binding:"required"`
+	OrderPassword string `json:"order_password" binding:"required"`
+	Currency      string `json:"currency" binding:"required"`
+	Network       string `json:"network" binding:"required"`
+}
+
+// SelectGuestPaymentMethod 为游客订单选择链上付款方式。
+func (h *Handler) SelectGuestPaymentMethod(c *gin.Context) {
+	paymentID, err := shared.ParseParamUint(c, "id")
+	if err != nil {
+		shared.RespondError(c, response.CodeBadRequest, "error.payment_invalid", nil)
+		return
+	}
+	var req SelectGuestPaymentMethodRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		shared.RespondBindError(c, err)
+		return
+	}
+	payment, err := h.PaymentService.GetPayment(paymentID)
+	if err != nil {
+		respondPaymentCaptureError(c, err)
+		return
+	}
+	if payment.OrderID == 0 {
+		shared.RespondError(c, response.CodeNotFound, "error.guest_order_not_found", nil)
+		return
+	}
+	order, err := h.OrderService.GetOrderByGuestForTenant(
+		tenantFromRequest(c),
+		payment.OrderID,
+		strings.TrimSpace(req.Email),
+		strings.TrimSpace(req.OrderPassword),
+	)
+	if err != nil {
+		if errors.Is(err, service.ErrGuestOrderNotFound) {
+			shared.RespondError(c, response.CodeNotFound, "error.guest_order_not_found", nil)
+			return
+		}
+		shared.RespondError(c, response.CodeInternal, "error.order_fetch_failed", err)
+		return
+	}
+	updated, err := h.PaymentService.SelectPaymentMethod(service.SelectPaymentMethodInput{
+		PaymentID: paymentID,
+		Currency:  req.Currency,
+		Network:   req.Network,
+		Context:   c.Request.Context(),
+	})
+	if err != nil {
+		respondPaymentCaptureError(c, err)
+		return
+	}
+	response.Success(c, dto.NewLatestPaymentResp(updated, order.OrderNo))
+}
+
 // CaptureGuestPayment 游客捕获支付。
 func (h *Handler) CaptureGuestPayment(c *gin.Context) {
 	paymentID, err := shared.ParseParamUint(c, "id")

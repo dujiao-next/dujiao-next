@@ -21,6 +21,7 @@ type CardSecret struct {
 	Secret     string         `gorm:"type:text;not null" json:"secret"`                                             // 卡密内容
 	Status     string         `gorm:"not null;index:idx_card_secret_reserve" json:"status"`                         // 状态（available/used）
 	OrderID    *uint          `gorm:"index" json:"order_id,omitempty"`                                              // 关联订单ID
+	ExportID   *uint          `gorm:"index" json:"export_id,omitempty"`                                             // 关联导出记录ID
 	ReservedAt *time.Time     `gorm:"index" json:"reserved_at"`                                                     // 占用时间
 	UsedAt     *time.Time     `gorm:"index" json:"used_at"`                                                         // 使用时间
 	CreatedAt  time.Time      `gorm:"index" json:"created_at"`                                                      // 创建时间

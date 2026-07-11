@@ -190,6 +190,7 @@ type ExportAvailableCardSecretInput struct {
 	ProductID         uint
 	SKUID             uint
 	BatchID           uint
+	AdminID           uint
 	Limit             int
 	Format            string
 	DeleteAfterExport bool
@@ -200,6 +201,16 @@ type ExportAvailableCardSecretResult struct {
 	Content     []byte
 	ContentType string
 	Count       int
+	Record      *models.CardSecretExport
+}
+
+type ListCardSecretExportInput struct {
+	ID        uint
+	ProductID uint
+	SKUID     uint
+	BatchID   uint
+	Page      int
+	PageSize  int
 }
 
 // ListCardSecrets 获取卡密列表
@@ -339,6 +350,24 @@ func (s *CardSecretService) ExportAvailableCardSecrets(input ExportAvailableCard
 			ids = append(ids, item.ID)
 		}
 
+		var batchID *uint
+		if input.BatchID > 0 {
+			value := input.BatchID
+			batchID = &value
+		}
+		exportRecord := &models.CardSecretExport{
+			ProductID:         input.ProductID,
+			SKUID:             input.SKUID,
+			BatchID:           batchID,
+			AdminID:           input.AdminID,
+			Format:            normalizedFormat,
+			Count:             len(items),
+			DeleteAfterExport: input.DeleteAfterExport,
+		}
+		if err := secretRepo.CreateExport(exportRecord); err != nil {
+			return ErrCardSecretUpdateFailed
+		}
+
 		var affected int64
 		if input.DeleteAfterExport {
 			affected, err = secretRepo.BatchDeleteByIDs(ids)
@@ -346,7 +375,7 @@ func (s *CardSecretService) ExportAvailableCardSecrets(input ExportAvailableCard
 				return ErrCardSecretDeleteFailed
 			}
 		} else {
-			affected, err = secretRepo.BatchUpdateStatus(ids, models.CardSecretStatusUsed, time.Now())
+			affected, err = secretRepo.MarkExported(ids, exportRecord.ID, time.Now())
 			if err != nil {
 				return ErrCardSecretUpdateFailed
 			}
@@ -362,6 +391,7 @@ func (s *CardSecretService) ExportAvailableCardSecrets(input ExportAvailableCard
 			Content:     content,
 			ContentType: contentType,
 			Count:       len(items),
+			Record:      exportRecord,
 		}
 		return nil
 	})
@@ -369,6 +399,21 @@ func (s *CardSecretService) ExportAvailableCardSecrets(input ExportAvailableCard
 		return nil, err
 	}
 	return result, nil
+}
+
+func (s *CardSecretService) ListCardSecretExports(input ListCardSecretExportInput) ([]models.CardSecretExport, int64, error) {
+	rows, total, err := s.secretRepo.ListExports(repository.CardSecretExportListFilter{
+		ID:        input.ID,
+		ProductID: input.ProductID,
+		SKUID:     input.SKUID,
+		BatchID:   input.BatchID,
+		Page:      input.Page,
+		PageSize:  input.PageSize,
+	})
+	if err != nil {
+		return nil, 0, ErrCardSecretFetchFailed
+	}
+	return rows, total, nil
 }
 
 func normalizeCardSecretExportFormat(format string) (string, error) {

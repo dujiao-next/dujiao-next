@@ -397,6 +397,10 @@ func (h *Handler) ExportCardSecrets(c *gin.Context) {
 
 // ExportAvailableCardSecrets 从可用库存中导出卡密并出库
 func (h *Handler) ExportAvailableCardSecrets(c *gin.Context) {
+	adminID, ok := shared.GetAdminID(c)
+	if !ok {
+		return
+	}
 	var req ExportAvailableCardSecretRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		shared.RespondBindError(c, err)
@@ -407,6 +411,7 @@ func (h *Handler) ExportAvailableCardSecrets(c *gin.Context) {
 		ProductID:         req.ProductID,
 		SKUID:             req.SKUID,
 		BatchID:           req.BatchID,
+		AdminID:           adminID,
 		Limit:             req.Limit,
 		Format:            req.Format,
 		DeleteAfterExport: req.DeleteAfterExport,
@@ -436,7 +441,56 @@ func (h *Handler) ExportAvailableCardSecrets(c *gin.Context) {
 	c.Header("Content-Type", result.ContentType)
 	c.Header("Content-Disposition", "attachment; filename=\""+filename+"\"")
 	c.Header("X-Exported-Count", strconv.Itoa(result.Count))
+	if result.Record != nil {
+		c.Header("X-Export-Record-ID", strconv.FormatUint(uint64(result.Record.ID), 10))
+	}
 	c.Data(200, result.ContentType, result.Content)
+}
+
+// GetCardSecretExports 获取卡密出库导出记录。
+func (h *Handler) GetCardSecretExports(c *gin.Context) {
+	page, pageSize := shared.ParsePagination(c)
+	parseOptional := func(key string) (uint, bool) {
+		raw := strings.TrimSpace(c.Query(key))
+		if raw == "" {
+			return 0, true
+		}
+		value, err := shared.ParseQueryUint(raw, false)
+		if err != nil {
+			shared.RespondError(c, response.CodeBadRequest, "error.card_secret_invalid", nil)
+			return 0, false
+		}
+		return value, true
+	}
+	id, ok := parseOptional("id")
+	if !ok {
+		return
+	}
+	productID, ok := parseOptional("product_id")
+	if !ok {
+		return
+	}
+	skuID, ok := parseOptional("sku_id")
+	if !ok {
+		return
+	}
+	batchID, ok := parseOptional("batch_id")
+	if !ok {
+		return
+	}
+	rows, total, err := h.CardSecretService.ListCardSecretExports(service.ListCardSecretExportInput{
+		ID:        id,
+		ProductID: productID,
+		SKUID:     skuID,
+		BatchID:   batchID,
+		Page:      page,
+		PageSize:  pageSize,
+	})
+	if err != nil {
+		shared.RespondError(c, response.CodeInternal, "error.card_secret_fetch_failed", err)
+		return
+	}
+	response.SuccessWithPage(c, rows, response.BuildPagination(page, pageSize, total))
 }
 
 // GetCardSecretStats 获取库存统计

@@ -112,6 +112,7 @@ func SetupRouter(cfg *config.Config, c *provider.Container) *gin.Engine {
 			guest.GET("/orders/:order_no", publicHandler.GetGuestOrderByOrderNo)
 			guest.GET("/orders/:order_no/fulfillment/download", publicHandler.DownloadGuestFulfillment)
 			guest.POST("/payments", publicHandler.CreateGuestPayment)
+			guest.POST("/payments/:id/method", publicHandler.SelectGuestPaymentMethod)
 			guest.POST("/payments/:id/capture", publicHandler.CaptureGuestPayment)
 			guest.GET("/payments/latest", publicHandler.GetGuestLatestPayment)
 		}
@@ -164,6 +165,7 @@ func SetupRouter(cfg *config.Config, c *provider.Container) *gin.Engine {
 			user.GET("/orders/:order_no/fulfillment/download", publicHandler.DownloadFulfillment)
 			user.POST("/orders/:order_no/cancel", publicHandler.CancelOrder)
 			user.POST("/payments", publicHandler.CreatePayment)
+			user.POST("/payments/:id/method", publicHandler.SelectPaymentMethod)
 			user.POST("/payments/:id/capture", publicHandler.CapturePayment)
 			user.GET("/payments/latest", publicHandler.GetLatestPayment)
 			user.GET("/wallet", publicHandler.GetMyWallet)
@@ -463,6 +465,7 @@ func SetupRouter(cfg *config.Config, c *provider.Container) *gin.Engine {
 				authorized.POST("/card-secrets/batch-delete", adminHandler.BatchDeleteCardSecrets)
 				authorized.POST("/card-secrets/export", adminHandler.ExportCardSecrets)
 				authorized.POST("/card-secrets/export-available", adminHandler.ExportAvailableCardSecrets)
+				authorized.GET("/card-secret-exports", adminHandler.GetCardSecretExports)
 				authorized.GET("/card-secrets/stats", adminHandler.GetCardSecretStats)
 				authorized.GET("/card-secrets/batches", adminHandler.GetCardSecretBatches)
 				authorized.GET("/card-secrets/template", adminHandler.GetCardSecretTemplate)

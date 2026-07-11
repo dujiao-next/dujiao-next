@@ -32,6 +32,7 @@ func setupCardSecretServiceTestDB(t *testing.T) *gorm.DB {
 		&models.ProductSKU{},
 		&models.CardSecretBatch{},
 		&models.CardSecret{},
+		&models.CardSecretExport{},
 	); err != nil {
 		t.Fatalf("auto migrate failed: %v", err)
 	}
@@ -742,6 +743,11 @@ func TestExportAvailableCardSecretsMarksUsed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create batch failed: %v", err)
 	}
+	if err := db.Model(&models.CardSecret{}).
+		Where("product_id = ? AND secret = ?", product.ID, "EXP-A-001").
+		Update("order_id", 99).Error; err != nil {
+		t.Fatalf("seed stale order id failed: %v", err)
+	}
 
 	result, err := svc.ExportAvailableCardSecrets(ExportAvailableCardSecretInput{
 		ProductID: product.ID,
@@ -749,12 +755,16 @@ func TestExportAvailableCardSecretsMarksUsed(t *testing.T) {
 		BatchID:   batch.ID,
 		Limit:     2,
 		Format:    constants.ExportFormatTXT,
+		AdminID:   9,
 	})
 	if err != nil {
 		t.Fatalf("export available failed: %v", err)
 	}
 	if result.Count != 2 || strings.TrimSpace(string(result.Content)) != "EXP-A-001\nEXP-A-002" {
 		t.Fatalf("unexpected export result: count=%d content=%q", result.Count, string(result.Content))
+	}
+	if result.Record == nil || result.Record.ID == 0 || result.Record.AdminID != 9 {
+		t.Fatalf("expected export record, got %+v", result.Record)
 	}
 
 	rows, _, err := svc.ListCardSecrets(ListCardSecretInput{
@@ -770,6 +780,12 @@ func TestExportAvailableCardSecretsMarksUsed(t *testing.T) {
 	statusBySecret := map[string]string{}
 	for _, row := range rows {
 		statusBySecret[row.Secret] = row.Status
+		if row.Secret != "EXP-A-003" && (row.ExportID == nil || *row.ExportID != result.Record.ID) {
+			t.Fatalf("expected exported secret linked to record: %+v", row)
+		}
+		if row.Secret != "EXP-A-003" && row.OrderID != nil {
+			t.Fatalf("expected exported secret order link cleared: %+v", row)
+		}
 	}
 	if statusBySecret["EXP-A-001"] != models.CardSecretStatusUsed ||
 		statusBySecret["EXP-A-002"] != models.CardSecretStatusUsed ||
@@ -825,12 +841,16 @@ func TestExportAvailableCardSecretsDeletesAfterExport(t *testing.T) {
 		Limit:             1,
 		Format:            constants.ExportFormatTXT,
 		DeleteAfterExport: true,
+		AdminID:           10,
 	})
 	if err != nil {
 		t.Fatalf("export available with delete failed: %v", err)
 	}
 	if result.Count != 1 || strings.TrimSpace(string(result.Content)) != "EXP-D-001" {
 		t.Fatalf("unexpected export result: count=%d content=%q", result.Count, string(result.Content))
+	}
+	if result.Record == nil || !result.Record.DeleteAfterExport || result.Record.AdminID != 10 {
+		t.Fatalf("expected delete export record, got %+v", result.Record)
 	}
 
 	rows, _, err := svc.ListCardSecrets(ListCardSecretInput{

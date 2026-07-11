@@ -25,8 +25,9 @@ func NewBepusdtAdapter() Provider { return &bepusdtAdapter{} }
 
 // 编译期断言 bepusdtAdapter 实现了 Provider 和 CallbackVerifier。
 var (
-	_ Provider         = (*bepusdtAdapter)(nil)
-	_ CallbackVerifier = (*bepusdtAdapter)(nil)
+	_ Provider              = (*bepusdtAdapter)(nil)
+	_ CallbackVerifier      = (*bepusdtAdapter)(nil)
+	_ PaymentMethodSelector = (*bepusdtAdapter)(nil)
 )
 
 // Type 返回 provider 标识。bepusdt 是多 channel type provider，返回值中 channelType 部分为空。
@@ -88,32 +89,54 @@ func (a *bepusdtAdapter) CreatePayment(ctx context.Context, raw models.JSON, inp
 		NotifyURL: input.NotifyURL,
 		ReturnURL: returnURL,
 	}
-	result, err := bepusdt.CreatePayment(ctx, cfg, native)
-	if err != nil {
-		return nil, mapBepusdtError(err)
-	}
-
 	mode, _ := input.Extra["interaction_mode"].(string)
 	mode = strings.ToLower(strings.TrimSpace(mode))
-	redirectURL := strings.TrimSpace(result.PaymentURL)
-	qrCodeURL := redirectURL
 	switch mode {
 	case constants.PaymentInteractionQR:
-		qrCodeURL = strings.TrimSpace(result.Token)
-		redirectURL = ""
-		if qrCodeURL == "" {
-			return nil, fmt.Errorf("%w: bepusdt token is empty", ErrResponseInvalid)
+		result, err := bepusdt.CreateSelectableOrder(ctx, cfg, native)
+		if err != nil {
+			return nil, mapBepusdtError(err)
 		}
+		if len(result.Methods) == 0 {
+			return nil, fmt.Errorf("%w: bepusdt payment methods are empty", ErrResponseInvalid)
+		}
+		return &CreateResult{
+			ProviderRef: result.TradeID,
+			Payload:     buildBepusdtCreatePayload(result, ""),
+		}, nil
 	case "", constants.PaymentInteractionRedirect:
+		result, err := bepusdt.CreatePayment(ctx, cfg, native)
+		if err != nil {
+			return nil, mapBepusdtError(err)
+		}
+		return &CreateResult{
+			ProviderRef: result.TradeID,
+			RedirectURL: strings.TrimSpace(result.PaymentURL),
+			QRCodeURL:   strings.TrimSpace(result.PaymentURL),
+			Payload:     buildBepusdtCreatePayload(result, cfg.TradeType),
+		}, nil
 	default:
 		return nil, fmt.Errorf("%w: bepusdt interaction_mode %s", ErrConfigInvalid, mode)
 	}
+}
 
-	return &CreateResult{
-		ProviderRef: result.TradeID,
-		RedirectURL: redirectURL,
-		QRCodeURL:   qrCodeURL,
-		Payload:     buildBepusdtCreatePayload(result, cfg.TradeType),
+func (a *bepusdtAdapter) SelectPaymentMethod(ctx context.Context, raw models.JSON, input SelectPaymentMethodInput) (*SelectPaymentMethodResult, error) {
+	cfg, err := a.parseConfig(raw, "")
+	if err != nil {
+		return nil, err
+	}
+	result, err := bepusdt.UpdateSelectableOrder(ctx, cfg, input.ProviderRef, input.Currency, input.Network)
+	if err != nil {
+		return nil, mapBepusdtError(err)
+	}
+	payload := buildBepusdtCreatePayload(result, result.TradeType)
+	data := ensureBepusdtPayloadData(payload)
+	data["selection_required"] = false
+	setBepusdtPayloadString(data, "selected_currency", strings.ToUpper(strings.TrimSpace(input.Currency)))
+	setBepusdtPayloadString(data, "selected_network", strings.ToLower(strings.TrimSpace(input.Network)))
+	return &SelectPaymentMethodResult{
+		QRCodeURL: strings.TrimSpace(result.Token),
+		Payload:   payload,
 	}, nil
 }
 
@@ -129,6 +152,10 @@ func buildBepusdtCreatePayload(result *bepusdt.CreateResult, tradeType string) m
 	}
 
 	data := ensureBepusdtPayloadData(payload)
+	if len(result.Methods) > 0 {
+		data["payment_methods"] = result.Methods
+		data["selection_required"] = strings.TrimSpace(result.Token) == ""
+	}
 	setBepusdtPayloadString(data, "trade_type", tradeType)
 	setBepusdtPayloadString(data, "token", result.Token)
 	setBepusdtPayloadString(data, "actual_amount", result.ActualAmount)
@@ -171,6 +198,18 @@ func resolveBepusdtTradeLabels(tradeType string) (chain string, tokenID string) 
 		return "bsc", "bsc-usdt"
 	case "usdt.polygon":
 		return "polygon", "polygon-usdt"
+	case "usdt.aptos":
+		return "aptos", "aptos-usdt"
+	case "usdt.solana":
+		return "solana", "solana-usdt"
+	case "usdt.xlayer":
+		return "x-layer", "x-layer-usdt"
+	case "usdt.arbitrum":
+		return "arbitrum", "arbitrum-usdt"
+	case "usdt.plasma":
+		return "plasma", "plasma-usdt"
+	case "usdt.ton":
+		return "ton", "ton-usdt"
 	case "usdc.trc20":
 		return "tron", "tron-usdc"
 	case "usdc.erc20":
@@ -179,12 +218,26 @@ func resolveBepusdtTradeLabels(tradeType string) (chain string, tokenID string) 
 		return "polygon", "polygon-usdc"
 	case "usdc.bep20":
 		return "bsc", "bsc-usdc"
+	case "usdc.aptos":
+		return "aptos", "aptos-usdc"
+	case "usdc.solana":
+		return "solana", "solana-usdc"
+	case "usdc.xlayer":
+		return "x-layer", "x-layer-usdc"
+	case "usdc.arbitrum":
+		return "arbitrum", "arbitrum-usdc"
+	case "usdc.base":
+		return "base", "base-usdc"
 	case "tron.trx":
 		return "tron", "tron-trx"
 	case "eth.eth":
 		return "ethereum", "ethereum-eth"
+	case "ethereum.eth":
+		return "ethereum", "ethereum-eth"
 	case "bsc.bnb":
 		return "bsc", "bsc-bnb"
+	case "ton.gram":
+		return "ton", "ton-gram"
 	default:
 		return "", ""
 	}

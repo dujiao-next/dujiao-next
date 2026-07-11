@@ -30,6 +30,15 @@ type CardSecretBatchStatusCount struct {
 	Total   int64  `gorm:"column:total"`
 }
 
+type CardSecretExportListFilter struct {
+	ID        uint
+	ProductID uint
+	SKUID     uint
+	BatchID   uint
+	Page      int
+	PageSize  int
+}
+
 // CardSecretRepository 卡密库存数据访问接口
 type CardSecretRepository interface {
 	CreateBatch(items []models.CardSecret) error
@@ -50,7 +59,10 @@ type CardSecretRepository interface {
 	GetByID(id uint) (*models.CardSecret, error)
 	Update(secret *models.CardSecret) error
 	BatchUpdateStatus(ids []uint, status string, updatedAt time.Time) (int64, error)
+	MarkExported(ids []uint, exportID uint, usedAt time.Time) (int64, error)
 	BatchDeleteByIDs(ids []uint) (int64, error)
+	CreateExport(record *models.CardSecretExport) error
+	ListExports(filter CardSecretExportListFilter) ([]models.CardSecretExport, int64, error)
 	CountByProduct(productID, skuID uint) (int64, int64, int64, error)
 	CountAvailable(productID, skuID uint) (int64, error)
 	CountAvailableByProductIDs(productIDs []uint) (map[uint]int64, error)
@@ -295,6 +307,60 @@ func (r *GormCardSecretRepository) BatchUpdateStatus(ids []uint, status string, 
 			"updated_at": updatedAt,
 		})
 	return result.RowsAffected, result.Error
+}
+
+// MarkExported 将卡密标记为已使用并关联导出记录。
+func (r *GormCardSecretRepository) MarkExported(ids []uint, exportID uint, usedAt time.Time) (int64, error) {
+	if len(ids) == 0 || exportID == 0 {
+		return 0, nil
+	}
+	if usedAt.IsZero() {
+		usedAt = time.Now()
+	}
+	result := r.db.Model(&models.CardSecret{}).
+		Where("id IN ? AND status = ?", ids, models.CardSecretStatusAvailable).
+		Updates(map[string]interface{}{
+			"status":      models.CardSecretStatusUsed,
+			"order_id":    nil,
+			"export_id":   exportID,
+			"reserved_at": nil,
+			"used_at":     usedAt,
+			"updated_at":  usedAt,
+		})
+	return result.RowsAffected, result.Error
+}
+
+func (r *GormCardSecretRepository) CreateExport(record *models.CardSecretExport) error {
+	if record == nil {
+		return errors.New("card secret export is nil")
+	}
+	return r.db.Create(record).Error
+}
+
+func (r *GormCardSecretRepository) ListExports(filter CardSecretExportListFilter) ([]models.CardSecretExport, int64, error) {
+	query := r.db.Model(&models.CardSecretExport{})
+	if filter.ID > 0 {
+		query = query.Where("id = ?", filter.ID)
+	}
+	if filter.ProductID > 0 {
+		query = query.Where("product_id = ?", filter.ProductID)
+	}
+	if filter.SKUID > 0 {
+		query = query.Where("sku_id = ?", filter.SKUID)
+	}
+	if filter.BatchID > 0 {
+		query = query.Where("batch_id = ?", filter.BatchID)
+	}
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	query = applyPagination(query, filter.Page, filter.PageSize)
+	var rows []models.CardSecretExport
+	if err := query.Order("id DESC").Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	return rows, total, nil
 }
 
 // BatchDeleteByIDs 批量删除卡密

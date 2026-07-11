@@ -144,7 +144,12 @@ func hasProviderResult(payment *models.Payment) bool {
 	if payment == nil {
 		return false
 	}
-	return strings.TrimSpace(payment.PayURL) != "" || strings.TrimSpace(payment.QRCode) != ""
+	if strings.TrimSpace(payment.PayURL) != "" || strings.TrimSpace(payment.QRCode) != "" {
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(payment.ProviderType), constants.PaymentProviderBepusdt) &&
+		strings.EqualFold(strings.TrimSpace(payment.InteractionMode), constants.PaymentInteractionQR) &&
+		strings.TrimSpace(payment.ProviderRef) != ""
 }
 
 func shouldMarkFulfilling(order *models.Order) bool {

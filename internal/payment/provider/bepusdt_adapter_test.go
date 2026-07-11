@@ -49,12 +49,14 @@ func TestBepusdtAdapter_CreatePayment_ConfigInvalidMapped(t *testing.T) {
 	}
 }
 
-func TestBepusdtAdapter_CreatePayment_QRModeUsesWalletAddress(t *testing.T) {
+func TestBepusdtAdapter_CreatePayment_QRModeReturnsPaymentMethods(t *testing.T) {
 	a := NewBepusdtAdapter()
 	server := newBepusdtCreatePaymentServer(t, "usdt.trc20")
 	defer server.Close()
+	config := validBepusdtConfig(server.URL)
+	config["currencies"] = "USDT,USDC"
 
-	result, err := a.CreatePayment(context.Background(), validBepusdtConfig(server.URL), CreateInput{
+	result, err := a.CreatePayment(context.Background(), config, CreateInput{
 		OrderNo:     "ORDER-QR-1",
 		Subject:     "测试商品",
 		Amount:      models.NewMoneyFromDecimal(decimal.RequireFromString("28.88")),
@@ -68,17 +70,47 @@ func TestBepusdtAdapter_CreatePayment_QRModeUsesWalletAddress(t *testing.T) {
 	if result.RedirectURL != "" {
 		t.Fatalf("RedirectURL = %q, want empty in qr mode", result.RedirectURL)
 	}
-	if result.QRCodeURL != "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t" {
-		t.Fatalf("QRCodeURL = %q, want wallet address", result.QRCodeURL)
+	if result.QRCodeURL != "" {
+		t.Fatalf("QRCodeURL = %q, want empty before selecting a payment method", result.QRCodeURL)
 	}
 	data := result.Payload["data"].(map[string]interface{})
-	if data["actual_amount"] != "4.25" {
-		t.Fatalf("actual_amount = %v, want 4.25", data["actual_amount"])
+	methods, ok := data["payment_methods"].([]bepusdt.PaymentMethod)
+	if !ok || len(methods) != 2 {
+		t.Fatalf("payment_methods = %#v, want two methods", data["payment_methods"])
 	}
-	if data["trade_type"] != "usdt.trc20" {
-		t.Fatalf("trade_type = %v, want usdt.trc20", data["trade_type"])
+	if data["selection_required"] != true {
+		t.Fatalf("selection_required = %v, want true", data["selection_required"])
 	}
-	if data["chain"] != "tron" || data["token_id"] != "tron-usdt" {
+	if methods[0].Currency != "USDT" || methods[0].Network != "tron" {
+		t.Fatalf("unexpected first payment method: %#v", methods[0])
+	}
+}
+
+func TestBepusdtAdapter_SelectPaymentMethodReturnsWalletAddress(t *testing.T) {
+	adapter := NewBepusdtAdapter()
+	selector, ok := adapter.(PaymentMethodSelector)
+	if !ok {
+		t.Fatal("bepusdt adapter does not implement PaymentMethodSelector")
+	}
+	server := newBepusdtCreatePaymentServer(t, "usdt.trc20")
+	defer server.Close()
+
+	result, err := selector.SelectPaymentMethod(context.Background(), validBepusdtConfig(server.URL), SelectPaymentMethodInput{
+		ProviderRef: "BEP-SELECT-1",
+		Currency:    "USDC",
+		Network:     "base",
+	})
+	if err != nil {
+		t.Fatalf("SelectPaymentMethod() failed: %v", err)
+	}
+	if result.QRCodeURL != "0xBaseWalletAddress" {
+		t.Fatalf("QRCodeURL = %q, want selected wallet address", result.QRCodeURL)
+	}
+	data := result.Payload["data"].(map[string]interface{})
+	if data["selection_required"] != false || data["selected_currency"] != "USDC" || data["selected_network"] != "base" {
+		t.Fatalf("unexpected selection payload: %#v", data)
+	}
+	if data["chain"] != "base" || data["token_id"] != "base-usdc" {
 		t.Fatalf("unexpected chain labels: chain=%v token_id=%v", data["chain"], data["token_id"])
 	}
 }
@@ -144,19 +176,60 @@ func validBepusdtConfig(gatewayURL string) models.JSON {
 func newBepusdtCreatePaymentServer(t *testing.T, wantTradeType string) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v1/order/create-transaction" {
-			t.Fatalf("path = %s, want /api/v1/order/create-transaction", r.URL.Path)
-		}
 		var payload map[string]interface{}
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			t.Fatalf("decode request failed: %v", err)
 		}
-		if payload["trade_type"] != wantTradeType {
-			t.Fatalf("trade_type = %v, want %s", payload["trade_type"], wantTradeType)
-		}
 
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{
+		switch r.URL.Path {
+		case "/api/v1/order/create-order":
+			if payload["reselect"] != true {
+				t.Fatalf("reselect = %v, want true", payload["reselect"])
+			}
+			if payload["currencies"] != "USDT,USDC" {
+				t.Fatalf("currencies = %v, want USDT,USDC", payload["currencies"])
+			}
+			_, _ = w.Write([]byte(`{
+				"status_code": 200,
+				"message": "success",
+				"data": {
+					"fiat": "CNY",
+					"trade_id": "BEP-SELECT-1",
+					"order_id": "ORDER-QR-1",
+					"amount": "28.88",
+					"expiration_time": 1200,
+					"payment_url": "https://bepusdt.example/pay/cashier/BEP-SELECT-1",
+					"network": [
+						{"amount":"28.88","actual_amount":"4.25","fiat":"CNY","exchange_rate":"6.79","currency":"USDT","network":"tron","token_net_name":"TRC20","is_popular":true},
+						{"amount":"28.88","actual_amount":"4.01","fiat":"CNY","exchange_rate":"7.20","currency":"USDC","network":"base","token_net_name":"Base","is_popular":false}
+					]
+				}
+			}`))
+		case "/api/v1/pay/update-order":
+			if payload["trade_id"] != "BEP-SELECT-1" || payload["currency"] != "USDC" || payload["network"] != "base" {
+				t.Fatalf("unexpected update-order payload: %#v", payload)
+			}
+			_, _ = w.Write([]byte(`{
+				"status_code": 200,
+				"message": "success",
+				"data": {
+					"fiat": "CNY",
+					"trade_type": "usdc.base",
+					"trade_id": "BEP-SELECT-1",
+					"order_id": "ORDER-QR-1",
+					"amount": "28.88",
+					"actual_amount": "4.01",
+					"token": "0xBaseWalletAddress",
+					"expiration_time": 1200,
+					"payment_url": "https://bepusdt.example/pay/checkout-counter/BEP-SELECT-1"
+				}
+			}`))
+		case "/api/v1/order/create-transaction":
+			if payload["trade_type"] != wantTradeType {
+				t.Fatalf("trade_type = %v, want %s", payload["trade_type"], wantTradeType)
+			}
+			_, _ = w.Write([]byte(`{
 			"status_code": 200,
 			"message": "success",
 			"data": {
@@ -170,6 +243,9 @@ func newBepusdtCreatePaymentServer(t *testing.T, wantTradeType string) *httptest
 				"status": 1,
 				"payment_url": "https://bepusdt.example/pay/checkout-counter/BEP-1"
 			}
-		}`))
+			}`))
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
 	}))
 }

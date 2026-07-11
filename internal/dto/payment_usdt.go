@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -14,6 +15,19 @@ type CryptoWalletInfo struct {
 	ChainAmount string
 	Chain       string
 	TokenID     string
+}
+
+// CryptoPaymentMethod 是 BEpusdt 收银台订单可选择的链上付款方式。
+type CryptoPaymentMethod struct {
+	Amount          string `json:"amount,omitempty"`
+	ActualAmount    string `json:"actual_amount,omitempty"`
+	Fiat            string `json:"fiat,omitempty"`
+	ExchangeRate    string `json:"exchange_rate,omitempty"`
+	Currency        string `json:"currency"`
+	Network         string `json:"network"`
+	TokenNetName    string `json:"token_net_name,omitempty"`
+	TokenCustomName string `json:"token_custom_name,omitempty"`
+	IsPopular       bool   `json:"is_popular,omitempty"`
 }
 
 // HasAny 返回是否存在任意可展示的链上付款字段。
@@ -78,6 +92,52 @@ func ExtractUSDTWalletInfo(providerType, interactionMode string, payload models.
 	return info.Address, info.ChainAmount
 }
 
+// ExtractCryptoPaymentMethods 从 BEpusdt 创建订单响应中提取可选币种和网络。
+func ExtractCryptoPaymentMethods(providerType, interactionMode string, payload models.JSON) []CryptoPaymentMethod {
+	if !strings.EqualFold(strings.TrimSpace(providerType), constants.PaymentProviderBepusdt) ||
+		!strings.EqualFold(strings.TrimSpace(interactionMode), constants.PaymentInteractionQR) {
+		return nil
+	}
+	data, ok := payloadMap(payload["data"])
+	if !ok {
+		return nil
+	}
+	raw, ok := data["payment_methods"]
+	if !ok || raw == nil {
+		return nil
+	}
+	encoded, err := json.Marshal(raw)
+	if err != nil {
+		return nil
+	}
+	var methods []CryptoPaymentMethod
+	if err := json.Unmarshal(encoded, &methods); err != nil {
+		return nil
+	}
+	result := make([]CryptoPaymentMethod, 0, len(methods))
+	seen := make(map[string]struct{}, len(methods))
+	for _, method := range methods {
+		method.Currency = strings.ToUpper(strings.TrimSpace(method.Currency))
+		method.Network = strings.ToLower(strings.TrimSpace(method.Network))
+		if method.Currency == "" || method.Network == "" {
+			continue
+		}
+		key := method.Currency + ":" + method.Network
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		result = append(result, method)
+	}
+	return result
+}
+
+// ExtractSelectedCryptoPaymentMethod 返回当前已选币种和网络。
+func ExtractSelectedCryptoPaymentMethod(payload models.JSON) (currency, network string) {
+	return strings.ToUpper(readPayloadString(payload, "data", "selected_currency")),
+		strings.ToLower(readPayloadString(payload, "data", "selected_network"))
+}
+
 func firstPayloadString(values ...string) string {
 	for _, value := range values {
 		if value != "" {
@@ -117,5 +177,16 @@ func readPayloadString(payload models.JSON, keys ...string) string {
 		return strings.TrimSpace(fmt.Sprintf("%d", v))
 	default:
 		return strings.TrimSpace(fmt.Sprintf("%v", v))
+	}
+}
+
+func payloadMap(value any) (map[string]any, bool) {
+	switch typed := value.(type) {
+	case map[string]any:
+		return typed, true
+	case models.JSON:
+		return map[string]any(typed), true
+	default:
+		return nil, false
 	}
 }

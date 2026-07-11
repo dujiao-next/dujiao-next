@@ -96,22 +96,25 @@ func NewWalletRechargeRespList(orders []models.WalletRechargeOrder) []WalletRech
 
 // WalletRechargePaymentPayload 钱包充值支付响应载荷
 type WalletRechargePaymentPayload struct {
-	Recharge        *WalletRechargeResp `json:"recharge,omitempty"`
-	RechargeNo      string              `json:"recharge_no,omitempty"`
-	RechargeStatus  string              `json:"recharge_status,omitempty"`
-	Account         *WalletAccountResp  `json:"account,omitempty"`
-	PaymentID       *uint               `json:"payment_id,omitempty"`
-	ProviderType    string              `json:"provider_type,omitempty"`
-	ChannelType     string              `json:"channel_type,omitempty"`
-	InteractionMode string              `json:"interaction_mode,omitempty"`
-	PayURL          string              `json:"pay_url,omitempty"`
-	QRCode          string              `json:"qr_code,omitempty"`
-	WalletAddress   string              `json:"wallet_address,omitempty"`
-	ChainAmount     string              `json:"chain_amount,omitempty"`
-	Chain           string              `json:"chain,omitempty"`
-	TokenID         string              `json:"token_id,omitempty"`
-	ExpiresAt       *time.Time          `json:"expires_at,omitempty"`
-	Status          string              `json:"status,omitempty"`
+	Recharge         *WalletRechargeResp   `json:"recharge,omitempty"`
+	RechargeNo       string                `json:"recharge_no,omitempty"`
+	RechargeStatus   string                `json:"recharge_status,omitempty"`
+	Account          *WalletAccountResp    `json:"account,omitempty"`
+	PaymentID        *uint                 `json:"payment_id,omitempty"`
+	ProviderType     string                `json:"provider_type,omitempty"`
+	ChannelType      string                `json:"channel_type,omitempty"`
+	InteractionMode  string                `json:"interaction_mode,omitempty"`
+	PayURL           string                `json:"pay_url,omitempty"`
+	QRCode           string                `json:"qr_code,omitempty"`
+	WalletAddress    string                `json:"wallet_address,omitempty"`
+	ChainAmount      string                `json:"chain_amount,omitempty"`
+	Chain            string                `json:"chain,omitempty"`
+	TokenID          string                `json:"token_id,omitempty"`
+	PaymentMethods   []CryptoPaymentMethod `json:"payment_methods,omitempty"`
+	SelectedCurrency string                `json:"selected_currency,omitempty"`
+	SelectedNetwork  string                `json:"selected_network,omitempty"`
+	ExpiresAt        *time.Time            `json:"expires_at,omitempty"`
+	Status           string                `json:"status,omitempty"`
 }
 
 // NewWalletRechargePaymentPayload 构造钱包充值支付响应
@@ -145,6 +148,8 @@ func NewWalletRechargePaymentPayload(recharge *models.WalletRechargeOrder, payme
 		p.ChainAmount = info.ChainAmount
 		p.Chain = info.Chain
 		p.TokenID = info.TokenID
+		p.PaymentMethods = ExtractCryptoPaymentMethods(payment.ProviderType, payment.InteractionMode, payment.ProviderPayload)
+		p.SelectedCurrency, p.SelectedNetwork = ExtractSelectedCryptoPaymentMethod(payment.ProviderPayload)
 	}
 	return p
 	// 排除 Payment 的：OrderID、ChannelID、Amount、FeeRate、FixedFee、FeeAmount、Currency、

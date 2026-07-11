@@ -25,6 +25,12 @@ type LatestPaymentQuery struct {
 	OrderNo string `form:"order_no" binding:"required"`
 }
 
+// SelectPaymentMethodRequest 选择二维码支付的币种和网络。
+type SelectPaymentMethodRequest struct {
+	Currency string `json:"currency" binding:"required"`
+	Network  string `json:"network" binding:"required"`
+}
+
 // PaypalWebhookQuery PayPal webhook 查询参数。
 type PaypalWebhookQuery struct {
 	ChannelID uint `form:"channel_id" binding:"required"`
@@ -84,6 +90,62 @@ func (h *Handler) CreatePayment(c *gin.Context) {
 	}
 
 	response.Success(c, dto.NewCreatePaymentResp(result))
+}
+
+// SelectPaymentMethod 为当前用户的订单或充值单选择链上付款方式。
+func (h *Handler) SelectPaymentMethod(c *gin.Context) {
+	uid, ok := shared.GetUserID(c)
+	if !ok {
+		return
+	}
+	paymentID, err := shared.ParseParamUint(c, "id")
+	if err != nil {
+		shared.RespondError(c, response.CodeBadRequest, "error.payment_invalid", nil)
+		return
+	}
+	var req SelectPaymentMethodRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		shared.RespondBindError(c, err)
+		return
+	}
+	payment, err := h.PaymentService.GetPayment(paymentID)
+	if err != nil {
+		respondPaymentCaptureError(c, err)
+		return
+	}
+
+	businessNo := ""
+	if payment.OrderID != 0 {
+		order, orderErr := h.OrderService.GetOrderByUserForTenant(tenantFromRequest(c), payment.OrderID, uid)
+		if orderErr != nil {
+			respondPaymentCaptureError(c, orderErr)
+			return
+		}
+		businessNo = order.OrderNo
+	} else {
+		recharge, rechargeErr := h.WalletService.GetRechargeOrderByPaymentIDAndUser(paymentID, uid)
+		if rechargeErr != nil {
+			if errors.Is(rechargeErr, service.ErrWalletRechargeNotFound) {
+				shared.RespondError(c, response.CodeNotFound, "error.payment_not_found", nil)
+				return
+			}
+			shared.RespondError(c, response.CodeInternal, "error.payment_fetch_failed", rechargeErr)
+			return
+		}
+		businessNo = recharge.RechargeNo
+	}
+
+	updated, err := h.PaymentService.SelectPaymentMethod(service.SelectPaymentMethodInput{
+		PaymentID: paymentID,
+		Currency:  req.Currency,
+		Network:   req.Network,
+		Context:   c.Request.Context(),
+	})
+	if err != nil {
+		respondPaymentCaptureError(c, err)
+		return
+	}
+	response.Success(c, dto.NewLatestPaymentResp(updated, businessNo))
 }
 
 // CapturePayment 用户捕获支付。
