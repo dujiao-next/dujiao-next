@@ -86,6 +86,7 @@ func normalizeSiteSetting(value map[string]interface{}) models.JSON {
 	normalized[constants.SettingFieldSiteCurrency] = normalizeSiteCurrency(value[constants.SettingFieldSiteCurrency])
 	normalized["template_mode"] = normalizeSiteTemplateMode(value["template_mode"])
 	normalized[constants.SettingFieldStorefrontTemplate] = normalizeStorefrontTemplate(value[constants.SettingFieldStorefrontTemplate])
+	normalized["locale_url_mode"] = normalizeLocaleURLMode(value["locale_url_mode"])
 
 	if raw, ok := value["languages"]; ok {
 		normalized["languages"] = normalizeSiteLanguages(raw)
@@ -344,6 +345,15 @@ func normalizeSiteTemplateMode(raw interface{}) string {
 		return "list"
 	}
 	return "card"
+}
+
+// normalizeLocaleURLMode 归一化 URL 语言模式，仅允许 "none" 或 "prefix"，默认 "none"。
+func normalizeLocaleURLMode(raw interface{}) string {
+	mode := normalizeSettingText(raw)
+	if mode == "prefix" {
+		return "prefix"
+	}
+	return "none"
 }
 
 // normalizeStorefrontTemplate 归一化店面模板，允许 "classic" 或 "vault"，默认 "classic"。
