@@ -15,7 +15,7 @@ type User struct {
 	DisplayName           string         `gorm:"default:''" json:"display_name"`                               // 昵称
 	Locale                string         `gorm:"default:'zh-CN'" json:"locale"`                                // 语言偏好
 	Status                string         `gorm:"default:'active'" json:"status"`                               // 账号状态
-	MemberLevelID         uint           `gorm:"not null;default:0" json:"member_level_id"`                    // 当前会员等级ID
+	MemberLevelID         uint           `gorm:"index;not null;default:0" json:"member_level_id"`                    // 当前会员等级ID
 	TotalRecharged        Money          `gorm:"type:decimal(20,2);not null;default:0" json:"total_recharged"` // 充值累计
 	TotalSpent            Money          `gorm:"type:decimal(20,2);not null;default:0" json:"total_spent"`     // 消费累计
 	AdminNote             string         `gorm:"type:text;default:''" json:"admin_note,omitempty"`             // 管理员备注（仅后台可见）

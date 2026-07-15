@@ -208,6 +208,10 @@ func (r *concurrentUserRepository) ClearTOTP(userID uint) error {
 	return r.base.ClearTOTP(userID)
 }
 
+func (r *concurrentUserRepository) CountByMemberLevelIDs(levelIDs []uint) (map[uint]int64, error) {
+	return r.base.CountByMemberLevelIDs(levelIDs)
+}
+
 func TestMemberLevelServiceOnOrderPaidDoesNotOverwriteConcurrentHigherLevel(t *testing.T) {
 	_, db := newMemberLevelServiceForTest(t)
 	defaultLevel := createMemberLevelFixture(t, db, "race-default", 0, "0", true)

@@ -18,6 +18,9 @@ type MemberLevel struct {
 	IsDefault         bool           `gorm:"not null;default:false" json:"is_default"`                        // 是否默认等级（仅一个）
 	SortOrder         int            `gorm:"not null;default:0" json:"sort_order"`                            // 排序权重（越大等级越高）
 	IsActive          bool           `gorm:"not null;default:true" json:"is_active"`                          // 是否启用
+	// MemberCount 属于该等级的会员数量（不持久化，查询时注入）
+	MemberCount int64 `gorm:"-" json:"member_count"`
+
 	CreatedAt         time.Time      `gorm:"index" json:"created_at"`
 	UpdatedAt         time.Time      `gorm:"index" json:"updated_at"`
 	DeletedAt         gorm.DeletedAt `gorm:"index" json:"-"`

@@ -5,6 +5,7 @@ import (
 
 	"github.com/dujiao-next/internal/http/handlers/shared"
 	"github.com/dujiao-next/internal/http/response"
+	"github.com/dujiao-next/internal/logger"
 	"github.com/dujiao-next/internal/models"
 	"github.com/dujiao-next/internal/repository"
 	"github.com/dujiao-next/internal/service"
@@ -44,6 +45,21 @@ func (h *Handler) GetAdminMemberLevels(c *gin.Context) {
 	if err != nil {
 		shared.RespondError(c, response.CodeInternal, "error.member_level_fetch_failed", err)
 		return
+	}
+
+	// 批量统计每个等级的会员人数，查询失败不报错（member_count 保持默认值 0），仅记录日志
+	if len(levels) > 0 {
+		ids := make([]uint, len(levels))
+		for i, lv := range levels {
+			ids[i] = lv.ID
+		}
+		if counts, err := h.UserRepo.CountByMemberLevelIDs(ids); err == nil {
+			for i := range levels {
+				levels[i].MemberCount = counts[levels[i].ID]
+			}
+		} else {
+			logger.Warnw("member_level_count_failed", "error", err, "level_ids", ids)
+		}
 	}
 
 	pagination := response.BuildPagination(page, pageSize, total)

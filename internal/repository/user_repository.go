@@ -23,6 +23,7 @@ type UserRepository interface {
 	IncrementTotalSpent(userID uint, amount decimal.Decimal) error
 	UpdateMemberLevelIfCurrent(userID, currentLevelID, nextLevelID uint) (int64, error)
 	List(filter UserListFilter) ([]models.User, int64, error)
+	CountByMemberLevelIDs(levelIDs []uint) (map[uint]int64, error)
 	BatchUpdateStatus(userIDs []uint, status string) error
 	AssignDefaultMemberLevel(defaultLevelID uint) (int64, error)
 
@@ -154,6 +155,9 @@ func (r *GormUserRepository) List(filter UserListFilter) ([]models.User, int64, 
 	if filter.Status != "" {
 		query = query.Where("status = ?", filter.Status)
 	}
+	if filter.MemberLevelID != nil {
+		query = query.Where("member_level_id = ?", *filter.MemberLevelID)
+	}
 	if filter.CreatedFrom != nil {
 		query = query.Where("created_at >= ?", *filter.CreatedFrom)
 	}
@@ -205,6 +209,31 @@ func applyUserSort(query *gorm.DB, sortBy, sortOrder string) *gorm.DB {
 	default:
 		return query.Order("users.id DESC")
 	}
+}
+
+// CountByMemberLevelIDs 按等级 ID 批量统计会员人数，返回 levelID → count 映射。
+// 查询失败时返回 error（调用方决定是否降级为 0）。
+func (r *GormUserRepository) CountByMemberLevelIDs(levelIDs []uint) (map[uint]int64, error) {
+	if len(levelIDs) == 0 {
+		return map[uint]int64{}, nil
+	}
+	type row struct {
+		MemberLevelID uint  `gorm:"column:member_level_id"`
+		Count         int64 `gorm:"column:count"`
+	}
+	var rows []row
+	if err := r.db.Model(&models.User{}).
+		Select("member_level_id, COUNT(*) as count").
+		Where("member_level_id IN ?", levelIDs).
+		Group("member_level_id").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	result := make(map[uint]int64, len(rows))
+	for _, r := range rows {
+		result[r.MemberLevelID] = r.Count
+	}
+	return result, nil
 }
 
 // BatchUpdateStatus 批量更新用户状态

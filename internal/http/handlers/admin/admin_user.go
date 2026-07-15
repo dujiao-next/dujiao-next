@@ -3,6 +3,7 @@ package admin
 import (
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,6 +29,7 @@ type UpdateAdminUserRequest struct {
 	Password      *string `json:"password"`
 	AdminNote     *string `json:"admin_note"`
 	EmailVerified *bool   `json:"email_verified"`
+	MemberLevelID *uint   `json:"member_level_id"` // 会员等级 ID，nil=不修改，0=清除等级
 }
 
 // BatchUpdateUserStatusRequest 批量更新用户状态请求
@@ -91,6 +93,17 @@ func (h *Handler) GetAdminUsers(c *gin.Context) {
 	keyword := strings.TrimSpace(c.Query("keyword"))
 	status := strings.TrimSpace(c.Query("status"))
 
+	var memberLevelID *uint
+	if raw := strings.TrimSpace(c.Query("member_level_id")); raw != "" {
+		parsed, err := strconv.ParseUint(raw, 10, 64)
+		if err != nil {
+			shared.RespondError(c, response.CodeBadRequest, "error.bad_request", err)
+			return
+		}
+		v := uint(parsed)
+		memberLevelID = &v
+	}
+
 	createdFrom, createdTo, err := shared.ParseQueryTimeRange(c, "created_from", "created_to")
 	if err != nil {
 		shared.RespondError(c, response.CodeBadRequest, "error.bad_request", err)
@@ -108,6 +121,7 @@ func (h *Handler) GetAdminUsers(c *gin.Context) {
 		UserID:        userID,
 		Keyword:       keyword,
 		Status:        status,
+		MemberLevelID: memberLevelID,
 		CreatedFrom:   createdFrom,
 		CreatedTo:     createdTo,
 		LastLoginFrom: lastLoginFrom,
@@ -282,6 +296,21 @@ func (h *Handler) UpdateAdminUser(c *gin.Context) {
 		updated = true
 	}
 
+	if req.MemberLevelID != nil {
+		if *req.MemberLevelID != 0 {
+			lv, err := h.MemberLevelService.GetByID(*req.MemberLevelID)
+			if err != nil {
+				shared.RespondError(c, response.CodeInternal, "error.member_level_fetch_failed", err)
+				return
+			}
+			if lv == nil {
+				shared.RespondError(c, response.CodeBadRequest, "error.member_level_not_found", nil)
+				return
+			}
+		}
+		user.MemberLevelID = *req.MemberLevelID
+		updated = true
+	}
 	if req.EmailVerified != nil {
 		if *req.EmailVerified {
 			if user.EmailVerifiedAt == nil {

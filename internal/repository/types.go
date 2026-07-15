@@ -264,6 +264,7 @@ type UserListFilter struct {
 	UserID        uint
 	Keyword       string
 	Status        string
+	MemberLevelID *uint // nil=不过滤, 0=筛选无等级用户, >0=筛选指定等级
 	CreatedFrom   *time.Time
 	CreatedTo     *time.Time
 	LastLoginFrom *time.Time
