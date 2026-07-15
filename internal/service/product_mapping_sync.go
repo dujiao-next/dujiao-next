@@ -35,6 +35,17 @@ func (s *ProductMappingService) SyncProduct(mappingID uint) error {
 		return ErrConnectionNotFound
 	}
 
+	// 检查排除列表：被排除的上游商品跳过同步
+	if conn.IsProductExcluded(mapping.UpstreamProductID) {
+		logger.Infow("sync_single_product_skipped_excluded",
+			"connection_id", mapping.ConnectionID,
+			"upstream_product_id", mapping.UpstreamProductID,
+			"local_product_id", mapping.LocalProductID,
+			"mapping_id", mapping.ID,
+		)
+		return ErrProductExcluded
+	}
+
 	adapter, err := s.connService.GetAdapter(conn)
 	if err != nil {
 		return err
@@ -388,14 +399,21 @@ func (s *ProductMappingService) EnsureUpstreamStockForOrder(localSKUID uint, req
 
 	// 缓存库存不足 → 实时同步上游商品
 	if syncErr := s.SyncProduct(skuMapping.ProductMappingID); syncErr != nil {
-		// 上游抖动：fail-open，记录但不阻断下单
-		logger.Warnw("preorder_stock_check_realtime_sync_failed",
-			"local_sku_id", localSKUID,
-			"product_mapping_id", skuMapping.ProductMappingID,
-			"required_qty", requiredQty,
-			"cached_stock", skuMapping.UpstreamStock,
-			"error", syncErr,
-		)
+		if errors.Is(syncErr, ErrProductExcluded) {
+			logger.Debugw("preorder_stock_check_excluded_skipped",
+				"local_sku_id", localSKUID,
+				"product_mapping_id", skuMapping.ProductMappingID,
+			)
+		} else {
+			// 上游抖动：fail-open，记录但不阻断下单
+			logger.Warnw("preorder_stock_check_realtime_sync_failed",
+				"local_sku_id", localSKUID,
+				"product_mapping_id", skuMapping.ProductMappingID,
+				"required_qty", requiredQty,
+				"cached_stock", skuMapping.UpstreamStock,
+				"error", syncErr,
+			)
+		}
 		return nil
 	}
 
@@ -559,6 +577,7 @@ func (s *ProductMappingService) syncConnectionStock(connectionID uint, connMappi
 	// 对每个映射执行同步
 	now := time.Now()
 	isFullSync := updatedAfter == nil
+	excludedSet := conn.GetExcludedProductIDSet()
 	for i := range connMappings {
 		mapping := &connMappings[i]
 		upProduct, ok := upstreamProducts[mapping.UpstreamProductID]
@@ -587,6 +606,15 @@ func (s *ProductMappingService) syncConnectionStock(connectionID uint, connMappi
 		// 上游 is_active=false → 标记为 inactive
 		if !upProduct.IsActive {
 			_ = s.markUpstreamUnavailable(mapping, models.UpstreamStatusInactive, now)
+			continue
+		}
+		// 检查排除列表：被排除的上游商品跳过库存/价格同步，但上游删除/下架检测不受影响
+		if excludedSet != nil && excludedSet[mapping.UpstreamProductID] {
+			logger.Debugw("sync_connection_stock_excluded",
+				"connection_id", connectionID,
+				"upstream_product_id", mapping.UpstreamProductID,
+				"local_product_id", mapping.LocalProductID,
+			)
 			continue
 		}
 		s.syncProductFromData(mapping, conn, &upProduct, &now)

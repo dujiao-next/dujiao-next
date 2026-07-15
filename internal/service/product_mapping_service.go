@@ -21,6 +21,7 @@ var (
 	ErrMappingAlreadyExists    = errors.New("product mapping already exists for this upstream product")
 	ErrUpstreamProductNotFound = errors.New("upstream product not found")
 	ErrMappingInactive         = errors.New("product mapping is inactive")
+	ErrProductExcluded         = errors.New("product excluded from upstream sync")
 )
 
 // ProductMappingService 商品映射业务服务

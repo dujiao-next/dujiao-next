@@ -63,6 +63,7 @@ type CreateConnectionInput struct {
 	PriceMarkupPercent float64 `json:"price_markup_percent"`
 	PriceRoundingMode  string  `json:"price_rounding_mode"`
 	AutoSyncPrice      bool    `json:"auto_sync_price"`
+	ExcludedProductIDs string  `json:"excluded_product_ids"`
 }
 
 // Create 创建连接
@@ -98,6 +99,11 @@ func (s *SiteConnectionService) Create(input CreateConnectionInput) (*models.Sit
 		roundingMode = "none"
 	}
 
+	excludedIDs := strings.TrimSpace(input.ExcludedProductIDs)
+	if err := models.ValidateExcludedProductIDs(excludedIDs); err != nil {
+		return nil, err
+	}
+
 	conn := &models.SiteConnection{
 		Name:               strings.TrimSpace(input.Name),
 		BaseURL:            strings.TrimRight(strings.TrimSpace(input.BaseURL), "/"),
@@ -112,6 +118,7 @@ func (s *SiteConnectionService) Create(input CreateConnectionInput) (*models.Sit
 		PriceMarkupPercent: decimal.NewFromFloat(input.PriceMarkupPercent),
 		PriceRoundingMode:  roundingMode,
 		AutoSyncPrice:      input.AutoSyncPrice,
+		ExcludedProductIDs: excludedIDs,
 	}
 
 	if err := s.connRepo.Create(conn); err != nil {
@@ -134,6 +141,7 @@ type UpdateConnectionInput struct {
 	PriceMarkupPercent *float64 `json:"price_markup_percent"` // 指针类型，区分 0 和未传
 	PriceRoundingMode  *string  `json:"price_rounding_mode"`
 	AutoSyncPrice      *bool    `json:"auto_sync_price"`
+	ExcludedProductIDs *string  `json:"excluded_product_ids"`
 }
 
 // Update 更新连接
@@ -194,6 +202,13 @@ func (s *SiteConnectionService) Update(id uint, input UpdateConnectionInput) (*m
 	}
 	if input.AutoSyncPrice != nil {
 		conn.AutoSyncPrice = *input.AutoSyncPrice
+	}
+	if input.ExcludedProductIDs != nil {
+		trimmed := strings.TrimSpace(*input.ExcludedProductIDs)
+		if err := models.ValidateExcludedProductIDs(trimmed); err != nil {
+			return nil, err
+		}
+		conn.ExcludedProductIDs = trimmed
 	}
 
 	if err := s.connRepo.Update(conn); err != nil {

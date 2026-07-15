@@ -210,13 +210,16 @@ func (h *Handler) BatchSyncProductMappings(c *gin.Context) {
 	}
 
 	successCount := 0
+	skippedCount := 0
 	for _, id := range req.IDs {
 		if err := h.ProductMappingService.SyncProduct(id); err == nil {
 			successCount++
+		} else if errors.Is(err, service.ErrProductExcluded) {
+			skippedCount++
 		}
 	}
 
-	response.Success(c, gin.H{"total": len(req.IDs), "success_count": successCount})
+	response.Success(c, gin.H{"total": len(req.IDs), "success_count": successCount, "skipped_count": skippedCount})
 }
 
 // BatchUpdateMappingStatusRequest 批量更新状态请求
