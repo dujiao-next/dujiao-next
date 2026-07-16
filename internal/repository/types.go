@@ -24,7 +24,8 @@ type ProductListFilter struct {
 	FulfillmentType    string
 	StockStatus        string
 	HasWholesalePrices *bool
-	LowStockThreshold  int // 低库存阈值
+	Tag                string // 按标签 JSON 数组包含筛选
+	LowStockThreshold  int    // 低库存阈值
 	OnlyActive         bool
 	WithCategory       bool
 	UpdatedAfter       *time.Time // 仅返回此时间之后更新的商品

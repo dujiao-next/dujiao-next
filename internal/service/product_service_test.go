@@ -332,7 +332,7 @@ func TestProductServiceListPublicIncludesChildProductsForParentCategory(t *testi
 		t.Fatalf("create child product failed: %v", err)
 	}
 
-	products, total, err := svc.ListPublic(strconv.FormatUint(uint64(parent.ID), 10), "", 1, 20)
+	products, total, err := svc.ListPublic(strconv.FormatUint(uint64(parent.ID), 10), "", "", 1, 20)
 	if err != nil {
 		t.Fatalf("list public products failed: %v", err)
 	}
@@ -445,10 +445,12 @@ func TestProductServiceListPublicSortOrderDescending(t *testing.T) {
 		t.Fatalf("create low sort product failed: %v", err)
 	}
 
-	rows, total, err := svc.ListPublic("", "", 1, 20)
+	rows, total, err := svc.ListPublic("", "", "", 1, 20)
 	if err != nil {
 		t.Fatalf("list public products failed: %v", err)
 	}
+
+	// 验证排序：sort_order 大的在前
 	if total != 2 {
 		t.Fatalf("expected total=2, got %d", total)
 	}
@@ -507,7 +509,7 @@ func TestProductServiceListPublicSortsSKUsDescending(t *testing.T) {
 		t.Fatalf("create low sort sku failed: %v", err)
 	}
 
-	rows, total, err := svc.ListPublic("", "", 1, 20)
+	rows, total, err := svc.ListPublic("", "", "", 1, 20)
 	if err != nil {
 		t.Fatalf("list public products failed: %v", err)
 	}

@@ -430,9 +430,10 @@ func (h *Handler) GetProducts(c *gin.Context) {
 	// 获取筛选参数
 	categoryID := c.Query("category_id")
 	search := strings.TrimSpace(c.Query("search"))
+	tag := strings.TrimSpace(c.Query("tag"))
 	tenant := tenantFromRequest(c)
 
-	products, total, err := h.ProductService.ListPublicForTenant(tenant, h.ResellerRepo, categoryID, search, page, pageSize)
+	products, total, err := h.ProductService.ListPublicForTenant(tenant, h.ResellerRepo, categoryID, search, tag, page, pageSize)
 	if err != nil {
 		shared.RespondError(c, response.CodeInternal, "error.product_fetch_failed", err)
 		return
@@ -1001,6 +1002,17 @@ func (h *Handler) GetCategories(c *gin.Context) {
 	}
 
 	response.Success(c, dto.NewCategoryRespList(categories))
+}
+
+// GetTags 获取所有去重标签列表
+func (h *Handler) GetTags(c *gin.Context) {
+	tenant := tenantFromRequest(c)
+	tags, err := h.ProductService.ListUniqueTags(tenant, h.ResellerRepo)
+	if err != nil {
+		shared.RespondError(c, response.CodeInternal, "error.tag_fetch_failed", err)
+		return
+	}
+	response.Success(c, tags)
 }
 
 // CreateGuestOrderRequest 游客下单请求

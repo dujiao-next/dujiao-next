@@ -1,6 +1,7 @@
 package service
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -150,7 +151,7 @@ type ProductSKUInput struct {
 }
 
 // ListPublic 获取公开商品列表
-func (s *ProductService) ListPublic(categoryID, search string, page, pageSize int) ([]models.Product, int64, error) {
+func (s *ProductService) ListPublic(categoryID, search, tag string, page, pageSize int) ([]models.Product, int64, error) {
 	categoryIDs, err := expandPublicCategoryIDs(s.categoryRepo, categoryID)
 	if err != nil {
 		return nil, 0, err
@@ -162,6 +163,7 @@ func (s *ProductService) ListPublic(categoryID, search string, page, pageSize in
 		CategoryID:   categoryID,
 		CategoryIDs:  categoryIDs,
 		Search:       search,
+		Tag:          tag,
 		OnlyActive:   true,
 		WithCategory: true,
 	}
@@ -169,9 +171,9 @@ func (s *ProductService) ListPublic(categoryID, search string, page, pageSize in
 }
 
 // ListPublicForTenant 获取当前租户上下文的公开商品列表。
-func (s *ProductService) ListPublicForTenant(tenant TenantContext, resellerRepo repository.ResellerRepository, categoryID, search string, page, pageSize int) ([]models.Product, int64, error) {
+func (s *ProductService) ListPublicForTenant(tenant TenantContext, resellerRepo repository.ResellerRepository, categoryID, search, tag string, page, pageSize int) ([]models.Product, int64, error) {
 	if !isResellerOrderContext(tenant) {
-		return s.ListPublic(categoryID, search, page, pageSize)
+		return s.ListPublic(categoryID, search, tag, page, pageSize)
 	}
 	if tenant.ResellerID == nil || resellerRepo == nil {
 		return nil, 0, ErrResellerProductNotListed
@@ -190,11 +192,59 @@ func (s *ProductService) ListPublicForTenant(tenant TenantContext, resellerRepo 
 		CategoryID:        categoryID,
 		CategoryIDs:       categoryIDs,
 		Search:            search,
+		Tag:               tag,
 		OnlyActive:        true,
 		WithCategory:      true,
 		ExcludeProductIDs: hiddenIDs,
 	}
 	return s.repo.List(filter)
+}
+
+// ListUniqueTags 返回当前租户下所有 active 商品的去重标签列表。
+func (s *ProductService) ListUniqueTags(tenant TenantContext, resellerRepo repository.ResellerRepository) ([]string, error) {
+	tags, err := s.repo.ListUniqueTags()
+	if err != nil {
+		return nil, err
+	}
+	if !isResellerOrderContext(tenant) || tenant.ResellerID == nil || resellerRepo == nil {
+		return tags, nil
+	}
+	hiddenIDs, err := resellerRepo.ListHiddenProductIDs(*tenant.ResellerID)
+	if err != nil {
+		return nil, err
+	}
+	if len(hiddenIDs) == 0 {
+		return tags, nil
+	}
+	// 分销商场景：过滤掉仅存在于被隐藏商品中的 tag
+	hiddenSet := make(map[uint]struct{}, len(hiddenIDs))
+	for _, id := range hiddenIDs {
+		hiddenSet[id] = struct{}{}
+	}
+	visibleProducts, _, err := s.repo.List(repository.ProductListFilter{
+		Page:              1,
+		PageSize:          len(hiddenIDs) + len(tags),
+		OnlyActive:        true,
+		ExcludeProductIDs: hiddenIDs,
+	})
+	if err != nil {
+		return nil, err
+	}
+	visibleTags := make(map[string]struct{})
+	for _, p := range visibleProducts {
+		for _, t := range p.Tags {
+			t = strings.TrimSpace(t)
+			if t != "" {
+				visibleTags[t] = struct{}{}
+			}
+		}
+	}
+	result := make([]string, 0, len(visibleTags))
+	for t := range visibleTags {
+		result = append(result, t)
+	}
+	sort.Strings(result)
+	return result, nil
 }
 
 // ListForUpstreamSync 上游同步专用：可选包含已下架商品，便于下游识别下架状态

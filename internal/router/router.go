@@ -96,6 +96,7 @@ func SetupRouter(cfg *config.Config, c *provider.Container) *gin.Engine {
 			public.GET("/posts/:slug", publicHandler.GetPostBySlug)
 			public.GET("/banners", publicHandler.GetPublicBanners)
 			public.GET("/categories", publicHandler.GetCategories)
+			public.GET("/tags", publicHandler.GetTags)
 			public.GET("/captcha/image", publicHandler.GetImageCaptcha)
 			public.POST("/affiliate/click", publicHandler.TrackAffiliateClick)
 			public.GET("/member-levels", publicHandler.GetPublicMemberLevels)

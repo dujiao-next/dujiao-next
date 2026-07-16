@@ -115,7 +115,7 @@ func TestSitemapServiceIncludesActiveContent(t *testing.T) {
 		t.Fatalf("create draft post: %v", err)
 	}
 
-	xmlStr, err := svc.Generate(context.Background(), "https://example.com")
+	xmlStr, err := svc.Generate(context.Background(), "https://example.com", "none")
 	if err != nil {
 		t.Fatalf("generate failed: %v", err)
 	}
@@ -168,7 +168,7 @@ func TestSitemapServiceGenerateRobotsIncludesSitemapURL(t *testing.T) {
 
 func TestSitemapServiceGenerateRejectsEmptyBaseURL(t *testing.T) {
 	svc, _ := newSitemapServiceForTest(t)
-	if _, err := svc.Generate(context.Background(), ""); err == nil {
+	if _, err := svc.Generate(context.Background(), "", "none"); err == nil {
 		t.Fatalf("expected error for empty base url")
 	}
 }

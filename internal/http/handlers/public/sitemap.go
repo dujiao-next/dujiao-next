@@ -16,7 +16,15 @@ func (h *Handler) GetSitemap(c *gin.Context) {
 	}
 
 	baseURL := h.resolveSitemapBaseURL(c)
-	xmlStr, err := h.SitemapService.Generate(c.Request.Context(), baseURL)
+	localeURLMode := "none"
+	if h.SettingService != nil {
+		if cfg, err := h.SettingService.GetConfig(nil); err == nil {
+			if mode, ok := cfg["locale_url_mode"].(string); ok {
+				localeURLMode = mode
+			}
+		}
+	}
+	xmlStr, err := h.SitemapService.Generate(c.Request.Context(), baseURL, localeURLMode)
 	if err != nil {
 		logger.Errorw("sitemap_generate_failed", "error", err)
 		c.String(500, "internal error")

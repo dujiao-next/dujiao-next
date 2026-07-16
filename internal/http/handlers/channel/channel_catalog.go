@@ -130,7 +130,7 @@ func (h *Handler) GetProducts(c *gin.Context) {
 	if exact {
 		products, total, err = h.ProductService.ListPublicExact(categoryID, page, pageSize)
 	} else {
-		products, total, err = h.ProductService.ListPublic(categoryID, "", page, pageSize)
+		products, total, err = h.ProductService.ListPublic(categoryID, "", "", page, pageSize)
 	}
 	if err != nil {
 		logger.Errorw("channel_catalog_list_products", "error", err)

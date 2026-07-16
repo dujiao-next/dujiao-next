@@ -138,7 +138,7 @@ func TestProductServiceListPublicForTenantExcludesResellerHiddenProductsBeforePa
 	createResellerPublicSetting(t, db, models.ResellerProductSetting{ResellerID: profile.ID, ProductID: partialSKUHidden.ID, SKUID: partialHiddenSKUs[0].ID, IsListed: false, PricingMode: models.ResellerPricingModeInherit})
 
 	tenant := ResellerTenantContext("shop.example.test", profile.ID, owner.ID, "shop.example.test")
-	rows, total, err := svc.ListPublicForTenant(tenant, resellerRepo, "", "", 1, 20)
+	rows, total, err := svc.ListPublicForTenant(tenant, resellerRepo, "", "", "", 1, 20)
 	if err != nil {
 		t.Fatalf("ListPublicForTenant failed: %v", err)
 	}

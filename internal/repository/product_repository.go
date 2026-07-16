@@ -3,6 +3,7 @@ package repository
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -29,6 +30,7 @@ type ProductRepository interface {
 	QuickUpdate(id string, fields map[string]interface{}) error
 	Transaction(fn func(tx *gorm.DB) error) error
 	WithTx(tx *gorm.DB) ProductRepository
+	ListUniqueTags() ([]string, error)
 }
 
 // GormProductRepository GORM 实现
@@ -109,6 +111,13 @@ func (r *GormProductRepository) List(filter ProductListFilter) ([]models.Product
 		} else {
 			query = query.Where(expr + " = 0")
 		}
+	}
+
+	// 按产品标签筛选（products.tags 列，非 seo_meta）
+	tag := strings.TrimSpace(filter.Tag)
+	if tag != "" {
+		expr := jsonArrayContainsExpr(r.db, "tags")
+		query = query.Where(expr, jsonArrayElementParam(r.db, tag))
 	}
 
 	var total int64
@@ -302,6 +311,40 @@ func (r *GormProductRepository) ReserveManualStock(productID uint, quantity int)
 		return 0, result.Error
 	}
 	return result.RowsAffected, nil
+}
+
+// ListUniqueTags 返回所有 active 商品的去重产品标签列表（按字母升序）。
+// 注意：读取 products.tags 产品分类标签，非 products.seo_meta SEO 标签。
+func (r *GormProductRepository) ListUniqueTags() ([]string, error) {
+	type tagRow struct {
+		Tags models.StringArray `gorm:"column:tags"`
+	}
+	var rows []tagRow
+	if err := r.db.Model(&models.Product{}).
+		Select("tags").
+		Where("is_active = ?", true).
+		Where("EXISTS (SELECT 1 FROM categories c WHERE c.id = products.category_id AND c.is_active = ? AND c.deleted_at IS NULL)", true).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	seen := make(map[string]struct{})
+	for _, row := range rows {
+		for _, t := range row.Tags {
+			t = strings.TrimSpace(t)
+			if t == "" {
+				continue
+			}
+			seen[t] = struct{}{}
+		}
+	}
+
+	result := make([]string, 0, len(seen))
+	for t := range seen {
+		result = append(result, t)
+	}
+	sort.Strings(result)
+	return result, nil
 }
 
 // ReleaseManualStock 释放手动库存占用

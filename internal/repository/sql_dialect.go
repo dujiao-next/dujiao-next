@@ -43,6 +43,37 @@ func jsonArrayLengthExprByDialect(dialect, column string) string {
 	}
 }
 
+// jsonArrayContainsExpr 构建 JSON 数组元素包含查询表达式，兼容 sqlite 与 postgres。
+// 返回的表达式含一个 ? 占位符，匹配值需通过 jsonArrayElementParam 获取。
+func jsonArrayContainsExpr(db *gorm.DB, column string) string {
+	return jsonArrayContainsExprByDialect(dbDialectName(db), column)
+}
+
+// jsonArrayElementParam 将匹配值适配为目标数据库的 JSON 数组元素参数值。
+// PostgreSQL: 原始字符串（jsonb_array_elements_text 自动解码）。
+// SQLite:     原始字符串（json_each 的 value 列在 = 比较时返回解码值）。
+func jsonArrayElementParam(db *gorm.DB, value string) interface{} {
+	return jsonArrayElementParamByDialect(dbDialectName(db), value)
+}
+
+func jsonArrayContainsExprByDialect(dialect, column string) string {
+	switch strings.ToLower(strings.TrimSpace(dialect)) {
+	case "postgres", "postgresql":
+		return fmt.Sprintf("EXISTS (SELECT 1 FROM jsonb_array_elements_text(%s::jsonb) AS t WHERE t = ?)", column)
+	default:
+		return fmt.Sprintf("EXISTS (SELECT 1 FROM json_each(%s) WHERE json_each.value = ?)", column)
+	}
+}
+
+func jsonArrayElementParamByDialect(dialect, value string) interface{} {
+	switch strings.ToLower(strings.TrimSpace(dialect)) {
+	case "postgres", "postgresql":
+		return value
+	default:
+		return value
+	}
+}
+
 func jsonTextExprByDialect(dialect, column, key string) string {
 	switch strings.ToLower(strings.TrimSpace(dialect)) {
 	case "postgres", "postgresql":
