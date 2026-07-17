@@ -27,7 +27,10 @@ type ProductMappingRepository interface {
 
 // ProductMappingListFilter 映射列表筛选
 type ProductMappingListFilter struct {
-	ConnectionID uint
+	ConnectionID   uint
+	UpstreamStatus string // active / inactive / deleted，空值不筛选
+	ProductStatus  string // active / inactive，空值不筛选
+	Search         string // 商品名称模糊搜索，空值不筛选
 	Pagination
 }
 
@@ -108,6 +111,22 @@ func (r *GormProductMappingRepository) List(filter ProductMappingListFilter) ([]
 	q := r.db.Model(&models.ProductMapping{})
 	if filter.ConnectionID > 0 {
 		q = q.Where("connection_id = ?", filter.ConnectionID)
+	}
+	if filter.UpstreamStatus != "" {
+		q = q.Where("upstream_status = ?", filter.UpstreamStatus)
+	}
+	if filter.ProductStatus == "active" {
+		q = q.Where("product_mappings.is_active = ?", true)
+	} else if filter.ProductStatus == "inactive" {
+		q = q.Where("product_mappings.is_active = ?", false)
+	}
+	if filter.Search != "" {
+		like := "%" + filter.Search + "%"
+		condition, argCount := buildLocalizedLikeCondition(r.db, nil, []string{"title_json"})
+		q = q.Where(
+			"product_mappings.local_product_id IN (SELECT id FROM products WHERE deleted_at IS NULL AND ("+condition+"))",
+			repeatLikeArgs(like, argCount)...,
+		)
 	}
 
 	if err := q.Count(&total).Error; err != nil {

@@ -99,6 +99,7 @@ func SetupRouter(cfg *config.Config, c *provider.Container) *gin.Engine {
 			public.GET("/captcha/image", publicHandler.GetImageCaptcha)
 			public.POST("/affiliate/click", publicHandler.TrackAffiliateClick)
 			public.GET("/member-levels", publicHandler.GetPublicMemberLevels)
+			public.GET("/post-categories", publicHandler.GetPostCategories)
 		}
 
 		// 游客接口
@@ -322,6 +323,13 @@ func SetupRouter(cfg *config.Config, c *provider.Container) *gin.Engine {
 				authorized.PUT("/posts/:id", adminHandler.UpdatePost)
 				authorized.DELETE("/posts/:id", adminHandler.DeletePost)
 				authorized.GET("/posts/:id/products", adminHandler.GetAdminPostProductIDs)
+
+				// 文章分类管理
+				authorized.GET("/post-categories", adminHandler.GetPostCategories)
+				authorized.POST("/post-categories", adminHandler.CreatePostCategory)
+				authorized.PUT("/post-categories/:id", adminHandler.UpdatePostCategory)
+				authorized.DELETE("/post-categories/:id", adminHandler.DeletePostCategory)
+				authorized.PATCH("/post-categories/:id/status", adminHandler.PatchPostCategoryStatus)
 
 				// Banner 管理
 				authorized.GET("/banners", adminHandler.GetAdminBanners)

@@ -15,6 +15,7 @@ type Post struct {
 	SummaryJSON JSON           `gorm:"type:json" json:"summary"`                // 多语言摘要
 	ContentJSON JSON           `gorm:"type:json" json:"content"`                // 多语言内容
 	Thumbnail   string         `json:"thumbnail"`                               // 缩略图
+	CategoryID  *uint          `gorm:"index" json:"category_id"`                // 文章分类ID
 	IsPublished bool           `gorm:"default:false;index" json:"is_published"` // 是否发布
 	PublishedAt *time.Time     `gorm:"index" json:"published_at"`               // 发布时间
 	CreatedAt   time.Time      `gorm:"index" json:"created_at"`                 // 创建时间

@@ -93,12 +93,101 @@ func (a *bepusdtAdapter) CreatePayment(ctx context.Context, raw models.JSON, inp
 		return nil, mapBepusdtError(err)
 	}
 
+	mode, _ := input.Extra["interaction_mode"].(string)
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	redirectURL := strings.TrimSpace(result.PaymentURL)
+	qrCodeURL := redirectURL
+	switch mode {
+	case constants.PaymentInteractionQR:
+		qrCodeURL = strings.TrimSpace(result.Token)
+		redirectURL = ""
+		if qrCodeURL == "" {
+			return nil, fmt.Errorf("%w: bepusdt token is empty", ErrResponseInvalid)
+		}
+	case "", constants.PaymentInteractionRedirect:
+	default:
+		return nil, fmt.Errorf("%w: bepusdt interaction_mode %s", ErrConfigInvalid, mode)
+	}
+
 	return &CreateResult{
 		ProviderRef: result.TradeID,
-		RedirectURL: result.PaymentURL,
-		QRCodeURL:   result.PaymentURL, // bepusdt 是 USDT 网关，PaymentURL 同时用于跳转和 QR 展示
-		Payload:     models.JSON(result.Raw),
+		RedirectURL: redirectURL,
+		QRCodeURL:   qrCodeURL,
+		Payload:     buildBepusdtCreatePayload(result, cfg.TradeType),
 	}, nil
+}
+
+func buildBepusdtCreatePayload(result *bepusdt.CreateResult, tradeType string) models.JSON {
+	payload := models.JSON{}
+	if result == nil {
+		return payload
+	}
+	if result.Raw != nil {
+		for key, value := range result.Raw {
+			payload[key] = value
+		}
+	}
+
+	data := ensureBepusdtPayloadData(payload)
+	setBepusdtPayloadString(data, "trade_type", tradeType)
+	setBepusdtPayloadString(data, "token", result.Token)
+	setBepusdtPayloadString(data, "actual_amount", result.ActualAmount)
+	setBepusdtPayloadString(data, "payment_url", result.PaymentURL)
+
+	chain, tokenID := resolveBepusdtTradeLabels(tradeType)
+	setBepusdtPayloadString(data, "chain", chain)
+	setBepusdtPayloadString(data, "token_id", tokenID)
+	return payload
+}
+
+func ensureBepusdtPayloadData(payload models.JSON) map[string]interface{} {
+	if raw, ok := payload["data"].(map[string]interface{}); ok {
+		return raw
+	}
+	if raw, ok := payload["data"].(models.JSON); ok {
+		data := map[string]interface{}(raw)
+		payload["data"] = data
+		return data
+	}
+	data := map[string]interface{}{}
+	payload["data"] = data
+	return data
+}
+
+func setBepusdtPayloadString(payload map[string]interface{}, key string, value string) {
+	value = strings.TrimSpace(value)
+	if value != "" {
+		payload[key] = value
+	}
+}
+
+func resolveBepusdtTradeLabels(tradeType string) (chain string, tokenID string) {
+	switch strings.ToLower(strings.TrimSpace(tradeType)) {
+	case "usdt.trc20":
+		return "tron", "tron-usdt"
+	case "usdt.erc20":
+		return "ethereum", "ethereum-usdt"
+	case "usdt.bep20":
+		return "bsc", "bsc-usdt"
+	case "usdt.polygon":
+		return "polygon", "polygon-usdt"
+	case "usdc.trc20":
+		return "tron", "tron-usdc"
+	case "usdc.erc20":
+		return "ethereum", "ethereum-usdc"
+	case "usdc.polygon":
+		return "polygon", "polygon-usdc"
+	case "usdc.bep20":
+		return "bsc", "bsc-usdc"
+	case "tron.trx":
+		return "tron", "tron-trx"
+	case "eth.eth":
+		return "ethereum", "ethereum-eth"
+	case "bsc.bnb":
+		return "bsc", "bsc-bnb"
+	default:
+		return "", ""
+	}
 }
 
 // VerifyCallback 实现 CallbackVerifier。bepusdt 用 JSON POST body，form 参数忽略。

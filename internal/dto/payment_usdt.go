@@ -40,6 +40,8 @@ func ExtractCryptoWalletInfo(providerType, interactionMode string, payload model
 		return CryptoWalletInfo{
 			Address:     readPayloadString(payload, "data", "token"),
 			ChainAmount: readPayloadString(payload, "data", "actual_amount"),
+			Chain:       readPayloadString(payload, "data", "chain"),
+			TokenID:     readPayloadString(payload, "data", "token_id"),
 		}
 	case constants.PaymentProviderEpusdt:
 		return CryptoWalletInfo{

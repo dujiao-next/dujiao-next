@@ -132,6 +132,8 @@ type CreateProductInput struct {
 }
 
 type WholesalePriceInput struct {
+	SKUID       uint
+	SKUCode     string
 	MinQuantity int
 	UnitPrice   decimal.Decimal
 }
@@ -349,10 +351,6 @@ func (s *ProductService) Create(input CreateProductInput) (*models.Product, erro
 	if input.WholesalePrices != nil {
 		wholesaleInputs = *input.WholesalePrices
 	}
-	wholesalePrices, err := normalizeWholesalePriceInputs(wholesaleInputs)
-	if err != nil {
-		return nil, err
-	}
 
 	var normalizedSKUs []normalizedProductSKU
 	if len(input.SKUs) > 0 {
@@ -382,7 +380,7 @@ func (s *ProductService) Create(input CreateProductInput) (*models.Product, erro
 		ManualFormSchemaJSON: models.JSON{},
 		PriceAmount:          models.NewMoneyFromDecimal(priceAmount),
 		CostPriceAmount:      models.NewMoneyFromDecimal(costPriceAmount),
-		WholesalePrices:      wholesalePrices,
+		WholesalePrices:      models.WholesalePriceTiers{},
 		Images:               models.StringArray(input.Images),
 		Tags:                 models.StringArray(input.Tags),
 		PurchaseType:         purchaseType,
@@ -420,9 +418,31 @@ func (s *ProductService) Create(input CreateProductInput) (*models.Product, erro
 			return err
 		}
 		if len(normalizedSKUs) > 0 {
-			return applyProductSKUsWithStockGuard(skuRepo, cardSecretRepo, product.ID, fulfillmentType, normalizedSKUs)
+			if err := applyProductSKUsWithStockGuard(skuRepo, cardSecretRepo, product.ID, fulfillmentType, normalizedSKUs); err != nil {
+				return err
+			}
+		} else if err := syncSingleProductSKU(skuRepo, product.ID, priceAmount, costPriceAmount, manualStockTotal, true); err != nil {
+			return err
 		}
-		return syncSingleProductSKU(skuRepo, product.ID, priceAmount, costPriceAmount, manualStockTotal, true)
+		if input.WholesalePrices != nil {
+			var skus []models.ProductSKU
+			if skuRepo != nil {
+				var err error
+				skus, err = skuRepo.ListByProduct(product.ID, false)
+				if err != nil {
+					return err
+				}
+			}
+			wholesalePrices, err := normalizeWholesalePriceInputsForSKUs(wholesaleInputs, skus)
+			if err != nil {
+				return err
+			}
+			product.WholesalePrices = wholesalePrices
+			if err := productRepo.QuickUpdate(strconv.FormatUint(uint64(product.ID), 10), map[string]interface{}{"wholesale_prices": wholesalePrices}); err != nil {
+				return err
+			}
+		}
+		return nil
 	}); err != nil {
 		return nil, err
 	}
@@ -464,15 +484,6 @@ func (s *ProductService) Update(id string, input CreateProductInput) (*models.Pr
 	product.InstructionsJSON = models.JSON(input.InstructionsJSON)
 	product.ManualFormSchemaJSON = models.JSON{}
 	product.PriceAmount = models.NewMoneyFromDecimal(priceAmount)
-	// 仅当请求显式携带批发价字段时才覆盖，省略字段（nil）保留原有配置，
-	// 避免不关心批发价的局部更新静默清空已配阶梯。
-	if input.WholesalePrices != nil {
-		wholesalePrices, err := normalizeWholesalePriceInputs(*input.WholesalePrices)
-		if err != nil {
-			return nil, err
-		}
-		product.WholesalePrices = wholesalePrices
-	}
 	product.SortOrder = input.SortOrder
 	product.Images = models.StringArray(input.Images)
 	product.Tags = models.StringArray(input.Tags)
@@ -581,14 +592,30 @@ func (s *ProductService) Update(id string, input CreateProductInput) (*models.Pr
 			if err := applyProductSKUsWithStockGuard(skuRepo, cardSecretRepo, product.ID, fulfillmentType, normalizedSKUs); err != nil {
 				return err
 			}
+		} else if err := syncSingleProductSKU(skuRepo, product.ID, priceAmount, product.CostPriceAmount.Decimal, product.ManualStockTotal, true); err != nil {
+			return err
+		}
+		// 仅当请求显式携带批发价字段时才覆盖，省略字段（nil）保留原有配置，
+		// 避免不关心批发价的局部更新静默清空已配阶梯。
+		if input.WholesalePrices != nil {
+			var skus []models.ProductSKU
+			if skuRepo != nil {
+				var err error
+				skus, err = skuRepo.ListByProduct(product.ID, false)
+				if err != nil {
+					return err
+				}
+			}
+			wholesalePrices, err := normalizeWholesalePriceInputsForSKUs(*input.WholesalePrices, skus)
+			if err != nil {
+				return err
+			}
+			product.WholesalePrices = wholesalePrices
 		}
 		if err := productRepo.Update(product); err != nil {
 			return err
 		}
-		if len(normalizedSKUs) > 0 {
-			return nil
-		}
-		return syncSingleProductSKU(skuRepo, product.ID, priceAmount, product.CostPriceAmount.Decimal, product.ManualStockTotal, true)
+		return nil
 	}); err != nil {
 		return nil, err
 	}
@@ -1163,7 +1190,7 @@ func (s *ProductService) UpdateWholesalePrices(id string, inputs []WholesalePric
 		return nil, ErrNotFound
 	}
 
-	wholesalePrices, err := normalizeWholesalePriceInputs(inputs)
+	wholesalePrices, err := normalizeWholesalePriceInputsForSKUs(inputs, product.SKUs)
 	if err != nil {
 		return nil, err
 	}

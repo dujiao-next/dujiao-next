@@ -39,6 +39,7 @@ type CreatePostRequest struct {
 	Thumbnail   string                 `json:"thumbnail"`
 	IsPublished *bool                  `json:"is_published"`
 	ProductIDs  *[]uint                `json:"product_ids"` // nil 不改；非 nil 替换关联
+	CategoryID  *uint                  `json:"category_id"`
 }
 
 // CreatePost 创建文章
@@ -58,10 +59,19 @@ func (h *Handler) CreatePost(c *gin.Context) {
 		Thumbnail:   req.Thumbnail,
 		IsPublished: req.IsPublished,
 		ProductIDs:  req.ProductIDs,
+		CategoryID:  req.CategoryID,
 	})
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidPostType) {
 			shared.RespondError(c, response.CodeBadRequest, "error.post_type_invalid", nil)
+			return
+		}
+		if errors.Is(err, service.ErrPostCategoryInvalid) {
+			shared.RespondError(c, response.CodeBadRequest, "error.post_category_invalid", nil)
+			return
+		}
+		if errors.Is(err, service.ErrPostNoticeCategoryUnsupported) {
+			shared.RespondError(c, response.CodeBadRequest, "error.post_notice_category_unsupported", nil)
 			return
 		}
 		if errors.Is(err, service.ErrSlugExists) {
@@ -94,10 +104,19 @@ func (h *Handler) UpdatePost(c *gin.Context) {
 		Thumbnail:   req.Thumbnail,
 		IsPublished: req.IsPublished,
 		ProductIDs:  req.ProductIDs,
+		CategoryID:  req.CategoryID,
 	})
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidPostType) {
 			shared.RespondError(c, response.CodeBadRequest, "error.post_type_invalid", nil)
+			return
+		}
+		if errors.Is(err, service.ErrPostCategoryInvalid) {
+			shared.RespondError(c, response.CodeBadRequest, "error.post_category_invalid", nil)
+			return
+		}
+		if errors.Is(err, service.ErrPostNoticeCategoryUnsupported) {
+			shared.RespondError(c, response.CodeBadRequest, "error.post_notice_category_unsupported", nil)
 			return
 		}
 		if errors.Is(err, service.ErrNotFound) {

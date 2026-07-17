@@ -132,3 +132,156 @@ func TestCouponServiceApplyCoupon_RespectsPaymentRoleAndMemberLevel(t *testing.T
 		})
 	}
 }
+
+func TestCouponServiceApplyCouponFixedPerItemDiscount(t *testing.T) {
+	svc, db := newCouponServiceForTest(t)
+	items := []models.OrderItem{
+		{
+			ProductID:  100,
+			Quantity:   3,
+			TotalPrice: models.NewMoneyFromDecimal(decimal.NewFromInt(375)),
+		},
+	}
+	subtotal := models.NewMoneyFromDecimal(decimal.NewFromInt(375))
+
+	_ = createCouponFixture(t, db, models.Coupon{
+		Code:            "FIXED_ONCE",
+		Type:            constants.CouponTypeFixed,
+		Value:           models.NewMoneyFromDecimal(decimal.NewFromInt(5)),
+		MinAmount:       models.NewMoneyFromDecimal(decimal.Zero),
+		MaxDiscount:     models.NewMoneyFromDecimal(decimal.Zero),
+		ScopeType:       constants.ScopeTypeProduct,
+		ScopeRefIDs:     "[100]",
+		PerItemDiscount: false,
+		IsActive:        true,
+	})
+	discount, _, err := svc.ApplyCoupon(subtotal, "FIXED_ONCE", 0, items, false, 0)
+	if err != nil {
+		t.Fatalf("apply fixed once coupon failed: %v", err)
+	}
+	if !discount.Decimal.Equal(decimal.NewFromInt(5)) {
+		t.Fatalf("expected fixed once discount 5, got %s", discount.String())
+	}
+
+	_ = createCouponFixture(t, db, models.Coupon{
+		Code:            "FIXED_PER_ITEM",
+		Type:            constants.CouponTypeFixed,
+		Value:           models.NewMoneyFromDecimal(decimal.NewFromInt(5)),
+		MinAmount:       models.NewMoneyFromDecimal(decimal.Zero),
+		MaxDiscount:     models.NewMoneyFromDecimal(decimal.Zero),
+		ScopeType:       constants.ScopeTypeProduct,
+		ScopeRefIDs:     "[100]",
+		PerItemDiscount: true,
+		IsActive:        true,
+	})
+	discount, _, err = svc.ApplyCoupon(subtotal, "FIXED_PER_ITEM", 0, items, false, 0)
+	if err != nil {
+		t.Fatalf("apply fixed per item coupon failed: %v", err)
+	}
+	if !discount.Decimal.Equal(decimal.NewFromInt(15)) {
+		t.Fatalf("expected fixed per item discount 15, got %s", discount.String())
+	}
+}
+
+func TestCouponServiceApplyCouponFixedPerItemDiscountRespectsMaxDiscount(t *testing.T) {
+	svc, db := newCouponServiceForTest(t)
+	items := []models.OrderItem{
+		{
+			ProductID:  100,
+			Quantity:   3,
+			TotalPrice: models.NewMoneyFromDecimal(decimal.NewFromInt(375)),
+		},
+	}
+	subtotal := models.NewMoneyFromDecimal(decimal.NewFromInt(375))
+
+	_ = createCouponFixture(t, db, models.Coupon{
+		Code:            "FIXED_PER_ITEM_CAP",
+		Type:            constants.CouponTypeFixed,
+		Value:           models.NewMoneyFromDecimal(decimal.NewFromInt(5)),
+		MinAmount:       models.NewMoneyFromDecimal(decimal.Zero),
+		MaxDiscount:     models.NewMoneyFromDecimal(decimal.NewFromInt(10)),
+		ScopeType:       constants.ScopeTypeProduct,
+		ScopeRefIDs:     "[100]",
+		PerItemDiscount: true,
+		IsActive:        true,
+	})
+
+	discount, _, err := svc.ApplyCoupon(subtotal, "FIXED_PER_ITEM_CAP", 0, items, false, 0)
+	if err != nil {
+		t.Fatalf("apply fixed per item coupon failed: %v", err)
+	}
+	if !discount.Decimal.Equal(decimal.NewFromInt(10)) {
+		t.Fatalf("expected max discount cap 10, got %s", discount.String())
+	}
+}
+
+func TestCouponServiceApplyCouponFixedPerItemDiscountExcludesWholesaleItems(t *testing.T) {
+	svc, db := newCouponServiceForTest(t)
+	items := []models.OrderItem{
+		{
+			ProductID:         100,
+			Quantity:          5,
+			TotalPrice:        models.NewMoneyFromDecimal(decimal.NewFromInt(600)),
+			WholesaleDiscount: models.NewMoneyFromDecimal(decimal.NewFromInt(25)),
+		},
+		{
+			ProductID:  101,
+			Quantity:   2,
+			TotalPrice: models.NewMoneyFromDecimal(decimal.NewFromInt(250)),
+		},
+	}
+	subtotal := models.NewMoneyFromDecimal(decimal.NewFromInt(850))
+
+	_ = createCouponFixture(t, db, models.Coupon{
+		Code:                   "FIXED_PER_ITEM_NO_WHOLESALE",
+		Type:                   constants.CouponTypeFixed,
+		Value:                  models.NewMoneyFromDecimal(decimal.NewFromInt(5)),
+		MinAmount:              models.NewMoneyFromDecimal(decimal.Zero),
+		MaxDiscount:            models.NewMoneyFromDecimal(decimal.Zero),
+		ScopeType:              constants.ScopeTypeProduct,
+		ScopeRefIDs:            "[100,101]",
+		DisabledWholesalePrice: true,
+		PerItemDiscount:        true,
+		IsActive:               true,
+	})
+
+	discount, _, err := svc.ApplyCoupon(subtotal, "FIXED_PER_ITEM_NO_WHOLESALE", 0, items, false, 0)
+	if err != nil {
+		t.Fatalf("apply fixed per item coupon failed: %v", err)
+	}
+	if !discount.Decimal.Equal(decimal.NewFromInt(10)) {
+		t.Fatalf("expected only non-wholesale quantity discount 10, got %s", discount.String())
+	}
+}
+
+func TestCouponServiceApplyCouponPercentIgnoresPerItemDiscount(t *testing.T) {
+	svc, db := newCouponServiceForTest(t)
+	items := []models.OrderItem{
+		{
+			ProductID:  100,
+			Quantity:   3,
+			TotalPrice: models.NewMoneyFromDecimal(decimal.NewFromInt(300)),
+		},
+	}
+	subtotal := models.NewMoneyFromDecimal(decimal.NewFromInt(300))
+
+	_ = createCouponFixture(t, db, models.Coupon{
+		Code:            "PERCENT_PER_ITEM_IGNORED",
+		Type:            constants.CouponTypePercent,
+		Value:           models.NewMoneyFromDecimal(decimal.NewFromInt(10)),
+		MinAmount:       models.NewMoneyFromDecimal(decimal.Zero),
+		MaxDiscount:     models.NewMoneyFromDecimal(decimal.Zero),
+		ScopeType:       constants.ScopeTypeProduct,
+		ScopeRefIDs:     "[100]",
+		PerItemDiscount: true,
+		IsActive:        true,
+	})
+
+	discount, _, err := svc.ApplyCoupon(subtotal, "PERCENT_PER_ITEM_IGNORED", 0, items, false, 0)
+	if err != nil {
+		t.Fatalf("apply percent coupon failed: %v", err)
+	}
+	if !discount.Decimal.Equal(decimal.NewFromInt(30)) {
+		t.Fatalf("expected percent discount 30, got %s", discount.String())
+	}
+}

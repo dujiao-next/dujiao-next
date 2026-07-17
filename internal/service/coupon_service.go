@@ -18,6 +18,11 @@ type CouponService struct {
 	usageRepo  repository.CouponUsageRepository
 }
 
+type couponEligibility struct {
+	subtotal models.Money
+	quantity int
+}
+
 // NewCouponService 创建优惠券服务
 func NewCouponService(couponRepo repository.CouponRepository, usageRepo repository.CouponUsageRepository) *CouponService {
 	return &CouponService{
@@ -72,16 +77,16 @@ func (s *CouponService) ApplyCoupon(subtotal models.Money, code string, userID u
 		}
 	}
 
-	eligibleSubtotal, err := s.resolveEligibleSubtotal(coupon, items)
+	eligibility, err := s.resolveCouponEligibility(coupon, items)
 	if err != nil {
 		return models.Money{}, coupon, err
 	}
 
-	if eligibleSubtotal.Decimal.Cmp(coupon.MinAmount.Decimal) < 0 {
+	if eligibility.subtotal.Decimal.Cmp(coupon.MinAmount.Decimal) < 0 {
 		return models.Money{}, coupon, ErrCouponMinAmount
 	}
 
-	discount, err := s.calculateDiscount(coupon, eligibleSubtotal)
+	discount, err := s.calculateDiscount(coupon, eligibility)
 	if err != nil {
 		return models.Money{}, coupon, err
 	}
@@ -90,8 +95,8 @@ func (s *CouponService) ApplyCoupon(subtotal models.Money, code string, userID u
 		discount = models.NewMoneyFromDecimal(coupon.MaxDiscount.Decimal)
 	}
 
-	if discount.Decimal.GreaterThan(eligibleSubtotal.Decimal) {
-		discount = models.NewMoneyFromDecimal(eligibleSubtotal.Decimal)
+	if discount.Decimal.GreaterThan(eligibility.subtotal.Decimal) {
+		discount = models.NewMoneyFromDecimal(eligibility.subtotal.Decimal)
 	}
 
 	return discount, coupon, nil
@@ -160,37 +165,62 @@ func matchesCouponMemberLevel(coupon *models.Coupon, memberLevelID uint) bool {
 	return false
 }
 
-func (s *CouponService) resolveEligibleSubtotal(coupon *models.Coupon, items []models.OrderItem) (models.Money, error) {
+func (s *CouponService) resolveCouponEligibility(coupon *models.Coupon, items []models.OrderItem) (couponEligibility, error) {
 	if strings.ToLower(strings.TrimSpace(coupon.ScopeType)) != constants.ScopeTypeProduct {
-		return models.Money{}, ErrCouponScopeInvalid
+		return couponEligibility{}, ErrCouponScopeInvalid
 	}
 
 	ids, err := decodeScopeIDs(coupon.ScopeRefIDs)
 	if err != nil {
-		return models.Money{}, ErrCouponScopeInvalid
+		return couponEligibility{}, ErrCouponScopeInvalid
 	}
 	if len(ids) == 0 {
-		return models.Money{}, ErrCouponScopeInvalid
+		return couponEligibility{}, ErrCouponScopeInvalid
 	}
 
 	eligible := decimal.Zero
+	eligibleQuantity := 0
+	scopeMatched := 0
+	wholesaleExcluded := 0
 	for _, item := range items {
-		if _, ok := ids[item.ProductID]; ok {
-			eligible = eligible.Add(item.TotalPrice.Decimal)
+		if _, ok := ids[item.ProductID]; !ok {
+			continue
+		}
+		scopeMatched++
+		if coupon.DisabledWholesalePrice && item.WholesaleDiscount.Decimal.GreaterThan(decimal.Zero) {
+			wholesaleExcluded++
+			continue
+		}
+		eligible = eligible.Add(item.TotalPrice.Decimal)
+		if item.Quantity > 0 {
+			eligibleQuantity += item.Quantity
 		}
 	}
 
 	if eligible.IsZero() {
-		return models.Money{}, ErrCouponScopeInvalid
+		if scopeMatched > 0 && wholesaleExcluded == scopeMatched {
+			return couponEligibility{}, ErrCouponWholesaleDisabled
+		}
+		return couponEligibility{}, ErrCouponScopeInvalid
 	}
-	return models.NewMoneyFromDecimal(eligible), nil
+	return couponEligibility{
+		subtotal: models.NewMoneyFromDecimal(eligible),
+		quantity: eligibleQuantity,
+	}, nil
 }
 
-func (s *CouponService) calculateDiscount(coupon *models.Coupon, eligibleSubtotal models.Money) (models.Money, error) {
+func (s *CouponService) calculateDiscount(coupon *models.Coupon, eligibility couponEligibility) (models.Money, error) {
 	switch strings.ToLower(strings.TrimSpace(coupon.Type)) {
 	case constants.CouponTypeFixed:
 		if coupon.Value.Decimal.LessThanOrEqual(decimal.Zero) {
 			return models.Money{}, ErrCouponInvalid
+		}
+		if coupon.PerItemDiscount {
+			if eligibility.quantity <= 0 {
+				return models.Money{}, ErrCouponScopeInvalid
+			}
+			discount := coupon.Value.Decimal.Mul(decimal.NewFromInt(int64(eligibility.quantity)))
+			return models.NewMoneyFromDecimal(discount), nil
 		}
 		return models.NewMoneyFromDecimal(coupon.Value.Decimal), nil
 	case constants.CouponTypePercent:
@@ -198,7 +228,7 @@ func (s *CouponService) calculateDiscount(coupon *models.Coupon, eligibleSubtota
 			return models.Money{}, ErrCouponInvalid
 		}
 		percent := coupon.Value.Decimal.Div(decimal.NewFromInt(100))
-		discount := eligibleSubtotal.Decimal.Mul(percent)
+		discount := eligibility.subtotal.Decimal.Mul(percent)
 		return models.NewMoneyFromDecimal(discount), nil
 	default:
 		return models.Money{}, ErrCouponInvalid

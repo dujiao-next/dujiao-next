@@ -119,6 +119,21 @@ func TestExtractCryptoWalletInfo_DujiaoPayQR(t *testing.T) {
 	}
 }
 
+func TestExtractCryptoWalletInfo_BepusdtQRIncludesChainLabels(t *testing.T) {
+	info := ExtractCryptoWalletInfo(constants.PaymentProviderBepusdt, constants.PaymentInteractionQR, models.JSON{
+		"data": map[string]any{
+			"token":         "TAddr",
+			"actual_amount": "4.25",
+			"chain":         "tron",
+			"token_id":      "tron-usdt",
+		},
+	})
+
+	if info.Address != "TAddr" || info.ChainAmount != "4.25" || info.Chain != "tron" || info.TokenID != "tron-usdt" {
+		t.Fatalf("unexpected info: %+v", info)
+	}
+}
+
 func TestExtractCryptoWalletInfo_DujiaoPayWrappedPayload(t *testing.T) {
 	info := ExtractCryptoWalletInfo(constants.PaymentProviderDujiaoPay, constants.PaymentInteractionQR, models.JSON{
 		"data": map[string]any{

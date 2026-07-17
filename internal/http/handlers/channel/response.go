@@ -53,6 +53,7 @@ var channelOrderCreateErrorRules = []mappedChannelError{
 	{target: service.ErrCouponPaymentRoleGuestOnly, httpCode: http.StatusBadRequest, code: response.CodeBadRequest, errorCode: "coupon_invalid", key: "error.coupon_payment_role_guest_only"},
 	{target: service.ErrCouponPaymentRoleMemberOnly, httpCode: http.StatusBadRequest, code: response.CodeBadRequest, errorCode: "coupon_invalid", key: "error.coupon_payment_role_member_only"},
 	{target: service.ErrCouponMemberLevelNotAllowed, httpCode: http.StatusBadRequest, code: response.CodeBadRequest, errorCode: "coupon_invalid", key: "error.coupon_member_level_not_allowed"},
+	{target: service.ErrCouponWholesaleDisabled, httpCode: http.StatusBadRequest, code: response.CodeBadRequest, errorCode: "coupon_invalid", key: "error.coupon_wholesale_disabled"},
 	{target: service.ErrPromotionInvalid, httpCode: http.StatusBadRequest, code: response.CodeBadRequest, errorCode: "coupon_invalid", key: "error.promotion_invalid"},
 	{target: service.ErrManualFormSchemaInvalid, httpCode: http.StatusBadRequest, code: response.CodeBadRequest, errorCode: "validation_error", key: "error.manual_form_schema_invalid"},
 	{target: service.ErrManualFormRequiredMissing, httpCode: http.StatusBadRequest, code: response.CodeBadRequest, errorCode: "validation_error", key: "error.manual_form_required_missing"},

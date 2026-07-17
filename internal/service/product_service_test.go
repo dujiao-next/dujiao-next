@@ -1264,6 +1264,77 @@ func TestProductServiceUpdateWholesalePricesRejectsInvalidInputs(t *testing.T) {
 	}
 }
 
+func TestProductServiceUpdateWholesalePricesValidatesSKUBelonging(t *testing.T) {
+	svc, db := newProductServiceForTest(t)
+
+	product := models.Product{
+		CategoryID:  1,
+		Slug:        "wholesale-sku-owner-product",
+		TitleJSON:   models.JSON{"zh-CN": "wholesale-sku-owner-product"},
+		PriceAmount: models.NewMoneyFromDecimal(decimal.NewFromInt(100)),
+		IsActive:    true,
+	}
+	if err := db.Create(&product).Error; err != nil {
+		t.Fatalf("create product failed: %v", err)
+	}
+	skuA := models.ProductSKU{
+		ProductID:   product.ID,
+		SKUCode:     "SKU-A",
+		PriceAmount: models.NewMoneyFromDecimal(decimal.NewFromInt(100)),
+		IsActive:    true,
+		SortOrder:   1,
+	}
+	if err := db.Create(&skuA).Error; err != nil {
+		t.Fatalf("create sku a failed: %v", err)
+	}
+
+	otherProduct := models.Product{
+		CategoryID:  1,
+		Slug:        "wholesale-sku-owner-other",
+		TitleJSON:   models.JSON{"zh-CN": "wholesale-sku-owner-other"},
+		PriceAmount: models.NewMoneyFromDecimal(decimal.NewFromInt(100)),
+		IsActive:    true,
+	}
+	if err := db.Create(&otherProduct).Error; err != nil {
+		t.Fatalf("create other product failed: %v", err)
+	}
+	foreignSKU := models.ProductSKU{
+		ProductID:   otherProduct.ID,
+		SKUCode:     "SKU-X",
+		PriceAmount: models.NewMoneyFromDecimal(decimal.NewFromInt(100)),
+		IsActive:    true,
+		SortOrder:   1,
+	}
+	if err := db.Create(&foreignSKU).Error; err != nil {
+		t.Fatalf("create foreign sku failed: %v", err)
+	}
+
+	idStr := strconv.FormatUint(uint64(product.ID), 10)
+	if _, err := svc.UpdateWholesalePrices(idStr, []WholesalePriceInput{
+		{SKUID: foreignSKU.ID, MinQuantity: 5, UnitPrice: decimal.NewFromInt(80)},
+	}); !errors.Is(err, ErrWholesalePriceInvalid) {
+		t.Fatalf("expected foreign sku_id to be rejected, got %v", err)
+	}
+	if _, err := svc.UpdateWholesalePrices(idStr, []WholesalePriceInput{
+		{SKUID: skuA.ID, SKUCode: "SKU-X", MinQuantity: 5, UnitPrice: decimal.NewFromInt(80)},
+	}); !errors.Is(err, ErrWholesalePriceInvalid) {
+		t.Fatalf("expected sku_id/sku_code mismatch to be rejected, got %v", err)
+	}
+
+	updated, err := svc.UpdateWholesalePrices(idStr, []WholesalePriceInput{
+		{SKUCode: "SKU-A", MinQuantity: 5, UnitPrice: decimal.NewFromInt(80)},
+	})
+	if err != nil {
+		t.Fatalf("update wholesale prices failed: %v", err)
+	}
+	if len(updated.WholesalePrices) != 1 {
+		t.Fatalf("expected one tier, got %+v", updated.WholesalePrices)
+	}
+	if updated.WholesalePrices[0].SKUID != skuA.ID || updated.WholesalePrices[0].SKUCode != "SKU-A" {
+		t.Fatalf("expected SKU code to be canonicalized, got %+v", updated.WholesalePrices[0])
+	}
+}
+
 func TestProductServiceUpdateWholesalePricesReturnsNotFound(t *testing.T) {
 	svc, _ := newProductServiceForTest(t)
 

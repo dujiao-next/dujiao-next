@@ -393,6 +393,56 @@ func TestSyncProductKeepsLocalWholesalePricesWhenUpstreamOmitsWholesalePrices(t 
 	}
 }
 
+func TestSyncProductRemapsUpstreamWholesaleSKUID(t *testing.T) {
+	svc, db, mapping, cleanup := setupMappingWithUpstreamHandler(t,
+		"file:sync_remap_wholesale_sku?mode=memory&cache=shared",
+		func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"ok": true,
+				"product": upstream.UpstreamProduct{
+					ID:              101,
+					Title:           models.JSON{"zh-CN": "测试"},
+					PriceAmount:     "10.00",
+					Currency:        "CNY",
+					FulfillmentType: constants.FulfillmentTypeAuto,
+					IsActive:        true,
+					SKUs: []upstream.UpstreamSKU{
+						{ID: 201, SKUCode: "SKU-A", PriceAmount: "10.00", IsActive: true, StockQuantity: 100},
+					},
+					WholesalePrices: models.WholesalePriceTiers{
+						{SKUID: 201, MinQuantity: 5, UnitPrice: models.NewMoneyFromDecimal(decimal.NewFromInt(8))},
+					},
+				},
+			})
+		},
+	)
+	defer cleanup()
+
+	var localSKU models.ProductSKU
+	if err := db.Where("product_id = ? AND sku_code = ?", mapping.LocalProductID, "SKU-A").First(&localSKU).Error; err != nil {
+		t.Fatalf("load local sku failed: %v", err)
+	}
+	if localSKU.ID == 201 {
+		t.Fatalf("test setup invalid: local sku id should differ from upstream id")
+	}
+
+	if err := svc.SyncProduct(mapping.ID); err != nil {
+		t.Fatalf("SyncProduct returned error: %v", err)
+	}
+
+	var product models.Product
+	if err := db.First(&product, mapping.LocalProductID).Error; err != nil {
+		t.Fatalf("reload product failed: %v", err)
+	}
+	if len(product.WholesalePrices) != 1 {
+		t.Fatalf("expected one wholesale tier, got %+v", product.WholesalePrices)
+	}
+	if product.WholesalePrices[0].SKUID != localSKU.ID || product.WholesalePrices[0].SKUCode != localSKU.SKUCode {
+		t.Fatalf("expected upstream sku_id remapped to local sku, got %+v local=%+v", product.WholesalePrices[0], localSKU)
+	}
+}
+
 // listProductsHandler 构造一个 /api/v1/upstream/products 列表响应 handler
 func listProductsHandler(items []upstream.UpstreamProduct, includesInactive bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

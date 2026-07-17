@@ -5,6 +5,7 @@ import (
 
 	"github.com/dujiao-next/internal/http/handlers/shared"
 	"github.com/dujiao-next/internal/http/response"
+	"github.com/dujiao-next/internal/models"
 	"github.com/dujiao-next/internal/repository"
 	"github.com/dujiao-next/internal/service"
 
@@ -16,9 +17,30 @@ func (h *Handler) GetProductMappings(c *gin.Context) {
 	page, pageSize := shared.ParsePagination(c)
 
 	connectionID, _ := shared.ParseQueryUint(c.Query("connection_id"), false)
+	upstreamStatus := c.Query("upstream_status")
+	if upstreamStatus != "" {
+		validStatuses := map[string]bool{
+			models.UpstreamStatusActive:   true,
+			models.UpstreamStatusInactive: true,
+			models.UpstreamStatusDeleted:  true,
+		}
+		if !validStatuses[upstreamStatus] {
+			shared.RespondError(c, response.CodeBadRequest, "error.invalid_upstream_status", nil)
+			return
+		}
+	}
+	productStatus := c.Query("product_status")
+	if productStatus != "" && productStatus != "active" && productStatus != "inactive" {
+		shared.RespondError(c, response.CodeBadRequest, "error.invalid_product_status", nil)
+		return
+	}
+	search := c.Query("search")
 
 	mappings, total, err := h.ProductMappingService.List(repository.ProductMappingListFilter{
-		ConnectionID: connectionID,
+		ConnectionID:   connectionID,
+		UpstreamStatus: upstreamStatus,
+		ProductStatus:  productStatus,
+		Search:         search,
 		Pagination: repository.Pagination{
 			Page:     page,
 			PageSize: pageSize,

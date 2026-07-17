@@ -114,6 +114,16 @@ func TestResellerSiteConfigServiceReturnsFieldErrorForInvalidSupport(t *testing.
 	}
 }
 
+func TestNormalizeResellerSupportAcceptsTelegramMe(t *testing.T) {
+	support, err := normalizeResellerSupport(ResellerSupportInput{Telegram: "https://telegram.me/alice"})
+	if err != nil {
+		t.Fatalf("expected telegram.me link to be accepted, got %v", err)
+	}
+	if support["telegram"] != "https://telegram.me/alice" {
+		t.Fatalf("unexpected support json: %+v", support)
+	}
+}
+
 func TestResellerSiteConfigServiceApplyPublicConfigOverlay(t *testing.T) {
 	db := openResellerManagementServiceTestDB(t)
 	repo := repository.NewResellerRepository(db)

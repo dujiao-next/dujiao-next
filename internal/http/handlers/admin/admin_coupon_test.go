@@ -10,20 +10,24 @@ import (
 
 func TestBuildCreateCouponInputFromRequestMapsFieldsAndParsesTimes(t *testing.T) {
 	isActive := false
+	disabledWholesalePrice := true
+	perItemDiscount := true
 	req := CreateCouponRequest{
-		Code:         "SAVE10",
-		Type:         "fixed",
-		Value:        12.345,
-		MinAmount:    99.994,
-		MaxDiscount:  5.678,
-		UsageLimit:   100,
-		PerUserLimit: 2,
-		PaymentRoles: []string{"balance", "online"},
-		MemberLevels: []uint{1, 3},
-		ScopeRefIDs:  []uint{10, 20},
-		StartsAt:     "2026-06-01T10:00:00Z",
-		EndsAt:       "2026-06-02T10:00:00Z",
-		IsActive:     &isActive,
+		Code:                   "SAVE10",
+		Type:                   "fixed",
+		Value:                  12.345,
+		MinAmount:              99.994,
+		MaxDiscount:            5.678,
+		UsageLimit:             100,
+		PerUserLimit:           2,
+		DisabledWholesalePrice: &disabledWholesalePrice,
+		PerItemDiscount:        &perItemDiscount,
+		PaymentRoles:           []string{"balance", "online"},
+		MemberLevels:           []uint{1, 3},
+		ScopeRefIDs:            []uint{10, 20},
+		StartsAt:               "2026-06-01T10:00:00Z",
+		EndsAt:                 "2026-06-02T10:00:00Z",
+		IsActive:               &isActive,
 	}
 
 	input, err := buildCreateCouponInputFromRequest(req)
@@ -44,6 +48,12 @@ func TestBuildCreateCouponInputFromRequestMapsFieldsAndParsesTimes(t *testing.T)
 	}
 	if input.UsageLimit != req.UsageLimit || input.PerUserLimit != req.PerUserLimit {
 		t.Fatalf("limit fields mismatch: %#v", input)
+	}
+	if input.DisabledWholesalePrice == nil || *input.DisabledWholesalePrice != disabledWholesalePrice {
+		t.Fatalf("disabled_wholesale_price mismatch: %#v", input.DisabledWholesalePrice)
+	}
+	if input.PerItemDiscount == nil || *input.PerItemDiscount != perItemDiscount {
+		t.Fatalf("per_item_discount mismatch: %#v", input.PerItemDiscount)
 	}
 	if !reflect.DeepEqual(input.PaymentRoles, req.PaymentRoles) {
 		t.Fatalf("payment_roles mismatch: %#v", input.PaymentRoles)
@@ -67,20 +77,24 @@ func TestBuildCreateCouponInputFromRequestMapsFieldsAndParsesTimes(t *testing.T)
 
 func TestBuildUpdateCouponInputFromRequestMapsFieldsAndParsesTimes(t *testing.T) {
 	isActive := true
+	disabledWholesalePrice := true
+	perItemDiscount := true
 	req := CreateCouponRequest{
-		Code:         "SAVE20",
-		Type:         "percent",
-		Value:        20,
-		MinAmount:    50,
-		MaxDiscount:  30,
-		UsageLimit:   200,
-		PerUserLimit: 1,
-		PaymentRoles: []string{"online"},
-		MemberLevels: []uint{2},
-		ScopeRefIDs:  []uint{30},
-		StartsAt:     "2026-07-01T10:00:00Z",
-		EndsAt:       "2026-07-02T10:00:00Z",
-		IsActive:     &isActive,
+		Code:                   "SAVE20",
+		Type:                   "percent",
+		Value:                  20,
+		MinAmount:              50,
+		MaxDiscount:            30,
+		UsageLimit:             200,
+		PerUserLimit:           1,
+		DisabledWholesalePrice: &disabledWholesalePrice,
+		PerItemDiscount:        &perItemDiscount,
+		PaymentRoles:           []string{"online"},
+		MemberLevels:           []uint{2},
+		ScopeRefIDs:            []uint{30},
+		StartsAt:               "2026-07-01T10:00:00Z",
+		EndsAt:                 "2026-07-02T10:00:00Z",
+		IsActive:               &isActive,
 	}
 
 	input, err := buildUpdateCouponInputFromRequest(req)
@@ -95,6 +109,12 @@ func TestBuildUpdateCouponInputFromRequestMapsFieldsAndParsesTimes(t *testing.T)
 	}
 	if !reflect.DeepEqual(input.ScopeRefIDs, req.ScopeRefIDs) {
 		t.Fatalf("scope_ref_ids mismatch: %#v", input.ScopeRefIDs)
+	}
+	if input.DisabledWholesalePrice == nil || *input.DisabledWholesalePrice != disabledWholesalePrice {
+		t.Fatalf("disabled_wholesale_price mismatch: %#v", input.DisabledWholesalePrice)
+	}
+	if input.PerItemDiscount == nil || *input.PerItemDiscount != perItemDiscount {
+		t.Fatalf("per_item_discount mismatch: %#v", input.PerItemDiscount)
 	}
 	if input.StartsAt == nil || input.StartsAt.Format(time.RFC3339) != req.StartsAt {
 		t.Fatalf("starts_at mismatch: %#v", input.StartsAt)

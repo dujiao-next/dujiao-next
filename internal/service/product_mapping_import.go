@@ -146,7 +146,7 @@ func (s *ProductMappingService) importUpstreamProduct(connectionID uint, upstrea
 		ManualFormSchemaJSON: upProduct.ManualFormSchema,
 		PriceAmount:          models.NewMoneyFromDecimal(priceAmount.Round(2)),
 		CostPriceAmount:      models.NewMoneyFromDecimal(costPriceAmount.Round(2)),
-		WholesalePrices:      convertUpstreamWholesalePrices(upProduct.WholesalePrices, exchangeRate, markupPercent, roundingMode),
+		WholesalePrices:      models.WholesalePriceTiers{},
 		Images:               models.StringArray(localImages),
 		Tags:                 models.StringArray(upProduct.Tags),
 		PurchaseType:         constants.ProductPurchaseMember,
@@ -211,6 +211,23 @@ func (s *ProductMappingService) importUpstreamProduct(connectionID uint, upstrea
 				return fmt.Errorf("create default sku: %w", err)
 			}
 			localSKUs = append(localSKUs, defaultSKU)
+		}
+
+		if len(upProduct.WholesalePrices) > 0 {
+			wholesalePrices := convertUpstreamWholesalePrices(
+				upProduct.WholesalePrices,
+				exchangeRate,
+				markupPercent,
+				roundingMode,
+				buildUpstreamWholesaleSKUIndex(localSKUs, upProduct.SKUs, nil),
+			)
+			product.WholesalePrices = wholesalePrices
+			if err := productRepo.QuickUpdate(
+				fmt.Sprintf("%d", product.ID),
+				map[string]interface{}{"wholesale_prices": wholesalePrices},
+			); err != nil {
+				return fmt.Errorf("update local product wholesale prices: %w", err)
+			}
 		}
 
 		// 确定上游原始交付类型（auto/manual）
@@ -305,9 +322,68 @@ func createSKUMappingsWithRepo(
 	return nil
 }
 
-func convertUpstreamWholesalePrices(tiers models.WholesalePriceTiers, exchangeRate, markupPercent decimal.Decimal, roundingMode string) models.WholesalePriceTiers {
+type upstreamWholesaleSKURef struct {
+	ID      uint
+	SKUCode string
+}
+
+type upstreamWholesaleSKUIndex struct {
+	byUpstreamID map[uint]upstreamWholesaleSKURef
+	byCode       map[string]upstreamWholesaleSKURef
+}
+
+func buildUpstreamWholesaleSKUIndex(localSKUs []models.ProductSKU, upstreamSKUs []upstream.UpstreamSKU, skuMappings []models.SKUMapping) upstreamWholesaleSKUIndex {
+	index := upstreamWholesaleSKUIndex{
+		byUpstreamID: map[uint]upstreamWholesaleSKURef{},
+		byCode:       map[string]upstreamWholesaleSKURef{},
+	}
+	localByID := make(map[uint]models.ProductSKU, len(localSKUs))
+	localByCode := make(map[string]models.ProductSKU, len(localSKUs))
+	for _, sku := range localSKUs {
+		code := strings.TrimSpace(sku.SKUCode)
+		if sku.ID > 0 {
+			localByID[sku.ID] = sku
+		}
+		if code != "" {
+			ref := upstreamWholesaleSKURef{ID: sku.ID, SKUCode: code}
+			key := strings.ToLower(code)
+			localByCode[key] = sku
+			index.byCode[key] = ref
+		}
+	}
+
+	for _, mapping := range skuMappings {
+		localSKU, ok := localByID[mapping.LocalSKUID]
+		if !ok {
+			continue
+		}
+		code := strings.TrimSpace(localSKU.SKUCode)
+		index.byUpstreamID[mapping.UpstreamSKUID] = upstreamWholesaleSKURef{ID: localSKU.ID, SKUCode: code}
+	}
+
+	for _, upSKU := range upstreamSKUs {
+		if _, ok := index.byUpstreamID[upSKU.ID]; ok {
+			continue
+		}
+		if localSKU, ok := localByCode[strings.ToLower(strings.TrimSpace(upSKU.SKUCode))]; ok {
+			index.byUpstreamID[upSKU.ID] = upstreamWholesaleSKURef{ID: localSKU.ID, SKUCode: strings.TrimSpace(localSKU.SKUCode)}
+			continue
+		}
+		if len(localSKUs) == 1 && len(upstreamSKUs) == 1 {
+			localSKU := localSKUs[0]
+			index.byUpstreamID[upSKU.ID] = upstreamWholesaleSKURef{ID: localSKU.ID, SKUCode: strings.TrimSpace(localSKU.SKUCode)}
+		}
+	}
+	return index
+}
+
+func convertUpstreamWholesalePrices(tiers models.WholesalePriceTiers, exchangeRate, markupPercent decimal.Decimal, roundingMode string, indexes ...upstreamWholesaleSKUIndex) models.WholesalePriceTiers {
 	if len(tiers) == 0 {
 		return models.WholesalePriceTiers{}
+	}
+	index := upstreamWholesaleSKUIndex{}
+	if len(indexes) > 0 {
+		index = indexes[0]
 	}
 	converted := make([]WholesalePriceInput, 0, len(tiers))
 	skipped := 0
@@ -332,7 +408,20 @@ func convertUpstreamWholesalePrices(tiers models.WholesalePriceTiers, exchangeRa
 			)
 			continue
 		}
+		localSKUID, localSKUCode, ok := resolveUpstreamWholesaleTierScope(tier, index)
+		if !ok {
+			skipped++
+			logger.Warnw("convert_upstream_wholesale_price_sku_unmapped",
+				"index", idx,
+				"upstream_sku_id", tier.SKUID,
+				"sku_code", tier.SKUCode,
+				"min_quantity", tier.MinQuantity,
+			)
+			continue
+		}
 		converted = append(converted, WholesalePriceInput{
+			SKUID:       localSKUID,
+			SKUCode:     localSKUCode,
 			MinQuantity: tier.MinQuantity,
 			UnitPrice:   localPrice,
 		})
@@ -355,6 +444,32 @@ func convertUpstreamWholesalePrices(tiers models.WholesalePriceTiers, exchangeRa
 		)
 	}
 	return normalized
+}
+
+func resolveUpstreamWholesaleTierScope(tier models.WholesalePriceTier, index upstreamWholesaleSKUIndex) (uint, string, bool) {
+	hasIndex := len(index.byCode) > 0 || len(index.byUpstreamID) > 0
+	skuCode := strings.TrimSpace(tier.SKUCode)
+	if skuCode != "" {
+		if ref, ok := index.byCode[strings.ToLower(skuCode)]; ok {
+			if tier.SKUID > 0 {
+				if idRef, idOK := index.byUpstreamID[tier.SKUID]; idOK && idRef.ID != ref.ID {
+					return 0, "", false
+				}
+			}
+			return ref.ID, strings.TrimSpace(ref.SKUCode), true
+		}
+		if hasIndex {
+			return 0, "", false
+		}
+		return 0, skuCode, true
+	}
+	if tier.SKUID > 0 {
+		if ref, ok := index.byUpstreamID[tier.SKUID]; ok {
+			return ref.ID, strings.TrimSpace(ref.SKUCode), true
+		}
+		return 0, "", false
+	}
+	return 0, "", true
 }
 
 // downloadImages 下载上游图片到本地

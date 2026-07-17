@@ -24,36 +24,40 @@ func NewCouponAdminService(repo repository.CouponRepository) *CouponAdminService
 
 // CreateCouponInput 创建优惠券输入
 type CreateCouponInput struct {
-	Code         string
-	Type         string
-	Value        models.Money
-	MinAmount    models.Money
-	MaxDiscount  models.Money
-	UsageLimit   int
-	PerUserLimit int
-	PaymentRoles []string
-	MemberLevels []uint
-	ScopeRefIDs  []uint
-	StartsAt     *time.Time
-	EndsAt       *time.Time
-	IsActive     *bool
+	Code                   string
+	Type                   string
+	Value                  models.Money
+	MinAmount              models.Money
+	MaxDiscount            models.Money
+	UsageLimit             int
+	PerUserLimit           int
+	DisabledWholesalePrice *bool
+	PerItemDiscount        *bool
+	PaymentRoles           []string
+	MemberLevels           []uint
+	ScopeRefIDs            []uint
+	StartsAt               *time.Time
+	EndsAt                 *time.Time
+	IsActive               *bool
 }
 
 // UpdateCouponInput 更新优惠券输入
 type UpdateCouponInput struct {
-	Code         string
-	Type         string
-	Value        models.Money
-	MinAmount    models.Money
-	MaxDiscount  models.Money
-	UsageLimit   int
-	PerUserLimit int
-	PaymentRoles []string
-	MemberLevels []uint
-	ScopeRefIDs  []uint
-	StartsAt     *time.Time
-	EndsAt       *time.Time
-	IsActive     *bool
+	Code                   string
+	Type                   string
+	Value                  models.Money
+	MinAmount              models.Money
+	MaxDiscount            models.Money
+	UsageLimit             int
+	PerUserLimit           int
+	DisabledWholesalePrice *bool
+	PerItemDiscount        *bool
+	PaymentRoles           []string
+	MemberLevels           []uint
+	ScopeRefIDs            []uint
+	StartsAt               *time.Time
+	EndsAt                 *time.Time
+	IsActive               *bool
 }
 
 // Create 创建优惠券
@@ -99,23 +103,33 @@ func (s *CouponAdminService) Create(input CreateCouponInput) (*models.Coupon, er
 	if input.IsActive != nil {
 		isActive = *input.IsActive
 	}
+	disabledWholesalePrice := false
+	if input.DisabledWholesalePrice != nil {
+		disabledWholesalePrice = *input.DisabledWholesalePrice
+	}
+	perItemDiscount := false
+	if couponType == constants.CouponTypeFixed && input.PerItemDiscount != nil {
+		perItemDiscount = *input.PerItemDiscount
+	}
 
 	coupon := &models.Coupon{
-		Code:         code,
-		Type:         couponType,
-		Value:        input.Value,
-		MinAmount:    input.MinAmount,
-		MaxDiscount:  input.MaxDiscount,
-		UsageLimit:   input.UsageLimit,
-		UsedCount:    0,
-		PerUserLimit: input.PerUserLimit,
-		PaymentRoles: paymentRoles,
-		MemberLevels: memberLevels,
-		ScopeType:    constants.ScopeTypeProduct,
-		ScopeRefIDs:  scopeRefIDs,
-		StartsAt:     input.StartsAt,
-		EndsAt:       input.EndsAt,
-		IsActive:     isActive,
+		Code:                   code,
+		Type:                   couponType,
+		Value:                  input.Value,
+		MinAmount:              input.MinAmount,
+		MaxDiscount:            input.MaxDiscount,
+		UsageLimit:             input.UsageLimit,
+		UsedCount:              0,
+		PerUserLimit:           input.PerUserLimit,
+		DisabledWholesalePrice: disabledWholesalePrice,
+		PerItemDiscount:        perItemDiscount,
+		PaymentRoles:           paymentRoles,
+		MemberLevels:           memberLevels,
+		ScopeType:              constants.ScopeTypeProduct,
+		ScopeRefIDs:            scopeRefIDs,
+		StartsAt:               input.StartsAt,
+		EndsAt:                 input.EndsAt,
+		IsActive:               isActive,
 	}
 
 	if err := s.repo.Create(coupon); err != nil {
@@ -179,6 +193,17 @@ func (s *CouponAdminService) Update(id uint, input UpdateCouponInput) (*models.C
 	if input.IsActive != nil {
 		isActive = *input.IsActive
 	}
+	disabledWholesalePrice := existing.DisabledWholesalePrice
+	if input.DisabledWholesalePrice != nil {
+		disabledWholesalePrice = *input.DisabledWholesalePrice
+	}
+	perItemDiscount := existing.PerItemDiscount
+	if input.PerItemDiscount != nil {
+		perItemDiscount = *input.PerItemDiscount
+	}
+	if couponType != constants.CouponTypeFixed {
+		perItemDiscount = false
+	}
 
 	existing.Code = code
 	existing.Type = couponType
@@ -187,6 +212,8 @@ func (s *CouponAdminService) Update(id uint, input UpdateCouponInput) (*models.C
 	existing.MaxDiscount = input.MaxDiscount
 	existing.UsageLimit = input.UsageLimit
 	existing.PerUserLimit = input.PerUserLimit
+	existing.DisabledWholesalePrice = disabledWholesalePrice
+	existing.PerItemDiscount = perItemDiscount
 	existing.PaymentRoles = paymentRoles
 	existing.MemberLevels = memberLevels
 	existing.ScopeType = constants.ScopeTypeProduct

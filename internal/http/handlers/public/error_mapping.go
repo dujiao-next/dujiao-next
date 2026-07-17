@@ -167,6 +167,7 @@ var userOrderCommonErrorRules = []mappedHandlerError{
 	{target: service.ErrCouponPaymentRoleGuestOnly, code: response.CodeBadRequest, key: "error.coupon_payment_role_guest_only"},
 	{target: service.ErrCouponPaymentRoleMemberOnly, code: response.CodeBadRequest, key: "error.coupon_payment_role_member_only"},
 	{target: service.ErrCouponMemberLevelNotAllowed, code: response.CodeBadRequest, key: "error.coupon_member_level_not_allowed"},
+	{target: service.ErrCouponWholesaleDisabled, code: response.CodeBadRequest, key: "error.coupon_wholesale_disabled"},
 	{target: service.ErrPromotionInvalid, code: response.CodeBadRequest, key: "error.promotion_invalid"},
 	{target: service.ErrManualFormSchemaInvalid, code: response.CodeBadRequest, key: "error.manual_form_schema_invalid"},
 	{target: service.ErrManualFormRequiredMissing, code: response.CodeBadRequest, key: "error.manual_form_required_missing"},
@@ -201,6 +202,7 @@ var guestOrderCommonErrorRules = []mappedHandlerError{
 	{target: service.ErrResellerMarkupExceeded, code: response.CodeBadRequest, key: "error.reseller_markup_exceeded"},
 	{target: service.ErrResellerCouponNotAllowed, code: response.CodeBadRequest, key: "error.reseller_coupon_not_allowed"},
 	{target: service.ErrResellerPricingModeInvalid, code: response.CodeBadRequest, key: "error.reseller_price_invalid"},
+	{target: service.ErrCouponWholesaleDisabled, code: response.CodeBadRequest, key: "error.coupon_wholesale_disabled"},
 	{target: service.ErrManualFormSchemaInvalid, code: response.CodeBadRequest, key: "error.manual_form_schema_invalid"},
 	{target: service.ErrManualFormRequiredMissing, code: response.CodeBadRequest, key: "error.manual_form_required_missing"},
 	{target: service.ErrManualFormFieldInvalid, code: response.CodeBadRequest, key: "error.manual_form_field_invalid"},
@@ -226,6 +228,7 @@ var guestOrderPreviewExtraErrorRules = []mappedHandlerError{
 	{target: service.ErrCouponPaymentRoleGuestOnly, code: response.CodeBadRequest, key: "error.coupon_payment_role_guest_only"},
 	{target: service.ErrCouponPaymentRoleMemberOnly, code: response.CodeBadRequest, key: "error.coupon_payment_role_member_only"},
 	{target: service.ErrCouponMemberLevelNotAllowed, code: response.CodeBadRequest, key: "error.coupon_member_level_not_allowed"},
+	{target: service.ErrCouponWholesaleDisabled, code: response.CodeBadRequest, key: "error.coupon_wholesale_disabled"},
 	{target: service.ErrPromotionInvalid, code: response.CodeBadRequest, key: "error.promotion_invalid"},
 }
 

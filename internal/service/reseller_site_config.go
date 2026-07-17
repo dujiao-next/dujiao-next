@@ -142,7 +142,7 @@ func validateSupportURL(raw string) (string, error) {
 
 func normalizeResellerSupport(input ResellerSupportInput) (models.JSON, error) {
 	telegram := trimLimit(input.Telegram, 500)
-	if telegram != "" && !strings.HasPrefix(telegram, "https://t.me/") && !strings.HasPrefix(telegram, "tg://") {
+	if telegram != "" && !strings.HasPrefix(telegram, "https://telegram.me/") && !strings.HasPrefix(telegram, "https://t.me/") && !strings.HasPrefix(telegram, "tg://") {
 		return nil, newResellerFieldError("support_telegram")
 	}
 	whatsApp := trimLimit(input.WhatsApp, 500)

@@ -64,6 +64,7 @@ type Container struct {
 	MemberLevelRepo            repository.MemberLevelRepository
 	MemberLevelPriceRepo       repository.MemberLevelPriceRepository
 	MediaRepo                  repository.MediaRepository
+	PostCategoryRepo           repository.PostCategoryRepository
 
 	// Services
 	AuthzService                  *authz.Service
@@ -116,6 +117,7 @@ type Container struct {
 	MemberLevelService            *service.MemberLevelService
 	AdProxyService                *service.AdProxyService
 	MediaService                  *service.MediaService
+	PostCategoryService           *service.PostCategoryService
 	OrderRiskControlService       *service.OrderRiskControlService
 	ComplianceService             *service.ComplianceService
 
@@ -221,6 +223,7 @@ func (c *Container) initRepositories() {
 	c.MemberLevelRepo = repository.NewMemberLevelRepository(db)
 	c.MemberLevelPriceRepo = repository.NewMemberLevelPriceRepository(db)
 	c.MediaRepo = repository.NewMediaRepository(db)
+	c.PostCategoryRepo = repository.NewPostCategoryRepository(db)
 }
 
 func (c *Container) initServices() {
@@ -278,7 +281,8 @@ func (c *Container) initServices() {
 	c.UploadService = service.NewUploadService(c.Config)
 	c.AffiliateService = service.NewAffiliateService(c.AffiliateRepo, c.UserRepo, c.OrderRepo, c.ProductRepo, c.SettingService)
 	c.ProductService = service.NewProductService(c.ProductRepo, c.ProductSKURepo, c.CardSecretRepo, c.CardSecretBatchRepo, c.CategoryRepo, c.MemberLevelPriceRepo, c.CartRepo, c.ProductMappingRepo, c.OrderRepo, c.PaymentChannelRepo)
-	c.PostService = service.NewPostService(c.PostRepo)
+	c.PostService = service.NewPostService(c.PostRepo, c.PostCategoryRepo)
+	c.PostCategoryService = service.NewPostCategoryService(c.PostCategoryRepo)
 	c.CategoryService = service.NewCategoryService(c.CategoryRepo)
 	c.SitemapService = service.NewSitemapService(c.ProductRepo, c.CategoryRepo, c.PostRepo)
 	c.CartService = service.NewCartService(c.CartRepo, c.ProductRepo, c.ProductSKURepo, c.PromotionRepo, c.SettingService)

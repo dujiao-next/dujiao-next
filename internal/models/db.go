@@ -146,6 +146,7 @@ func AutoMigrate() error {
 		&ProductSKU{},
 		&Post{},
 		&PostProduct{},
+		&PostCategory{},
 		&Banner{},
 		&Setting{},
 		&ApiCredential{},

@@ -136,7 +136,7 @@ func (s *OrderService) buildOrderResult(input orderCreateParams) (*orderBuildRes
 		wholesaleDiscount := decimal.Zero
 		wholesaleMatched := false
 		if !resellerOrder {
-			wholesaleUnitPrice, wholesaleDiscount, wholesaleMatched = ResolveWholesaleUnitPriceWithMatchQuantity(product, basePrice, wholesaleMatchQuantity, item.Quantity)
+			wholesaleUnitPrice, wholesaleDiscount, wholesaleMatched = ResolveWholesaleUnitPriceForSKU(product, basePrice, sku.ID, sku.SKUCode, wholesaleMatchQuantity, item.Quantity)
 		}
 		if wholesaleMatched && wholesaleUnitPrice.LessThan(unitPriceAmount) {
 			unitPriceAmount = wholesaleUnitPrice
@@ -424,14 +424,24 @@ func applyCouponDiscountToItems(plans []childOrderPlan, coupon *models.Coupon, d
 	}
 	eligibleIndexes := make([]int, 0, len(plans))
 	eligibleTotal := decimal.Zero
+	scopeMatched := 0
+	wholesaleExcluded := 0
 	for i := range plans {
 		if _, ok := ids[plans[i].Item.ProductID]; !ok {
+			continue
+		}
+		scopeMatched++
+		if coupon.DisabledWholesalePrice && plans[i].WholesaleDiscount.GreaterThan(decimal.Zero) {
+			wholesaleExcluded++
 			continue
 		}
 		eligibleIndexes = append(eligibleIndexes, i)
 		eligibleTotal = eligibleTotal.Add(plans[i].TotalAmount)
 	}
 	if len(eligibleIndexes) == 0 || eligibleTotal.LessThanOrEqual(decimal.Zero) {
+		if scopeMatched > 0 && wholesaleExcluded == scopeMatched {
+			return ErrCouponWholesaleDisabled
+		}
 		return ErrCouponScopeInvalid
 	}
 

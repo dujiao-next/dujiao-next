@@ -10,12 +10,13 @@ import (
 
 // PostService 文章业务服务
 type PostService struct {
-	repo repository.PostRepository
+	repo         repository.PostRepository
+	categoryRepo repository.PostCategoryRepository
 }
 
 // NewPostService 创建文章服务
-func NewPostService(repo repository.PostRepository) *PostService {
-	return &PostService{repo: repo}
+func NewPostService(repo repository.PostRepository, categoryRepo repository.PostCategoryRepository) *PostService {
+	return &PostService{repo: repo, categoryRepo: categoryRepo}
 }
 
 // CreatePostInput 创建/更新文章输入
@@ -28,6 +29,7 @@ type CreatePostInput struct {
 	Thumbnail   string
 	IsPublished *bool
 	ProductIDs  *[]uint // nil 表示不修改关联，非 nil（含空数组）表示替换关联
+	CategoryID  *uint   // CategoryID（Update 时 nil=清除 Create 时 nil=无分类）
 }
 
 var allowedPostTypes = map[string]struct{}{
@@ -77,6 +79,10 @@ func (s *PostService) Create(input CreatePostInput) (*models.Post, error) {
 	if !isAllowedPostType(input.Type) {
 		return nil, ErrInvalidPostType
 	}
+	normalizedCategoryID := normalizePostCategoryID(input.CategoryID)
+	if err := s.validateCategoryAssignment(input.Type, normalizedCategoryID, nil); err != nil {
+		return nil, err
+	}
 
 	count, err := s.repo.CountBySlug(input.Slug, nil)
 	if err != nil {
@@ -99,6 +105,7 @@ func (s *PostService) Create(input CreatePostInput) (*models.Post, error) {
 		ContentJSON: models.JSON(input.ContentJSON),
 		Thumbnail:   input.Thumbnail,
 		IsPublished: isPublished,
+		CategoryID:  normalizedCategoryID,
 	}
 	if isPublished {
 		now := time.Now()
@@ -129,6 +136,10 @@ func (s *PostService) Update(id string, input CreatePostInput) (*models.Post, er
 	if post == nil {
 		return nil, ErrNotFound
 	}
+	normalizedCategoryID := normalizePostCategoryID(input.CategoryID)
+	if err := s.validateCategoryAssignment(input.Type, normalizedCategoryID, post.CategoryID); err != nil {
+		return nil, err
+	}
 
 	count, err := s.repo.CountBySlug(input.Slug, &id)
 	if err != nil {
@@ -144,6 +155,7 @@ func (s *PostService) Update(id string, input CreatePostInput) (*models.Post, er
 	post.SummaryJSON = models.JSON(input.SummaryJSON)
 	post.ContentJSON = models.JSON(input.ContentJSON)
 	post.Thumbnail = input.Thumbnail
+	post.CategoryID = normalizedCategoryID
 	if input.IsPublished != nil {
 		wasPublished := post.IsPublished
 		post.IsPublished = *input.IsPublished
@@ -194,4 +206,55 @@ func (s *PostService) Delete(id string) error {
 func isAllowedPostType(postType string) bool {
 	_, ok := allowedPostTypes[postType]
 	return ok
+}
+
+func (s *PostService) validateCategoryAssignment(postType string, categoryID *uint, currentCategoryID *uint) error {
+	if postType == constants.PostTypeNotice {
+		if categoryID != nil && *categoryID > 0 {
+			return ErrPostNoticeCategoryUnsupported
+		}
+		return nil
+	}
+	if categoryID == nil || *categoryID == 0 {
+		return nil
+	}
+	if s.categoryRepo == nil {
+		return ErrPostCategoryInvalid
+	}
+
+	category, err := s.categoryRepo.GetByID(*categoryID)
+	if err != nil {
+		return err
+	}
+	if category == nil {
+		return ErrPostCategoryInvalid
+	}
+	// 禁用分类不可新挂载；保留文章已有分类（后来才被禁用）不受影响
+	if !category.IsActive && !sameOptionalUint(currentCategoryID, categoryID) {
+		return ErrPostCategoryInvalid
+	}
+
+	childCount, err := s.categoryRepo.CountChildren(*categoryID)
+	if err != nil {
+		return err
+	}
+	if childCount > 0 && !sameOptionalUint(currentCategoryID, categoryID) {
+		return ErrPostCategoryInvalid
+	}
+
+	return nil
+}
+
+func normalizePostCategoryID(categoryID *uint) *uint {
+	if categoryID != nil && *categoryID == 0 {
+		return nil
+	}
+	return categoryID
+}
+
+func sameOptionalUint(left *uint, right *uint) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
 }

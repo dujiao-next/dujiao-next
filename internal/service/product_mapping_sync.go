@@ -77,22 +77,6 @@ func (s *ProductMappingService) SyncProduct(mappingID uint) error {
 			localProduct.ManualFormSchemaJSON = upProduct.ManualFormSchema
 			needsProductUpdate = true
 		}
-		// 上游未返回批发价时不覆盖本地配置，避免运营手动配置被同步任务清空。
-		if len(upProduct.WholesalePrices) > 0 {
-			wholesalePrices := convertUpstreamWholesalePrices(upProduct.WholesalePrices, conn.ExchangeRate, conn.PriceMarkupPercent, conn.PriceRoundingMode)
-			if len(wholesalePrices) > 0 {
-				localProduct.WholesalePrices = wholesalePrices
-				needsProductUpdate = true
-			} else {
-				logger.Warnw("sync_upstream_wholesale_prices_empty_after_convert",
-					"mapping_id", mapping.ID,
-					"connection_id", mapping.ConnectionID,
-					"upstream_product_id", mapping.UpstreamProductID,
-					"local_product_id", mapping.LocalProductID,
-					"upstream_tier_count", len(upProduct.WholesalePrices),
-				)
-			}
-		}
 		if needsProductUpdate {
 			_ = s.productRepo.Update(localProduct)
 		}
@@ -197,6 +181,19 @@ func (s *ProductMappingService) SyncProduct(mappingID uint) error {
 		s.recalcProductPrice(localProduct)
 	}
 
+	// 上游未返回批发价时不覆盖本地配置，避免运营手动配置被同步任务清空。
+	if len(upProduct.WholesalePrices) > 0 && localProduct != nil {
+		if err := s.syncUpstreamWholesalePrices(mapping, localProduct.ID, conn, upProduct); err != nil {
+			logger.Warnw("sync_upstream_wholesale_prices_failed",
+				"mapping_id", mapping.ID,
+				"connection_id", mapping.ConnectionID,
+				"upstream_product_id", mapping.UpstreamProductID,
+				"local_product_id", mapping.LocalProductID,
+				"error", err,
+			)
+		}
+	}
+
 	// ── 3. 更新同步时间 + 上游交付类型 + 状态恢复 ──
 	upFulfillment := upProduct.FulfillmentType
 	if upFulfillment != constants.FulfillmentTypeAuto {
@@ -206,6 +203,41 @@ func (s *ProductMappingService) SyncProduct(mappingID uint) error {
 	mapping.UpstreamStatus = models.UpstreamStatusActive
 	mapping.LastSyncedAt = &now
 	return s.mappingRepo.Update(mapping)
+}
+
+func (s *ProductMappingService) syncUpstreamWholesalePrices(mapping *models.ProductMapping, localProductID uint, conn *models.SiteConnection, upProduct *upstream.UpstreamProduct) error {
+	if s == nil || mapping == nil || conn == nil || upProduct == nil || localProductID == 0 || len(upProduct.WholesalePrices) == 0 {
+		return nil
+	}
+	localSKUs, err := s.productSKURepo.ListByProduct(localProductID, false)
+	if err != nil {
+		return err
+	}
+	skuMappings, err := s.skuMappingRepo.ListByProductMapping(mapping.ID)
+	if err != nil {
+		return err
+	}
+	wholesalePrices := convertUpstreamWholesalePrices(
+		upProduct.WholesalePrices,
+		conn.ExchangeRate,
+		conn.PriceMarkupPercent,
+		conn.PriceRoundingMode,
+		buildUpstreamWholesaleSKUIndex(localSKUs, upProduct.SKUs, skuMappings),
+	)
+	if len(wholesalePrices) == 0 {
+		logger.Warnw("sync_upstream_wholesale_prices_empty_after_convert",
+			"mapping_id", mapping.ID,
+			"connection_id", mapping.ConnectionID,
+			"upstream_product_id", mapping.UpstreamProductID,
+			"local_product_id", localProductID,
+			"upstream_tier_count", len(upProduct.WholesalePrices),
+		)
+		return nil
+	}
+	return s.productRepo.QuickUpdate(
+		strconv.FormatUint(uint64(localProductID), 10),
+		map[string]interface{}{"wholesale_prices": wholesalePrices},
+	)
 }
 
 // markUpstreamUnavailable 上游下架/删除时的统一处理
@@ -698,6 +730,18 @@ func (s *ProductMappingService) syncProductFromData(mapping *models.ProductMappi
 	// 同步价格
 	if conn.AutoSyncPrice && localProduct != nil {
 		s.recalcProductPrice(localProduct)
+	}
+
+	if len(upProduct.WholesalePrices) > 0 {
+		if err := s.syncUpstreamWholesalePrices(mapping, localProduct.ID, conn, upProduct); err != nil {
+			logger.Warnw("sync_upstream_wholesale_prices_failed",
+				"mapping_id", mapping.ID,
+				"connection_id", mapping.ConnectionID,
+				"upstream_product_id", mapping.UpstreamProductID,
+				"local_product_id", mapping.LocalProductID,
+				"error", err,
+			)
+		}
 	}
 
 	// ── 3. 更新映射记录（同时把状态从 inactive/deleted 恢复为 active）──

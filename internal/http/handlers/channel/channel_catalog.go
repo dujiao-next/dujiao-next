@@ -91,6 +91,8 @@ func (h *Handler) GetCategories(c *gin.Context) {
 }
 
 type channelWholesalePrice struct {
+	SKUID       uint   `json:"sku_id,omitempty"`
+	SKUCode     string `json:"sku_code,omitempty"`
 	MinQuantity int    `json:"min_quantity"`
 	UnitPrice   string `json:"unit_price"`
 }
@@ -105,6 +107,8 @@ func normalizeChannelWholesalePrices(tiers models.WholesalePriceTiers) []channel
 			continue
 		}
 		items = append(items, channelWholesalePrice{
+			SKUID:       tier.SKUID,
+			SKUCode:     tier.SKUCode,
 			MinQuantity: tier.MinQuantity,
 			UnitPrice:   tier.UnitPrice.String(),
 		})
