@@ -68,6 +68,9 @@ func (r *GormProductRepository) List(filter ProductListFilter) ([]models.Product
 			return db.Order("sort_order DESC, id ASC")
 		})
 	}
+	if filter.ActiveStatus != "" {
+		query = query.Where("products.is_active = ?", filter.ActiveStatus == "active")
+	}
 	if len(filter.CategoryIDs) > 0 {
 		query = query.Where("category_id IN ?", filter.CategoryIDs)
 	} else if filter.CategoryID != "" {

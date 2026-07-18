@@ -40,7 +40,7 @@ func (h *Handler) GetAdminProducts(c *gin.Context) {
 	}
 
 	lowStockThreshold := h.SettingService.GetDashboardLowStockThreshold()
-	products, total, err := h.ProductService.ListAdmin(categoryID, search, fulfillmentType, stockStatus, hasWholesalePrices, lowStockThreshold, page, pageSize)
+	products, total, err := h.ProductService.ListAdmin(categoryID, search, fulfillmentType, stockStatus, hasWholesalePrices, lowStockThreshold, page, pageSize, normalizeActiveStatus(c.Query("active_status")))
 	if err != nil {
 		shared.RespondError(c, response.CodeInternal, "error.product_fetch_failed", err)
 		return
@@ -74,6 +74,18 @@ func parseWholesaleFilter(raw string) (*bool, error) {
 			return nil, err
 		}
 		return &parsed, nil
+	}
+}
+
+func normalizeActiveStatus(raw string) string {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	switch value {
+	case "active", "listed":
+		return "active"
+	case "inactive", "unlisted":
+		return "inactive"
+	default:
+		return ""
 	}
 }
 

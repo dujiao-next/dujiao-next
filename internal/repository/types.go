@@ -26,6 +26,7 @@ type ProductListFilter struct {
 	HasWholesalePrices *bool
 	LowStockThreshold  int // 低库存阈值
 	OnlyActive         bool
+	ActiveStatus       string // ""=全部, "active"=已上架, "inactive"=已下架
 	WithCategory       bool
 	UpdatedAfter       *time.Time // 仅返回此时间之后更新的商品
 }
