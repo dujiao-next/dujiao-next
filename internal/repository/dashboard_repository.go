@@ -141,6 +141,7 @@ func paidOrderStatuses() []string {
 		constants.OrderStatusPartiallyDelivered,
 		constants.OrderStatusPartiallyRefunded,
 		constants.OrderStatusDelivered,
+		constants.OrderStatusFulfilled,
 		constants.OrderStatusCompleted,
 	}
 }
@@ -193,6 +194,7 @@ func (r *GormDashboardRepository) GetOverview(startAt, endAt time.Time) (Dashboa
 		constants.OrderStatusFulfilling,
 		constants.OrderStatusPartiallyDelivered,
 		constants.OrderStatusDelivered,
+		constants.OrderStatusFulfilled,
 	}
 	processingIn := quotedStatusList(processingStatuses)
 

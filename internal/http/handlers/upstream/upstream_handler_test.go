@@ -9,8 +9,8 @@ func TestMapCallbackStatus(t *testing.T) {
 		expect string
 	}{
 		{name: "delivered keep delivered", input: "delivered", expect: "delivered"},
-		{name: "completed map delivered", input: "completed", expect: "delivered"},
-		{name: "fulfilled map delivered", input: "fulfilled", expect: "delivered"},
+		{name: "completed keep completed", input: "completed", expect: "completed"},
+		{name: "fulfilled keep fulfilled", input: "fulfilled", expect: "fulfilled"},
 		{name: "canceled keep canceled", input: "canceled", expect: "canceled"},
 		{name: "cancelled map canceled", input: "cancelled", expect: "canceled"},
 		{name: "refunded keep refunded", input: "refunded", expect: "refunded"},

@@ -49,8 +49,15 @@ func TestHandleGenericWebhookCallbackDeliversOrder(t *testing.T) {
 	if err := db.First(&refreshed, order.ID).Error; err != nil {
 		t.Fatalf("reload order: %v", err)
 	}
-	if refreshed.Status != constants.OrderStatusDelivered {
-		t.Fatalf("expected delivered order, got %s", refreshed.Status)
+	if refreshed.Status != constants.OrderStatusCompleted {
+		t.Fatalf("expected completed order, got %s", refreshed.Status)
+	}
+	var procurement models.ProcurementOrder
+	if err := db.Where("local_order_id = ?", order.ID).First(&procurement).Error; err != nil {
+		t.Fatalf("load procurement: %v", err)
+	}
+	if procurement.Status != constants.ProcurementStatusCompleted {
+		t.Fatalf("expected completed procurement, got %s", procurement.Status)
 	}
 	var fulfillment models.Fulfillment
 	if err := db.Where("order_id = ?", order.ID).First(&fulfillment).Error; err != nil {

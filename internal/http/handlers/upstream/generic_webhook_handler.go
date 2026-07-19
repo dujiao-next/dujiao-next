@@ -70,8 +70,8 @@ func (h *Handler) HandleGenericWebhookCallback(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error_code": "invalid_status", "error_message": "unsupported callback status"})
 		return
 	}
-	if payload.Status == "delivered" && payload.Fulfillment == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error_code": "fulfillment_required", "error_message": "fulfillment is required for delivered status"})
+	if isGenericWebhookDeliveryStatus(payload.Status) && payload.Fulfillment == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error_code": "fulfillment_required", "error_message": "fulfillment is required for delivery status"})
 		return
 	}
 
@@ -116,7 +116,16 @@ func bearerToken(header string) (string, bool) {
 
 func isSupportedGenericWebhookStatus(status string) bool {
 	switch status {
-	case "delivered", "canceled", "refunded", "partially_refunded":
+	case "delivered", "completed", "fulfilled", "canceled", "refunded", "partially_refunded":
+		return true
+	default:
+		return false
+	}
+}
+
+func isGenericWebhookDeliveryStatus(status string) bool {
+	switch status {
+	case "delivered", "completed", "fulfilled":
 		return true
 	default:
 		return false

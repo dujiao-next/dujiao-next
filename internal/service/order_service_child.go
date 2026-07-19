@@ -279,7 +279,7 @@ func (s *OrderService) UpdateOrderStatus(orderID uint, targetStatus string) (*mo
 			order.Status = constants.OrderStatusCompleted
 			order.UpdatedAt = now
 			for i := range order.Children {
-				if order.Children[i].Status == constants.OrderStatusDelivered {
+				if order.Children[i].Status == constants.OrderStatusDelivered || order.Children[i].Status == constants.OrderStatusFulfilled {
 					order.Children[i].Status = constants.OrderStatusCompleted
 					order.Children[i].UpdatedAt = now
 				}
@@ -460,7 +460,7 @@ func (s *OrderService) completeParentOrderInTx(tx *gorm.DB, order *models.Order,
 		if child.Status == constants.OrderStatusCompleted {
 			continue
 		}
-		if child.Status != constants.OrderStatusDelivered {
+		if child.Status != constants.OrderStatusDelivered && child.Status != constants.OrderStatusFulfilled {
 			return ErrOrderStatusInvalid
 		}
 		if err := orderRepo.UpdateStatus(child.ID, constants.OrderStatusCompleted, updates); err != nil {
@@ -582,11 +582,11 @@ func canCompleteParentOrder(order *models.Order) bool {
 	if order == nil {
 		return false
 	}
-	if order.Status != constants.OrderStatusDelivered {
+	if order.Status != constants.OrderStatusDelivered && order.Status != constants.OrderStatusFulfilled {
 		return false
 	}
 	for _, child := range order.Children {
-		if child.Status != constants.OrderStatusDelivered && child.Status != constants.OrderStatusCompleted {
+		if child.Status != constants.OrderStatusDelivered && child.Status != constants.OrderStatusFulfilled && child.Status != constants.OrderStatusCompleted {
 			return false
 		}
 	}

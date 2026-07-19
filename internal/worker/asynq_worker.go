@@ -194,7 +194,7 @@ func (c *Consumer) handleOrderStatusEmail(_ context.Context, task *asynq.Task) e
 		input.FulfillmentInfo = payloadText
 	}
 	// 使用说明只在交付类场景追加，避免被追加到退款/取消等无关邮件正文里。
-	if status == constants.OrderStatusDelivered || status == constants.OrderStatusCompleted {
+	if status == constants.OrderStatusDelivered || status == constants.OrderStatusFulfilled || status == constants.OrderStatusCompleted {
 		input.Instructions = buildOrderInstructionsEmailText(order, locale)
 	}
 	if err := c.EmailService.SendOrderStatusEmailWithTemplate(receiverEmail, input, locale, tmplSetting); err != nil {

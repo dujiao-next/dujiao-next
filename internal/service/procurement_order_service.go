@@ -476,14 +476,19 @@ func (s *ProcurementOrderService) HandleUpstreamCallback(procurementOrderID uint
 
 	switch upstreamStatus {
 	case "delivered", "completed", "fulfilled":
-		// 更新采购单状态
+		// 成功状态保持上游原值，避免把 completed/fulfilled 合并为 delivered。
 		updates := map[string]interface{}{
 			"updated_at": now,
 		}
 		if fulfillment != nil {
 			updates["upstream_payload"] = fulfillment.Payload
 		}
-		if err := s.procRepo.UpdateStatus(procOrder.ID, "fulfilled", updates); err != nil {
+		if _, err := s.procRepo.UpdateStatusIfCurrent(
+			procOrder.ID,
+			procurementSuccessTransitionSources(upstreamStatus),
+			upstreamStatus,
+			updates,
+		); err != nil {
 			return fmt.Errorf("update procurement status: %w", err)
 		}
 
@@ -499,16 +504,11 @@ func (s *ProcurementOrderService) HandleUpstreamCallback(procurementOrderID uint
 			}
 		}
 
-		// 更新本地订单状态；重复回调不能把 completed/refunded 等后续状态降回 delivered。
+		// 本地订单同样保留原始成功状态，并防止乱序回调把后续状态降级。
 		if _, err := s.orderRepo.UpdateStatusIfCurrent(
 			procOrder.LocalOrderID,
-			[]string{
-				constants.OrderStatusPaid,
-				constants.OrderStatusFulfilling,
-				constants.OrderStatusPartiallyDelivered,
-				constants.OrderStatusDelivered,
-			},
-			constants.OrderStatusDelivered,
+			orderSuccessTransitionSources(upstreamStatus),
+			upstreamStatus,
 			map[string]interface{}{"updated_at": now},
 		); err != nil {
 			return fmt.Errorf("update local order status: %w", err)
@@ -525,12 +525,12 @@ func (s *ProcurementOrderService) HandleUpstreamCallback(procurementOrderID uint
 				)
 			} else if s.queueClient != nil {
 				if status == "" {
-					status = constants.OrderStatusDelivered
+					status = upstreamStatus
 				}
 				_, _ = enqueueOrderStatusEmailTaskIfEligible(s.orderRepo, s.queueClient, s.settingService, s.defaultEmailConfig, *localOrder.ParentID, status)
 			}
 		} else if localOrder != nil && s.queueClient != nil {
-			_, _ = enqueueOrderStatusEmailTaskIfEligible(s.orderRepo, s.queueClient, s.settingService, s.defaultEmailConfig, localOrder.ID, constants.OrderStatusDelivered)
+			_, _ = enqueueOrderStatusEmailTaskIfEligible(s.orderRepo, s.queueClient, s.settingService, s.defaultEmailConfig, localOrder.ID, upstreamStatus)
 		}
 
 		// 触发下游回调（多级连跳：本站作为中间节点，通知下游交付完成）
@@ -554,6 +554,7 @@ func (s *ProcurementOrderService) HandleUpstreamCallback(procurementOrderID uint
 		logger.Infow("procurement_order_fulfilled",
 			"procurement_order_id", procOrder.ID,
 			"local_order_id", procOrder.LocalOrderID,
+			"upstream_status", upstreamStatus,
 		)
 
 	case "canceled":
@@ -600,6 +601,43 @@ func (s *ProcurementOrderService) HandleUpstreamCallback(procurementOrderID uint
 	}
 
 	return nil
+}
+
+func procurementSuccessTransitionSources(target string) []string {
+	base := []string{
+		constants.ProcurementStatusPending,
+		constants.ProcurementStatusFailed,
+		constants.ProcurementStatusSubmitted,
+		constants.ProcurementStatusAccepted,
+	}
+	switch target {
+	case constants.ProcurementStatusDelivered:
+		return append(base, constants.ProcurementStatusDelivered)
+	case constants.ProcurementStatusFulfilled:
+		return append(base, constants.ProcurementStatusDelivered, constants.ProcurementStatusFulfilled)
+	case constants.ProcurementStatusCompleted:
+		return append(base, constants.ProcurementStatusDelivered, constants.ProcurementStatusFulfilled, constants.ProcurementStatusCompleted)
+	default:
+		return nil
+	}
+}
+
+func orderSuccessTransitionSources(target string) []string {
+	base := []string{
+		constants.OrderStatusPaid,
+		constants.OrderStatusFulfilling,
+		constants.OrderStatusPartiallyDelivered,
+	}
+	switch target {
+	case constants.OrderStatusDelivered:
+		return append(base, constants.OrderStatusDelivered)
+	case constants.OrderStatusFulfilled:
+		return append(base, constants.OrderStatusDelivered, constants.OrderStatusFulfilled)
+	case constants.OrderStatusCompleted:
+		return append(base, constants.OrderStatusDelivered, constants.OrderStatusFulfilled, constants.OrderStatusCompleted)
+	default:
+		return nil
+	}
 }
 
 // createUpstreamFulfillment 在本地订单上创建上游交付记录
@@ -677,7 +715,7 @@ func (s *ProcurementOrderService) PollUpstreamStatus(procurementOrderID uint) er
 
 	mappedStatus := mapProcurementUpstreamStatus(detail.Status)
 	switch mappedStatus {
-	case "delivered":
+	case "delivered", "completed", "fulfilled":
 		return s.HandleUpstreamCallback(procOrder.ID, mappedStatus, detail.Fulfillment)
 	case "canceled":
 		return s.HandleUpstreamCallback(procOrder.ID, mappedStatus, nil)
@@ -776,7 +814,7 @@ func (s *ProcurementOrderService) SyncAcceptedOrders() {
 
 		mappedStatus := mapProcurementUpstreamStatus(detail.Status)
 		switch mappedStatus {
-		case "delivered":
+		case "delivered", "completed", "fulfilled":
 			if cbErr := s.HandleUpstreamCallback(procOrder.ID, mappedStatus, detail.Fulfillment); cbErr != nil {
 				logger.Warnw("procurement_sync_accepted_deliver_failed",
 					"procurement_order_id", procOrder.ID,
@@ -925,7 +963,8 @@ func applyProcurementLocalRefundedAmountFallback(localOrder *models.Order, paren
 // shouldSyncUpstreamRefundStatus 判断当前采购单状态是否需要从上游拉取退款信息。
 func shouldSyncUpstreamRefundStatus(localStatus string) bool {
 	switch strings.ToLower(strings.TrimSpace(localStatus)) {
-	case constants.ProcurementStatusFulfilled,
+	case constants.ProcurementStatusDelivered,
+		constants.ProcurementStatusFulfilled,
 		constants.ProcurementStatusCompleted,
 		constants.ProcurementStatusPartiallyRefunded,
 		constants.ProcurementStatusRefunded:
@@ -935,12 +974,10 @@ func shouldSyncUpstreamRefundStatus(localStatus string) bool {
 	}
 }
 
-// mapProcurementUpstreamStatus 统一映射上游状态别名，便于回调与轮询使用同一分支逻辑。
+// mapProcurementUpstreamStatus 规范化上游状态；成功状态保持原值。
 func mapProcurementUpstreamStatus(status string) string {
 	normalized := strings.ToLower(strings.TrimSpace(status))
 	switch normalized {
-	case "delivered", "completed", "fulfilled":
-		return "delivered"
 	case "canceled", "cancelled":
 		return "canceled"
 	case "refunded", "partially_refunded":
@@ -1157,7 +1194,8 @@ func (s *ProcurementOrderService) CancelManual(id uint) error {
 	}
 
 	// 已交付/已退款的不能取消
-	if procOrder.Status == constants.ProcurementStatusFulfilled ||
+	if procOrder.Status == constants.ProcurementStatusDelivered ||
+		procOrder.Status == constants.ProcurementStatusFulfilled ||
 		procOrder.Status == constants.ProcurementStatusCompleted ||
 		procOrder.Status == constants.ProcurementStatusPartiallyRefunded ||
 		procOrder.Status == constants.ProcurementStatusRefunded ||

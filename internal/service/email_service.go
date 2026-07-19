@@ -115,7 +115,7 @@ func buildOrderStatusContentFromTemplate(input OrderStatusEmailInput, locale str
 	switch status {
 	case constants.OrderStatusPaid:
 		sceneTmpl = tmplSetting.Templates.Paid
-	case constants.OrderStatusDelivered, constants.OrderStatusCompleted:
+	case constants.OrderStatusDelivered, constants.OrderStatusFulfilled, constants.OrderStatusCompleted:
 		if strings.TrimSpace(input.FulfillmentInfo) != "" {
 			sceneTmpl = tmplSetting.Templates.DeliveredWithContent
 		} else {
@@ -362,7 +362,7 @@ func buildOrderStatusContent(input OrderStatusEmailInput, locale string) (string
 	payload := strings.TrimSpace(input.FulfillmentInfo)
 	status := strings.ToLower(strings.TrimSpace(input.Status))
 	switch status {
-	case constants.OrderStatusDelivered, constants.OrderStatusCompleted:
+	case constants.OrderStatusDelivered, constants.OrderStatusFulfilled, constants.OrderStatusCompleted:
 		if payload != "" {
 			body := i18n.Sprintf(normalized, "email.order_status.body_delivered", input.OrderNo, statusLabel, amount, currency, payload, siteName, siteURL)
 			return subject, appendGuestTip(normalized, input, appendFulfillmentAttachmentTip(normalized, input, body))

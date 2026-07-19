@@ -105,6 +105,7 @@ func resellerOperationsPaidStatuses() []string {
 		constants.OrderStatusPartiallyDelivered,
 		constants.OrderStatusPartiallyRefunded,
 		constants.OrderStatusDelivered,
+		constants.OrderStatusFulfilled,
 		constants.OrderStatusCompleted,
 	}
 }

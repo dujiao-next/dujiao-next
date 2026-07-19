@@ -153,7 +153,7 @@ func (s *DownstreamCallbackService) SendCallback(refID uint) error {
 
 	// 构建回调请求
 	event := "order.status_changed"
-	if order.Status == constants.OrderStatusDelivered || order.Status == constants.OrderStatusCompleted {
+	if order.Status == constants.OrderStatusDelivered || order.Status == constants.OrderStatusFulfilled || order.Status == constants.OrderStatusCompleted {
 		event = "order.fulfilled"
 	}
 

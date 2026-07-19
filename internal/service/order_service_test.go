@@ -200,6 +200,24 @@ func TestCalcParentStatus(t *testing.T) {
 	if status != constants.OrderStatusDelivered {
 		t.Fatalf("expected delivered, got %s", status)
 	}
+
+	children = []models.Order{
+		{Status: constants.OrderStatusFulfilled},
+		{Status: constants.OrderStatusFulfilled},
+	}
+	status = calcParentStatus(children, constants.OrderStatusDelivered)
+	if status != constants.OrderStatusFulfilled {
+		t.Fatalf("expected fulfilled, got %s", status)
+	}
+
+	children = []models.Order{
+		{Status: constants.OrderStatusCompleted},
+		{Status: constants.OrderStatusCompleted},
+	}
+	status = calcParentStatus(children, constants.OrderStatusFulfilled)
+	if status != constants.OrderStatusCompleted {
+		t.Fatalf("expected completed, got %s", status)
+	}
 }
 
 func TestCalcParentStatusAllRefunded(t *testing.T) {
@@ -300,6 +318,9 @@ func TestIsTransitionAllowedRefunded(t *testing.T) {
 	}
 	if !isTransitionAllowed(constants.OrderStatusCompleted, constants.OrderStatusRefunded) {
 		t.Fatalf("expected completed to refunded transition to be allowed")
+	}
+	if !isTransitionAllowed(constants.OrderStatusFulfilled, constants.OrderStatusCompleted) {
+		t.Fatalf("expected fulfilled to completed transition to be allowed")
 	}
 	if isTransitionAllowed(constants.OrderStatusCanceled, constants.OrderStatusRefunded) {
 		t.Fatalf("expected canceled to refunded transition to be rejected")

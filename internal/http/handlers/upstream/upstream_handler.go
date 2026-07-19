@@ -781,12 +781,10 @@ func (b *bodyBuf) Read(p []byte) (n int, err error) {
 	return n, nil
 }
 
-// mapCallbackStatus 将上游订单状态映射为回调处理状态
+// mapCallbackStatus 规范化上游订单状态；成功状态保持原值，避免丢失 delivered/completed/fulfilled 的语义。
 func mapCallbackStatus(status string) string {
 	normalized := strings.ToLower(strings.TrimSpace(status))
 	switch normalized {
-	case "delivered", "completed", "fulfilled":
-		return "delivered"
 	case "canceled", "cancelled":
 		return "canceled"
 	default:

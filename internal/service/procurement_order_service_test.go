@@ -243,13 +243,13 @@ func TestHandleUpstreamCallback_Delivered_CreatesFulfillment(t *testing.T) {
 		t.Fatalf("HandleUpstreamCallback: %v", err)
 	}
 
-	// 验证采购单状态 = fulfilled
+	// 验证采购单状态保持 delivered
 	var updatedProc models.ProcurementOrder
 	if err := db.First(&updatedProc, proc.ID).Error; err != nil {
 		t.Fatalf("load procurement: %v", err)
 	}
-	if updatedProc.Status != "fulfilled" {
-		t.Errorf("expected procurement status 'fulfilled', got %q", updatedProc.Status)
+	if updatedProc.Status != constants.ProcurementStatusDelivered {
+		t.Errorf("expected procurement status %q, got %q", constants.ProcurementStatusDelivered, updatedProc.Status)
 	}
 
 	// 验证本地订单状态 = delivered
@@ -873,8 +873,8 @@ func TestSubmitToUpstream_GenericWebhookImmediateCallbackPreservesDeliveredStatu
 	if err := db.First(&updatedProc, proc.ID).Error; err != nil {
 		t.Fatalf("load procurement: %v", err)
 	}
-	if updatedProc.Status != constants.ProcurementStatusFulfilled {
-		t.Fatalf("procurement status = %q, want %q", updatedProc.Status, constants.ProcurementStatusFulfilled)
+	if updatedProc.Status != constants.ProcurementStatusDelivered {
+		t.Fatalf("procurement status = %q, want %q", updatedProc.Status, constants.ProcurementStatusDelivered)
 	}
 	if updatedProc.UpstreamOrderNo != "REMOTE-WEBHOOK-IMMEDIATE" {
 		t.Fatalf("upstream order no = %q", updatedProc.UpstreamOrderNo)
@@ -1201,11 +1201,11 @@ func TestPollUpstreamStatus_Delivered(t *testing.T) {
 		t.Fatalf("PollUpstreamStatus: %v", err)
 	}
 
-	// 验证采购单状态 = fulfilled
+	// 验证采购单状态保持 delivered
 	var updatedProc models.ProcurementOrder
 	db.First(&updatedProc, proc.ID)
-	if updatedProc.Status != "fulfilled" {
-		t.Errorf("expected procurement status 'fulfilled', got %q", updatedProc.Status)
+	if updatedProc.Status != constants.ProcurementStatusDelivered {
+		t.Errorf("expected procurement status %q, got %q", constants.ProcurementStatusDelivered, updatedProc.Status)
 	}
 
 	// 验证本地订单状态 = delivered
@@ -1216,7 +1216,7 @@ func TestPollUpstreamStatus_Delivered(t *testing.T) {
 	}
 }
 
-func TestPollUpstreamStatus_FulfilledMappedToDelivered(t *testing.T) {
+func TestPollUpstreamStatus_FulfilledPreserved(t *testing.T) {
 	db := setupProcurementTestDB(t)
 
 	order := createProcTestOrder(t, db, "PROC-POLL-FULLFILLED-001", constants.OrderStatusFulfilling, constants.FulfillmentTypeUpstream)
@@ -1265,8 +1265,8 @@ func TestPollUpstreamStatus_FulfilledMappedToDelivered(t *testing.T) {
 
 	var updatedOrder models.Order
 	db.First(&updatedOrder, order.ID)
-	if updatedOrder.Status != constants.OrderStatusDelivered {
-		t.Errorf("expected order status %q, got %q", constants.OrderStatusDelivered, updatedOrder.Status)
+	if updatedOrder.Status != constants.OrderStatusFulfilled {
+		t.Errorf("expected order status %q, got %q", constants.OrderStatusFulfilled, updatedOrder.Status)
 	}
 }
 

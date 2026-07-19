@@ -277,7 +277,7 @@ func isStatusConsistent(localStatus, upstreamStatus string) bool {
 	upstreamStatus = strings.ToLower(strings.TrimSpace(upstreamStatus))
 
 	switch localStatus {
-	case constants.ProcurementStatusCompleted, constants.ProcurementStatusFulfilled:
+	case constants.ProcurementStatusDelivered, constants.ProcurementStatusCompleted, constants.ProcurementStatusFulfilled:
 		return upstreamStatus == "completed" ||
 			upstreamStatus == "delivered" ||
 			upstreamStatus == "fulfilled" ||
