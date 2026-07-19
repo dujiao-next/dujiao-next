@@ -384,7 +384,8 @@ const (
 
 // 对接协议类型常量
 const (
-	ConnectionProtocolDujiaoNext = "dujiao-next"
+	ConnectionProtocolDujiaoNext     = "dujiao-next"
+	ConnectionProtocolGenericWebhook = "generic-webhook"
 )
 
 // API 凭证状态常量
@@ -461,12 +462,13 @@ const (
 
 	SettingKeyCallbackRoutesConfig = "callback_routes_config"
 
-	SettingKeyHomeAnnouncement   = "home_announcement"
-	SettingFieldPaymentCallback  = "payment_callback"
-	SettingFieldDujiaoPayWebhook = "dujiaopay_webhook"
-	SettingFieldPaypalWebhook    = "paypal_webhook"
-	SettingFieldStripeWebhook    = "stripe_webhook"
-	SettingFieldUpstreamCallback = "upstream_callback"
+	SettingKeyHomeAnnouncement         = "home_announcement"
+	SettingFieldPaymentCallback        = "payment_callback"
+	SettingFieldDujiaoPayWebhook       = "dujiaopay_webhook"
+	SettingFieldPaypalWebhook          = "paypal_webhook"
+	SettingFieldStripeWebhook          = "stripe_webhook"
+	SettingFieldUpstreamCallback       = "upstream_callback"
+	SettingFieldGenericWebhookCallback = "generic_webhook_callback"
 
 	// 默认回调路由路径
 	DefaultPaymentCallbackPath  = "/api/v1/payments/callback"
@@ -474,6 +476,7 @@ const (
 	DefaultPaypalWebhookPath    = "/api/v1/payments/webhook/paypal"
 	DefaultStripeWebhookPath    = "/api/v1/payments/webhook/stripe"
 	DefaultUpstreamCallbackPath = "/api/v1/upstream/callback"
+	DefaultWebhookCallbackPath  = "/api/v1/upstream/generic-webhook/callback"
 )
 
 // 币种常量

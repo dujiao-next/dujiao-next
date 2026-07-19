@@ -19,6 +19,7 @@ var defaultCallbackPaths = map[string]bool{
 	constants.DefaultPaypalWebhookPath:    true,
 	constants.DefaultStripeWebhookPath:    true,
 	constants.DefaultUpstreamCallbackPath: true,
+	constants.DefaultWebhookCallbackPath:  true,
 }
 
 // CallbackRouteMiddleware 动态回调路由中间件。
@@ -86,6 +87,12 @@ func CallbackRouteMiddleware(
 				c.Abort()
 				return
 			}
+		case routes.GenericWebhookCallback:
+			if routes.GenericWebhookCallback != "" && method == http.MethodPost {
+				upstreamHandler.HandleGenericWebhookCallback(c)
+				c.Abort()
+				return
+			}
 		}
 
 		// 屏蔽默认回调路径（当对应的自定义路由已配置时）
@@ -102,6 +109,8 @@ func CallbackRouteMiddleware(
 				shouldBlock = routes.StripeWebhook != ""
 			case constants.DefaultUpstreamCallbackPath:
 				shouldBlock = routes.UpstreamCallback != ""
+			case constants.DefaultWebhookCallbackPath:
+				shouldBlock = routes.GenericWebhookCallback != ""
 			}
 			if shouldBlock {
 				c.AbortWithStatus(http.StatusNotFound)

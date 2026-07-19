@@ -106,6 +106,14 @@ type CreateUpstreamOrderReq struct {
 	DownstreamOrderNo string      `json:"downstream_order_no"`
 	TraceID           string      `json:"trace_id"`
 	CallbackURL       string      `json:"callback_url"`
+
+	// Local-only fields are consumed by protocols that submit local product data.
+	// They are excluded from the Dujiao-Next wire payload for compatibility.
+	LocalProductID uint   `json:"-"`
+	LocalSKUID     uint   `json:"-"`
+	LocalSKUCode   string `json:"-"`
+	Amount         string `json:"-"`
+	Currency       string `json:"-"`
 }
 
 // CreateUpstreamOrderResp 创建上游采购单响应
@@ -169,11 +177,46 @@ type Adapter interface {
 	DownloadImage(ctx context.Context, imageURL string) (localPath string, err error)
 }
 
+// OrderSubmitter is the minimal capability required by the procurement flow.
+// Protocols that only accept pushed orders do not need to implement catalog or query APIs.
+type OrderSubmitter interface {
+	CreateOrder(ctx context.Context, req CreateUpstreamOrderReq) (*CreateUpstreamOrderResp, error)
+}
+
+// ConnectionTester provides the connection check used by the admin API.
+type ConnectionTester interface {
+	Ping(ctx context.Context) (*PingResult, error)
+}
+
 // NewAdapter 根据协议类型创建适配器
 func NewAdapter(conn *models.SiteConnection, uploadsDir string) (Adapter, error) {
 	switch conn.Protocol {
 	case constants.ConnectionProtocolDujiaoNext:
 		return NewDujiaoNextAdapter(conn, uploadsDir), nil
+	default:
+		return nil, fmt.Errorf("unsupported protocol: %s", conn.Protocol)
+	}
+}
+
+// NewOrderSubmitter creates only the order-submission capability for a protocol.
+func NewOrderSubmitter(conn *models.SiteConnection, uploadsDir string) (OrderSubmitter, error) {
+	switch conn.Protocol {
+	case constants.ConnectionProtocolDujiaoNext:
+		return NewDujiaoNextAdapter(conn, uploadsDir), nil
+	case constants.ConnectionProtocolGenericWebhook:
+		return NewGenericWebhookAdapter(conn), nil
+	default:
+		return nil, fmt.Errorf("unsupported protocol: %s", conn.Protocol)
+	}
+}
+
+// NewConnectionTester creates the protocol-specific connection test capability.
+func NewConnectionTester(conn *models.SiteConnection, uploadsDir string) (ConnectionTester, error) {
+	switch conn.Protocol {
+	case constants.ConnectionProtocolDujiaoNext:
+		return NewDujiaoNextAdapter(conn, uploadsDir), nil
+	case constants.ConnectionProtocolGenericWebhook:
+		return NewGenericWebhookAdapter(conn), nil
 	default:
 		return nil, fmt.Errorf("unsupported protocol: %s", conn.Protocol)
 	}

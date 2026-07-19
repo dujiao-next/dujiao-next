@@ -3,6 +3,7 @@ package service
 import (
 	"strconv"
 
+	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/models"
 )
 
@@ -14,6 +15,9 @@ func (s *ProductMappingService) ReapplyMarkup(connectionID uint) (int, error) {
 	}
 	if conn == nil {
 		return 0, ErrConnectionNotFound
+	}
+	if conn.Protocol == constants.ConnectionProtocolGenericWebhook {
+		return 0, ErrProtocolCapabilityUnsupported
 	}
 
 	mappings, err := s.mappingRepo.ListActiveByConnection(connectionID)

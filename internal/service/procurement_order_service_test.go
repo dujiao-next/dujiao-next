@@ -735,6 +735,75 @@ func TestBuildUpstreamRefundRecords_SortsByCreatedAtAscAndRenumbersID(t *testing
 
 // ── SubmitToUpstream tests ──
 
+func TestSubmitToUpstream_GenericWebhook(t *testing.T) {
+	db := setupProcurementTestDB(t)
+	order := createProcTestOrder(t, db, "PROC-WEBHOOK-001", constants.OrderStatusPaid, constants.FulfillmentTypeUpstream)
+	if err := db.Model(&models.OrderItem{}).Where("order_id = ?", order.ID).Update("sku_snapshot_json", models.JSON{"sku_code": "DEFAULT"}).Error; err != nil {
+		t.Fatalf("update sku snapshot: %v", err)
+	}
+	pm := &models.ProductMapping{ConnectionID: 1, LocalProductID: 1, UpstreamProductID: 1, IsActive: true}
+	if err := db.Create(pm).Error; err != nil {
+		t.Fatalf("create product mapping: %v", err)
+	}
+	if err := db.Create(&models.SKUMapping{ProductMappingID: pm.ID, LocalSKUID: 1, UpstreamSKUID: 1, UpstreamStock: -1, UpstreamIsActive: true}).Error; err != nil {
+		t.Fatalf("create sku mapping: %v", err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer webhook-token" || r.Header.Get("Idempotency-Key") != order.OrderNo {
+			t.Fatalf("unexpected webhook headers: %#v", r.Header)
+		}
+		var payload map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode payload: %v", err)
+		}
+		if payload["product_id"] != float64(1) || payload["sku_id"] != float64(1) || payload["amount"] != "100.00" {
+			t.Fatalf("unexpected payload: %#v", payload)
+		}
+		if payload["callback_url"] != "https://shop.example.com/api/custom/generic-hook" {
+			t.Fatalf("unexpected configured callback URL: %#v", payload["callback_url"])
+		}
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": true, "order_no": "REMOTE-WEBHOOK-1"})
+	}))
+	defer server.Close()
+
+	connSvc := NewSiteConnectionService(repository.NewSiteConnectionRepository(db), "test-key", t.TempDir())
+	conn, err := connSvc.Create(CreateConnectionInput{
+		Name:        "generic-webhook",
+		BaseURL:     server.URL,
+		ApiKey:      "webhook-token",
+		Protocol:    constants.ConnectionProtocolGenericWebhook,
+		CallbackURL: "https://shop.example.com/api/custom/generic-hook",
+	})
+	if err != nil {
+		t.Fatalf("create connection: %v", err)
+	}
+	if err := db.Model(pm).Update("connection_id", conn.ID).Error; err != nil {
+		t.Fatalf("update mapping connection: %v", err)
+	}
+	proc := createTestProcurementOrder(t, db, conn.ID, order.ID, order.OrderNo, constants.ProcurementStatusPending)
+	svc := newTestProcurementService(db, connSvc)
+	if err := svc.SubmitToUpstream(proc.ID); err != nil {
+		t.Fatalf("SubmitToUpstream: %v", err)
+	}
+	var updated models.ProcurementOrder
+	if err := db.First(&updated, proc.ID).Error; err != nil {
+		t.Fatalf("reload procurement: %v", err)
+	}
+	if updated.Status != constants.ProcurementStatusAccepted || updated.UpstreamOrderID != 0 || updated.UpstreamOrderNo != "REMOTE-WEBHOOK-1" {
+		t.Fatalf("unexpected procurement: %#v", updated)
+	}
+}
+
+func TestGenericWebhookExplicitRejectionIsPermanent(t *testing.T) {
+	if isRetryableSubmissionError(constants.ConnectionProtocolGenericWebhook, "temporary_overload") {
+		t.Fatal("generic webhook ok:false response must not be retried")
+	}
+	if !isRetryableSubmissionError(constants.ConnectionProtocolDujiaoNext, "temporary_overload") {
+		t.Fatal("dujiao-next unknown error codes should preserve existing retry behavior")
+	}
+}
+
 func TestSubmitToUpstream_Success(t *testing.T) {
 	db := setupProcurementTestDB(t)
 

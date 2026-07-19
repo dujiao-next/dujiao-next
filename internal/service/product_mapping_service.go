@@ -17,10 +17,12 @@ import (
 //   product_mapping_batch_import.go   — 按上游分类批量导入
 
 var (
-	ErrMappingNotFound         = errors.New("product mapping not found")
-	ErrMappingAlreadyExists    = errors.New("product mapping already exists for this upstream product")
-	ErrUpstreamProductNotFound = errors.New("upstream product not found")
-	ErrMappingInactive         = errors.New("product mapping is inactive")
+	ErrMappingNotFound               = errors.New("product mapping not found")
+	ErrMappingAlreadyExists          = errors.New("product mapping already exists for this upstream product")
+	ErrUpstreamProductNotFound       = errors.New("upstream product not found")
+	ErrMappingInactive               = errors.New("product mapping is inactive")
+	ErrProtocolCapabilityUnsupported = errors.New("connection protocol does not support this capability")
+	ErrProductNoActiveSKU            = errors.New("product has no active sku")
 )
 
 // ProductMappingService 商品映射业务服务

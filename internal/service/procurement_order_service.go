@@ -18,6 +18,7 @@ import (
 	"github.com/dujiao-next/internal/upstream"
 
 	"github.com/google/uuid"
+	"github.com/hibiken/asynq"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
@@ -203,7 +204,7 @@ func (s *ProcurementOrderService) SubmitToUpstream(procurementOrderID uint) erro
 		return nil // 永久性错误，不重试
 	}
 
-	adapter, err := s.connSvc.GetAdapter(conn)
+	submitter, err := s.connSvc.GetOrderSubmitter(conn)
 	if err != nil {
 		s.rejectProcurement(procOrder, fmt.Sprintf("get adapter failed: %v", err))
 		return nil // 配置错误，不重试
@@ -243,6 +244,11 @@ func (s *ProcurementOrderService) SubmitToUpstream(procurementOrderID uint) erro
 		DownstreamOrderNo: localOrder.OrderNo,
 		TraceID:           procOrder.TraceID,
 		CallbackURL:       conn.CallbackURL,
+		LocalProductID:    item.ProductID,
+		LocalSKUID:        item.SKUID,
+		LocalSKUCode:      orderItemSKUCode(item),
+		Amount:            localOrder.TotalAmount.StringFixed(2),
+		Currency:          localOrder.Currency,
 	}
 
 	// 传递人工表单数据（如有）
@@ -253,13 +259,13 @@ func (s *ProcurementOrderService) SubmitToUpstream(procurementOrderID uint) erro
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := adapter.CreateOrder(ctx, req)
+	resp, err := submitter.CreateOrder(ctx, req)
 	if err != nil {
-		return s.handleSubmitFailure(procOrder, conn, fmt.Sprintf("upstream request error: %v", err), true)
+		return s.handleSubmitFailure(procOrder, conn, fmt.Sprintf("upstream request error: %v", err), upstream.IsRetryableRequestError(err))
 	}
 
 	if !resp.OK {
-		retryable := isRetryableErrorCode(resp.ErrorCode)
+		retryable := isRetryableSubmissionError(conn.Protocol, resp.ErrorCode)
 		errMsg := resp.ErrorMessage
 		if errMsg == "" {
 			errMsg = resp.ErrorCode
@@ -294,7 +300,7 @@ func (s *ProcurementOrderService) SubmitToUpstream(procurementOrderID uint) erro
 	})
 
 	// 入队轮询任务（30s 延迟，作为回调的 fallback）
-	if s.queueClient != nil {
+	if s.queueClient != nil && conn.Protocol == constants.ConnectionProtocolDujiaoNext {
 		_ = s.queueClient.EnqueueProcurementPollStatus(queue.ProcurementPollStatusPayload{
 			ProcurementOrderID: procOrder.ID,
 		}, 30*time.Second)
@@ -407,7 +413,7 @@ func (s *ProcurementOrderService) handleSubmitFailure(procOrder *models.Procurem
 		if s.queueClient != nil {
 			_ = s.queueClient.EnqueueProcurementSubmit(queue.ProcurementSubmitPayload{
 				ProcurementOrderID: procOrder.ID,
-			})
+			}, asynq.ProcessIn(delay))
 		}
 
 		return nil
@@ -1183,8 +1189,24 @@ func isRetryableErrorCode(code string) bool {
 		"forbidden":            true,
 		"duplicate_order":      true,
 		"product_out_of_stock": true,
+		"webhook_rejected":     true,
 	}
 	return !nonRetryable[strings.ToLower(strings.TrimSpace(code))]
+}
+
+func isRetryableSubmissionError(protocol, code string) bool {
+	if protocol == constants.ConnectionProtocolGenericWebhook {
+		return false
+	}
+	return isRetryableErrorCode(code)
+}
+
+func orderItemSKUCode(item models.OrderItem) string {
+	if item.SKUSnapshotJSON == nil {
+		return ""
+	}
+	value, _ := item.SKUSnapshotJSON["sku_code"].(string)
+	return strings.TrimSpace(value)
 }
 
 // parseRetryIntervals 解析重试间隔配置（JSON 数组格式如 "[30,60,300]"）

@@ -11,38 +11,41 @@ import (
 
 // CallbackRoutesSetting 回调路由配置
 type CallbackRoutesSetting struct {
-	PaymentCallback  string
-	DujiaoPayWebhook string
-	PaypalWebhook    string
-	StripeWebhook    string
-	UpstreamCallback string
+	PaymentCallback        string
+	DujiaoPayWebhook       string
+	PaypalWebhook          string
+	StripeWebhook          string
+	UpstreamCallback       string
+	GenericWebhookCallback string
 }
 
 // HasCustomRoutes 返回是否设置了任何自定义回调路由
 func (s *CallbackRoutesSetting) HasCustomRoutes() bool {
 	return s.PaymentCallback != "" || s.DujiaoPayWebhook != "" || s.PaypalWebhook != "" ||
-		s.StripeWebhook != "" || s.UpstreamCallback != ""
+		s.StripeWebhook != "" || s.UpstreamCallback != "" || s.GenericWebhookCallback != ""
 }
 
 // callbackRoutesSettingFromJSON 从 JSON map 解析回调路由配置
 func callbackRoutesSettingFromJSON(value models.JSON) CallbackRoutesSetting {
 	return CallbackRoutesSetting{
-		PaymentCallback:  normalizeCallbackRoutePath(readString(value, constants.SettingFieldPaymentCallback, "")),
-		DujiaoPayWebhook: normalizeCallbackRoutePath(readString(value, constants.SettingFieldDujiaoPayWebhook, "")),
-		PaypalWebhook:    normalizeCallbackRoutePath(readString(value, constants.SettingFieldPaypalWebhook, "")),
-		StripeWebhook:    normalizeCallbackRoutePath(readString(value, constants.SettingFieldStripeWebhook, "")),
-		UpstreamCallback: normalizeCallbackRoutePath(readString(value, constants.SettingFieldUpstreamCallback, "")),
+		PaymentCallback:        normalizeCallbackRoutePath(readString(value, constants.SettingFieldPaymentCallback, "")),
+		DujiaoPayWebhook:       normalizeCallbackRoutePath(readString(value, constants.SettingFieldDujiaoPayWebhook, "")),
+		PaypalWebhook:          normalizeCallbackRoutePath(readString(value, constants.SettingFieldPaypalWebhook, "")),
+		StripeWebhook:          normalizeCallbackRoutePath(readString(value, constants.SettingFieldStripeWebhook, "")),
+		UpstreamCallback:       normalizeCallbackRoutePath(readString(value, constants.SettingFieldUpstreamCallback, "")),
+		GenericWebhookCallback: normalizeCallbackRoutePath(readString(value, constants.SettingFieldGenericWebhookCallback, "")),
 	}
 }
 
 // CallbackRoutesSettingToMap 将回调路由配置序列化为 JSON map
 func CallbackRoutesSettingToMap(s CallbackRoutesSetting) models.JSON {
 	return models.JSON{
-		constants.SettingFieldPaymentCallback:  s.PaymentCallback,
-		constants.SettingFieldDujiaoPayWebhook: s.DujiaoPayWebhook,
-		constants.SettingFieldPaypalWebhook:    s.PaypalWebhook,
-		constants.SettingFieldStripeWebhook:    s.StripeWebhook,
-		constants.SettingFieldUpstreamCallback: s.UpstreamCallback,
+		constants.SettingFieldPaymentCallback:        s.PaymentCallback,
+		constants.SettingFieldDujiaoPayWebhook:       s.DujiaoPayWebhook,
+		constants.SettingFieldPaypalWebhook:          s.PaypalWebhook,
+		constants.SettingFieldStripeWebhook:          s.StripeWebhook,
+		constants.SettingFieldUpstreamCallback:       s.UpstreamCallback,
+		constants.SettingFieldGenericWebhookCallback: s.GenericWebhookCallback,
 	}
 }
 
@@ -99,13 +102,14 @@ func normalizeCallbackRoutePath(path string) string {
 
 // deduplicateCallbackRoutes 去除重复路径：后出现的重复路径被清空
 func deduplicateCallbackRoutes(s *CallbackRoutesSetting) {
-	seen := make(map[string]bool, 4)
+	seen := make(map[string]bool, 6)
 	fields := []*string{
 		&s.PaymentCallback,
 		&s.DujiaoPayWebhook,
 		&s.PaypalWebhook,
 		&s.StripeWebhook,
 		&s.UpstreamCallback,
+		&s.GenericWebhookCallback,
 	}
 	for _, f := range fields {
 		if *f == "" {

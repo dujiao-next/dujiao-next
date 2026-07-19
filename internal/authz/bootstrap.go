@@ -119,11 +119,13 @@ func BuiltinRoleSeeds() []RoleSeed {
 			Inherits: []string{"readonly_auditor"},
 			Policies: []Policy{
 				{Object: "/admin/site-connections", Action: "*"},
+				{Object: "/admin/site-connections/protocols", Action: "GET"},
 				{Object: "/admin/site-connections/:id", Action: "*"},
 				{Object: "/admin/site-connections/:id/ping", Action: "POST"},
 				{Object: "/admin/site-connections/:id/status", Action: "PUT"},
 				{Object: "/admin/site-connections/:id/reapply-markup", Action: "POST"},
 				{Object: "/admin/product-mappings", Action: "*"},
+				{Object: "/admin/product-mappings/bind", Action: "POST"},
 				{Object: "/admin/product-mappings/:id", Action: "*"},
 				{Object: "/admin/product-mappings/:id/sync", Action: "POST"},
 				{Object: "/admin/product-mappings/:id/status", Action: "PUT"},

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -11,6 +12,104 @@ import (
 
 	"github.com/shopspring/decimal"
 )
+
+func TestSiteConnectionServiceGenericWebhookTokenLifecycle(t *testing.T) {
+	repo := &siteConnectionRepoStub{}
+	svc := NewSiteConnectionService(repo, "test-app-secret", t.TempDir())
+	conn, err := svc.Create(CreateConnectionInput{
+		Name:        "fulfillment webhook",
+		BaseURL:     "https://provider.example.com/orders",
+		ApiKey:      "first-token",
+		Protocol:    constants.ConnectionProtocolGenericWebhook,
+		CallbackURL: "https://shop.example.com/api/v1/upstream/generic-webhook/callback",
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if conn.ApiKey != "first-token" {
+		t.Fatalf("unexpected generic webhook connection: %#v", conn)
+	}
+	if conn.CallbackURL != "https://shop.example.com/api/v1/upstream/generic-webhook/callback" {
+		t.Fatalf("unexpected generic webhook callback URL: %q", conn.CallbackURL)
+	}
+	verified, err := svc.VerifyGenericWebhookToken("first-token")
+	if err != nil || verified.ID != conn.ID {
+		t.Fatalf("VerifyGenericWebhookToken: conn=%#v err=%v", verified, err)
+	}
+
+	updated, err := svc.Update(conn.ID, UpdateConnectionInput{ApiKey: "second-token"})
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if updated.ApiKey != "second-token" {
+		t.Fatal("expected api key rotation")
+	}
+	if _, err := svc.VerifyGenericWebhookToken("first-token"); !errors.Is(err, ErrConnectionTokenInvalid) {
+		t.Fatalf("expected old token rejection, got %v", err)
+	}
+	if _, err := svc.VerifyGenericWebhookToken("second-token"); err != nil {
+		t.Fatalf("expected new token verification, got %v", err)
+	}
+}
+
+func TestSiteConnectionServiceGenericWebhookValidation(t *testing.T) {
+	svc := NewSiteConnectionService(&siteConnectionRepoStub{}, "test-app-secret", t.TempDir())
+	base := CreateConnectionInput{
+		Name:        "webhook",
+		BaseURL:     "https://provider.example.com/orders",
+		ApiKey:      "token",
+		Protocol:    constants.ConnectionProtocolGenericWebhook,
+		CallbackURL: "https://shop.example.com/api/v1/upstream/generic-webhook/callback",
+	}
+	if _, err := svc.Create(base); err != nil {
+		t.Fatalf("generic webhook should not require api_secret: %v", err)
+	}
+	missingAPIKey := base
+	missingAPIKey.ApiKey = ""
+	if _, err := NewSiteConnectionService(&siteConnectionRepoStub{}, "test-app-secret", t.TempDir()).Create(missingAPIKey); !errors.Is(err, ErrConnectionInvalid) {
+		t.Fatalf("expected missing api_key error, got %v", err)
+	}
+
+	invalidProtocol := base
+	invalidProtocol.Protocol = "unknown"
+	if _, err := NewSiteConnectionService(&siteConnectionRepoStub{}, "test-app-secret", t.TempDir()).Create(invalidProtocol); !errors.Is(err, ErrConnectionInvalid) {
+		t.Fatalf("expected invalid protocol error, got %v", err)
+	}
+	missingCallback := base
+	missingCallback.CallbackURL = ""
+	if _, err := NewSiteConnectionService(&siteConnectionRepoStub{}, "test-app-secret", t.TempDir()).Create(missingCallback); !errors.Is(err, ErrConnectionInvalid) {
+		t.Fatalf("expected invalid callback error, got %v", err)
+	}
+}
+
+func TestSiteConnectionServiceGenericWebhookRejectsDuplicateAPIKey(t *testing.T) {
+	repo := &siteConnectionRepoStub{conn: &models.SiteConnection{
+		ID:       1,
+		ApiKey:   "shared-token",
+		Protocol: constants.ConnectionProtocolDujiaoNext,
+	}}
+	svc := NewSiteConnectionService(repo, "test-app-secret", t.TempDir())
+	_, err := svc.Create(CreateConnectionInput{
+		Name:        "webhook",
+		BaseURL:     "https://provider.example.com/orders",
+		ApiKey:      "shared-token",
+		Protocol:    constants.ConnectionProtocolGenericWebhook,
+		CallbackURL: "https://shop.example.com/api/v1/upstream/generic-webhook/callback",
+	})
+	if !errors.Is(err, ErrConnectionInvalid) {
+		t.Fatalf("expected duplicate api_key rejection, got %v", err)
+	}
+}
+
+func TestSupportedConnectionProtocols(t *testing.T) {
+	protocols := SupportedConnectionProtocols()
+	if len(protocols) != 2 {
+		t.Fatalf("expected 2 protocols, got %d", len(protocols))
+	}
+	if protocols[1].Value != constants.ConnectionProtocolGenericWebhook || protocols[1].Capabilities.CatalogSync || !protocols[1].Capabilities.AsyncCallback {
+		t.Fatalf("unexpected generic webhook capabilities: %#v", protocols[1])
+	}
+}
 
 func TestSiteConnectionServicePingReturnsAdapterCreationError(t *testing.T) {
 	appSecretKey := "test-secret-key"
@@ -57,11 +156,13 @@ func (f *fakeMarkupReapplier) ReapplyMarkup(connectionID uint) (int, error) {
 }
 
 func newReapplyTestConn() *models.SiteConnection {
+	encrypted, _ := crypto.Encrypt(crypto.DeriveKey("test-secret-key"), "stored-secret")
 	return &models.SiteConnection{
 		ID:                 7,
 		Name:               "conn",
 		BaseURL:            "https://up.example.com",
 		ApiKey:             "key",
+		ApiSecret:          encrypted,
 		Protocol:           "dujiao-next",
 		Status:             constants.ConnectionStatusActive,
 		ExchangeRate:       decimal.NewFromInt(1),

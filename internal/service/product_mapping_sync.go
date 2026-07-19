@@ -34,6 +34,9 @@ func (s *ProductMappingService) SyncProduct(mappingID uint) error {
 	if conn == nil {
 		return ErrConnectionNotFound
 	}
+	if conn.Protocol == constants.ConnectionProtocolGenericWebhook {
+		return ErrProtocolCapabilityUnsupported
+	}
 
 	adapter, err := s.connService.GetAdapter(conn)
 	if err != nil {
@@ -442,6 +445,9 @@ func (s *ProductMappingService) syncConnectionStock(connectionID uint, connMappi
 	conn, err := s.connService.GetByID(connectionID)
 	if err != nil || conn == nil {
 		return fmt.Errorf("get connection %d: %w", connectionID, err)
+	}
+	if conn.Protocol == constants.ConnectionProtocolGenericWebhook {
+		return nil
 	}
 
 	adapter, err := s.connService.GetAdapter(conn)

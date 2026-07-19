@@ -228,6 +228,7 @@ func SetupRouter(cfg *config.Config, c *provider.Container) *gin.Engine {
 
 		// 上游回调接收（本站作为 A 站点，接收 B 的回调）
 		apiV1.POST("/upstream/callback", upstreamHandler.HandleCallback)
+		apiV1.POST("/upstream/generic-webhook/callback", upstreamHandler.HandleGenericWebhookCallback)
 
 		// 渠道 API（Telegram Bot 等外部服务调用）
 		channelAPI := apiV1.Group("/channel")
@@ -527,6 +528,7 @@ func SetupRouter(cfg *config.Config, c *provider.Container) *gin.Engine {
 				authorized.DELETE("/api-credentials/:id", adminHandler.DeleteApiCredential)
 
 				// 站点对接连接管理
+				authorized.GET("/site-connections/protocols", adminHandler.GetSiteConnectionProtocols)
 				authorized.GET("/site-connections", adminHandler.GetSiteConnections)
 				authorized.GET("/site-connections/:id", adminHandler.GetSiteConnection)
 				authorized.POST("/site-connections", adminHandler.CreateSiteConnection)
@@ -537,6 +539,7 @@ func SetupRouter(cfg *config.Config, c *provider.Container) *gin.Engine {
 				authorized.POST("/site-connections/:id/reapply-markup", adminHandler.ReapplyConnectionMarkup)
 
 				// 商品映射管理
+				authorized.POST("/product-mappings/bind", adminHandler.BindGenericWebhookProduct)
 				authorized.GET("/product-mappings", adminHandler.GetProductMappings)
 				authorized.GET("/product-mappings/:id", adminHandler.GetProductMapping)
 				authorized.POST("/product-mappings/import", adminHandler.ImportUpstreamProduct)

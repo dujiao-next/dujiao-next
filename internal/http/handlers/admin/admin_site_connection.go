@@ -11,6 +11,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// GetSiteConnectionProtocols 获取后端支持的对接协议及能力。
+func (h *Handler) GetSiteConnectionProtocols(c *gin.Context) {
+	response.Success(c, service.SupportedConnectionProtocols())
+}
+
 // GetSiteConnections 获取对接连接列表
 func (h *Handler) GetSiteConnections(c *gin.Context) {
 	page, pageSize := shared.ParsePagination(c)
@@ -92,6 +97,10 @@ func (h *Handler) UpdateSiteConnection(c *gin.Context) {
 			shared.RespondError(c, response.CodeNotFound, "error.connection_not_found", nil)
 			return
 		}
+		if errors.Is(err, service.ErrConnectionInvalid) {
+			shared.RespondError(c, response.CodeBadRequest, "error.connection_invalid", nil)
+			return
+		}
 		shared.RespondError(c, response.CodeInternal, "error.connection_update_failed", err)
 		return
 	}
@@ -152,6 +161,10 @@ func (h *Handler) ReapplyConnectionMarkup(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, service.ErrConnectionNotFound) {
 			shared.RespondError(c, response.CodeNotFound, "error.connection_not_found", nil)
+			return
+		}
+		if errors.Is(err, service.ErrProtocolCapabilityUnsupported) {
+			shared.RespondErrorWithMsg(c, response.CodeBadRequest, err.Error(), nil)
 			return
 		}
 		shared.RespondError(c, response.CodeInternal, "error.reapply_markup_failed", err)

@@ -38,12 +38,13 @@ func TestUpdateCallbackRoutesSettingIncludesDujiaoPayWebhook(t *testing.T) {
 	svc := NewSettingService(repo)
 
 	result, err := svc.Update(constants.SettingKeyCallbackRoutesConfig, map[string]interface{}{
-		constants.SettingFieldPaymentCallback:  " /api/custom/payment ",
-		constants.SettingFieldDujiaoPayWebhook: " /api/custom/dujiaopay?ignored=1 ",
-		constants.SettingFieldPaypalWebhook:    " /api/custom/paypal/ ",
-		constants.SettingFieldStripeWebhook:    " /api/custom/paypal ",
-		constants.SettingFieldUpstreamCallback: " /api/v1/upstream/custom ",
-		"unexpected_field_should_be_dropped":   "/api/custom/extra",
+		constants.SettingFieldPaymentCallback:        " /api/custom/payment ",
+		constants.SettingFieldDujiaoPayWebhook:       " /api/custom/dujiaopay?ignored=1 ",
+		constants.SettingFieldPaypalWebhook:          " /api/custom/paypal/ ",
+		constants.SettingFieldStripeWebhook:          " /api/custom/paypal ",
+		constants.SettingFieldUpstreamCallback:       " /api/v1/upstream/custom ",
+		constants.SettingFieldGenericWebhookCallback: " /api/custom/generic-webhook/ ",
+		"unexpected_field_should_be_dropped":         "/api/custom/extra",
 	})
 	if err != nil {
 		t.Fatalf("update callback routes failed: %v", err)
@@ -60,6 +61,9 @@ func TestUpdateCallbackRoutesSettingIncludesDujiaoPayWebhook(t *testing.T) {
 	}
 	if result[constants.SettingFieldStripeWebhook] != "" {
 		t.Fatalf("duplicate stripe_webhook should be cleared, got %v", result[constants.SettingFieldStripeWebhook])
+	}
+	if result[constants.SettingFieldGenericWebhookCallback] != "/api/custom/generic-webhook" {
+		t.Fatalf("generic_webhook_callback = %v", result[constants.SettingFieldGenericWebhookCallback])
 	}
 	if _, ok := result["unexpected_field_should_be_dropped"]; ok {
 		t.Fatalf("unexpected field kept in callback route setting")

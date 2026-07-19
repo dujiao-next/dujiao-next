@@ -95,6 +95,37 @@ type ImportUpstreamProductRequest struct {
 	AutoCreateCategory bool   `json:"auto_create_category"`
 }
 
+type BindGenericWebhookProductRequest struct {
+	ConnectionID   uint `json:"connection_id" binding:"required"`
+	LocalProductID uint `json:"local_product_id" binding:"required"`
+}
+
+// BindGenericWebhookProduct 手动绑定本地商品到通用 Webhook 连接。
+func (h *Handler) BindGenericWebhookProduct(c *gin.Context) {
+	var req BindGenericWebhookProductRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		shared.RespondBindError(c, err)
+		return
+	}
+	mapping, err := h.ProductMappingService.BindGenericWebhookProduct(req.ConnectionID, req.LocalProductID)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrConnectionNotFound):
+			shared.RespondError(c, response.CodeNotFound, "error.connection_not_found", nil)
+		case errors.Is(err, service.ErrNotFound):
+			shared.RespondError(c, response.CodeNotFound, "error.product_not_found", nil)
+		case errors.Is(err, service.ErrMappingAlreadyExists),
+			errors.Is(err, service.ErrProtocolCapabilityUnsupported),
+			errors.Is(err, service.ErrProductNoActiveSKU):
+			shared.RespondErrorWithMsg(c, response.CodeBadRequest, err.Error(), nil)
+		default:
+			shared.RespondError(c, response.CodeInternal, "error.mapping_import_failed", err)
+		}
+		return
+	}
+	response.Success(c, mapping)
+}
+
 // ImportUpstreamProduct 导入上游商品
 func (h *Handler) ImportUpstreamProduct(c *gin.Context) {
 	var req ImportUpstreamProductRequest
@@ -272,6 +303,10 @@ func (h *Handler) SyncProductMapping(c *gin.Context) {
 	if err := h.ProductMappingService.SyncProduct(id); err != nil {
 		if errors.Is(err, service.ErrMappingNotFound) {
 			shared.RespondError(c, response.CodeNotFound, "error.mapping_not_found", nil)
+			return
+		}
+		if errors.Is(err, service.ErrProtocolCapabilityUnsupported) {
+			shared.RespondErrorWithMsg(c, response.CodeBadRequest, err.Error(), nil)
 			return
 		}
 		shared.RespondError(c, response.CodeInternal, "error.mapping_sync_failed", err)
