@@ -39,6 +39,7 @@ type OrderRepository interface {
 	ListByGuestScoped(email, password string, page, pageSize int, scope ResellerOrderScope) ([]models.Order, int64, error)
 	ListAdmin(filter OrderListFilter) ([]models.Order, int64, error)
 	UpdateStatus(id uint, status string, updates map[string]interface{}) error
+	UpdateStatusIfCurrent(id uint, currentStatuses []string, status string, updates map[string]interface{}) (bool, error)
 	CountOrderItemsByProduct(productID uint) (int64, error)
 	CountPendingByUserID(userID uint) (int64, error)
 	CountPendingByClientIP(clientIP string) (int64, error)
@@ -446,6 +447,22 @@ func (r *GormOrderRepository) UpdateStatus(id uint, status string, updates map[s
 	}
 	updates["status"] = status
 	return r.db.Model(&models.Order{}).Where("id = ?", id).Updates(updates).Error
+}
+
+// UpdateStatusIfCurrent 仅当订单仍处于指定状态时更新，避免异步流程覆盖更靠后的终态。
+func (r *GormOrderRepository) UpdateStatusIfCurrent(id uint, currentStatuses []string, status string, updates map[string]interface{}) (bool, error) {
+	if id == 0 || len(currentStatuses) == 0 {
+		return false, nil
+	}
+	fields := make(map[string]interface{}, len(updates)+1)
+	for key, value := range updates {
+		fields[key] = value
+	}
+	fields["status"] = status
+	result := r.db.Model(&models.Order{}).
+		Where("id = ? AND status IN ?", id, currentStatuses).
+		Updates(fields)
+	return result.RowsAffected > 0, result.Error
 }
 
 // ListByUser 获取用户订单列表

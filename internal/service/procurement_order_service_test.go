@@ -795,6 +795,116 @@ func TestSubmitToUpstream_GenericWebhook(t *testing.T) {
 	}
 }
 
+func TestSubmitToUpstream_GenericWebhookImmediateCallbackPreservesDeliveredStatus(t *testing.T) {
+	db := setupProcurementTestDB(t)
+	parent := &models.Order{
+		OrderNo:        "PROC-WEBHOOK-IMMEDIATE",
+		UserID:         1,
+		Status:         constants.OrderStatusFulfilling,
+		Currency:       "CNY",
+		OriginalAmount: models.NewMoneyFromDecimal(decimal.NewFromInt(100)),
+		TotalAmount:    models.NewMoneyFromDecimal(decimal.NewFromInt(100)),
+	}
+	if err := db.Create(parent).Error; err != nil {
+		t.Fatalf("create parent order: %v", err)
+	}
+	child := createProcTestOrder(t, db, parent.OrderNo+"-01", constants.OrderStatusPaid, constants.FulfillmentTypeUpstream)
+	if err := db.Model(child).Update("parent_id", parent.ID).Error; err != nil {
+		t.Fatalf("attach child order: %v", err)
+	}
+	if err := db.Model(&models.OrderItem{}).Where("order_id = ?", child.ID).Update("sku_snapshot_json", models.JSON{"sku_code": "DEFAULT"}).Error; err != nil {
+		t.Fatalf("update sku snapshot: %v", err)
+	}
+
+	pm := &models.ProductMapping{ConnectionID: 1, LocalProductID: 1, UpstreamProductID: 1, IsActive: true}
+	if err := db.Create(pm).Error; err != nil {
+		t.Fatalf("create product mapping: %v", err)
+	}
+	if err := db.Create(&models.SKUMapping{ProductMappingID: pm.ID, LocalSKUID: 1, UpstreamSKUID: 1, UpstreamStock: -1, UpstreamIsActive: true}).Error; err != nil {
+		t.Fatalf("create sku mapping: %v", err)
+	}
+
+	var svc *ProcurementOrderService
+	var proc *models.ProcurementOrder
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Errorf("decode payload: %v", err)
+			http.Error(w, "invalid payload", http.StatusBadRequest)
+			return
+		}
+		if payload["order_no"] != child.OrderNo {
+			t.Errorf("unexpected order_no: %#v", payload["order_no"])
+		}
+		if err := svc.HandleUpstreamCallback(proc.ID, constants.OrderStatusDelivered, &upstream.UpstreamFulfillment{
+			Type:    constants.FulfillmentTypeUpstream,
+			Payload: "CARD----SECRET",
+		}); err != nil {
+			t.Errorf("immediate callback: %v", err)
+			http.Error(w, "callback failed", http.StatusInternalServerError)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": true, "order_no": "REMOTE-WEBHOOK-IMMEDIATE"})
+	}))
+	defer server.Close()
+
+	connSvc := NewSiteConnectionService(repository.NewSiteConnectionRepository(db), "test-key", t.TempDir())
+	conn, err := connSvc.Create(CreateConnectionInput{
+		Name:        "generic-webhook-immediate",
+		BaseURL:     server.URL,
+		ApiKey:      "webhook-immediate-token",
+		Protocol:    constants.ConnectionProtocolGenericWebhook,
+		CallbackURL: "https://shop.example.com/api/v1/upstream/generic-webhook/callback",
+	})
+	if err != nil {
+		t.Fatalf("create connection: %v", err)
+	}
+	if err := db.Model(pm).Update("connection_id", conn.ID).Error; err != nil {
+		t.Fatalf("update mapping connection: %v", err)
+	}
+	proc = createTestProcurementOrder(t, db, conn.ID, child.ID, child.OrderNo, constants.ProcurementStatusPending)
+	svc = newTestProcurementService(db, connSvc)
+
+	if err := svc.SubmitToUpstream(proc.ID); err != nil {
+		t.Fatalf("SubmitToUpstream: %v", err)
+	}
+
+	var updatedProc models.ProcurementOrder
+	if err := db.First(&updatedProc, proc.ID).Error; err != nil {
+		t.Fatalf("load procurement: %v", err)
+	}
+	if updatedProc.Status != constants.ProcurementStatusFulfilled {
+		t.Fatalf("procurement status = %q, want %q", updatedProc.Status, constants.ProcurementStatusFulfilled)
+	}
+	if updatedProc.UpstreamOrderNo != "REMOTE-WEBHOOK-IMMEDIATE" {
+		t.Fatalf("upstream order no = %q", updatedProc.UpstreamOrderNo)
+	}
+
+	for _, expected := range []struct {
+		id   uint
+		name string
+	}{
+		{id: parent.ID, name: "parent"},
+		{id: child.ID, name: "child"},
+	} {
+		var order models.Order
+		if err := db.First(&order, expected.id).Error; err != nil {
+			t.Fatalf("load %s order: %v", expected.name, err)
+		}
+		if order.Status != constants.OrderStatusDelivered {
+			t.Fatalf("%s order status = %q, want %q", expected.name, order.Status, constants.OrderStatusDelivered)
+		}
+	}
+
+	var fulfillment models.Fulfillment
+	if err := db.Where("order_id = ?", child.ID).First(&fulfillment).Error; err != nil {
+		t.Fatalf("load fulfillment: %v", err)
+	}
+	if fulfillment.Payload != "CARD----SECRET" {
+		t.Fatalf("fulfillment payload = %q", fulfillment.Payload)
+	}
+}
+
 func TestGenericWebhookExplicitRejectionIsPermanent(t *testing.T) {
 	if isRetryableSubmissionError(constants.ConnectionProtocolGenericWebhook, "temporary_overload") {
 		t.Fatal("generic webhook ok:false response must not be retried")

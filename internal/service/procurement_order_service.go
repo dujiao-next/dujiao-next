@@ -273,7 +273,8 @@ func (s *ProcurementOrderService) SubmitToUpstream(procurementOrderID uint) erro
 		return s.handleSubmitFailure(procOrder, conn, errMsg, retryable)
 	}
 
-	// 成功：更新状态，重置 retry_count 用于轮询阶段
+	// 成功：先保存上游响应字段，再以条件更新推进状态。
+	// Generic WebHook 可能在接单响应返回前就完成回调，此时不能把 fulfilled 覆盖回 accepted。
 	now := time.Now()
 	updates := map[string]interface{}{
 		"upstream_order_id": resp.OrderID,
@@ -284,20 +285,41 @@ func (s *ProcurementOrderService) SubmitToUpstream(procurementOrderID uint) erro
 		"retry_count":       0,
 		"updated_at":        now,
 	}
-	if err := s.procRepo.UpdateStatus(procOrder.ID, "accepted", updates); err != nil {
-		return fmt.Errorf("update procurement status: %w", err)
+	accepted, err := s.procRepo.UpdateStatusIfCurrent(
+		procOrder.ID,
+		[]string{constants.ProcurementStatusPending, constants.ProcurementStatusFailed},
+		constants.ProcurementStatusAccepted,
+		updates,
+	)
+	if err != nil {
+		return fmt.Errorf("update procurement acceptance: %w", err)
+	}
+	if !accepted {
+		if err := s.procRepo.UpdateFields(procOrder.ID, updates); err != nil {
+			return fmt.Errorf("update procurement response fields: %w", err)
+		}
+		logger.Infow("procurement_order_acceptance_superseded",
+			"procurement_order_id", procOrder.ID,
+			"upstream_order_id", resp.OrderID,
+			"upstream_order_no", resp.OrderNo,
+		)
+	} else {
+		logger.Infow("procurement_order_accepted",
+			"procurement_order_id", procOrder.ID,
+			"upstream_order_id", resp.OrderID,
+			"upstream_order_no", resp.OrderNo,
+		)
 	}
 
-	logger.Infow("procurement_order_accepted",
-		"procurement_order_id", procOrder.ID,
-		"upstream_order_id", resp.OrderID,
-		"upstream_order_no", resp.OrderNo,
-	)
-
-	// 更新本地订单状态为 fulfilling
-	_ = s.orderRepo.UpdateStatus(localOrder.ID, constants.OrderStatusFulfilling, map[string]interface{}{
-		"updated_at": now,
-	})
+	// 只允许未交付订单进入 fulfilling，不能覆盖即时回调写入的 delivered/completed 等后续状态。
+	if _, err := s.orderRepo.UpdateStatusIfCurrent(
+		localOrder.ID,
+		[]string{constants.OrderStatusPaid, constants.OrderStatusFulfilling},
+		constants.OrderStatusFulfilling,
+		map[string]interface{}{"updated_at": now},
+	); err != nil {
+		return fmt.Errorf("update local order status: %w", err)
+	}
 
 	// 入队轮询任务（30s 延迟，作为回调的 fallback）
 	if s.queueClient != nil && conn.Protocol == constants.ConnectionProtocolDujiaoNext {
@@ -477,10 +499,20 @@ func (s *ProcurementOrderService) HandleUpstreamCallback(procurementOrderID uint
 			}
 		}
 
-		// 更新本地订单状态
-		_ = s.orderRepo.UpdateStatus(procOrder.LocalOrderID, constants.OrderStatusDelivered, map[string]interface{}{
-			"updated_at": now,
-		})
+		// 更新本地订单状态；重复回调不能把 completed/refunded 等后续状态降回 delivered。
+		if _, err := s.orderRepo.UpdateStatusIfCurrent(
+			procOrder.LocalOrderID,
+			[]string{
+				constants.OrderStatusPaid,
+				constants.OrderStatusFulfilling,
+				constants.OrderStatusPartiallyDelivered,
+				constants.OrderStatusDelivered,
+			},
+			constants.OrderStatusDelivered,
+			map[string]interface{}{"updated_at": now},
+		); err != nil {
+			return fmt.Errorf("update local order status: %w", err)
+		}
 
 		// 如果有父订单，同步父订单状态
 		localOrder, _ := s.orderRepo.GetByID(procOrder.LocalOrderID)

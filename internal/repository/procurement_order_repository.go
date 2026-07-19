@@ -17,7 +17,9 @@ type ProcurementOrderRepository interface {
 	GetByUpstreamOrderID(connectionID, upstreamOrderID uint) (*models.ProcurementOrder, error)
 	Create(order *models.ProcurementOrder) error
 	Update(order *models.ProcurementOrder) error
+	UpdateFields(id uint, updates map[string]interface{}) error
 	UpdateStatus(id uint, status string, updates map[string]interface{}) error
+	UpdateStatusIfCurrent(id uint, currentStatuses []string, status string, updates map[string]interface{}) (bool, error)
 	List(filter ProcurementOrderListFilter) ([]models.ProcurementOrder, int64, error)
 	StatsByStatus(filter ProcurementOrderListFilter) (map[string]int64, error)
 	ListRetriable(now time.Time, limit int) ([]models.ProcurementOrder, error)
@@ -119,6 +121,14 @@ func (r *GormProcurementOrderRepository) Update(order *models.ProcurementOrder) 
 	return r.db.Save(order).Error
 }
 
+// UpdateFields 更新采购单指定字段，不改变未显式传入的状态。
+func (r *GormProcurementOrderRepository) UpdateFields(id uint, updates map[string]interface{}) error {
+	if id == 0 || len(updates) == 0 {
+		return nil
+	}
+	return r.db.Model(&models.ProcurementOrder{}).Where("id = ?", id).Updates(updates).Error
+}
+
 // UpdateStatus 更新采购单状态
 func (r *GormProcurementOrderRepository) UpdateStatus(id uint, status string, updates map[string]interface{}) error {
 	if updates == nil {
@@ -126,6 +136,22 @@ func (r *GormProcurementOrderRepository) UpdateStatus(id uint, status string, up
 	}
 	updates["status"] = status
 	return r.db.Model(&models.ProcurementOrder{}).Where("id = ?", id).Updates(updates).Error
+}
+
+// UpdateStatusIfCurrent 仅当采购单仍处于指定状态时更新，防止异步回调后的状态被旧流程覆盖。
+func (r *GormProcurementOrderRepository) UpdateStatusIfCurrent(id uint, currentStatuses []string, status string, updates map[string]interface{}) (bool, error) {
+	if id == 0 || len(currentStatuses) == 0 {
+		return false, nil
+	}
+	fields := make(map[string]interface{}, len(updates)+1)
+	for key, value := range updates {
+		fields[key] = value
+	}
+	fields["status"] = status
+	result := r.db.Model(&models.ProcurementOrder{}).
+		Where("id = ? AND status IN ?", id, currentStatuses).
+		Updates(fields)
+	return result.RowsAffected > 0, result.Error
 }
 
 // List 列表查询
