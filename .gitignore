@@ -7,10 +7,14 @@ uploads
 *.log
 .env
 .DS_Store
+.air.toml
 */node_modules/
 */dist/
 # Added by goreleaser init:
 dist/
+build/
+
+AGENTS.md
 
 # Fullstack 构建产物（仅 -tags fullstack 时使用，不进 git 历史）
 internal/web/dist/

@@ -124,6 +124,44 @@ func migrateCartSKUUniqueIndex() error {
 	return nil
 }
 
+// migrateProductMappingLocalProductIndex replaces the legacy unique index so
+// a soft-deleted product mapping can be created again for the same product.
+func migrateProductMappingLocalProductIndex() error {
+	if DB == nil {
+		return errors.New("database is not initialized")
+	}
+
+	var marker Setting
+	if err := DB.First(&marker, "key = ?", productMappingLocalProductIndexMigrationKey).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+	} else if migrationDone(marker.ValueJSON) {
+		return nil
+	}
+
+	return DB.Transaction(func(tx *gorm.DB) error {
+		const indexName = "idx_product_mappings_local_product_id"
+		migrator := tx.Migrator()
+		if migrator.HasIndex(&ProductMapping{}, indexName) {
+			if err := migrator.DropIndex(&ProductMapping{}, indexName); err != nil {
+				return err
+			}
+		}
+		if err := migrator.CreateIndex(&ProductMapping{}, indexName); err != nil {
+			return err
+		}
+
+		return tx.Save(&Setting{
+			Key: productMappingLocalProductIndexMigrationKey,
+			ValueJSON: JSON{
+				"done":        true,
+				"migrated_at": time.Now().UTC().Format(time.RFC3339),
+			},
+		}).Error
+	})
+}
+
 // ensureProductSKUMigration 执行 SKU 迁移：补默认 SKU、回填 sku_id、完整性校验。
 // 迁移完成后写入幂等标记，后续启动跳过。
 func ensureProductSKUMigration() error {
