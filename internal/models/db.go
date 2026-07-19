@@ -20,6 +20,7 @@ const (
 	categoryParentMigrationSettingKey               = "migration/category_parent_v1"
 	paymentProviderBepusdtRenameMigrationSettingKey = "migration/payment_provider_bepusdt_rename_v1"
 	orderItemOriginalPriceMigrationKey              = "migration/order_item_original_price_v1"
+	productMappingLocalProductIndexMigrationKey     = "migration/product_mapping_local_product_index_v1"
 	manualStockUnlimitedValue                       = -1
 )
 
@@ -167,6 +168,9 @@ func AutoMigrate() error {
 	}
 
 	if err := migrateCartSKUUniqueIndex(); err != nil {
+		return err
+	}
+	if err := migrateProductMappingLocalProductIndex(); err != nil {
 		return err
 	}
 
