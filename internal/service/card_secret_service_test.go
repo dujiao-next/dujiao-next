@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"mime/multipart"
 	"net/http/httptest"
@@ -32,6 +33,7 @@ func setupCardSecretServiceTestDB(t *testing.T) *gorm.DB {
 		&models.ProductSKU{},
 		&models.CardSecretBatch{},
 		&models.CardSecret{},
+		&models.CardSecretExport{},
 	); err != nil {
 		t.Fatalf("auto migrate failed: %v", err)
 	}
@@ -184,7 +186,7 @@ func TestCreateCardSecretBatchAutoSingleActiveFallsBackToOnlyActiveSKU(t *testin
 	}
 }
 
-func TestCreateCardSecretBatchDeduplicateOption(t *testing.T) {
+func TestCreateCardSecretBatchAlwaysDeduplicatesInput(t *testing.T) {
 	db := setupCardSecretServiceTestDB(t)
 
 	product := &models.Product{
@@ -230,19 +232,17 @@ func TestCreateCardSecretBatchDeduplicateOption(t *testing.T) {
 		t.Fatalf("default deduplicate want created=2 total=2 got created=%d total=%d", created, defaultBatch.TotalCount)
 	}
 
-	keepDuplicates := false
 	duplicateBatch, created, err := svc.CreateCardSecretBatch(CreateCardSecretBatchInput{
-		ProductID:   product.ID,
-		Secrets:     []string{"DEDUP-OFF-001", "DEDUP-OFF-001", "DEDUP-OFF-002"},
-		BatchNo:     "DEDUP-OFF",
-		Source:      constants.CardSecretSourceManual,
-		Deduplicate: &keepDuplicates,
+		ProductID: product.ID,
+		Secrets:   []string{"DEDUP-SECOND-001", "DEDUP-SECOND-001", "DEDUP-SECOND-002"},
+		BatchNo:   "DEDUP-SECOND",
+		Source:    constants.CardSecretSourceManual,
 	})
 	if err != nil {
-		t.Fatalf("create keep duplicate batch failed: %v", err)
+		t.Fatalf("create second deduplicated batch failed: %v", err)
 	}
-	if created != 3 || duplicateBatch.TotalCount != 3 {
-		t.Fatalf("keep duplicate want created=3 total=3 got created=%d total=%d", created, duplicateBatch.TotalCount)
+	if created != 2 || duplicateBatch.TotalCount != 2 {
+		t.Fatalf("forced deduplicate want created=2 total=2 got created=%d total=%d", created, duplicateBatch.TotalCount)
 	}
 
 	items, total, err := svc.ListCardSecrets(ListCardSecretInput{
@@ -254,21 +254,21 @@ func TestCreateCardSecretBatchDeduplicateOption(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list duplicate batch failed: %v", err)
 	}
-	if total != 3 || len(items) != 3 {
-		t.Fatalf("duplicate batch list want total=3 len=3 got total=%d len=%d", total, len(items))
+	if total != 2 || len(items) != 2 {
+		t.Fatalf("deduplicated batch list want total=2 len=2 got total=%d len=%d", total, len(items))
 	}
 	repeated := 0
 	for _, item := range items {
-		if item.Secret == "DEDUP-OFF-001" {
+		if item.Secret == "DEDUP-SECOND-001" {
 			repeated++
 		}
 	}
-	if repeated != 2 {
-		t.Fatalf("expected repeated secret to be stored twice, got %d", repeated)
+	if repeated != 1 {
+		t.Fatalf("expected repeated secret to be stored once, got %d", repeated)
 	}
 }
 
-func TestImportCardSecretCSVKeepsDuplicatesWhenDeduplicateDisabled(t *testing.T) {
+func TestImportCardSecretCSVAlwaysDeduplicatesInput(t *testing.T) {
 	db := setupCardSecretServiceTestDB(t)
 
 	product := &models.Product{
@@ -301,18 +301,16 @@ func TestImportCardSecretCSVKeepsDuplicatesWhenDeduplicateDisabled(t *testing.T)
 		repository.NewProductSKURepository(db),
 	)
 
-	keepDuplicates := false
 	batch, created, err := svc.ImportCardSecretCSV(ImportCardSecretCSVInput{
-		ProductID:   product.ID,
-		File:        newCardSecretCSVFileHeader(t, "secret\nCSV-DUP-001\nCSV-DUP-001\nCSV-DUP-002\n"),
-		BatchNo:     "CSV-DEDUP-OFF",
-		Deduplicate: &keepDuplicates,
+		ProductID: product.ID,
+		File:      newCardSecretCSVFileHeader(t, "secret\nCSV-DUP-001\nCSV-DUP-001\nCSV-DUP-002\n"),
+		BatchNo:   "CSV-DEDUP",
 	})
 	if err != nil {
 		t.Fatalf("import csv with duplicate secrets failed: %v", err)
 	}
-	if created != 3 || batch.TotalCount != 3 {
-		t.Fatalf("csv keep duplicate want created=3 total=3 got created=%d total=%d", created, batch.TotalCount)
+	if created != 2 || batch.TotalCount != 2 {
+		t.Fatalf("csv forced deduplicate want created=2 total=2 got created=%d total=%d", created, batch.TotalCount)
 	}
 
 	items, total, err := svc.ListCardSecrets(ListCardSecretInput{
@@ -324,8 +322,8 @@ func TestImportCardSecretCSVKeepsDuplicatesWhenDeduplicateDisabled(t *testing.T)
 	if err != nil {
 		t.Fatalf("list csv duplicate batch failed: %v", err)
 	}
-	if total != 3 || len(items) != 3 {
-		t.Fatalf("csv duplicate batch list want total=3 len=3 got total=%d len=%d", total, len(items))
+	if total != 2 || len(items) != 2 {
+		t.Fatalf("csv deduplicated batch list want total=2 len=2 got total=%d len=%d", total, len(items))
 	}
 	repeated := 0
 	for _, item := range items {
@@ -333,8 +331,138 @@ func TestImportCardSecretCSVKeepsDuplicatesWhenDeduplicateDisabled(t *testing.T)
 			repeated++
 		}
 	}
-	if repeated != 2 {
-		t.Fatalf("expected csv repeated secret to be stored twice, got %d", repeated)
+	if repeated != 1 {
+		t.Fatalf("expected csv repeated secret to be stored once, got %d", repeated)
+	}
+}
+
+func TestCreateCardSecretBatchRequiresConfirmationAndRefreshesDuplicates(t *testing.T) {
+	db := setupCardSecretServiceTestDB(t)
+	product := &models.Product{
+		CategoryID:      1,
+		Slug:            "card-secret-overwrite-duplicates",
+		TitleJSON:       models.JSON{"zh-CN": "覆盖导入商品"},
+		PriceAmount:     models.NewMoneyFromDecimal(decimal.NewFromInt(20)),
+		PurchaseType:    constants.ProductPurchaseMember,
+		FulfillmentType: constants.FulfillmentTypeAuto,
+		IsActive:        true,
+	}
+	if err := db.Create(product).Error; err != nil {
+		t.Fatalf("create product failed: %v", err)
+	}
+	sku := &models.ProductSKU{
+		ProductID:   product.ID,
+		SKUCode:     models.DefaultSKUCode,
+		PriceAmount: models.NewMoneyFromDecimal(decimal.NewFromInt(20)),
+		IsActive:    true,
+	}
+	if err := db.Create(sku).Error; err != nil {
+		t.Fatalf("create sku failed: %v", err)
+	}
+	svc := NewCardSecretService(
+		repository.NewCardSecretRepository(db),
+		repository.NewCardSecretBatchRepository(db),
+		repository.NewProductRepository(db),
+		repository.NewProductSKURepository(db),
+	)
+
+	originalBatch, _, err := svc.CreateCardSecretBatch(CreateCardSecretBatchInput{
+		ProductID: product.ID,
+		SKUID:     sku.ID,
+		Secrets:   []string{"OVERWRITE-AVAILABLE", "OVERWRITE-USED"},
+		BatchNo:   "ORIGINAL",
+	})
+	if err != nil {
+		t.Fatalf("create original batch failed: %v", err)
+	}
+	oldImportedAt := time.Now().Add(-24 * time.Hour).Truncate(time.Second)
+	orderID := uint(42)
+	if err := db.Model(&models.CardSecret{}).
+		Where("product_id = ? AND sku_id = ?", product.ID, sku.ID).
+		Updates(map[string]interface{}{"created_at": oldImportedAt, "updated_at": oldImportedAt}).Error; err != nil {
+		t.Fatalf("seed old import time failed: %v", err)
+	}
+	if err := db.Model(&models.CardSecret{}).
+		Where("product_id = ? AND sku_id = ? AND secret = ?", product.ID, sku.ID, "OVERWRITE-USED").
+		Updates(map[string]interface{}{"status": models.CardSecretStatusUsed, "order_id": orderID}).Error; err != nil {
+		t.Fatalf("seed used card secret failed: %v", err)
+	}
+
+	batch, imported, err := svc.CreateCardSecretBatch(CreateCardSecretBatchInput{
+		ProductID: product.ID,
+		SKUID:     sku.ID,
+		Secrets:   []string{"OVERWRITE-AVAILABLE", "OVERWRITE-USED", "OVERWRITE-NEW"},
+		BatchNo:   "REIMPORT",
+	})
+	var duplicateErr *CardSecretDuplicatesError
+	if !errors.As(err, &duplicateErr) {
+		t.Fatalf("expected duplicate confirmation error, got %v", err)
+	}
+	if batch != nil || imported != 0 {
+		t.Fatalf("duplicate preview must not import data")
+	}
+	if strings.Join(duplicateErr.Secrets, ",") != "OVERWRITE-AVAILABLE,OVERWRITE-USED" {
+		t.Fatalf("unexpected duplicate list: %+v", duplicateErr.Secrets)
+	}
+	var batchCount int64
+	if err := db.Model(&models.CardSecretBatch{}).Count(&batchCount).Error; err != nil {
+		t.Fatalf("count batches failed: %v", err)
+	}
+	if batchCount != 1 {
+		t.Fatalf("duplicate preview should not create a batch, got %d", batchCount)
+	}
+	var secretCountBeforeOverwrite int64
+	if err := db.Model(&models.CardSecret{}).
+		Where("product_id = ? AND sku_id = ?", product.ID, sku.ID).
+		Count(&secretCountBeforeOverwrite).Error; err != nil {
+		t.Fatalf("count secrets after duplicate preview failed: %v", err)
+	}
+	if secretCountBeforeOverwrite != 2 {
+		t.Fatalf("duplicate preview must not partially import fresh secrets, got %d rows", secretCountBeforeOverwrite)
+	}
+
+	reimportBatch, imported, err := svc.CreateCardSecretBatch(CreateCardSecretBatchInput{
+		ProductID:           product.ID,
+		SKUID:               sku.ID,
+		Secrets:             []string{"OVERWRITE-AVAILABLE", "OVERWRITE-USED", "OVERWRITE-NEW"},
+		BatchNo:             "REIMPORT",
+		OverwriteDuplicates: true,
+	})
+	if err != nil {
+		t.Fatalf("overwrite duplicate import failed: %v", err)
+	}
+	if imported != 3 || reimportBatch.TotalCount != 3 || reimportBatch.ID == originalBatch.ID {
+		t.Fatalf("unexpected overwrite result: batch=%+v imported=%d", reimportBatch, imported)
+	}
+	rows, total, err := svc.ListCardSecrets(ListCardSecretInput{
+		ProductID: product.ID,
+		SKUID:     sku.ID,
+		BatchID:   reimportBatch.ID,
+		Page:      1,
+		PageSize:  10,
+	})
+	if err != nil {
+		t.Fatalf("list overwritten batch failed: %v", err)
+	}
+	if total != 3 || len(rows) != 3 {
+		t.Fatalf("overwrite should keep three unique rows, total=%d len=%d", total, len(rows))
+	}
+	for _, row := range rows {
+		if !row.CreatedAt.After(oldImportedAt) {
+			t.Fatalf("import time was not refreshed: %+v", row)
+		}
+		if row.Secret == "OVERWRITE-USED" {
+			if row.Status != models.CardSecretStatusUsed || row.OrderID == nil || *row.OrderID != orderID {
+				t.Fatalf("used status and order relation must be preserved: %+v", row)
+			}
+		}
+	}
+	var secretCount int64
+	if err := db.Model(&models.CardSecret{}).Where("product_id = ? AND sku_id = ?", product.ID, sku.ID).Count(&secretCount).Error; err != nil {
+		t.Fatalf("count secrets failed: %v", err)
+	}
+	if secretCount != 3 {
+		t.Fatalf("overwrite import must not create duplicate rows, got %d", secretCount)
 	}
 }
 
@@ -742,6 +870,11 @@ func TestExportAvailableCardSecretsMarksUsed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create batch failed: %v", err)
 	}
+	if err := db.Model(&models.CardSecret{}).
+		Where("product_id = ? AND secret = ?", product.ID, "EXP-A-001").
+		Update("order_id", 99).Error; err != nil {
+		t.Fatalf("seed stale order id failed: %v", err)
+	}
 
 	result, err := svc.ExportAvailableCardSecrets(ExportAvailableCardSecretInput{
 		ProductID: product.ID,
@@ -749,12 +882,20 @@ func TestExportAvailableCardSecretsMarksUsed(t *testing.T) {
 		BatchID:   batch.ID,
 		Limit:     2,
 		Format:    constants.ExportFormatTXT,
+		AdminID:   9,
 	})
 	if err != nil {
 		t.Fatalf("export available failed: %v", err)
 	}
 	if result.Count != 2 || strings.TrimSpace(string(result.Content)) != "EXP-A-001\nEXP-A-002" {
 		t.Fatalf("unexpected export result: count=%d content=%q", result.Count, string(result.Content))
+	}
+	if result.Record == nil || result.Record.ID == 0 || result.Record.AdminID != 9 {
+		t.Fatalf("expected export record, got %+v", result.Record)
+	}
+	records, total, err := svc.ListCardSecretExports(ListCardSecretExportInput{ID: result.Record.ID, Page: 1, PageSize: 20})
+	if err != nil || total != 1 || len(records) != 1 || records[0].Count != 2 {
+		t.Fatalf("expected queryable export record, rows=%+v total=%d err=%v", records, total, err)
 	}
 
 	rows, _, err := svc.ListCardSecrets(ListCardSecretInput{
@@ -770,6 +911,12 @@ func TestExportAvailableCardSecretsMarksUsed(t *testing.T) {
 	statusBySecret := map[string]string{}
 	for _, row := range rows {
 		statusBySecret[row.Secret] = row.Status
+		if row.Secret != "EXP-A-003" && (row.ExportID == nil || *row.ExportID != result.Record.ID) {
+			t.Fatalf("expected exported secret linked to record: %+v", row)
+		}
+		if row.Secret != "EXP-A-003" && row.OrderID != nil {
+			t.Fatalf("expected exported secret order link cleared: %+v", row)
+		}
 	}
 	if statusBySecret["EXP-A-001"] != models.CardSecretStatusUsed ||
 		statusBySecret["EXP-A-002"] != models.CardSecretStatusUsed ||
@@ -825,12 +972,16 @@ func TestExportAvailableCardSecretsDeletesAfterExport(t *testing.T) {
 		Limit:             1,
 		Format:            constants.ExportFormatTXT,
 		DeleteAfterExport: true,
+		AdminID:           10,
 	})
 	if err != nil {
 		t.Fatalf("export available with delete failed: %v", err)
 	}
 	if result.Count != 1 || strings.TrimSpace(string(result.Content)) != "EXP-D-001" {
 		t.Fatalf("unexpected export result: count=%d content=%q", result.Count, string(result.Content))
+	}
+	if result.Record == nil || !result.Record.DeleteAfterExport || result.Record.AdminID != 10 {
+		t.Fatalf("expected delete export record, got %+v", result.Record)
 	}
 
 	rows, _, err := svc.ListCardSecrets(ListCardSecretInput{

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dujiao-next/internal/config"
 	"github.com/gin-gonic/gin"
 )
 
@@ -29,6 +30,28 @@ func TestResolveAllowedOrigin(t *testing.T) {
 	got = resolveAllowedOrigin("https://x.example.com", []string{"https://a.example.com"}, false)
 	if got != "" {
 		t.Fatalf("unmatched origin should be empty, got %s", got)
+	}
+}
+
+func TestCORSMiddlewareExposesDownloadHeaders(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	r := gin.New()
+	r.Use(CORSMiddleware(config.CORSConfig{}))
+	r.GET("/download", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/download", nil)
+	req.Header.Set("Origin", "https://admin.example.com")
+	r.ServeHTTP(w, req)
+
+	exposed := w.Header().Get("Access-Control-Expose-Headers")
+	for _, header := range []string{"Content-Disposition", "X-Exported-Count", "X-Export-Record-ID"} {
+		if !strings.Contains(exposed, header) {
+			t.Fatalf("expected exposed header %s, got %q", header, exposed)
+		}
 	}
 }
 

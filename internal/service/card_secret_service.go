@@ -39,14 +39,23 @@ func NewCardSecretService(secretRepo repository.CardSecretRepository, batchRepo 
 
 // CreateCardSecretBatchInput 批量录入卡密输入
 type CreateCardSecretBatchInput struct {
-	ProductID   uint
-	SKUID       uint
-	Secrets     []string
-	BatchNo     string
-	Note        string
-	Source      string
-	AdminID     uint
-	Deduplicate *bool
+	ProductID           uint
+	SKUID               uint
+	Secrets             []string
+	BatchNo             string
+	Note                string
+	Source              string
+	AdminID             uint
+	OverwriteDuplicates bool
+}
+
+// CardSecretDuplicatesError 表示导入范围内存在需要管理员确认覆盖的卡密。
+type CardSecretDuplicatesError struct {
+	Secrets []string
+}
+
+func (e *CardSecretDuplicatesError) Error() string {
+	return "card secret duplicates require confirmation"
 }
 
 // CreateCardSecretBatch 批量录入卡密
@@ -70,7 +79,7 @@ func (s *CardSecretService) CreateCardSecretBatch(input CreateCardSecretBatchInp
 		return nil, 0, err
 	}
 
-	normalized := normalizeSecrets(input.Secrets, shouldDeduplicateCardSecrets(input.Deduplicate))
+	normalized := normalizeSecrets(input.Secrets)
 	if len(normalized) == 0 {
 		return nil, 0, ErrCardSecretInvalid
 	}
@@ -87,29 +96,72 @@ func (s *CardSecretService) CreateCardSecretBatch(input CreateCardSecretBatchInp
 		source = constants.CardSecretSourceManual
 	}
 
-	now := time.Now()
-	batch := &models.CardSecretBatch{
-		ProductID:  input.ProductID,
-		SKUID:      sku.ID,
-		BatchNo:    batchNo,
-		Source:     source,
-		TotalCount: len(normalized),
-		Note:       strings.TrimSpace(input.Note),
-		CreatedAt:  now,
-		UpdatedAt:  now,
-	}
-	if input.AdminID > 0 {
-		batch.CreatedBy = &input.AdminID
-	}
-
+	var batch *models.CardSecretBatch
 	err = s.secretRepo.Transaction(func(tx *gorm.DB) error {
 		batchRepo := s.batchRepo.WithTx(tx)
 		secretRepo := s.secretRepo.WithTx(tx)
+		lockedSKU, err := s.productSKURepo.WithTx(tx).GetByIDForUpdate(sku.ID)
+		if err != nil {
+			return ErrCardSecretFetchFailed
+		}
+		if lockedSKU == nil || lockedSKU.ProductID != input.ProductID ||
+			(strings.TrimSpace(product.FulfillmentType) == constants.FulfillmentTypeAuto && !lockedSKU.IsActive) {
+			return ErrProductSKUInvalid
+		}
+		existingRows, err := secretRepo.ListByProductSKUAndSecretsForUpdate(input.ProductID, sku.ID, normalized)
+		if err != nil {
+			return ErrCardSecretFetchFailed
+		}
+		existingBySecret := make(map[string]models.CardSecret, len(existingRows))
+		for _, item := range existingRows {
+			if _, exists := existingBySecret[item.Secret]; !exists {
+				existingBySecret[item.Secret] = item
+			}
+		}
+		duplicates := make([]string, 0)
+		freshSecrets := make([]string, 0, len(normalized))
+		for _, secret := range normalized {
+			if _, exists := existingBySecret[secret]; exists {
+				duplicates = append(duplicates, secret)
+				continue
+			}
+			freshSecrets = append(freshSecrets, secret)
+		}
+		if len(duplicates) > 0 && !input.OverwriteDuplicates {
+			return &CardSecretDuplicatesError{Secrets: duplicates}
+		}
+
+		now := time.Now()
+		batch = &models.CardSecretBatch{
+			ProductID:  input.ProductID,
+			SKUID:      sku.ID,
+			BatchNo:    batchNo,
+			Source:     source,
+			TotalCount: len(normalized),
+			Note:       strings.TrimSpace(input.Note),
+			CreatedAt:  now,
+			UpdatedAt:  now,
+		}
+		if input.AdminID > 0 {
+			batch.CreatedBy = &input.AdminID
+		}
 		if err := batchRepo.Create(batch); err != nil {
 			return ErrCardSecretBatchCreateFailed
 		}
-		items := make([]models.CardSecret, 0, len(normalized))
-		for _, secret := range normalized {
+
+		if len(duplicates) > 0 {
+			ids := make([]uint, 0, len(duplicates))
+			for _, secret := range duplicates {
+				ids = append(ids, existingBySecret[secret].ID)
+			}
+			affected, err := secretRepo.RefreshImported(ids, batch.ID, now)
+			if err != nil || affected != int64(len(ids)) {
+				return ErrCardSecretCreateFailed
+			}
+		}
+
+		items := make([]models.CardSecret, 0, len(freshSecrets))
+		for _, secret := range freshSecrets {
 			items = append(items, models.CardSecret{
 				ProductID: input.ProductID,
 				SKUID:     sku.ID,
@@ -126,23 +178,33 @@ func (s *CardSecretService) CreateCardSecretBatch(input CreateCardSecretBatchInp
 		return nil
 	})
 	if err != nil {
+		var duplicateErr *CardSecretDuplicatesError
+		if errors.As(err, &duplicateErr) {
+			return nil, 0, duplicateErr
+		}
 		if errors.Is(err, ErrCardSecretBatchCreateFailed) {
 			return nil, 0, ErrCardSecretBatchCreateFailed
 		}
+		if errors.Is(err, ErrCardSecretFetchFailed) {
+			return nil, 0, ErrCardSecretFetchFailed
+		}
+		if errors.Is(err, ErrProductSKUInvalid) {
+			return nil, 0, ErrProductSKUInvalid
+		}
 		return nil, 0, ErrCardSecretCreateFailed
 	}
-	return batch, batch.TotalCount, nil
+	return batch, len(normalized), nil
 }
 
 // ImportCardSecretCSVInput 导入 CSV 输入
 type ImportCardSecretCSVInput struct {
-	ProductID   uint
-	SKUID       uint
-	File        *multipart.FileHeader
-	BatchNo     string
-	Note        string
-	AdminID     uint
-	Deduplicate *bool
+	ProductID           uint
+	SKUID               uint
+	File                *multipart.FileHeader
+	BatchNo             string
+	Note                string
+	AdminID             uint
+	OverwriteDuplicates bool
 }
 
 // ImportCardSecretCSV 从 CSV 导入卡密
@@ -162,14 +224,14 @@ func (s *CardSecretService) ImportCardSecretCSV(input ImportCardSecretCSVInput) 
 		return nil, 0, ErrCardSecretImportFailed
 	}
 	return s.CreateCardSecretBatch(CreateCardSecretBatchInput{
-		ProductID:   input.ProductID,
-		SKUID:       input.SKUID,
-		Secrets:     secrets,
-		BatchNo:     input.BatchNo,
-		Note:        input.Note,
-		Source:      constants.CardSecretSourceCSV,
-		AdminID:     input.AdminID,
-		Deduplicate: input.Deduplicate,
+		ProductID:           input.ProductID,
+		SKUID:               input.SKUID,
+		Secrets:             secrets,
+		BatchNo:             input.BatchNo,
+		Note:                input.Note,
+		Source:              constants.CardSecretSourceCSV,
+		AdminID:             input.AdminID,
+		OverwriteDuplicates: input.OverwriteDuplicates,
 	})
 }
 
@@ -190,6 +252,7 @@ type ExportAvailableCardSecretInput struct {
 	ProductID         uint
 	SKUID             uint
 	BatchID           uint
+	AdminID           uint
 	Limit             int
 	Format            string
 	DeleteAfterExport bool
@@ -200,6 +263,16 @@ type ExportAvailableCardSecretResult struct {
 	Content     []byte
 	ContentType string
 	Count       int
+	Record      *models.CardSecretExport
+}
+
+type ListCardSecretExportInput struct {
+	ID        uint
+	ProductID uint
+	SKUID     uint
+	BatchID   uint
+	Page      int
+	PageSize  int
 }
 
 // ListCardSecrets 获取卡密列表
@@ -339,6 +412,24 @@ func (s *CardSecretService) ExportAvailableCardSecrets(input ExportAvailableCard
 			ids = append(ids, item.ID)
 		}
 
+		var batchID *uint
+		if input.BatchID > 0 {
+			value := input.BatchID
+			batchID = &value
+		}
+		exportRecord := &models.CardSecretExport{
+			ProductID:         input.ProductID,
+			SKUID:             input.SKUID,
+			BatchID:           batchID,
+			AdminID:           input.AdminID,
+			Format:            normalizedFormat,
+			Count:             len(items),
+			DeleteAfterExport: input.DeleteAfterExport,
+		}
+		if err := secretRepo.CreateExport(exportRecord); err != nil {
+			return ErrCardSecretUpdateFailed
+		}
+
 		var affected int64
 		if input.DeleteAfterExport {
 			affected, err = secretRepo.BatchDeleteByIDs(ids)
@@ -346,7 +437,7 @@ func (s *CardSecretService) ExportAvailableCardSecrets(input ExportAvailableCard
 				return ErrCardSecretDeleteFailed
 			}
 		} else {
-			affected, err = secretRepo.BatchUpdateStatus(ids, models.CardSecretStatusUsed, time.Now())
+			affected, err = secretRepo.MarkExported(ids, exportRecord.ID, time.Now())
 			if err != nil {
 				return ErrCardSecretUpdateFailed
 			}
@@ -362,6 +453,7 @@ func (s *CardSecretService) ExportAvailableCardSecrets(input ExportAvailableCard
 			Content:     content,
 			ContentType: contentType,
 			Count:       len(items),
+			Record:      exportRecord,
 		}
 		return nil
 	})
@@ -369,6 +461,21 @@ func (s *CardSecretService) ExportAvailableCardSecrets(input ExportAvailableCard
 		return nil, err
 	}
 	return result, nil
+}
+
+func (s *CardSecretService) ListCardSecretExports(input ListCardSecretExportInput) ([]models.CardSecretExport, int64, error) {
+	rows, total, err := s.secretRepo.ListExports(repository.CardSecretExportListFilter{
+		ID:        input.ID,
+		ProductID: input.ProductID,
+		SKUID:     input.SKUID,
+		BatchID:   input.BatchID,
+		Page:      input.Page,
+		PageSize:  input.PageSize,
+	})
+	if err != nil {
+		return nil, 0, ErrCardSecretFetchFailed
+	}
+	return rows, total, nil
 }
 
 func normalizeCardSecretExportFormat(format string) (string, error) {
@@ -715,18 +822,8 @@ func (s *CardSecretService) resolveCardSecretSKU(productID, rawSKUID uint) (*mod
 	return nil, ErrProductSKURequired
 }
 
-func shouldDeduplicateCardSecrets(value *bool) bool {
-	if value == nil {
-		return true
-	}
-	return *value
-}
-
-func normalizeSecrets(values []string, deduplicate bool) []string {
-	var seen map[string]struct{}
-	if deduplicate {
-		seen = make(map[string]struct{})
-	}
+func normalizeSecrets(values []string) []string {
+	seen := make(map[string]struct{})
 	result := make([]string, 0, len(values))
 	for _, val := range values {
 		for _, line := range strings.Split(val, "\n") {
@@ -734,12 +831,10 @@ func normalizeSecrets(values []string, deduplicate bool) []string {
 			if trimmed == "" {
 				continue
 			}
-			if deduplicate {
-				if _, ok := seen[trimmed]; ok {
-					continue
-				}
-				seen[trimmed] = struct{}{}
+			if _, ok := seen[trimmed]; ok {
+				continue
 			}
+			seen[trimmed] = struct{}{}
 			result = append(result, trimmed)
 		}
 	}

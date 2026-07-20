@@ -8,12 +8,14 @@ import (
 	"github.com/dujiao-next/internal/models"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // ProductSKURepository 商品 SKU 数据访问接口
 type ProductSKURepository interface {
 	ListByProduct(productID uint, onlyActive bool) ([]models.ProductSKU, error)
 	GetByID(id uint) (*models.ProductSKU, error)
+	GetByIDForUpdate(id uint) (*models.ProductSKU, error)
 	GetByProductAndCode(productID uint, skuCode string) (*models.ProductSKU, error)
 	ListByIDs(ids []uint) ([]models.ProductSKU, error)
 	Create(item *models.ProductSKU) error
@@ -69,6 +71,21 @@ func (r *GormProductSKURepository) GetByID(id uint) (*models.ProductSKU, error) 
 	}
 	var item models.ProductSKU
 	if err := r.db.First(&item, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &item, nil
+}
+
+// GetByIDForUpdate 在事务中锁定 SKU，供同一库存范围的写操作串行执行。
+func (r *GormProductSKURepository) GetByIDForUpdate(id uint) (*models.ProductSKU, error) {
+	if id == 0 {
+		return nil, errors.New("invalid sku id")
+	}
+	var item models.ProductSKU
+	if err := r.db.Clauses(clause.Locking{Strength: "UPDATE"}).First(&item, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}

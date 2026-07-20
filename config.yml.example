@@ -108,6 +108,10 @@ cors:
     - Cache-Control
     - X-Requested-With
     - X-CSRF-Token
+  exposed_headers:
+    - Content-Disposition
+    - X-Exported-Count
+    - X-Export-Record-ID
   allow_credentials: true
   max_age: 600
 

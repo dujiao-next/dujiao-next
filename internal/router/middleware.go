@@ -42,8 +42,13 @@ func CORSMiddleware(cfg config.CORSConfig) gin.HandlerFunc {
 	if len(allowedHeaders) == 0 {
 		allowedHeaders = config.DefaultCORSAllowedHeaders()
 	}
+	exposedHeaders := cfg.ExposedHeaders
+	if len(exposedHeaders) == 0 {
+		exposedHeaders = config.DefaultCORSExposedHeaders()
+	}
 	methodsHeader := strings.Join(allowedMethods, ", ")
 	headersHeader := strings.Join(allowedHeaders, ", ")
+	exposedHeadersHeader := strings.Join(exposedHeaders, ", ")
 
 	return func(c *gin.Context) {
 		origin := c.GetHeader("Origin")
@@ -59,6 +64,9 @@ func CORSMiddleware(cfg config.CORSConfig) gin.HandlerFunc {
 		}
 		c.Writer.Header().Set("Access-Control-Allow-Headers", headersHeader)
 		c.Writer.Header().Set("Access-Control-Allow-Methods", methodsHeader)
+		if exposedHeadersHeader != "" {
+			c.Writer.Header().Set("Access-Control-Expose-Headers", exposedHeadersHeader)
+		}
 		if cfg.MaxAge > 0 {
 			c.Writer.Header().Set("Access-Control-Max-Age", strconv.Itoa(cfg.MaxAge))
 		}

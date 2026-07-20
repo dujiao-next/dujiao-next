@@ -16,12 +16,12 @@ import (
 
 // CreateCardSecretBatchRequest 批量录入卡密请求
 type CreateCardSecretBatchRequest struct {
-	ProductID   uint     `json:"product_id" binding:"required"`
-	SKUID       uint     `json:"sku_id"`
-	Secrets     []string `json:"secrets" binding:"required"`
-	BatchNo     string   `json:"batch_no"`
-	Note        string   `json:"note"`
-	Deduplicate *bool    `json:"deduplicate"`
+	ProductID           uint     `json:"product_id" binding:"required"`
+	SKUID               uint     `json:"sku_id"`
+	Secrets             []string `json:"secrets" binding:"required"`
+	BatchNo             string   `json:"batch_no"`
+	Note                string   `json:"note"`
+	OverwriteDuplicates bool     `json:"overwrite_duplicates"`
 }
 
 // UpdateCardSecretRequest 更新卡密请求
@@ -87,6 +87,31 @@ func buildCardSecretListInput(filter *CardSecretQueryRequest) service.ListCardSe
 	}
 }
 
+func respondCardSecretDuplicateConfirmation(c *gin.Context, err error) bool {
+	var duplicateErr *service.CardSecretDuplicatesError
+	if !errors.As(err, &duplicateErr) {
+		return false
+	}
+	response.Success(c, gin.H{
+		"requires_confirmation": true,
+		"duplicate_count":       len(duplicateErr.Secrets),
+		"duplicates":            duplicateErr.Secrets,
+		"created":               0,
+		"imported":              0,
+	})
+	return true
+}
+
+func respondCardSecretImportSuccess(c *gin.Context, batchID uint, batchNo string, imported int) {
+	response.Success(c, gin.H{
+		"requires_confirmation": false,
+		"created":               imported,
+		"imported":              imported,
+		"batch_id":              batchID,
+		"batch_no":              batchNo,
+	})
+}
+
 // CreateCardSecretBatch 批量录入卡密
 func (h *Handler) CreateCardSecretBatch(c *gin.Context) {
 	adminID, ok := shared.GetAdminID(c)
@@ -99,17 +124,20 @@ func (h *Handler) CreateCardSecretBatch(c *gin.Context) {
 		return
 	}
 
-	batch, created, err := h.CardSecretService.CreateCardSecretBatch(service.CreateCardSecretBatchInput{
-		ProductID:   req.ProductID,
-		SKUID:       req.SKUID,
-		Secrets:     req.Secrets,
-		BatchNo:     req.BatchNo,
-		Note:        req.Note,
-		Source:      constants.CardSecretSourceManual,
-		AdminID:     adminID,
-		Deduplicate: req.Deduplicate,
+	batch, imported, err := h.CardSecretService.CreateCardSecretBatch(service.CreateCardSecretBatchInput{
+		ProductID:           req.ProductID,
+		SKUID:               req.SKUID,
+		Secrets:             req.Secrets,
+		BatchNo:             req.BatchNo,
+		Note:                req.Note,
+		Source:              constants.CardSecretSourceManual,
+		AdminID:             adminID,
+		OverwriteDuplicates: req.OverwriteDuplicates,
 	})
 	if err != nil {
+		if respondCardSecretDuplicateConfirmation(c, err) {
+			return
+		}
 		switch {
 		case errors.Is(err, service.ErrProductSKURequired):
 			shared.RespondError(c, response.CodeBadRequest, "error.card_secret_invalid", nil)
@@ -121,6 +149,8 @@ func (h *Handler) CreateCardSecretBatch(c *gin.Context) {
 			shared.RespondError(c, response.CodeNotFound, "error.product_not_found", nil)
 		case errors.Is(err, service.ErrProductFetchFailed):
 			shared.RespondError(c, response.CodeInternal, "error.product_fetch_failed", err)
+		case errors.Is(err, service.ErrCardSecretFetchFailed):
+			shared.RespondError(c, response.CodeInternal, "error.card_secret_fetch_failed", err)
 		case errors.Is(err, service.ErrCardSecretBatchCreateFailed):
 			shared.RespondError(c, response.CodeInternal, "error.card_secret_batch_create_failed", err)
 		default:
@@ -129,11 +159,7 @@ func (h *Handler) CreateCardSecretBatch(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, gin.H{
-		"created":  created,
-		"batch_id": batch.ID,
-		"batch_no": batch.BatchNo,
-	})
+	respondCardSecretImportSuccess(c, batch.ID, batch.BatchNo, imported)
 }
 
 // ImportCardSecretCSV 导入 CSV 卡密
@@ -159,22 +185,25 @@ func (h *Handler) ImportCardSecretCSV(c *gin.Context) {
 	}
 	batchNo := strings.TrimSpace(c.PostForm("batch_no"))
 	note := strings.TrimSpace(c.PostForm("note"))
-	deduplicate, err := shared.ParseOptionalBoolValue(c.PostForm("deduplicate"))
+	overwriteDuplicates, err := shared.ParseOptionalBoolValue(c.PostForm("overwrite_duplicates"))
 	if err != nil {
 		shared.RespondError(c, response.CodeBadRequest, "error.card_secret_invalid", nil)
 		return
 	}
 
-	batch, created, err := h.CardSecretService.ImportCardSecretCSV(service.ImportCardSecretCSVInput{
-		ProductID:   productID,
-		SKUID:       skuID,
-		File:        file,
-		BatchNo:     batchNo,
-		Note:        note,
-		AdminID:     adminID,
-		Deduplicate: deduplicate,
+	batch, imported, err := h.CardSecretService.ImportCardSecretCSV(service.ImportCardSecretCSVInput{
+		ProductID:           productID,
+		SKUID:               skuID,
+		File:                file,
+		BatchNo:             batchNo,
+		Note:                note,
+		AdminID:             adminID,
+		OverwriteDuplicates: overwriteDuplicates != nil && *overwriteDuplicates,
 	})
 	if err != nil {
+		if respondCardSecretDuplicateConfirmation(c, err) {
+			return
+		}
 		switch {
 		case errors.Is(err, service.ErrProductSKURequired):
 			shared.RespondError(c, response.CodeBadRequest, "error.card_secret_invalid", nil)
@@ -186,6 +215,8 @@ func (h *Handler) ImportCardSecretCSV(c *gin.Context) {
 			shared.RespondError(c, response.CodeNotFound, "error.product_not_found", nil)
 		case errors.Is(err, service.ErrProductFetchFailed):
 			shared.RespondError(c, response.CodeInternal, "error.product_fetch_failed", err)
+		case errors.Is(err, service.ErrCardSecretFetchFailed):
+			shared.RespondError(c, response.CodeInternal, "error.card_secret_fetch_failed", err)
 		case errors.Is(err, service.ErrCardSecretBatchCreateFailed):
 			shared.RespondError(c, response.CodeInternal, "error.card_secret_batch_create_failed", err)
 		default:
@@ -194,11 +225,7 @@ func (h *Handler) ImportCardSecretCSV(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, gin.H{
-		"created":  created,
-		"batch_id": batch.ID,
-		"batch_no": batch.BatchNo,
-	})
+	respondCardSecretImportSuccess(c, batch.ID, batch.BatchNo, imported)
 }
 
 // GetCardSecrets 获取卡密列表
@@ -397,6 +424,10 @@ func (h *Handler) ExportCardSecrets(c *gin.Context) {
 
 // ExportAvailableCardSecrets 从可用库存中导出卡密并出库
 func (h *Handler) ExportAvailableCardSecrets(c *gin.Context) {
+	adminID, ok := shared.GetAdminID(c)
+	if !ok {
+		return
+	}
 	var req ExportAvailableCardSecretRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		shared.RespondBindError(c, err)
@@ -407,6 +438,7 @@ func (h *Handler) ExportAvailableCardSecrets(c *gin.Context) {
 		ProductID:         req.ProductID,
 		SKUID:             req.SKUID,
 		BatchID:           req.BatchID,
+		AdminID:           adminID,
 		Limit:             req.Limit,
 		Format:            req.Format,
 		DeleteAfterExport: req.DeleteAfterExport,
@@ -436,7 +468,56 @@ func (h *Handler) ExportAvailableCardSecrets(c *gin.Context) {
 	c.Header("Content-Type", result.ContentType)
 	c.Header("Content-Disposition", "attachment; filename=\""+filename+"\"")
 	c.Header("X-Exported-Count", strconv.Itoa(result.Count))
+	if result.Record != nil {
+		c.Header("X-Export-Record-ID", strconv.FormatUint(uint64(result.Record.ID), 10))
+	}
 	c.Data(200, result.ContentType, result.Content)
+}
+
+// GetCardSecretExports 获取卡密出库导出记录。
+func (h *Handler) GetCardSecretExports(c *gin.Context) {
+	page, pageSize := shared.ParsePagination(c)
+	parseOptional := func(key string) (uint, bool) {
+		raw := strings.TrimSpace(c.Query(key))
+		if raw == "" {
+			return 0, true
+		}
+		value, err := shared.ParseQueryUint(raw, false)
+		if err != nil {
+			shared.RespondError(c, response.CodeBadRequest, "error.card_secret_invalid", nil)
+			return 0, false
+		}
+		return value, true
+	}
+	id, ok := parseOptional("id")
+	if !ok {
+		return
+	}
+	productID, ok := parseOptional("product_id")
+	if !ok {
+		return
+	}
+	skuID, ok := parseOptional("sku_id")
+	if !ok {
+		return
+	}
+	batchID, ok := parseOptional("batch_id")
+	if !ok {
+		return
+	}
+	rows, total, err := h.CardSecretService.ListCardSecretExports(service.ListCardSecretExportInput{
+		ID:        id,
+		ProductID: productID,
+		SKUID:     skuID,
+		BatchID:   batchID,
+		Page:      page,
+		PageSize:  pageSize,
+	})
+	if err != nil {
+		shared.RespondError(c, response.CodeInternal, "error.card_secret_fetch_failed", err)
+		return
+	}
+	response.SuccessWithPage(c, rows, response.BuildPagination(page, pageSize, total))
 }
 
 // GetCardSecretStats 获取库存统计

@@ -30,12 +30,22 @@ type CardSecretBatchStatusCount struct {
 	Total   int64  `gorm:"column:total"`
 }
 
+type CardSecretExportListFilter struct {
+	ID        uint
+	ProductID uint
+	SKUID     uint
+	BatchID   uint
+	Page      int
+	PageSize  int
+}
+
 // CardSecretRepository 卡密库存数据访问接口
 type CardSecretRepository interface {
 	CreateBatch(items []models.CardSecret) error
 	List(filter CardSecretListFilter) ([]models.CardSecret, int64, error)
 	ListIDs(filter CardSecretListFilter) ([]uint, error)
 	ListByIDs(ids []uint) ([]models.CardSecret, error)
+	ListByProductSKUAndSecretsForUpdate(productID, skuID uint, secrets []string) ([]models.CardSecret, error)
 	ListIDsByBatchID(batchID uint) ([]uint, error)
 	CountByBatchIDs(batchIDs []uint) ([]CardSecretBatchStatusCount, error)
 	ListByOrderAndStatus(orderID uint, status string) ([]models.CardSecret, error)
@@ -49,8 +59,12 @@ type CardSecretRepository interface {
 	ListAvailableByProductBatchForUpdate(productID, skuID, batchID uint, limit int) ([]models.CardSecret, error)
 	GetByID(id uint) (*models.CardSecret, error)
 	Update(secret *models.CardSecret) error
+	RefreshImported(ids []uint, batchID uint, importedAt time.Time) (int64, error)
 	BatchUpdateStatus(ids []uint, status string, updatedAt time.Time) (int64, error)
+	MarkExported(ids []uint, exportID uint, usedAt time.Time) (int64, error)
 	BatchDeleteByIDs(ids []uint) (int64, error)
+	CreateExport(record *models.CardSecretExport) error
+	ListExports(filter CardSecretExportListFilter) ([]models.CardSecretExport, int64, error)
 	CountByProduct(productID, skuID uint) (int64, int64, int64, error)
 	CountAvailable(productID, skuID uint) (int64, error)
 	CountAvailableByProductIDs(productIDs []uint) (map[uint]int64, error)
@@ -161,6 +175,30 @@ func (r *GormCardSecretRepository) ListByIDs(ids []uint) ([]models.CardSecret, e
 	var items []models.CardSecret
 	if err := r.db.Where("id IN ?", ids).Order("id asc").Find(&items).Error; err != nil {
 		return nil, err
+	}
+	return items, nil
+}
+
+// ListByProductSKUAndSecretsForUpdate 锁定同一库存范围内已存在的卡密。
+func (r *GormCardSecretRepository) ListByProductSKUAndSecretsForUpdate(productID, skuID uint, secrets []string) ([]models.CardSecret, error) {
+	if productID == 0 || skuID == 0 || len(secrets) == 0 {
+		return []models.CardSecret{}, nil
+	}
+	const batchSize = 200
+	items := make([]models.CardSecret, 0)
+	for start := 0; start < len(secrets); start += batchSize {
+		end := start + batchSize
+		if end > len(secrets) {
+			end = len(secrets)
+		}
+		var rows []models.CardSecret
+		if err := r.db.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("product_id = ? AND sku_id = ? AND secret IN ?", productID, skuID, secrets[start:end]).
+			Order("id asc").
+			Find(&rows).Error; err != nil {
+			return nil, err
+		}
+		items = append(items, rows...)
 	}
 	return items, nil
 }
@@ -280,6 +318,24 @@ func (r *GormCardSecretRepository) Update(secret *models.CardSecret) error {
 	return r.db.Save(secret).Error
 }
 
+// RefreshImported 将覆盖导入的卡密归入新批次并刷新导入时间，保留库存状态和业务关联。
+func (r *GormCardSecretRepository) RefreshImported(ids []uint, batchID uint, importedAt time.Time) (int64, error) {
+	if len(ids) == 0 || batchID == 0 {
+		return 0, nil
+	}
+	if importedAt.IsZero() {
+		importedAt = time.Now()
+	}
+	result := r.db.Model(&models.CardSecret{}).
+		Where("id IN ?", ids).
+		Updates(map[string]interface{}{
+			"batch_id":   batchID,
+			"created_at": importedAt,
+			"updated_at": importedAt,
+		})
+	return result.RowsAffected, result.Error
+}
+
 // BatchUpdateStatus 批量更新卡密状态
 func (r *GormCardSecretRepository) BatchUpdateStatus(ids []uint, status string, updatedAt time.Time) (int64, error) {
 	if len(ids) == 0 {
@@ -295,6 +351,66 @@ func (r *GormCardSecretRepository) BatchUpdateStatus(ids []uint, status string, 
 			"updated_at": updatedAt,
 		})
 	return result.RowsAffected, result.Error
+}
+
+// MarkExported 将卡密标记为已使用并关联导出记录。
+func (r *GormCardSecretRepository) MarkExported(ids []uint, exportID uint, usedAt time.Time) (int64, error) {
+	if len(ids) == 0 || exportID == 0 {
+		return 0, nil
+	}
+	if usedAt.IsZero() {
+		usedAt = time.Now()
+	}
+	result := r.db.Model(&models.CardSecret{}).
+		Where("id IN ? AND status = ?", ids, models.CardSecretStatusAvailable).
+		Updates(map[string]interface{}{
+			"status":      models.CardSecretStatusUsed,
+			"order_id":    nil,
+			"export_id":   exportID,
+			"reserved_at": nil,
+			"used_at":     usedAt,
+			"updated_at":  usedAt,
+		})
+	return result.RowsAffected, result.Error
+}
+
+func (r *GormCardSecretRepository) CreateExport(record *models.CardSecretExport) error {
+	if record == nil {
+		return errors.New("card secret export is nil")
+	}
+	return r.db.Create(record).Error
+}
+
+func (r *GormCardSecretRepository) ListExports(filter CardSecretExportListFilter) ([]models.CardSecretExport, int64, error) {
+	query := r.db.Model(&models.CardSecretExport{})
+	if filter.ID > 0 {
+		query = query.Where("id = ?", filter.ID)
+	}
+	if filter.ProductID > 0 {
+		query = query.Where("product_id = ?", filter.ProductID)
+	}
+	if filter.SKUID > 0 {
+		query = query.Where("sku_id = ?", filter.SKUID)
+	}
+	if filter.BatchID > 0 {
+		query = query.Where("batch_id = ?", filter.BatchID)
+	}
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	if filter.PageSize > 0 {
+		page := filter.Page
+		if page < 1 {
+			page = 1
+		}
+		query = query.Limit(filter.PageSize).Offset((page - 1) * filter.PageSize)
+	}
+	var rows []models.CardSecretExport
+	if err := query.Order("id desc").Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	return rows, total, nil
 }
 
 // BatchDeleteByIDs 批量删除卡密

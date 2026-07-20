@@ -208,6 +208,7 @@ type CORSConfig struct {
 	AllowedOrigins   []string `mapstructure:"allowed_origins"`
 	AllowedMethods   []string `mapstructure:"allowed_methods"`
 	AllowedHeaders   []string `mapstructure:"allowed_headers"`
+	ExposedHeaders   []string `mapstructure:"exposed_headers"`
 	AllowCredentials bool     `mapstructure:"allow_credentials"`
 	MaxAge           int      `mapstructure:"max_age"`
 }
@@ -224,6 +225,11 @@ var (
 		"X-Requested-With",
 		"X-CSRF-Token",
 	}
+	defaultCORSExposedHeaders = []string{
+		"Content-Disposition",
+		"X-Exported-Count",
+		"X-Export-Record-ID",
+	}
 )
 
 // DefaultCORSAllowedOrigins 返回默认允许跨域来源（副本，避免调用方修改全局默认值）
@@ -239,6 +245,11 @@ func DefaultCORSAllowedMethods() []string {
 // DefaultCORSAllowedHeaders 返回默认允许跨域请求头（副本，避免调用方修改全局默认值）
 func DefaultCORSAllowedHeaders() []string {
 	return append([]string(nil), defaultCORSAllowedHeaders...)
+}
+
+// DefaultCORSExposedHeaders 返回默认允许前端读取的响应头。
+func DefaultCORSExposedHeaders() []string {
+	return append([]string(nil), defaultCORSExposedHeaders...)
 }
 
 // SecurityConfig 安全配置
@@ -356,6 +367,7 @@ func Load() *Config {
 	viper.SetDefault("cors.allowed_origins", DefaultCORSAllowedOrigins())
 	viper.SetDefault("cors.allowed_methods", DefaultCORSAllowedMethods())
 	viper.SetDefault("cors.allowed_headers", DefaultCORSAllowedHeaders())
+	viper.SetDefault("cors.exposed_headers", DefaultCORSExposedHeaders())
 	viper.SetDefault("cors.allow_credentials", true)
 	viper.SetDefault("cors.max_age", 600)
 	viper.SetDefault("security.login_rate_limit.window_seconds", 300)
