@@ -83,6 +83,36 @@ func (s *ProductMappingService) SyncProduct(mappingID uint) error {
 	}
 
 	// ── 2. 同步 SKU：新增 / 更新 / 停用 ──
+	if err := s.syncProductSKUs(mappingID, mapping.LocalProductID, conn, upProduct, localProduct, &now); err != nil {
+		return err
+	}
+
+	// 上游未返回批发价时不覆盖本地配置，避免运营手动配置被同步任务清空。
+	if len(upProduct.WholesalePrices) > 0 && localProduct != nil {
+		if err := s.syncUpstreamWholesalePrices(mapping, localProduct.ID, conn, upProduct); err != nil {
+			logger.Warnw("sync_upstream_wholesale_prices_failed",
+				"mapping_id", mapping.ID,
+				"connection_id", mapping.ConnectionID,
+				"upstream_product_id", mapping.UpstreamProductID,
+				"local_product_id", mapping.LocalProductID,
+				"error", err,
+			)
+		}
+	}
+
+	// ── 3. 更新同步时间 + 上游交付类型 + 状态恢复 ──
+	upFulfillment := upProduct.FulfillmentType
+	if upFulfillment != constants.FulfillmentTypeAuto {
+		upFulfillment = constants.FulfillmentTypeManual
+	}
+	mapping.UpstreamFulfillmentType = upFulfillment
+	mapping.UpstreamStatus = models.UpstreamStatusActive
+	mapping.LastSyncedAt = &now
+	return s.mappingRepo.Update(mapping)
+}
+
+// syncProductSKUs 同步 SKU：新增 / 更新 / 停用
+func (s *ProductMappingService) syncProductSKUs(mappingID uint, localProductID uint, conn *models.SiteConnection, upProduct *upstream.UpstreamProduct, localProduct *models.Product, now *time.Time) error {
 	skuMappings, err := s.skuMappingRepo.ListByProductMapping(mappingID)
 	if err != nil {
 		return err
@@ -100,14 +130,14 @@ func (s *ProductMappingService) SyncProduct(mappingID uint) error {
 		existingByUpstreamID[skuMappings[i].UpstreamSKUID] = &skuMappings[i]
 	}
 
-	// 2a. 更新已有映射 + 同步本地 SKU
+	// 更新已有映射 + 同步本地 SKU
 	for i := range skuMappings {
 		upSKU, ok := upstreamSKUMap[skuMappings[i].UpstreamSKUID]
 		if !ok {
 			// 上游 SKU 已删除 → 停用本地 SKU 和映射
 			skuMappings[i].UpstreamIsActive = false
 			skuMappings[i].UpstreamStock = 0
-			skuMappings[i].StockSyncedAt = &now
+			skuMappings[i].StockSyncedAt = now
 			_ = s.skuMappingRepo.Update(&skuMappings[i])
 
 			// 停用本地 SKU
@@ -124,7 +154,7 @@ func (s *ProductMappingService) SyncProduct(mappingID uint) error {
 		// 更新 SKU 映射记录
 		skuMappings[i].UpstreamPrice = models.NewMoneyFromDecimal(upPrice.Round(2))
 		skuMappings[i].UpstreamIsActive = upSKU.IsActive
-		skuMappings[i].StockSyncedAt = &now
+		skuMappings[i].StockSyncedAt = now
 		skuMappings[i].UpstreamStock = upSKU.StockQuantity
 		_ = s.skuMappingRepo.Update(&skuMappings[i])
 
@@ -143,7 +173,7 @@ func (s *ProductMappingService) SyncProduct(mappingID uint) error {
 		}
 	}
 
-	// 2b. 上游新增的 SKU → 创建本地 SKU + 映射
+	// 上游新增的 SKU → 创建本地 SKU + 映射
 	for _, upSKU := range upProduct.SKUs {
 		if _, exists := existingByUpstreamID[upSKU.ID]; exists {
 			continue
@@ -152,7 +182,7 @@ func (s *ProductMappingService) SyncProduct(mappingID uint) error {
 		skuPrice, _ := decimal.NewFromString(upSKU.PriceAmount)
 		localPrice := CalculateLocalPrice(skuPrice, conn.ExchangeRate, conn.PriceMarkupPercent, conn.PriceRoundingMode)
 		newLocalSKU := models.ProductSKU{
-			ProductID:       mapping.LocalProductID,
+			ProductID:       localProductID,
 			SKUCode:         upSKU.SKUCode,
 			SpecValuesJSON:  upSKU.SpecValues,
 			PriceAmount:     models.NewMoneyFromDecimal(localPrice.Round(2)),
@@ -171,17 +201,98 @@ func (s *ProductMappingService) SyncProduct(mappingID uint) error {
 			UpstreamPrice:    models.NewMoneyFromDecimal(skuPrice.Round(2)),
 			UpstreamIsActive: upSKU.IsActive,
 			UpstreamStock:    upSKU.StockQuantity,
-			StockSyncedAt:    &now,
+			StockSyncedAt:    now,
 		}
 		_ = s.skuMappingRepo.Create(newMapping)
 	}
 
-	// ── 2c. 如果启用了自动同步价格，更新 Product.PriceAmount 为最低 SKU 价格 ──
+	// 如果启用了自动同步价格，更新 Product.PriceAmount 为最低 SKU 价格
 	if conn.AutoSyncPrice && localProduct != nil {
 		s.recalcProductPrice(localProduct)
 	}
 
-	// 上游未返回批发价时不覆盖本地配置，避免运营手动配置被同步任务清空。
+	return nil
+}
+
+// SyncProductFull 全量同步商品映射（含图片下载、商品字段更新、SKU 同步）
+func (s *ProductMappingService) SyncProductFull(mappingID uint) error {
+	mapping, err := s.mappingRepo.GetByID(mappingID)
+	if err != nil {
+		return err
+	}
+	if mapping == nil {
+		return ErrMappingNotFound
+	}
+
+	conn, err := s.connService.GetByID(mapping.ConnectionID)
+	if err != nil {
+		return err
+	}
+	if conn == nil {
+		return ErrConnectionNotFound
+	}
+
+	adapter, err := s.connService.GetAdapter(conn)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	upProduct, err := adapter.GetProduct(ctx, mapping.UpstreamProductID)
+	if err != nil {
+		// 上游软删除 → 标记本地为 deleted，自动停用映射
+		if errors.Is(err, upstream.ErrUpstreamProductDeleted) {
+			now := time.Now()
+			return s.markUpstreamUnavailable(mapping, models.UpstreamStatusDeleted, now)
+		}
+		// 旧版上游下架兜底（新版上游下架返回 200 + is_active=false，走下方分支）
+		if errors.Is(err, upstream.ErrUpstreamProductUnavailable) {
+			now := time.Now()
+			return s.markUpstreamUnavailable(mapping, models.UpstreamStatusInactive, now)
+		}
+		return fmt.Errorf("fetch upstream product: %w", err)
+	}
+
+	// 上游 200 但 is_active=false → 视为下架
+	if !upProduct.IsActive {
+		now := time.Now()
+		return s.markUpstreamUnavailable(mapping, models.UpstreamStatusInactive, now)
+	}
+
+	now := time.Now()
+
+	// ── 下载图片 ──
+	localImages := s.downloadImages(ctx, adapter, upProduct.Images)
+	localContent := s.downloadContentImages(ctx, adapter, upProduct.Content)
+
+	// ── 更新本地商品字段 ──
+	localProduct, err := s.productRepo.GetByID(strconv.FormatUint(uint64(mapping.LocalProductID), 10))
+	if err != nil {
+		return fmt.Errorf("get local product: %w", err)
+	}
+	if localProduct != nil {
+		localProduct.TitleJSON = upProduct.Title
+		localProduct.DescriptionJSON = upProduct.Description
+		localProduct.ContentJSON = localContent
+		localProduct.SeoMetaJSON = upProduct.SeoMeta
+		localProduct.Images = models.StringArray(localImages)
+		localProduct.Tags = models.StringArray(upProduct.Tags)
+		if upProduct.ManualFormSchema != nil {
+			localProduct.ManualFormSchemaJSON = upProduct.ManualFormSchema
+		}
+		if err := s.productRepo.Update(localProduct); err != nil {
+			return fmt.Errorf("update local product: %w", err)
+		}
+	}
+
+	// ── 同步 SKU ──
+	if err := s.syncProductSKUs(mappingID, mapping.LocalProductID, conn, upProduct, localProduct, &now); err != nil {
+		return err
+	}
+
+	// ── 同步批发价（仅在上游返回时覆盖）──
 	if len(upProduct.WholesalePrices) > 0 && localProduct != nil {
 		if err := s.syncUpstreamWholesalePrices(mapping, localProduct.ID, conn, upProduct); err != nil {
 			logger.Warnw("sync_upstream_wholesale_prices_failed",
@@ -194,7 +305,7 @@ func (s *ProductMappingService) SyncProduct(mappingID uint) error {
 		}
 	}
 
-	// ── 3. 更新同步时间 + 上游交付类型 + 状态恢复 ──
+	// ── 更新映射记录 ──
 	upFulfillment := upProduct.FulfillmentType
 	if upFulfillment != constants.FulfillmentTypeAuto {
 		upFulfillment = constants.FulfillmentTypeManual

@@ -542,6 +542,7 @@ func SetupRouter(cfg *config.Config, c *provider.Container) *gin.Engine {
 				authorized.POST("/product-mappings/import", adminHandler.ImportUpstreamProduct)
 				authorized.POST("/product-mappings/batch-import", adminHandler.BatchImportUpstreamProducts)
 				authorized.POST("/product-mappings/:id/sync", adminHandler.SyncProductMapping)
+				authorized.POST("/product-mappings/:id/full-sync", adminHandler.FullSyncProductMapping)
 				authorized.PUT("/product-mappings/:id/status", adminHandler.UpdateProductMappingStatus)
 				authorized.DELETE("/product-mappings/:id", adminHandler.DeleteProductMapping)
 				authorized.POST("/product-mappings/batch-sync", adminHandler.BatchSyncProductMappings)

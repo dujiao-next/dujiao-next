@@ -281,6 +281,26 @@ func (h *Handler) SyncProductMapping(c *gin.Context) {
 	response.Success(c, gin.H{"synced": true})
 }
 
+// FullSyncProductMapping 全量同步商品映射
+func (h *Handler) FullSyncProductMapping(c *gin.Context) {
+	id, err := shared.ParseParamUint(c, "id")
+	if err != nil {
+		shared.RespondError(c, response.CodeBadRequest, "error.bad_request", err)
+		return
+	}
+
+	if err := h.ProductMappingService.SyncProductFull(id); err != nil {
+		if errors.Is(err, service.ErrMappingNotFound) {
+			shared.RespondError(c, response.CodeNotFound, "error.mapping_not_found", nil)
+			return
+		}
+		shared.RespondError(c, response.CodeInternal, "error.mapping_full_sync_failed", err)
+		return
+	}
+
+	response.Success(c, gin.H{"synced": true})
+}
+
 // UpdateProductMappingStatusRequest 更新映射状态请求
 type UpdateProductMappingStatusRequest struct {
 	IsActive bool `json:"is_active"`
