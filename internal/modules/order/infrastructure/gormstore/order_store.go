@@ -168,7 +168,7 @@ func guestCredentialBackfillCandidateSQL(dialect string) (string, []interface{})
 		return "(guest_password NOT LIKE ? OR LENGTH(guest_password) <> ? OR SUBSTR(guest_password, ?) GLOB ?)",
 			[]interface{}{prefixPattern, expectedLength, hashStart, "*[^0-9A-Fa-f]*"}
 	case "postgres":
-		return "(guest_password NOT LIKE ? OR LENGTH(guest_password) <> ? OR SUBSTRING(guest_password FROM ?) !~ ?)",
+		return "(guest_password NOT LIKE ? OR LENGTH(guest_password) <> ? OR SUBSTRING(guest_password FROM ?::integer) !~ ?)",
 			[]interface{}{prefixPattern, expectedLength, hashStart, "^[0-9A-Fa-f]+$"}
 	default:
 		return "1 = 1", nil
