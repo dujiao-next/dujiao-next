@@ -139,9 +139,11 @@ Operator subcommands ship in the same binary, so a container needs no extra tool
 Two independent SPAs, both built with Vite and embedded at release time.
 
 **Mount points.** The storefront is served at `/`; the admin panel at `web.admin_path`
-(default `/admin`). `/api`, `/uploads`, and `/health` are reserved prefixes — an unmatched
-path under them returns 404 instead of falling through to the SPA shell. Adding a new
-top-level backend prefix means updating `reservedPaths` in `internal/web/handler.go`.
+(default `/admin`). Set `web.user_spa_disabled: true` to disable the storefront SPA entirely
+(admin + API remain available; distributor storefronts are also closed). `/api`, `/uploads`,
+and `/health` are reserved prefixes — an unmatched path under them returns 404 instead of
+falling through to the SPA shell. Adding a new top-level backend prefix means updating
+`reservedPaths` in `internal/web/handler.go`.
 
 **The admin base path is resolved at runtime, not at build time.** Since `web.admin_path` is
 configurable, `pnpm run build:fullstack` only injects a `<base href="__DJ_ADMIN_BASE__/">`
@@ -168,6 +170,7 @@ Download the latest `dujiao-next_*.tar.gz` from [Releases](https://github.com/du
 tar -xzf dujiao-next_*.tar.gz
 cp config.yml.example config.yml
 # edit config.yml: set jwt.secret, user_jwt.secret, and web.admin_path
+# optionally set web.user_spa_disabled: true if only admin+API is needed
 ./dujiao-next
 ```
 

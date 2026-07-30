@@ -35,6 +35,14 @@ func TestSetupRouterDelegatesRouteDomains(t *testing.T) {
 	}
 }
 
+func TestSetupRouterUserSPADisabledGuardsRegisterUser(t *testing.T) {
+	source := readRouterSource(t, filepath.Join(currentRouterDirectory(t), "router.go"))
+
+	if !strings.Contains(source, "cfg.Web.UserSPADisabled") {
+		t.Error("router.go must wrap RegisterUser in cfg.Web.UserSPADisabled condition")
+	}
+}
+
 func TestRouteDomainFilesPreserveTrustBoundaries(t *testing.T) {
 	routerDirectory := currentRouterDirectory(t)
 	tests := []struct {

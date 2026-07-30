@@ -172,3 +172,7 @@ web:
   # 强烈建议改成不易猜测的字符串以降低自动化扫描风险
   # 例如: "/dj-mgmt-7x9k2" 或 "/console-private"
   admin_path: "/admin"
+  # 设为 true 时不挂载用户站 SPA（主站与分销 storefront 一并关闭），
+  # /sitemap.xml 返回 404，/robots.txt 返回 Disallow: /
+  # admin + API 不受影响。默认 false（即默认启用 user SPA）
+  user_spa_disabled: false

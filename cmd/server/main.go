@@ -105,7 +105,11 @@ func main() {
 		if err := web.ValidateAdminPath(cfg.Web.AdminPath); err != nil {
 			stdLog.Fatalf("web.admin_path 配置错误: %v", err)
 		}
-		fmt.Println(ansiGreen + "Embedded SPAs: admin (" + cfg.Web.AdminPath + "), user (/)" + ansiReset)
+		userLabel := "user (disabled)"
+		if !cfg.Web.UserSPADisabled {
+			userLabel = "user (/)"
+		}
+		fmt.Println(ansiGreen + "Embedded SPAs: admin (" + cfg.Web.AdminPath + "), " + userLabel + ansiReset)
 	}
 
 	// fullstack 模式下若仍使用默认 admin 路径，提示安全风险

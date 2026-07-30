@@ -219,7 +219,8 @@ func SetupRouter(cfg *config.Config, c *container.Container) *gin.Engine {
 	r.Static("/uploads", "./uploads")
 
 	// SEO 资源（动态生成）。
-	sitemaptransport.RegisterRoutes(r, sitemaptransport.NewHandler(c.SitemapService, sitemapbrand.New(c.SettingService)))
+	sitemapHandler := sitemaptransport.NewHandler(c.SitemapService, sitemapbrand.New(c.SettingService), cfg.Web.UserSPADisabled)
+	sitemaptransport.RegisterRoutes(r, sitemapHandler)
 
 	apiV1 := r.Group("/api/v1")
 	registerStorefrontRoutes(apiV1, cfg, c, publicContentHandler, publicCatalogHandler, publicCategoryHandler, userResellerHandler, userResellerProductSettingHandler, userResellerFinanceHandler, userResellerOrderHandler, userApiCredentialHandler, userAuditLogHandler, userGiftCardHandler, publicMemberLevelHandler, userProfileHandler, userEmailHandler, userPasswordHandler, userVerifyHandler, userTelegramOIDCHandler, userTelegramHandler, userLoginHandler, user2FAHandler, publicConfigHandler, userCartHandler, userOrderHandler, guestOrderHandler, orderPreviewHandler, orderCreateHandler, paymentLatestHandler, paymentWriteHandler, userWalletHandler, redisClient, loginRule, guestReadRule, guestWriteRule)
@@ -243,9 +244,14 @@ func SetupRouter(cfg *config.Config, c *container.Container) *gin.Engine {
 		if err := web.RegisterAdmin(r, cfg.Web.AdminPath, web.AdminFS()); err != nil {
 			log.Sugar().Fatalf("注册 admin SPA 失败: %v", err)
 		}
-		if err := web.RegisterUser(r, web.UserFS()); err != nil {
-			log.Sugar().Fatalf("注册 user SPA 失败: %v", err)
+
+		// user SPA：受 user_spa_disabled 控制
+		if !cfg.Web.UserSPADisabled {
+			if err := web.RegisterUser(r, web.UserFS()); err != nil {
+				log.Sugar().Fatalf("注册 user SPA 失败: %v", err)
+			}
 		}
+		// user_spa_disabled=true：不注册 user SPA，NoRoute 默认返回 404
 	}
 
 	return r

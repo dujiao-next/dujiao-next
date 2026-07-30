@@ -281,6 +281,9 @@ type WebConfig struct {
 	// AdminPath 后台访问路径前缀，例如 "/admin" 或 "/dj-mgmt-7x9k2"。
 	// 校验规则见 internal/web.ValidateAdminPath。
 	AdminPath string `mapstructure:"admin_path"`
+	// UserSPADisabled 为 true 时不挂载用户站 SPA（主站与分销 storefront 一并关闭），
+	// 只保留 admin + API。默认 false（即默认启用 user SPA）。
+	UserSPADisabled bool `mapstructure:"user_spa_disabled"`
 }
 
 // ResellerConfig 分销商模式配置。

@@ -39,7 +39,7 @@ func (f fakeBrand) GetSiteURL() (string, error) {
 func TestGetSitemapUsesConfiguredSiteURL(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	gen := &fakeGenerator{xml: "<urlset/>"}
-	handler := NewHandler(gen, fakeBrand{url: "https://shop.example/"})
+	handler := NewHandler(gen, fakeBrand{url: "https://shop.example/"}, false)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -62,7 +62,7 @@ func TestGetSitemapUsesConfiguredSiteURL(t *testing.T) {
 func TestGetSitemapFallsBackToRequestHost(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	gen := &fakeGenerator{xml: "<urlset/>"}
-	handler := NewHandler(gen, fakeBrand{url: ""})
+	handler := NewHandler(gen, fakeBrand{url: ""}, false)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -80,7 +80,7 @@ func TestGetSitemapFallsBackToRequestHost(t *testing.T) {
 
 func TestGetSitemapUnavailableWithoutGenerator(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	handler := NewHandler(nil, nil)
+	handler := NewHandler(nil, nil, false)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -95,7 +95,7 @@ func TestGetSitemapUnavailableWithoutGenerator(t *testing.T) {
 
 func TestGetRobotsFallsBackWhenGeneratorMissing(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	handler := NewHandler(nil, nil)
+	handler := NewHandler(nil, nil, false)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -108,5 +108,53 @@ func TestGetRobotsFallsBackWhenGeneratorMissing(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), "User-agent: *") {
 		t.Fatalf("unexpected robots body %q", w.Body.String())
+	}
+}
+
+func TestGetSitemapReturns404WhenUserSPADisabled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler := NewHandler(&fakeGenerator{xml: "<urlset/>"}, nil, true)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/sitemap.xml", nil)
+
+	handler.GetSitemap(c)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status want 404 got %d", w.Code)
+	}
+}
+
+func TestGetRobotsReturnsDisallowWhenUserSPADisabled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler := NewHandler(nil, nil, true)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/robots.txt", nil)
+
+	handler.GetRobots(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status want 200 got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "Disallow: /") {
+		t.Fatalf("robots should disallow all, got %q", w.Body.String())
+	}
+}
+
+func TestSitemapNormalWhenUserSPANotDisabled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler := NewHandler(&fakeGenerator{xml: "<urlset/>"}, nil, false)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/sitemap.xml", nil)
+
+	handler.GetSitemap(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status want 200 got %d", w.Code)
 	}
 }

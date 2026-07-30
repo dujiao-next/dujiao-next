@@ -2,6 +2,7 @@ package sitemaphttp
 
 import (
 	"context"
+	"net/http"
 	"strings"
 
 	"github.com/dujiao-next/internal/logger"
@@ -22,16 +23,24 @@ type SiteBrandReader interface {
 
 // Handler 处理 SEO 静态资源请求。
 type Handler struct {
-	sitemap Generator
-	brand   SiteBrandReader
+	sitemap         Generator
+	brand           SiteBrandReader
+	userSPADisabled bool
 }
 
-func NewHandler(sitemap Generator, brand SiteBrandReader) *Handler {
-	return &Handler{sitemap: sitemap, brand: brand}
+// NewHandler 创建 Handler。
+// userSPADisabled 控制 user SPA 已关闭时的行为：
+// GetSitemap 返回 404，GetRobots 返回全站禁爬的 robots.txt。
+func NewHandler(sitemap Generator, brand SiteBrandReader, userSPADisabled bool) *Handler {
+	return &Handler{sitemap: sitemap, brand: brand, userSPADisabled: userSPADisabled}
 }
 
 // GetSitemap GET /sitemap.xml
 func (h *Handler) GetSitemap(c *gin.Context) {
+	if h != nil && h.userSPADisabled {
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
 	if h == nil || h.sitemap == nil {
 		c.String(503, "sitemap service unavailable")
 		return
@@ -51,6 +60,11 @@ func (h *Handler) GetSitemap(c *gin.Context) {
 
 // GetRobots GET /robots.txt
 func (h *Handler) GetRobots(c *gin.Context) {
+	if h != nil && h.userSPADisabled {
+		c.Header("Cache-Control", "public, max-age=3600")
+		c.String(http.StatusOK, "User-agent: *\nDisallow: /\n")
+		return
+	}
 	baseURL := ""
 	body := "User-agent: *\nDisallow:\n"
 	if h != nil && h.sitemap != nil {
