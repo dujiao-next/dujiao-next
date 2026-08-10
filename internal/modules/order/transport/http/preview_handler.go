@@ -29,6 +29,7 @@ var (
 	ErrInvalidOrderAmount        = errors.New("invalid order amount")
 	ErrGuestEmailRequired        = errors.New("guest email required")
 	ErrGuestPasswordRequired     = errors.New("guest password required")
+	ErrGuestPasswordTooWeak      = errors.New("guest password too weak")
 	ErrInvalidEmail              = errors.New("invalid email")
 	ErrProductPurchaseNotAllowed = errors.New("product purchase not allowed")
 	ErrGuestCouponNotAllowed     = errors.New("guest coupon not allowed")
@@ -379,6 +380,7 @@ var guestOrderCommonErrorRules = []mappedError{
 	{target: productcontract.ErrProductSKUInvalid, code: response.CodeBadRequest, key: "error.order_item_invalid"},
 	{target: ErrGuestEmailRequired, code: response.CodeBadRequest, key: "error.guest_email_required"},
 	{target: ErrGuestPasswordRequired, code: response.CodeBadRequest, key: "error.guest_password_required"},
+	{target: ErrGuestPasswordTooWeak, code: response.CodeBadRequest, key: "error.guest_password_too_weak"},
 	{target: ErrInvalidEmail, code: response.CodeBadRequest, key: "error.email_invalid"},
 	{target: ErrProductPurchaseNotAllowed, code: response.CodeBadRequest, key: "error.product_purchase_not_allowed"},
 	{target: productdomain.ErrMaxPurchaseExceeded, code: response.CodeBadRequest, key: "error.product_max_purchase_exceeded"},

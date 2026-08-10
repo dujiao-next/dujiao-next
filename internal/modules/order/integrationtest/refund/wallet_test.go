@@ -377,6 +377,88 @@ func TestWalletServiceApplyAndReleaseOrderBalance(t *testing.T) {
 	}
 }
 
+func TestWalletServiceRecoversReleasedOrderBalanceForLatePaymentSuccess(t *testing.T) {
+	_, db := setupOrderRefundWalletTest(t)
+	createTestUser(t, db, 105)
+	order := createTestOrder(t, db, 105, "DJTESTRECOVER001", decimal.NewFromInt(30))
+	walletService := walletServiceForTest(db)
+
+	if _, _, err := walletService.Recharge(walletcontract.RechargeInput{
+		UserID: 105,
+		Amount: money.FromDecimal(decimal.NewFromInt(50)),
+	}); err != nil {
+		t.Fatalf("recharge failed: %v", err)
+	}
+
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		_, err := orderapp.ApplyWalletBalance(walletService, ordergormstore.UseTransaction(tx, "test-guest-credential-secret-with-32-bytes"), order, true)
+		return err
+	}); err != nil {
+		t.Fatalf("apply order balance failed: %v", err)
+	}
+	if err := db.First(order, order.ID).Error; err != nil {
+		t.Fatalf("reload allocated order failed: %v", err)
+	}
+
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		_, err := orderapp.ReleaseWalletBalance(
+			walletService,
+			ordergormstore.UseTransaction(tx, "test-guest-credential-secret-with-32-bytes"),
+			order,
+			constants.WalletTxnTypeOrderRefund,
+			"模拟支付过期",
+		)
+		return err
+	}); err != nil {
+		t.Fatalf("release order balance failed: %v", err)
+	}
+	if err := db.First(order, order.ID).Error; err != nil {
+		t.Fatalf("reload released order failed: %v", err)
+	}
+
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		recovered, err := orderapp.RecoverReleasedWalletBalance(
+			walletService,
+			ordergormstore.UseTransaction(tx, "test-guest-credential-secret-with-32-bytes"),
+			order,
+			money.FromDecimal(decimal.NewFromInt(30)),
+			true,
+		)
+		if err != nil {
+			return err
+		}
+		if !recovered.Equal(decimal.NewFromInt(30)) {
+			t.Fatalf("expected recovered 30, got %s", recovered.String())
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("recover order balance failed: %v", err)
+	}
+
+	account, err := walletService.GetAccount(105)
+	if err != nil {
+		t.Fatalf("get account failed: %v", err)
+	}
+	if !account.Balance.Decimal.Equal(decimal.NewFromInt(20)) {
+		t.Fatalf("unexpected balance after recovery: %s", account.Balance.String())
+	}
+	if err := db.First(order, order.ID).Error; err != nil {
+		t.Fatalf("reload recovered order failed: %v", err)
+	}
+	if !order.WalletPaidAmount.Decimal.Equal(decimal.NewFromInt(30)) || !order.OnlinePaidAmount.Decimal.IsZero() {
+		t.Fatalf("unexpected recovered allocation wallet=%s online=%s", order.WalletPaidAmount.String(), order.OnlinePaidAmount.String())
+	}
+
+	reference := fmt.Sprintf("order:%d:%s", order.ID, constants.WalletTxnTypeOrderPayRecovery)
+	var recovery walletdomain.Transaction
+	if err := db.Where("reference = ?", reference).First(&recovery).Error; err != nil {
+		t.Fatalf("load recovery transaction failed: %v", err)
+	}
+	if !recovery.Amount.Decimal.Equal(decimal.NewFromInt(30)) || recovery.Direction != constants.WalletTxnDirectionOut {
+		t.Fatalf("unexpected recovery transaction: %+v", recovery)
+	}
+}
+
 func TestWalletServiceAdminRefundToWallet(t *testing.T) {
 	svc, db := setupOrderRefundWalletTest(t)
 	createTestUser(t, db, 104)

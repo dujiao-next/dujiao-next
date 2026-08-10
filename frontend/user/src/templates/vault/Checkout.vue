@@ -84,7 +84,7 @@
           <template v-if="checkoutMode === 'guest'">
             <div class="grid gap-3 sm:grid-cols-2">
               <Input v-model="guestEmail" type="email" class="h-11" :placeholder="t('checkout.guestEmailPlaceholder')" />
-              <Input v-model="guestPassword" type="password" class="h-11" :placeholder="t('checkout.guestPasswordPlaceholder')" />
+              <Input v-model="guestPassword" type="password" :minlength="MIN_GUEST_ORDER_PASSWORD_LENGTH" autocomplete="new-password" class="h-11" :placeholder="t('checkout.guestPasswordPlaceholder')" />
             </div>
 
             <div v-if="guestCaptchaEnabled" class="mt-3.5">
@@ -208,6 +208,7 @@ import TurnstileCaptcha from '../../components/captcha/TurnstileCaptcha.vue'
 import CheckoutManualForm from '../../components/checkout/CheckoutManualForm.vue'
 import VaultCheckoutSteps from './components/VaultCheckoutSteps.vue'
 import { useCheckout } from '../../composables/useCheckout'
+import { MIN_GUEST_ORDER_PASSWORD_LENGTH } from '../../utils/guestOrderAuth'
 
 const { t } = useI18n()
 

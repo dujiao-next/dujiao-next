@@ -10,7 +10,13 @@ import (
 
 // GatewayPayloadFiatCurrencySent 标记创建支付时实际提交给网关的法币币种。
 // 回调兼容逻辑用它区分具备新版事实快照的支付与升级前创建的在途支付。
-const GatewayPayloadFiatCurrencySent = "_dujiao_next_fiat_currency_sent"
+const (
+	GatewayPayloadFiatCurrencySent = "_dujiao_next_fiat_currency_sent"
+	// GatewayPayloadWalletPaidAmount snapshots the wallet allocation attached
+	// to this payment. Late callbacks use it to distinguish a mixed payment
+	// from a later full-online payment after the allocation was released.
+	GatewayPayloadWalletPaidAmount = "_dujiao_next_wallet_paid_amount"
+)
 
 // GatewayCreateInput 是统一支付网关创建输入。
 type GatewayCreateInput struct {

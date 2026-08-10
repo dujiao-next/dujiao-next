@@ -3,6 +3,7 @@ package application
 import (
 	"time"
 
+	"github.com/dujiao-next/internal/constants"
 	ordercontract "github.com/dujiao-next/internal/modules/order/contract"
 	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
 
@@ -117,4 +118,60 @@ func ReleaseWalletBalance(
 		order.UpdatedAt = time.Now()
 	}
 	return amount.Decimal.Round(2), nil
+}
+
+// RecoverReleasedWalletBalance restores a mixed-payment allocation that was
+// returned by failed/expired processing before a late success callback won.
+// The wallet debit and order allocation update share the caller's transaction.
+func RecoverReleasedWalletBalance(
+	wallets *walletapp.Service,
+	tx ordercontract.Transaction,
+	order *orderdomain.Order,
+	expectedAmount money.Amount,
+	snapshotKnown bool,
+) (decimal.Decimal, error) {
+	if tx == nil {
+		return decimal.Zero, ErrOrderUpdateFailed
+	}
+	if order == nil {
+		return decimal.Zero, ErrOrderNotFound
+	}
+	if order.UserID == 0 || order.WalletPaidAmount.Decimal.GreaterThan(decimal.Zero) {
+		return order.WalletPaidAmount.Decimal.Round(2), nil
+	}
+	if wallets == nil {
+		return decimal.Zero, walletcontract.ErrAccountNotFound
+	}
+
+	amount, err := wallets.RecoverReleasedOrderBalance(tx.Wallets(), walletcontract.OrderBalanceRecoveryInput{
+		OrderID:                order.ID,
+		UserID:                 order.UserID,
+		TotalAmount:            order.TotalAmount,
+		ExpectedAmount:         expectedAmount,
+		SnapshotKnown:          snapshotKnown,
+		Currency:               order.Currency,
+		ReleaseTransactionType: constants.WalletTxnTypeOrderRefund,
+		Remark:                 "支付成功后重新扣回已退订单余额",
+	})
+	if err != nil {
+		return decimal.Zero, err
+	}
+	recovered := amount.Decimal.Round(2)
+	if recovered.LessThanOrEqual(decimal.Zero) {
+		return decimal.Zero, nil
+	}
+
+	now := time.Now()
+	onlineAmount := normalizeOrderAmount(order.TotalAmount.Decimal.Sub(recovered))
+	if err := tx.Orders().UpdateFields(order.ID, map[string]interface{}{
+		"wallet_paid_amount": money.FromDecimal(recovered),
+		"online_paid_amount": money.FromDecimal(onlineAmount),
+		"updated_at":         now,
+	}); err != nil {
+		return decimal.Zero, ErrOrderUpdateFailed
+	}
+	order.WalletPaidAmount = money.FromDecimal(recovered)
+	order.OnlinePaidAmount = money.FromDecimal(onlineAmount)
+	order.UpdatedAt = now
+	return recovered, nil
 }

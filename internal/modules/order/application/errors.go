@@ -31,6 +31,7 @@ var (
 	ErrGuestOrderNotFound         = errors.New("guest order not found")
 	ErrGuestEmailRequired         = errors.New("guest email required")
 	ErrGuestPasswordRequired      = errors.New("guest password required")
+	ErrGuestPasswordTooWeak       = errors.New("guest password too weak")
 	ErrRefundRecordCreateFailed   = errors.New("refund record create failed")
 	ErrCardSecretInsufficient     = errors.New("card secret insufficient")
 	ErrManualStockInsufficient    = errors.New("manual stock insufficient")

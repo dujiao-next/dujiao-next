@@ -512,7 +512,7 @@ func TestCreateGuestOrderResellerSnapshotBuyerUserIDZero(t *testing.T) {
 	f := newOrderResellerSnapshotFixture(t)
 	order, err := f.svc.CreateGuestOrder(CreateGuestOrderInput{
 		Email:         "guest-reseller@example.com",
-		OrderPassword: "guest-pass",
+		OrderPassword: "guest-pass-strong",
 		Tenant:        f.tenant,
 		Items:         []CreateOrderItem{{ProductID: f.product.ID, SKUID: f.sku.ID, Quantity: 1}},
 	})

@@ -191,7 +191,7 @@ func (s *PaymentService) applyProviderPayment(input CreatePaymentInput, order *o
 		payment.ProviderRef = providerOrderNo
 	}
 	if result.Payload != nil {
-		payment.ProviderPayload = result.Payload
+		payment.ProviderPayload = mergeProviderPayload(payment.ProviderPayload, result.Payload)
 	}
 	// DisplayChannelType 是 adapter 返回的“展示用渠道类型”。
 	// 例如 BEpusdt 新格式的 payment.channel_type 固定为 bepusdt，

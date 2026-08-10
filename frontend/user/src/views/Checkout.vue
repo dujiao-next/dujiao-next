@@ -134,6 +134,8 @@
               <Input
                 v-model="guestPassword"
                 type="password"
+                :minlength="MIN_GUEST_ORDER_PASSWORD_LENGTH"
+                autocomplete="new-password"
                 class="h-11"
                 :placeholder="t('checkout.guestPasswordPlaceholder')"
               />
@@ -323,6 +325,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useCheckout } from '../composables/useCheckout'
+import { MIN_GUEST_ORDER_PASSWORD_LENGTH } from '../utils/guestOrderAuth'
 
 const { t } = useI18n()
 

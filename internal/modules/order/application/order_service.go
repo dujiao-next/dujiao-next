@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	affiliatedomain "github.com/dujiao-next/internal/modules/affiliate/domain"
 	productcontract "github.com/dujiao-next/internal/modules/catalog/product/contract"
@@ -30,6 +31,19 @@ import (
 
 	"github.com/shopspring/decimal"
 )
+
+const MinGuestPasswordLength = 12
+
+func normalizeGuestPassword(raw string) (string, error) {
+	password := strings.TrimSpace(raw)
+	if password == "" {
+		return "", ErrGuestPasswordRequired
+	}
+	if utf8.RuneCountInString(password) < MinGuestPasswordLength {
+		return "", ErrGuestPasswordTooWeak
+	}
+	return password, nil
+}
 
 // OrderService 订单服务
 type OrderService struct {
@@ -248,9 +262,9 @@ func (s *OrderService) CreateGuestOrder(input CreateGuestOrderInput) (*orderdoma
 	if err != nil {
 		return nil, err
 	}
-	password := strings.TrimSpace(input.OrderPassword)
-	if password == "" {
-		return nil, ErrGuestPasswordRequired
+	password, err := normalizeGuestPassword(input.OrderPassword)
+	if err != nil {
+		return nil, err
 	}
 	locale := strings.TrimSpace(input.Locale)
 	return s.createOrder(orderCreateParams{
@@ -360,9 +374,13 @@ func (s *OrderService) PreviewOrder(input CreateOrderInput) (*OrderPreview, erro
 
 // PreviewGuestOrder 游客订单金额预览
 func (s *OrderService) PreviewGuestOrder(input CreateGuestOrderInput) (*OrderPreview, error) {
+	password, err := normalizeGuestPassword(input.OrderPassword)
+	if err != nil {
+		return nil, err
+	}
 	params := orderCreateParams{
 		GuestEmail:          input.Email,
-		GuestPassword:       input.OrderPassword,
+		GuestPassword:       password,
 		GuestLocale:         input.Locale,
 		Tenant:              input.Tenant,
 		Items:               input.Items,
@@ -490,8 +508,12 @@ func (s *OrderService) createOrder(input orderCreateParams) (*orderdomain.Order,
 	if input.IsGuest && input.GuestEmail == "" {
 		return nil, ErrGuestEmailRequired
 	}
-	if input.IsGuest && input.GuestPassword == "" {
-		return nil, ErrGuestPasswordRequired
+	if input.IsGuest {
+		password, passwordErr := normalizeGuestPassword(input.GuestPassword)
+		if passwordErr != nil {
+			return nil, passwordErr
+		}
+		input.GuestPassword = password
 	}
 
 	expireMinutes := s.resolveExpireMinutes()

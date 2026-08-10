@@ -512,6 +512,7 @@
         "recharge": "余额充值",
         "order_pay": "订单支付",
         "order_refund": "订单退款",
+        "order_pay_recovery": "迟到支付余额扣回",
         "gift_card_redeem": "礼品卡兑换",
         "admin_adjust": "管理员调账",
         "admin_refund": "管理员退款"
@@ -1113,7 +1114,7 @@
     "guestPurchase": "游客购买",
     "memberPurchase": "登录会员购买",
     "guestEmailPlaceholder": "邮箱（用于查询订单）",
-    "guestPasswordPlaceholder": "订单密码",
+    "guestPasswordPlaceholder": "订单密码（至少 12 个字符）",
     "guestInstructions": {
       "title": "填写说明：",
       "email": "邮箱：请填写一个可接收邮件的邮箱，您在付款后我们可通过该邮箱向您发送商品信息并可通过该邮箱联系您",
@@ -1155,6 +1156,7 @@
     "errors": {
       "emptyCart": "购物车为空",
       "missingGuest": "请输入邮箱与订单密码",
+      "guestPasswordTooShort": "订单密码至少需要 {count} 个字符",
       "loginOrGuest": "请先登录或使用游客购买",
       "submitFailed": "提交失败，请稍后重试",
       "manualFormInvalid": "请完善交付信息后再提交",

@@ -559,6 +559,7 @@
         "recharge": "餘額儲值",
         "order_pay": "訂單支付",
         "order_refund": "訂單退款",
+        "order_pay_recovery": "延遲支付餘額扣回",
         "gift_card_redeem": "禮品卡兌換",
         "admin_adjust": "管理員調帳",
         "admin_refund": "管理員退款"
@@ -1160,7 +1161,7 @@
     "guestPurchase": "遊客購買",
     "memberPurchase": "登入會員購買",
     "guestEmailPlaceholder": "信箱（用於查詢訂單）",
-    "guestPasswordPlaceholder": "訂單密碼",
+    "guestPasswordPlaceholder": "訂單密碼（至少 12 個字元）",
     "guestInstructions": {
       "title": "填寫說明：",
       "email": "信箱：請填寫一個可接收郵件的信箱，您在付款後我們可通過該信箱向您發送商品資訊並可通過該信箱聯絡您",
@@ -1202,6 +1203,7 @@
     "errors": {
       "emptyCart": "購物車為空",
       "missingGuest": "請輸入信箱與訂單密碼",
+      "guestPasswordTooShort": "訂單密碼至少需要 {count} 個字元",
       "loginOrGuest": "請先登入或使用遊客購買",
       "submitFailed": "提交失敗，請稍後重試",
       "manualFormInvalid": "請先完善交付資訊再提交",

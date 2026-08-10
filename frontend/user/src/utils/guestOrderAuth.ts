@@ -3,6 +3,8 @@ export interface GuestOrderAuth {
   order_password: string
 }
 
+export const MIN_GUEST_ORDER_PASSWORD_LENGTH = 12
+
 const GUEST_ORDER_AUTH_KEY = 'guest_order_auth'
 const EMPTY_GUEST_ORDER_AUTH: GuestOrderAuth = {
   email: '',

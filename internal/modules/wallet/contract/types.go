@@ -83,3 +83,16 @@ type OrderReleaseInput struct {
 	TransactionType  string
 	Remark           string
 }
+
+// OrderBalanceRecoveryInput identifies an order allocation that was released
+// before a late successful online-payment callback arrived.
+type OrderBalanceRecoveryInput struct {
+	OrderID                uint
+	UserID                 uint
+	TotalAmount            money.Amount
+	ExpectedAmount         money.Amount
+	SnapshotKnown          bool
+	Currency               string
+	ReleaseTransactionType string
+	Remark                 string
+}

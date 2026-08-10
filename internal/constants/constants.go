@@ -106,12 +106,13 @@ const (
 
 // 钱包交易类型常量
 const (
-	WalletTxnTypeRecharge    = "recharge"
-	WalletTxnTypeOrderPay    = "order_pay"
-	WalletTxnTypeOrderRefund = "order_refund"
-	WalletTxnTypeAdminAdjust = "admin_adjust"
-	WalletTxnTypeAdminRefund = "admin_refund"
-	WalletTxnTypeGiftCard    = "gift_card_redeem"
+	WalletTxnTypeRecharge         = "recharge"
+	WalletTxnTypeOrderPay         = "order_pay"
+	WalletTxnTypeOrderRefund      = "order_refund"
+	WalletTxnTypeOrderPayRecovery = "order_pay_recovery"
+	WalletTxnTypeAdminAdjust      = "admin_adjust"
+	WalletTxnTypeAdminRefund      = "admin_refund"
+	WalletTxnTypeGiftCard         = "gift_card_redeem"
 )
 
 // 钱包交易方向常量

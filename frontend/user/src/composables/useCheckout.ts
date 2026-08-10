@@ -13,7 +13,7 @@ import { buildSkuDisplayText, normalizeSkuId } from '../utils/sku'
 import { refreshCartStockSnapshots, cartItemPurchaseLimit as itemPurchaseLimit, cartItemPurchaseMin as itemPurchaseMin } from '../utils/cartStock'
 import { getImageUrl } from '../utils/image'
 import { getAffiliateCode, getAffiliateVisitorKey } from '../utils/affiliate'
-import { saveGuestOrderAuth } from '../utils/guestOrderAuth'
+import { MIN_GUEST_ORDER_PASSWORD_LENGTH, saveGuestOrderAuth } from '../utils/guestOrderAuth'
 import ImageCaptcha from '../components/captcha/ImageCaptcha.vue'
 import TurnstileCaptcha from '../components/captcha/TurnstileCaptcha.vue'
 import { useLocalized, useProductLabels } from './useProduct'
@@ -273,6 +273,8 @@ export function useCheckout() {
   const checkoutMode = ref<'guest' | 'member'>('guest')
   const guestEmail = ref('')
   const guestPassword = ref('')
+  const guestPasswordValid = computed(() =>
+    [...guestPassword.value.trim()].length >= MIN_GUEST_ORDER_PASSWORD_LENGTH)
   const guestCaptchaPayload = ref<CaptchaPayload>({})
   const guestTurnstileToken = ref('')
   const guestImageCaptchaRef = ref<InstanceType<typeof ImageCaptcha> | null>(null)
@@ -588,7 +590,7 @@ export function useCheckout() {
     if (requiresOnlineChannel.value && selectedChannelAmountHint.value) return false
     if (userAuthStore.isAuthenticated) return true
     if (checkoutMode.value !== 'guest') return false
-    if (!guestEmail.value.trim() || !guestPassword.value.trim() || !guestEmailValid.value) return false
+    if (!guestEmail.value.trim() || !guestPasswordValid.value || !guestEmailValid.value) return false
     if (!guestCaptchaEnabled.value) return true
     if (captchaProvider.value === 'image') {
       return Boolean(guestCaptchaPayload.value.captcha_id && guestCaptchaPayload.value.captcha_code)
@@ -619,6 +621,7 @@ export function useCheckout() {
     if (userAuthStore.isAuthenticated) return ''
     if (checkoutMode.value !== 'guest') return t('checkout.errors.loginOrGuest')
     if (!guestEmail.value.trim() || !guestPassword.value.trim()) return t('checkout.errors.missingGuest')
+    if (!guestPasswordValid.value) return t('checkout.errors.guestPasswordTooShort', { count: MIN_GUEST_ORDER_PASSWORD_LENGTH })
     if (!guestEmailValid.value) return t('error.email_invalid')
     if (guestCaptchaEnabled.value) {
       if (captchaProvider.value === 'image' && (!guestCaptchaPayload.value.captcha_id || !guestCaptchaPayload.value.captcha_code)) {
@@ -720,7 +723,7 @@ export function useCheckout() {
       couponRefreshing.value = false
       return
     }
-    if (isGuestCheckout.value && (!guestEmail.value.trim() || !guestPassword.value.trim() || !guestEmailValid.value)) {
+    if (isGuestCheckout.value && (!guestEmail.value.trim() || !guestPasswordValid.value || !guestEmailValid.value)) {
       preview.value = null
       orderPaymentChannels.value = []
       previewError.value = ''

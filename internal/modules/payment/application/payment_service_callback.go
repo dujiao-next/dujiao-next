@@ -1,6 +1,7 @@
 package application
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -13,6 +14,8 @@ import (
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/money"
+
+	"github.com/shopspring/decimal"
 )
 
 // PaymentCallbackInput 支付回调输入
@@ -272,6 +275,24 @@ func (s *PaymentService) applyPaymentUpdate(payment *paymentdomain.Payment, orde
 			_, err := updateCallbackMetaWithRepo(paymentRepo, lockedPayment, status, input)
 			return err
 		}
+		if status == constants.PaymentStatusSuccess &&
+			lockedOrder.Status == constants.OrderStatusPendingPayment &&
+			lockedOrder.UserID > 0 &&
+			!lockedOrder.WalletPaidAmount.Decimal.IsPositive() &&
+			s.walletSvc != nil {
+			walletAllocation := money.Amount{}
+			snapshotKnown := false
+			if raw, ok := lockedPayment.ProviderPayload[paymentcontract.GatewayPayloadWalletPaidAmount]; ok && raw != nil {
+				amount, parseErr := decimal.NewFromString(strings.TrimSpace(fmt.Sprint(raw)))
+				if parseErr == nil && !amount.IsNegative() {
+					walletAllocation = money.FromDecimal(amount.Round(2))
+					snapshotKnown = true
+				}
+			}
+			if _, err := orderapp.RecoverReleasedWalletBalance(s.walletSvc, tx, lockedOrder, walletAllocation, snapshotKnown); err != nil {
+				return err
+			}
+		}
 
 		switch status {
 		case constants.PaymentStatusSuccess:
@@ -333,6 +354,9 @@ func mergeProviderPayload(existing jsonmap.JSON, incoming jsonmap.JSON) jsonmap.
 		merged[key] = value
 	}
 	for key, value := range incoming {
+		if _, exists := existing[key]; exists && strings.HasPrefix(key, "_dujiao_next_") {
+			continue
+		}
 		merged[key] = value
 	}
 	return merged

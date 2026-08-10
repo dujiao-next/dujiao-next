@@ -31,8 +31,10 @@ func (s *OrderService) buildOrderResult(input orderCreateParams) (*orderBuildRes
 	if input.IsGuest && input.GuestEmail == "" {
 		return nil, ErrGuestEmailRequired
 	}
-	if input.IsGuest && input.GuestPassword == "" {
-		return nil, ErrGuestPasswordRequired
+	if input.IsGuest {
+		if _, err := normalizeGuestPassword(input.GuestPassword); err != nil {
+			return nil, err
+		}
 	}
 	resellerOrder := isResellerOrderContext(input.Tenant)
 	if resellerOrder && strings.TrimSpace(input.CouponCode) != "" {
