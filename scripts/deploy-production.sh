@@ -94,9 +94,9 @@ fi
 
 payment_before="$(docker inspect -f '{{.Id}}|{{.State.StartedAt}}' epusdt)"
 
-git -C "${REPOSITORY_DIR}" fetch --quiet origin "${commit_sha}"
-git -C "${REPOSITORY_DIR}" cat-file -e "${commit_sha}^{commit}"
-git -C "${REPOSITORY_DIR}" archive "${commit_sha}" | tar -x -C "${build_dir}"
+git -c safe.directory="${REPOSITORY_DIR}" -C "${REPOSITORY_DIR}" fetch --quiet origin "${commit_sha}"
+git -c safe.directory="${REPOSITORY_DIR}" -C "${REPOSITORY_DIR}" cat-file -e "${commit_sha}^{commit}"
+git -c safe.directory="${REPOSITORY_DIR}" -C "${REPOSITORY_DIR}" archive "${commit_sha}" | tar -x -C "${build_dir}"
 
 docker build \
   --build-arg "APP_VERSION=gh-${short_sha}" \
