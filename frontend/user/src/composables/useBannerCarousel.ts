@@ -12,6 +12,7 @@ export function useBannerCarousel() {
 
   const banners = ref<any[]>([])
   const bannerLoading = ref(true)
+  const heroImageReady = ref(false)
   const currentBannerIndex = ref(0)
   let heroAutoPlayTimer: ReturnType<typeof setInterval> | null = null
 
@@ -40,6 +41,7 @@ export function useBannerCarousel() {
   const goToBanner = (index: number) => {
     if (banners.value.length === 0) return
     const total = banners.value.length
+    heroImageReady.value = false
     currentBannerIndex.value = ((index % total) + total) % total
   }
 
@@ -85,6 +87,19 @@ export function useBannerCarousel() {
     }
     return getImageUrl(banner.image || banner.mobile_image || '')
   })
+
+  const heroVisualLoading = computed(() => (
+    bannerLoading.value || (Boolean(heroImage.value) && !heroImageReady.value)
+  ))
+
+  const handleHeroImageLoad = () => {
+    heroImageReady.value = true
+  }
+
+  const handleHeroImageError = () => {
+    // 图片异常时也结束骨架，保留可操作的标题与链接内容。
+    heroImageReady.value = true
+  }
 
   const heroBadge = computed(() => {
     if (!heroBanner.value) return t('home.hero.badge')
@@ -135,6 +150,7 @@ export function useBannerCarousel() {
 
   const loadBanners = async () => {
     bannerLoading.value = true
+    heroImageReady.value = false
     try {
       const response = await bannerAPI.list({ position: 'home_hero', limit: 5 })
       banners.value = response.data.data || []
@@ -153,11 +169,14 @@ export function useBannerCarousel() {
   return {
     banners,
     bannerLoading,
+    heroVisualLoading,
     currentBannerIndex,
     bannerCount,
     showHeroSection,
     heroBanner,
     heroImage,
+    handleHeroImageLoad,
+    handleHeroImageError,
     heroBadge,
     heroTitle,
     heroSubtitle,

@@ -4,16 +4,16 @@
     <!-- ==================== LIST MODE ==================== -->
     <template v-if="templateMode === 'list'">
       <!-- Hero Banner (shared with card mode) -->
-      <section v-if="showHeroSection" class="relative z-10 border-b pt-24 pb-10">
-        <div class="container mx-auto px-4">
-          <div class="relative overflow-hidden rounded-2xl border bg-card"
+      <section v-if="showHeroSection" class="relative z-10 border-b pt-16">
+          <div class="relative overflow-hidden bg-card"
             @touchstart="onBannerTouchStart"
             @touchend="onBannerTouchEnd">
             <Transition name="banner-fade" mode="out-in">
-              <img v-if="!bannerLoading && heroImage" :src="heroImage" :key="heroImage" class="absolute inset-0 h-full w-full object-cover" />
+              <img v-if="!bannerLoading && heroImage" :src="heroImage" :key="heroImage" loading="eager" fetchpriority="high" decoding="async" class="absolute inset-0 h-full w-full object-cover" @load="handleHeroImageLoad" @error="handleHeroImageError" />
             </Transition>
             <div class="absolute inset-0 bg-black/50"></div>
-            <div v-if="bannerLoading" class="relative flex min-h-[200px] flex-col justify-between p-5 sm:min-h-[240px] sm:p-6 md:min-h-[320px] md:p-10">
+            <div class="relative container mx-auto px-4">
+            <div v-if="heroVisualLoading" class="relative flex min-h-[200px] flex-col justify-between p-5 sm:min-h-[240px] sm:p-6 md:min-h-[320px] md:p-10">
               <div class="space-y-3">
                 <div class="h-5 w-24 theme-skeleton rounded-full" style="background: rgba(255,255,255,0.35)"></div>
                 <div class="h-8 max-w-3xl theme-skeleton rounded-xl md:h-10" style="background: rgba(255,255,255,0.35)"></div>
@@ -52,8 +52,8 @@
                   @click="selectHeroBanner(bIdx)"></button>
               </div>
             </div>
+            </div>
           </div>
-        </div>
       </section>
 
       <!-- Main: Left Categories + Right Product List -->
@@ -163,18 +163,18 @@
 
     <!-- ==================== CARD MODE (default) ==================== -->
     <template v-else>
-    <section v-if="showHeroSection" class="relative z-10 border-b pt-24 pb-10">
-      <div class="container mx-auto px-4">
-        <div class="relative overflow-hidden rounded-2xl border bg-card"
+    <section v-if="showHeroSection" class="relative z-10 border-b pt-16">
+        <div class="relative overflow-hidden bg-card"
           @touchstart="onBannerTouchStart"
           @touchend="onBannerTouchEnd">
           <!-- Banner image with fade transition -->
           <Transition name="banner-fade" mode="out-in">
-            <img v-if="!bannerLoading && heroImage" :src="heroImage" :key="heroImage" class="absolute inset-0 h-full w-full object-cover" />
+            <img v-if="!bannerLoading && heroImage" :src="heroImage" :key="heroImage" loading="eager" fetchpriority="high" decoding="async" class="absolute inset-0 h-full w-full object-cover" @load="handleHeroImageLoad" @error="handleHeroImageError" />
           </Transition>
           <div class="absolute inset-0 bg-black/50"></div>
 
-            <div v-if="bannerLoading" class="relative flex min-h-[260px] flex-col justify-between p-5 sm:min-h-[320px] sm:p-6 md:min-h-[420px] md:p-12">
+          <div class="relative container mx-auto px-4">
+            <div v-if="heroVisualLoading" class="relative flex min-h-[260px] flex-col justify-between p-5 sm:min-h-[320px] sm:p-6 md:min-h-[420px] md:p-12">
             <div class="mb-4 flex items-center justify-end">
               <span :class="heroBadgeClass">
                 {{ t('common.loading') }}
@@ -193,8 +193,8 @@
             </div>
           </div>
 
-          <div v-else class="relative flex min-h-[260px] flex-col justify-between p-5 sm:min-h-[320px] sm:p-6 md:min-h-[420px] md:p-12">
-            <div v-if="bannerCount > 1" class="mb-4 flex items-center justify-end gap-2">
+          <div v-else class="relative flex min-h-[260px] items-center p-5 sm:min-h-[320px] sm:p-6 md:min-h-[400px] md:p-12">
+            <div v-if="bannerCount > 1" class="absolute right-5 top-5 flex items-center gap-2 sm:right-6 sm:top-6 md:right-12 md:top-10">
               <button
                 type="button"
                 class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/30 bg-black/20 text-white transition hover:bg-black/35 md:h-10 md:w-10"
@@ -213,51 +213,53 @@
               </button>
             </div>
 
-            <div class="space-y-3 sm:space-y-4">
-              <span :class="heroBadgeClass">
-                <span class="h-2 w-2 rounded-full bg-emerald-300"></span>
-                {{ heroBadge }}
-              </span>
-              <h1 class="max-w-4xl text-2xl font-semibold tracking-[-0.02em] text-white sm:text-3xl md:text-[2.85rem]">
-                {{ heroTitle }}
-              </h1>
-              <p class="max-w-3xl text-xs leading-relaxed text-gray-100 sm:text-sm md:text-base">
-                {{ heroSubtitle }}
-              </p>
-            </div>
+            <div class="max-w-4xl">
+              <div class="space-y-3 sm:space-y-4">
+                <span :class="heroBadgeClass">
+                  <span class="h-2 w-2 rounded-full bg-emerald-300"></span>
+                  {{ heroBadge }}
+                </span>
+                <h1 class="text-2xl font-semibold tracking-[-0.02em] text-white sm:text-3xl md:text-[2.85rem]">
+                  {{ heroTitle }}
+                </h1>
+                <p class="max-w-3xl text-xs leading-relaxed text-gray-100 sm:text-sm md:text-base">
+                  {{ heroSubtitle }}
+                </p>
+              </div>
 
-            <div class="flex flex-wrap items-center gap-3 pt-5 sm:pt-6">
-              <button
-                type="button"
-                @click="goToHeroLink"
-                class="inline-flex min-h-[40px] items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-semibold text-gray-900 transition hover:scale-105 sm:min-h-[44px] sm:px-5 sm:py-3"
-              >
-                {{ heroPrimaryButtonText }}
-                <ArrowRight class="h-4 w-4" />
-              </button>
-              <router-link
-                v-if="!hasHeroLink"
-                to="/products"
-                class="inline-flex min-h-[40px] items-center rounded-lg border border-white/30 px-4 py-2.5 text-sm font-medium text-white transition hover:border-white hover:bg-white/10 sm:min-h-[44px] sm:px-5 sm:py-3"
-              >
-                {{ t('home.featured.viewAll') }}
-              </router-link>
-            </div>
+              <div class="mt-7 flex flex-wrap items-center gap-3 sm:mt-8">
+                <button
+                  type="button"
+                  @click="goToHeroLink"
+                  class="inline-flex min-h-[40px] items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-semibold text-gray-900 transition hover:-translate-y-0.5 hover:shadow-lg sm:min-h-[44px] sm:px-5 sm:py-3"
+                >
+                  {{ heroPrimaryButtonText }}
+                  <ArrowRight class="h-4 w-4" />
+                </button>
+                <router-link
+                  v-if="!hasHeroLink"
+                  to="/products"
+                  class="inline-flex min-h-[40px] items-center rounded-lg border border-white/30 px-4 py-2.5 text-sm font-medium text-white transition hover:border-white hover:bg-white/10 sm:min-h-[44px] sm:px-5 sm:py-3"
+                >
+                  {{ t('home.featured.viewAll') }}
+                </router-link>
+              </div>
 
-            <div v-if="bannerCount > 1" class="mt-5 flex items-center gap-2">
-              <button
-                v-for="(_, index) in banners"
-                :key="`hero-dot-${index}`"
-                type="button"
-                class="h-2.5 rounded-full transition-all"
-                :class="index === currentBannerIndex ? 'w-7 bg-white' : 'w-2.5 bg-white/45 hover:bg-white/70'"
-                @click="selectHeroBanner(index)"
-                :aria-label="t('common.switchBanner', { n: index + 1 })"
-              ></button>
+              <div v-if="bannerCount > 1" class="mt-6 flex items-center gap-2">
+                <button
+                  v-for="(_, index) in banners"
+                  :key="`hero-dot-${index}`"
+                  type="button"
+                  class="h-2.5 rounded-full transition-all"
+                  :class="index === currentBannerIndex ? 'w-7 bg-white' : 'w-2.5 bg-white/45 hover:bg-white/70'"
+                  @click="selectHeroBanner(index)"
+                  :aria-label="t('common.switchBanner', { n: index + 1 })"
+                ></button>
+              </div>
             </div>
           </div>
+          </div>
         </div>
-      </div>
     </section>
 
     <section id="featured" class="relative z-10 pb-6" :class="showHeroSection ? 'pt-8' : 'pt-28 md:pt-32'">
@@ -431,10 +433,13 @@ const openQuickBuy = (product: any) => {
 const {
   banners,
   bannerLoading,
+  heroVisualLoading,
   currentBannerIndex,
   bannerCount,
   showHeroSection,
   heroImage,
+  handleHeroImageLoad,
+  handleHeroImageError,
   heroBadge,
   heroTitle,
   heroSubtitle,
