@@ -5,10 +5,11 @@ import { useTelegramMiniAppStore } from '../stores/telegramMiniApp'
 import { captureAffiliateFromRoute } from '../utils/affiliate'
 import { templateView } from '../templates/registry'
 import { GOOGLE_REDIRECT_FRONTEND_CALLBACK_PATH } from '../utils/googleRedirect'
+import HomeView from '../views/Home.vue'
 
 type RouteComponentLoader = () => Promise<unknown>
 
-const homeViewLoader: RouteComponentLoader = () => import('../views/Home.vue')
+const homeViewLoader: RouteComponentLoader = () => Promise.resolve(HomeView)
 const productsViewLoader: RouteComponentLoader = () => import('../views/Products.vue')
 const productDetailViewLoader: RouteComponentLoader = () => import('../views/ProductDetail.vue')
 const cartViewLoader: RouteComponentLoader = () => import('../views/Cart.vue')
@@ -18,87 +19,6 @@ const blogViewLoader: RouteComponentLoader = () => import('../views/Blog.vue')
 const noticeViewLoader: RouteComponentLoader = () => import('../views/Notice.vue')
 const loginViewLoader: RouteComponentLoader = () => import('../views/auth/Login.vue')
 const resellerLayoutLoader: RouteComponentLoader = () => import('../views/reseller/ResellerConsoleLayout.vue')
-
-const routeWarmupLoaders: RouteComponentLoader[] = [
-    productsViewLoader,
-    productDetailViewLoader,
-    cartViewLoader,
-    checkoutViewLoader,
-    paymentViewLoader,
-    blogViewLoader,
-    noticeViewLoader,
-    loginViewLoader,
-]
-
-let hasScheduledRouteWarmup = false
-
-const shouldWarmupRoutes = () => {
-    if (typeof window === 'undefined' || typeof navigator === 'undefined') {
-        return false
-    }
-
-    const connection = (navigator as Navigator & {
-        connection?: {
-            saveData?: boolean
-            effectiveType?: string
-        }
-    }).connection
-
-    if (connection?.saveData) {
-        return false
-    }
-
-    return connection?.effectiveType !== 'slow-2g' && connection?.effectiveType !== '2g'
-}
-
-const scheduleIdleTask = (task: () => void) => {
-    if (typeof window === 'undefined') {
-        return
-    }
-
-    if ('requestIdleCallback' in window && typeof window.requestIdleCallback === 'function') {
-        window.requestIdleCallback(task, { timeout: 1500 })
-        return
-    }
-
-    window.setTimeout(task, 600)
-}
-
-const runRouteWarmupQueue = (loaders: RouteComponentLoader[]) => {
-    const nextLoader = loaders.shift()
-    if (!nextLoader || typeof window === 'undefined') {
-        return
-    }
-
-    void nextLoader()
-        .catch(() => undefined)
-        .finally(() => {
-            window.setTimeout(() => {
-                scheduleIdleTask(() => runRouteWarmupQueue(loaders))
-            }, 400)
-        })
-}
-
-export const warmupCommonRoutes = () => {
-    if (hasScheduledRouteWarmup || !shouldWarmupRoutes()) {
-        return
-    }
-
-    hasScheduledRouteWarmup = true
-
-    const startWarmup = () => {
-        window.setTimeout(() => {
-            scheduleIdleTask(() => runRouteWarmupQueue([...routeWarmupLoaders]))
-        }, 1200)
-    }
-
-    if (document.readyState === 'complete') {
-        startWarmup()
-        return
-    }
-
-    window.addEventListener('load', startWarmup, { once: true })
-}
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
@@ -359,8 +279,32 @@ router.beforeEach(async (to, _from, next) => {
     }
 })
 
+const routeRetryKey = 'dovelora:route-load-retry'
+const isChunkLoadError = (error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error || '')
+    return /dynamically imported module|importing a module script failed|failed to fetch module/i.test(message)
+}
+
+router.onError((error, to) => {
+    if (typeof window === 'undefined' || !isChunkLoadError(error)) return
+
+    const target = to.fullPath || '/'
+    try {
+        if (window.sessionStorage.getItem(routeRetryKey) === target) return
+        window.sessionStorage.setItem(routeRetryKey, target)
+    } catch {
+        // sessionStorage 不可用时仍执行一次页面级重试。
+    }
+    window.location.replace(new URL(target, window.location.origin).toString())
+})
+
 // Update SEO on route change
 router.afterEach(() => {
+    try {
+        window.sessionStorage.removeItem(routeRetryKey)
+    } catch {
+        // sessionStorage 不可用时无需清理。
+    }
     const appStore = useAppStore()
     const telegramMiniAppStore = useTelegramMiniAppStore()
     appStore.applySEO()

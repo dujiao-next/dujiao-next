@@ -3,7 +3,7 @@ import { createPinia } from 'pinia'
 import { createHead } from '@unhead/vue/client'
 import './style.css'
 import App from './App.vue'
-import router, { warmupCommonRoutes } from './router'
+import router from './router'
 import i18n, { detectLocale, setI18nLocale, warmupLocaleMessages } from './i18n'
 import { useTelegramMiniAppStore } from './stores/telegramMiniApp'
 import { initTemplateOverride } from './templates/registry'
@@ -37,6 +37,5 @@ Promise.all([
 })
 
 void router.isReady().then(() => {
-    warmupCommonRoutes()
     warmupLocaleMessages()
 })

@@ -7,7 +7,7 @@
     :style="{ animationDelay: `${index * animationStep}ms` }"
     @click="$emit('click', product.slug)">
     <!-- Image Area -->
-    <div class="aspect-[4/3] overflow-hidden bg-muted relative shrink-0">
+    <div class="aspect-[16/9] overflow-hidden bg-muted relative shrink-0">
       <div
         class="absolute inset-0 z-10 transition-colors duration-300"
         :class="isSoldOut(product) ? 'bg-black/15' : 'bg-black/15 group-hover:bg-black/5'"
@@ -36,25 +36,25 @@
 
       <!-- Tags -->
       <div v-if="!isSoldOut(product) && product.tags && product.tags.length > 0"
-        class="absolute top-2 right-2 md:top-4 md:right-4 z-20 flex flex-wrap gap-1 md:gap-2 justify-end">
+        class="absolute right-2 top-2 z-20 flex flex-wrap justify-end gap-1 md:right-3 md:top-3">
         <span v-for="(tag, tagIndex) in product.tags.slice(0, maxTags)" :key="tagIndex"
-          class="inline-flex items-center rounded-md border border-white/25 bg-black/55 px-2 md:px-3 py-0.5 md:py-1 text-xs font-medium text-white backdrop-blur-sm">
+          class="inline-flex items-center rounded-md border border-white/25 bg-black/55 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
           {{ tag }}
         </span>
       </div>
     </div>
 
     <!-- Content Area -->
-    <div class="p-3 md:p-4 relative z-20 flex flex-col flex-1">
-      <div v-if="product.category?.name" class="text-xs text-muted-foreground uppercase tracking-wider mb-1 md:mb-2 truncate">
+    <div class="relative z-20 flex flex-1 flex-col px-3 py-2.5 md:py-3">
+      <div v-if="product.category?.name" class="mb-1 truncate text-xs uppercase tracking-wider text-muted-foreground">
         {{ t('products.categoryLabel') }} · {{ getLocalizedText(product.category.name) }}
       </div>
-      <h3 class="text-sm md:text-lg font-bold text-foreground mb-1 md:mb-2 transition-colors line-clamp-1">
+      <h3 class="mb-1 line-clamp-1 text-sm font-bold text-foreground transition-colors md:mb-1.5 md:text-base">
         {{ getLocalizedText(product.title) }}
       </h3>
 
       <!-- Badges -->
-      <div class="mb-2 md:mb-3 flex flex-wrap items-center gap-1 md:gap-2">
+      <div class="mb-2 flex flex-wrap items-center gap-1">
         <!-- Mobile: show only fulfillment type badge -->
         <Badge
           class="md:hidden"
@@ -90,27 +90,29 @@
         </Badge>
       </div>
 
-      <p class="hidden md:block text-muted-foreground text-sm mb-6 line-clamp-2">
+      <p class="mb-2 hidden text-sm leading-5 text-muted-foreground md:block line-clamp-2">
         {{ getLocalizedText(product.description) }}
       </p>
 
-      <div class="flex items-center justify-between border-t pt-2 md:pt-4 mt-auto">
-        <div class="flex flex-col">
-          <span class="hidden md:block text-xs text-muted-foreground uppercase tracking-wider">{{ t('products.price') }}</span>
-          <span
-            v-if="hasPromotionPrice(product)"
-            class="theme-price-sm theme-price-promotion"
-            :aria-label="t('products.promotionPriceAria', { price: formatPrice(getPromotionPriceAmount(product), siteCurrency) })"
-          >
-            {{ formatPrice(getPromotionPriceAmount(product), siteCurrency) }}
-          </span>
-          <span
-            v-else
-            class="theme-price-sm"
-            :aria-label="t('products.priceAria', { price: formatPrice(product.price_amount, siteCurrency) })"
-          >
-            {{ formatPrice(product.price_amount, siteCurrency) }}
-          </span>
+      <div class="mt-auto flex items-center justify-between border-t pt-2">
+        <div class="min-w-0">
+          <div class="flex items-baseline gap-1.5">
+            <span class="hidden text-xs uppercase tracking-wider text-muted-foreground md:inline">{{ t('products.price') }}</span>
+            <span
+              v-if="hasPromotionPrice(product)"
+              class="theme-price-sm theme-price-promotion"
+              :aria-label="t('products.promotionPriceAria', { price: formatPrice(getPromotionPriceAmount(product), siteCurrency) })"
+            >
+              {{ formatPrice(getPromotionPriceAmount(product), siteCurrency) }}
+            </span>
+            <span
+              v-else
+              class="theme-price-sm"
+              :aria-label="t('products.priceAria', { price: formatPrice(product.price_amount, siteCurrency) })"
+            >
+              {{ formatPrice(product.price_amount, siteCurrency) }}
+            </span>
+          </div>
           <div v-if="hasPromotionPrice(product)" class="mt-0.5 flex flex-wrap items-center gap-1.5">
             <span
               class="hidden md:inline text-xs text-muted-foreground opacity-80 line-through"
@@ -132,7 +134,7 @@
           </div>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-1.5">
           <!-- Quick buy cart button -->
           <Button
             type="button"

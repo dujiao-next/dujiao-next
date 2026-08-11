@@ -1,0 +1,42 @@
+name: deploy-production
+
+on:
+  push:
+    branches:
+      - main
+      - agent/harden-payment-guest-auth-security
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dovelora-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy storefront
+    if: github.repository == 'dovelora/dujiao-next'
+    runs-on: [self-hosted, linux, x64, dovelora-production]
+    environment: production
+    timeout-minutes: 45
+
+    steps:
+      - name: Deploy exact Git commit
+        env:
+          DEPLOY_COMMIT: ${{ github.sha }}
+        run: sudo -n /usr/local/sbin/dovelora-deploy "${DEPLOY_COMMIT}"
+
+      - name: Record deployment
+        if: success()
+        env:
+          DEPLOY_COMMIT: ${{ github.sha }}
+        run: |
+          {
+            echo "## Production deployment"
+            echo
+            echo "- Commit: \`${DEPLOY_COMMIT}\`"
+            echo "- Storefront: https://www.dovelora.com/"
+            echo "- Payment service: excluded from deployment"
+          } >> "${GITHUB_STEP_SUMMARY}"

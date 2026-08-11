@@ -39,6 +39,7 @@ export default defineConfig(({ mode }) => ({
     rollupOptions: {
       output: {
         manualChunks: {
+          'vendor-icons': ['lucide-vue-next'],
           'vendor-qrcode': ['qrcode'],
           'vendor-vue-i18n': ['vue-i18n'],
         },

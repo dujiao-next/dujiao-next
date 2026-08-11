@@ -4,11 +4,85 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/png" href="/site-icon.png" />
   <title></title>
+  <style>
+    html,
+    body,
+    #app {
+      min-height: 100%;
+      margin: 0;
+    }
+
+    .initial-loading {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      background: #fff;
+      color: #475569;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .initial-loading img {
+      width: 48px;
+      height: 48px;
+      object-fit: contain;
+    }
+
+    .initial-loading span {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .24em;
+    }
+
+    .initial-loading-bar {
+      width: 80px;
+      height: 4px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #eef2f7;
+    }
+
+    .initial-loading-bar::after {
+      display: block;
+      width: 50%;
+      height: 100%;
+      border-radius: inherit;
+      background: #2563eb;
+      content: "";
+      animation: initial-loading-progress 1.15s ease-in-out infinite;
+    }
+
+    @keyframes initial-loading-progress {
+      from { transform: translateX(-110%); }
+      to { transform: translateX(210%); }
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .initial-loading {
+        background: #0b1220;
+        color: #cbd5e1;
+      }
+
+      .initial-loading-bar {
+        background: #1e293b;
+      }
+    }
+  </style>
 </head>
 
 <body>
-  <div id="app"></div>
+  <div id="app">
+    <div class="initial-loading" role="status" aria-live="polite" aria-label="Dovelora loading">
+      <img src="/site-icon.png" alt="" />
+      <span>DOVELORA</span>
+      <div class="initial-loading-bar"></div>
+    </div>
+  </div>
   <script type="module" data-cfasync="false" src="/src/main.ts"></script>
 </body>
 
