@@ -1,6 +1,6 @@
 {
   "common": {
-    "siteName": "Dujiao-Next",
+    "siteName": "Dovelora",
     "loading": "加载中...",
     "error": "错误",
     "success": "成功",
@@ -112,7 +112,7 @@
   },
   "home": {
     "hero": {
-      "title": "Dujiao-Next · D&N",
+      "title": "Dovelora",
       "subtitle": "专业的产品与服务提供商",
       "cta": "浏览商品",
       "badge": "新一代数字商店"
@@ -212,8 +212,8 @@
   },
   "about": {
     "title": "关于我们",
-    "subtitle": "了解Dujiao-Next",
-    "introduction": "Dujiao-Next（D&N）是一家专业的在线工作室，致力于为客户提供优质的产品和服务。我们以创新、专业、高效为核心价值观，不断追求卓越，为客户创造价值。",
+    "subtitle": "了解 Dovelora",
+    "introduction": "Dovelora 致力于提供优质的数字商品与服务，以专业、高效的交付体验为客户创造价值。",
     "ourServices": "我们的服务",
     "service1": "优质商品推荐与销售",
     "service2": "专业的售前咨询服务",

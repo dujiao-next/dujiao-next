@@ -1,6 +1,6 @@
 {
   "common": {
-    "siteName": "Dujiao-Next",
+    "siteName": "Dovelora",
     "loading": "Loading...",
     "error": "Error",
     "success": "Success",
@@ -112,7 +112,7 @@
   },
   "home": {
     "hero": {
-      "title": "Dujiao-Next",
+      "title": "Dovelora",
       "subtitle": "Professional Products and Services Provider",
       "cta": "Browse Products",
       "badge": "Next Gen Digital Store"
@@ -259,8 +259,8 @@
   },
   "about": {
     "title": "About Us",
-    "subtitle": "Learn about Dujiao-Next",
-    "introduction": "Dujiao-Next is a professional online studio dedicated to providing high-quality products and services to our customers. Innovation, professionalism, and efficiency are our core values, and we constantly pursue excellence to create value for our customers.",
+    "subtitle": "Learn about Dovelora",
+    "introduction": "Dovelora provides high-quality digital products and services with a professional and efficient delivery experience.",
     "ourServices": "Our Services",
     "service1": "Premium Product Recommendations & Sales",
     "service2": "Professional Pre-sales Consulting",
