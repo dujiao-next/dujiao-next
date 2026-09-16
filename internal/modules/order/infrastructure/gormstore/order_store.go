@@ -284,7 +284,7 @@ func (r *Store) GetAnyByOrderNoAndUser(orderNo string, userID uint) (*orderdomai
 func (r *Store) GetAnyByOrderNoAndGuest(orderNo, email, password string) (*orderdomain.Order, error) {
 	var order orderdomain.Order
 	query := r.withChildren(r.db)
-	if err := query.Where("order_no = ? AND user_id = 0 AND guest_email = ? AND guest_password = ?", orderNo, email, r.hashGuestCredential(email, password)).First(&order).Error; err != nil {
+	if err := query.Where("order_no = ? AND user_id = 0 AND LOWER(guest_email) = ? AND guest_password = ?", orderNo, email, r.hashGuestCredential(email, password)).First(&order).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
@@ -298,7 +298,7 @@ func (r *Store) GetByIDAndGuest(id uint, email, password string) (*orderdomain.O
 	var order orderdomain.Order
 	query := r.withChildren(r.db)
 	if err := query.
-		Where("id = ? AND user_id = 0 AND guest_email = ? AND guest_password = ? AND parent_id IS NULL", id, email, r.hashGuestCredential(email, password)).
+		Where("id = ? AND user_id = 0 AND LOWER(guest_email) = ? AND guest_password = ? AND parent_id IS NULL", id, email, r.hashGuestCredential(email, password)).
 		First(&order).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -313,7 +313,7 @@ func (r *Store) GetByOrderNoAndGuest(orderNo, email, password string) (*orderdom
 	var order orderdomain.Order
 	query := r.withChildren(r.db)
 	if err := query.
-		Where("order_no = ? AND user_id = 0 AND guest_email = ? AND guest_password = ? AND parent_id IS NULL", orderNo, email, r.hashGuestCredential(email, password)).
+		Where("order_no = ? AND user_id = 0 AND LOWER(guest_email) = ? AND guest_password = ? AND parent_id IS NULL", orderNo, email, r.hashGuestCredential(email, password)).
 		First(&order).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -376,7 +376,7 @@ func (r *Store) GetAnyByOrderNoAndUserScoped(orderNo string, userID uint, scope 
 func (r *Store) GetByIDAndGuestScoped(id uint, email, password string, scope ordercontract.TenantScope) (*orderdomain.Order, error) {
 	var order orderdomain.Order
 	query := r.withChildren(r.db)
-	query = applyTenantScope(query.Where("id = ? AND user_id = 0 AND guest_email = ? AND guest_password = ? AND parent_id IS NULL", id, email, r.hashGuestCredential(email, password)), scope)
+	query = applyTenantScope(query.Where("id = ? AND user_id = 0 AND LOWER(guest_email) = ? AND guest_password = ? AND parent_id IS NULL", id, email, r.hashGuestCredential(email, password)), scope)
 	if err := query.First(&order).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -390,7 +390,7 @@ func (r *Store) GetByIDAndGuestScoped(id uint, email, password string, scope ord
 func (r *Store) GetByOrderNoAndGuestScoped(orderNo, email, password string, scope ordercontract.TenantScope) (*orderdomain.Order, error) {
 	var order orderdomain.Order
 	query := r.withChildren(r.db)
-	query = applyTenantScope(query.Where("order_no = ? AND user_id = 0 AND guest_email = ? AND guest_password = ? AND parent_id IS NULL", orderNo, email, r.hashGuestCredential(email, password)), scope)
+	query = applyTenantScope(query.Where("order_no = ? AND user_id = 0 AND LOWER(guest_email) = ? AND guest_password = ? AND parent_id IS NULL", orderNo, email, r.hashGuestCredential(email, password)), scope)
 	if err := query.First(&order).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -404,7 +404,7 @@ func (r *Store) GetByOrderNoAndGuestScoped(orderNo, email, password string, scop
 func (r *Store) GetAnyByOrderNoAndGuestScoped(orderNo, email, password string, scope ordercontract.TenantScope) (*orderdomain.Order, error) {
 	var order orderdomain.Order
 	query := r.withChildren(r.db)
-	query = applyTenantScope(query.Where("order_no = ? AND user_id = 0 AND guest_email = ? AND guest_password = ?", orderNo, email, r.hashGuestCredential(email, password)), scope)
+	query = applyTenantScope(query.Where("order_no = ? AND user_id = 0 AND LOWER(guest_email) = ? AND guest_password = ?", orderNo, email, r.hashGuestCredential(email, password)), scope)
 	if err := query.First(&order).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -465,7 +465,7 @@ func (r *Store) ListAdmin(filter ordercontract.ListFilter) ([]orderdomain.Order,
 		query = query.Where("order_no = ?", filter.OrderNo)
 	}
 	if filter.GuestEmail != "" {
-		query = query.Where("guest_email = ?", filter.GuestEmail)
+		query = query.Where("LOWER(guest_email) = ?", filter.GuestEmail)
 	}
 	if keyword := strings.TrimSpace(filter.ProductKeyword); keyword != "" {
 		like := "%" + keyword + "%"
@@ -635,7 +635,7 @@ func (r *Store) ListByGuest(email, password string, page, pageSize int) ([]order
 	credentialHash := r.hashGuestCredential(email, password)
 	var total int64
 	if err := r.db.Model(&orderdomain.Order{}).
-		Where("orders.deleted_at IS NULL AND user_id = 0 AND guest_email = ? AND guest_password = ? AND parent_id IS NULL", email, credentialHash).
+		Where("orders.deleted_at IS NULL AND user_id = 0 AND LOWER(guest_email) = ? AND guest_password = ? AND parent_id IS NULL", email, credentialHash).
 		Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -643,7 +643,7 @@ func (r *Store) ListByGuest(email, password string, page, pageSize int) ([]order
 	var orders []orderdomain.Order
 	query := r.withChildren(r.db)
 	if err := query.
-		Where("user_id = 0 AND guest_email = ? AND guest_password = ? AND parent_id IS NULL", email, credentialHash).
+		Where("user_id = 0 AND LOWER(guest_email) = ? AND guest_password = ? AND parent_id IS NULL", email, credentialHash).
 		Order("id desc").
 		Limit(pageSize).
 		Offset((page - 1) * pageSize).
@@ -655,7 +655,7 @@ func (r *Store) ListByGuest(email, password string, page, pageSize int) ([]order
 
 // ListByGuestScoped 获取游客订单列表，并强制限定当前前台租户范围。
 func (r *Store) ListByGuestScoped(email, password string, page, pageSize int, scope ordercontract.TenantScope) ([]orderdomain.Order, int64, error) {
-	base := r.db.Model(&orderdomain.Order{}).Where("orders.deleted_at IS NULL AND user_id = 0 AND guest_email = ? AND guest_password = ? AND parent_id IS NULL", email, r.hashGuestCredential(email, password))
+	base := r.db.Model(&orderdomain.Order{}).Where("orders.deleted_at IS NULL AND user_id = 0 AND LOWER(guest_email) = ? AND guest_password = ? AND parent_id IS NULL", email, r.hashGuestCredential(email, password))
 	base = applyTenantScope(base, scope)
 
 	var total int64
