@@ -27,16 +27,12 @@
         </nav>
 
         <div class="ml-auto flex items-center gap-2">
-          <RouterLink class="grid h-10 w-10 flex-none place-items-center rounded-full bg-secondary text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary" to="/products" :aria-label="t('nav.products')"><Search class="h-[18px] w-[18px]" /></RouterLink>
+
           <RouterLink v-if="!userAuthStore.isAuthenticated" class="grid h-10 w-10 flex-none place-items-center rounded-full bg-secondary text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary" to="/guest/orders" :aria-label="t('navbar.guestOrders')" :title="t('navbar.guestOrders')"><ClipboardList class="h-[18px] w-[18px]" /></RouterLink>
           <button class="grid h-10 w-10 flex-none place-items-center rounded-full bg-secondary text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary" type="button" :aria-label="t('resellerConsole.common.toggleTheme')" @click="toggleTheme">
             <Sun v-if="theme === 'dark'" class="h-[18px] w-[18px]" />
             <Moon v-else class="h-[18px] w-[18px]" />
           </button>
-          <RouterLink class="relative grid h-10 w-10 flex-none place-items-center rounded-full bg-secondary text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary" to="/cart" :aria-label="t('navbar.cart')">
-            <ShoppingCart class="h-[18px] w-[18px]" />
-            <span v-if="cartCount > 0" class="absolute -right-[3px] -top-[3px] grid h-[19px] min-w-[19px] place-items-center rounded-full bg-primary px-[5px] text-[11px] font-bold text-white">{{ cartCount }}</span>
-          </RouterLink>
 
           <!-- 语言切换 -->
           <div class="relative max-[900px]:hidden" ref="langEl">
@@ -90,65 +86,21 @@
       <slot />
     </main>
 
-    <!-- 页脚 -->
-    <footer class="mt-[var(--gap-block)] border-t bg-[color:var(--bg-warm)]">
-      <div class="mx-auto grid w-full max-w-[1180px] grid-cols-1 gap-[30px] px-6 pb-9 pt-[52px] sm:grid-cols-2 lg:grid-cols-[1.7fr_repeat(3,1fr)]">
-        <div>
-          <RouterLink class="inline-flex items-center gap-2.5 text-[19px] font-extrabold tracking-[-0.02em] text-foreground" to="/">
-            <img v-if="brandLogo" :src="brandLogo" :alt="brandName" class="h-8 max-w-[160px] object-contain" />
-            <span v-else>{{ brandName }}</span>
-          </RouterLink>
-          <p class="mt-3 max-w-[36ch] text-[14.5px] text-muted-foreground">{{ brandDescription || t('vault.footer.tagline') }}</p>
-        </div>
-        <div>
-          <h4 class="mb-3 text-sm font-bold">{{ t('vault.footer.shop') }}</h4>
-          <RouterLink v-if="!isListMode" to="/products" class="flex items-center gap-[7px] py-[5px] text-[14.5px] text-muted-foreground hover:text-primary">{{ t('products.allCategories') }}</RouterLink>
-          <RouterLink v-if="noticeEnabled" to="/notice" class="flex items-center gap-[7px] py-[5px] text-[14.5px] text-muted-foreground hover:text-primary">{{ t('nav.notice') }}</RouterLink>
-          <RouterLink v-if="blogEnabled" to="/blog" class="flex items-center gap-[7px] py-[5px] text-[14.5px] text-muted-foreground hover:text-primary">{{ t('nav.blog') }}</RouterLink>
-          <RouterLink to="/me" class="flex items-center gap-[7px] py-[5px] text-[14.5px] text-muted-foreground hover:text-primary">{{ t('navbar.personalCenter') }}</RouterLink>
-        </div>
-        <div>
-          <h4 class="mb-3 text-sm font-bold">{{ t('vault.footer.support') }}</h4>
-          <RouterLink v-if="aboutEnabled" to="/about" class="flex items-center gap-[7px] py-[5px] text-[14.5px] text-muted-foreground hover:text-primary"><Info class="h-4 w-4" /> {{ t('nav.about') }}</RouterLink>
-          <RouterLink v-if="!userAuthStore.isAuthenticated" to="/guest/orders" class="flex items-center gap-[7px] py-[5px] text-[14.5px] text-muted-foreground hover:text-primary"><ClipboardList class="h-4 w-4" /> {{ t('navbar.guestOrders') }}</RouterLink>
-          <a v-if="contact?.telegram" :href="contact.telegram" target="_blank" rel="noopener noreferrer" class="flex items-center gap-[7px] py-[5px] text-[14.5px] text-muted-foreground hover:text-primary"><Send class="h-4 w-4" /> Telegram</a>
-          <a v-if="contact?.whatsapp" :href="contact.whatsapp" target="_blank" rel="noopener noreferrer" class="flex items-center gap-[7px] py-[5px] text-[14.5px] text-muted-foreground hover:text-primary"><MessageCircle class="h-4 w-4" /> WhatsApp</a>
-        </div>
-        <div>
-          <h4 class="mb-3 text-sm font-bold">{{ t('vault.footer.legal') }}</h4>
-          <RouterLink to="/terms" class="flex items-center gap-[7px] py-[5px] text-[14.5px] text-muted-foreground hover:text-primary">{{ t('footer.terms') }}</RouterLink>
-          <RouterLink to="/privacy" class="flex items-center gap-[7px] py-[5px] text-[14.5px] text-muted-foreground hover:text-primary">{{ t('footer.privacy') }}</RouterLink>
-          <a v-for="link in footerLinks" :key="link.name" :href="link.url || 'javascript:void(0)'" :target="link.url ? '_blank' : undefined" rel="noopener noreferrer" class="flex items-center gap-[7px] py-[5px] text-[14.5px] text-muted-foreground hover:text-primary">{{ link.name }}</a>
-        </div>
-      </div>
-      <div class="mx-auto flex w-full max-w-[1180px] flex-wrap items-center justify-between gap-3.5 border-t px-6 pb-[30px] pt-[18px] text-[13.5px] text-muted-foreground">
-        <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span>© {{ year }} {{ brandName }}</span>
-          <a href="https://github.com/dujiao-next" target="_blank" rel="noopener noreferrer" aria-label="Dujiao-Next on GitHub" class="inline-flex items-center gap-1.5 hover:text-primary">
-            <Github class="h-[15px] w-[15px]" />
-            <span>Dujiao-Next</span>
-          </a>
-        </div>
-        <span>简体中文 · 繁體 · English</span>
-      </div>
-    </footer>
+
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import {
-  Search, Moon, Sun, ShoppingCart, Languages, Menu, X, User, Info, ClipboardList, LogOut, Github,
-  LayoutGrid, Send, MessageCircle,
-} from 'lucide-vue-next'
+import { Moon, Sun, Languages, Menu, X, User, ClipboardList, LogOut } from 'lucide-vue-next'
 import { useAppStore } from '../../../stores/app'
-import { useCartStore } from '../../../stores/cart'
+
 import { useUserAuthStore } from '../../../stores/userAuth'
 import { useNavConfig, type NavItem } from '../../../composables/useNavConfig'
 import { useTheme } from '../../../utils/theme'
 import { getImageUrl } from '../../../utils/image'
-import { getLocalizedText } from '../../../utils/resellerSiteConfig'
+
 // 本地自托管字体（替代 Google Fonts CDN），仅 vault 模板加载
 import '@fontsource/rubik/latin-400.css'
 import '@fontsource/rubik/latin-500.css'
@@ -163,7 +115,7 @@ import '../styles/vault.css'
 
 const { t } = useI18n()
 const appStore = useAppStore()
-const cartStore = useCartStore()
+
 const userAuthStore = useUserAuthStore()
 const { theme, toggleTheme } = useTheme()
 
@@ -172,50 +124,22 @@ const moreOpen = ref(false)
 const langEl = ref<HTMLElement | null>(null)
 const moreEl = ref<HTMLElement | null>(null)
 
-const year = new Date().getFullYear()
 
 const brandName = computed(() => String(appStore.config?.brand?.site_name || '').trim() || 'D&J Studio')
 const brandLogo = computed(() => {
   const raw = String(appStore.config?.brand?.site_logo || '').trim()
   return raw ? getImageUrl(raw) : ''
 })
-const brandDescription = computed(() => {
-  const desc = appStore.config?.brand?.site_description
-  if (desc && typeof desc === 'object') {
-    const val = (desc as Record<string, string>)[appStore.locale] || (desc as Record<string, string>)['zh-CN'] || ''
-    return typeof val === 'string' ? val.trim() : ''
-  }
-  return ''
-})
-
-const { isListMode, blogEnabled, noticeEnabled, aboutEnabled, secondaryNavItems } = useNavConfig()
+const { secondaryNavItems } = useNavConfig()
 
 const menuItems = computed<NavItem[]>(() => {
   const items: NavItem[] = []
   // 列表模式下首页就是商品列表，/products 与首页同页，不再单列一项
-  if (!isListMode.value) {
-    items.push({ key: 'products', path: '/products', label: t('products.allCategories'), icon: LayoutGrid, type: 'route', target: '_self' })
-  }
   // 内置（博客/公告/关于）+ 后台自定义导航项
   items.push(...secondaryNavItems.value)
   return items
 })
 
-/** 后台配置的自定义页脚链接 */
-const footerLinks = computed(() => {
-  const links = appStore.config?.footer_links
-  if (!Array.isArray(links)) return []
-  return links
-    .map((item: { name?: unknown; url?: unknown }) => ({
-      name: typeof item?.name === 'string' ? item.name.trim() : getLocalizedText(item?.name as Record<string, string>, appStore.locale),
-      url: String(item?.url || '').trim(),
-    }))
-    .filter((item) => item.name)
-})
-
-const contact = computed(() => appStore.config?.contact as { telegram?: string; whatsapp?: string } | undefined)
-
-const cartCount = computed(() => cartStore.totalItems)
 
 const languages = [
   { code: 'zh-CN', name: '简体中文' },

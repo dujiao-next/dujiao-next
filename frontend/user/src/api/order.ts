@@ -57,6 +57,10 @@ export const guestOrderAPI = {
     preview: (data: any) => userApi.post('/guest/orders/preview', data),
     create: (data: any) => userApi.post('/guest/orders', data),
     createAndPay: (data: any) => userApi.post('/guest/orders/create-and-pay', data),
+    browserOrders: (params?: any) => userApi.get('/guest/orders/browser', {
+        params,
+        credentials: 'include',
+    }),
     list: (params: GuestAuthInput) => {
         const request = withGuestAuth(params)
         return userApi.get('/guest/orders', { ...request.options, params: request.payload })

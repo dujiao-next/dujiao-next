@@ -392,8 +392,7 @@ import ResellerLocaleTabs from './ResellerLocaleTabs.vue'
 const ResellerRichText = defineAsyncComponent(() => import('./ResellerRichText.vue'))
 import { useAppStore } from '../../stores/app'
 import { type PageAlert } from '../../utils/alerts'
-import { processHtmlForDisplay } from '../../utils/content'
-import DOMPurify from 'dompurify'
+import { sanitizeRichHtml } from '../../utils/richContent'
 import {
     blankLocalizedText,
     canEditResellerSiteConfig,
@@ -533,12 +532,7 @@ const announcementToneView = computed(
 )
 const announcementPreviewHtml = computed(() => {
     const raw = form.announcement?.content?.[activeLocale.value] || ''
-    return DOMPurify.sanitize(processHtmlForDisplay(String(raw)), {
-        ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre', 'blockquote', 'ul', 'ol', 'li', 'a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'span', 'div', 'img', 'hr'],
-        ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt', 'title', 'style', 'width'],
-        ALLOW_DATA_ATTR: false,
-        ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|tel:|#|\/(?!\/))/i,
-    })
+    return sanitizeRichHtml(raw)
 })
 
 const assignForm = (config?: ResellerSiteConfigData) => {

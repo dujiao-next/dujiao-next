@@ -1,5 +1,4 @@
 import { computed, ref, type Ref } from 'vue'
-import DOMPurify from 'dompurify'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '../stores/app'
 import { orderStatusVariant, orderStatusLabel } from '../utils/status'
@@ -8,6 +7,7 @@ import { amountToCents, centsToAmount } from '../utils/money'
 import { buildSkuDisplayTextFromSnapshot } from '../utils/sku'
 import { getImageUrl } from '../utils/image'
 import { copyText } from '../utils/clipboard'
+import { sanitizeRichHtml } from '../utils/richContent'
 
 interface ManualFormSnapshotField {
   key: string
@@ -92,13 +92,6 @@ export function useOrderDisplayHelpers(order: Ref<any>) {
     return jsonData[locale] || jsonData['zh-CN'] || jsonData['en-US'] || ''
   }
 
-  const sanitizeInstructionsHtml = (raw: string) => DOMPurify.sanitize(raw, {
-    ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre', 'blockquote', 'ul', 'ol', 'li', 'a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'span', 'div', 'img', 'hr'],
-    ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt', 'title'],
-    FORBID_ATTR: ['style', 'class', 'id'],
-    ALLOW_DATA_ATTR: false,
-    ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|tel:|#|\/(?!\/))/i,
-  })
 
   const instructionBlocks = (items: any): Array<{ title: string; html: string }> => {
     if (!Array.isArray(items)) return []
@@ -109,7 +102,7 @@ export function useOrderDisplayHelpers(order: Ref<any>) {
       if (!html) continue
       if (seen.has(html)) continue
       seen.add(html)
-      blocks.push({ title: getLocalizedText(item?.title), html: sanitizeInstructionsHtml(html) })
+      blocks.push({ title: getLocalizedText(item?.title), html: sanitizeRichHtml(html) })
     }
     return blocks
   }

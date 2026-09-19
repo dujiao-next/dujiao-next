@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import DOMPurify from 'dompurify'
 import { AlertTriangle, CheckCircle2, Info, Megaphone, X } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { useLocalized } from '../composables/useProduct'
-import { processHtmlForDisplay } from '../utils/content'
+import { sanitizeRichHtml } from '../utils/richContent'
 import { useAnnouncement, type HomeAnnouncement } from '../composables/useAnnouncement'
 
 const props = defineProps<{
@@ -25,13 +24,7 @@ const title = computed(() => getLocalizedText(props.announcement.title))
 
 const sanitizedContent = computed(() => {
   const raw = getLocalizedText(props.announcement.content)
-  const withImages = processHtmlForDisplay(String(raw || ''))
-  return DOMPurify.sanitize(withImages, {
-    ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre', 'blockquote', 'ul', 'ol', 'li', 'a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'span', 'div', 'img', 'hr', 'table', 'thead', 'tbody', 'tr', 'td', 'th', 'colgroup', 'col'],
-    ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt', 'title', 'style', 'colspan', 'rowspan', 'width'],
-    ALLOW_DATA_ATTR: false,
-    ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|tel:|#|\/(?!\/))/i,
-  })
+  return sanitizeRichHtml(raw)
 })
 
 const typeStyle = computed(() => {

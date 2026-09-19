@@ -1,14 +1,13 @@
 import { computed, onMounted, ref, type Component } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { Banknote, Home, ShoppingBag, Wallet, Gift, ShieldCheck, UserCircle, Megaphone, Key } from 'lucide-vue-next'
+import { Home, ShoppingBag, Wallet, Gift, ShieldCheck, UserCircle } from 'lucide-vue-next'
 import { orderStatusLabel, orderStatusVariant } from '../utils/status'
 import type { PageAlert } from '../utils/alerts'
-import { useAppStore } from '../stores/app'
 import { useUserProfileStore } from '../stores/userProfile'
 import type { PublicMemberLevel } from '../api'
 
-export type PersonalSection = 'overview' | 'profile' | 'security' | 'orders' | 'wallet' | 'giftCard' | 'affiliate' | 'reseller' | 'api'
+export type PersonalSection = 'overview' | 'profile' | 'security' | 'orders' | 'wallet' | 'giftCard'
 
 export interface PersonalSectionItem {
   key: PersonalSection
@@ -22,18 +21,16 @@ export interface PersonalSectionItem {
 export function usePersonalCenter(sectionGetter: () => PersonalSection) {
   const router = useRouter()
   const { t, locale } = useI18n()
-  const appStore = useAppStore()
   const userProfileStore = useUserProfileStore()
 
   const sectionItems: PersonalSectionItem[] = [
     { key: 'overview', label: 'personalCenter.tabs.overview', icon: Home },
     { key: 'orders', label: 'personalCenter.tabs.orders', icon: ShoppingBag },
     { key: 'wallet', label: 'personalCenter.tabs.wallet', icon: Wallet },
-    { key: 'affiliate', label: 'personalCenter.tabs.affiliate', icon: Megaphone },
-    { key: 'reseller', label: 'personalCenter.tabs.reseller', icon: Banknote },
+
     { key: 'giftCard', label: 'personalCenter.tabs.giftCard', icon: Gift },
     { key: 'security', label: 'personalCenter.tabs.security', icon: ShieldCheck },
-    { key: 'api', label: 'personalCenter.tabs.api', icon: Key },
+
     { key: 'profile', label: 'personalCenter.tabs.profile', icon: UserCircle },
   ]
 
@@ -43,22 +40,11 @@ export function usePersonalCenter(sectionGetter: () => PersonalSection) {
     security: '/me/security',
     orders: '/me/orders',
     wallet: '/me/wallet',
-    affiliate: '/me/affiliate',
-    reseller: '/me/reseller',
     giftCard: '/me/gift-cards',
-    api: '/me/api',
   }
 
-  const canAccessResellerConsole = computed(() => appStore.canAccessResellerConsole)
-  const visibleSectionItems = computed(() => {
-    return sectionItems.filter((item) => item.key !== 'reseller' || canAccessResellerConsole.value)
-  })
-  const currentSection = computed<PersonalSection>(() => {
-    if (sectionGetter() === 'reseller' && !canAccessResellerConsole.value) {
-      return 'overview'
-    }
-    return sectionGetter()
-  })
+  const visibleSectionItems = computed(() => sectionItems)
+  const currentSection = computed<PersonalSection>(() => sectionGetter())
   const globalAlert = ref<PageAlert | null>(null)
 
   const displayInitial = computed(() => {
@@ -149,7 +135,6 @@ export function usePersonalCenter(sectionGetter: () => PersonalSection) {
 
   return {
     userProfileStore,
-    canAccessResellerConsole,
     visibleSectionItems,
     currentSection,
     globalAlert,

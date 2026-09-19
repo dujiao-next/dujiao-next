@@ -285,7 +285,8 @@
     "home": "Home",
     "products": "Products",
     "cart": "Cart",
-    "me": "Me"
+    "me": "Me",
+    "orders": "Order Lookup"
   },
   "personalCenter": {
     "title": "Personal Center",
@@ -338,7 +339,7 @@
     },
     "security": {
       "title": "Security",
-      "subtitle": "Change email with double verification codes",
+      "subtitle": "Manage login history, password and two-factor authentication",
       "subtitleBindOnly": "This account has no real email bound yet. Please bind one first.",
       "currentEmailLabel": "Current email",
       "bindOnlyEmailDisplay": "Telegram temporary email (unbound)",
@@ -1710,8 +1711,18 @@
     "errors": {
       "missing": "Please enter email and order password",
       "notFound": "No matching order found, please verify inputs",
-      "searchFailed": "Search failed, please check info"
-    }
+      "searchFailed": "Search failed, please check info",
+      "browserFailed": "Failed to load browser orders",
+      "orderNoMissing": "Enter order number, email and order password"
+    },
+    "tabs": {
+      "browser": "Browser Orders",
+      "credentials": "Contact / Password",
+      "orderNo": "Order Number"
+    },
+    "browserEmpty": "No browser orders found",
+    "browserEmptyHint": "Only guest orders created in this browser appear here",
+    "orderNoPlaceholderRequired": "Order Number"
   },
   "guestOrderDetail": {
     "title": "Guest Order Detail",

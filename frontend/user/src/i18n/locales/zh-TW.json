@@ -285,7 +285,8 @@
     "home": "首頁",
     "products": "商品",
     "cart": "購物車",
-    "me": "我的"
+    "me": "我的",
+    "orders": "訂單查詢"
   },
   "personalCenter": {
     "title": "個人中心",
@@ -338,7 +339,7 @@
     },
     "security": {
       "title": "安全中心",
-      "subtitle": "透過雙驗證碼流程完成信箱更換",
+      "subtitle": "管理登入記錄、密碼與雙重驗證",
       "subtitleBindOnly": "目前帳號尚未綁定真實信箱，請先完成信箱綁定",
       "currentEmailLabel": "目前信箱",
       "bindOnlyEmailDisplay": "Telegram 臨時信箱（未綁定）",
@@ -1710,8 +1711,18 @@
     "errors": {
       "missing": "請輸入信箱與訂單密碼",
       "notFound": "未找到匹配訂單，請檢查輸入資訊",
-      "searchFailed": "查詢失敗，請檢查資訊"
-    }
+      "searchFailed": "查詢失敗，請檢查資訊",
+      "browserFailed": "瀏覽器訂單載入失敗",
+      "orderNoMissing": "請輸入訂單編號、電子郵件和訂單密碼"
+    },
+    "tabs": {
+      "browser": "瀏覽器訂單",
+      "credentials": "聯絡方式/訂單密碼",
+      "orderNo": "訂單編號"
+    },
+    "browserEmpty": "此瀏覽器暫無訂單",
+    "browserEmptyHint": "僅顯示使用目前瀏覽器建立的訪客訂單",
+    "orderNoPlaceholderRequired": "訂單編號"
   },
   "guestOrderDetail": {
     "title": "遊客訂單詳情",

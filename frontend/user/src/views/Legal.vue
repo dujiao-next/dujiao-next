@@ -16,7 +16,7 @@
 
         <div
           class="prose prose-gray dark:prose-invert prose-lg max-w-none prose-headings:font-bold prose-headings:tracking-tight prose-a:no-underline transition-colors theme-prose"
-          v-html="content"></div>
+          v-html="sanitizeRichHtml(content)"></div>
 
         <div v-if="!content" class="text-center text-muted-foreground py-20 flex flex-col items-center">
           <FileText class="w-12 h-12 mb-4 text-muted-foreground" :stroke-width="1.5" />
@@ -32,6 +32,7 @@ import { useI18n } from 'vue-i18n'
 import { FileText, Loader2 } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { useLegal } from '../composables/useLegal'
+import { sanitizeRichHtml } from '../utils/richContent'
 
 const { t } = useI18n()
 

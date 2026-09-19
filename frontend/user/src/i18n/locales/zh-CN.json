@@ -238,7 +238,8 @@
     "home": "首页",
     "products": "商品",
     "cart": "购物车",
-    "me": "我的"
+    "me": "我的",
+    "orders": "订单查询"
   },
   "personalCenter": {
     "title": "个人中心",
@@ -291,7 +292,7 @@
     },
     "security": {
       "title": "安全中心",
-      "subtitle": "通过双验证码流程完成邮箱换绑",
+      "subtitle": "管理登录记录、密码与双重验证",
       "subtitleBindOnly": "当前账号未绑定真实邮箱，请先完成邮箱绑定",
       "currentEmailLabel": "当前邮箱",
       "bindOnlyEmailDisplay": "Telegram 临时邮箱（未绑定）",
@@ -1663,8 +1664,18 @@
     "errors": {
       "missing": "请输入邮箱与订单密码",
       "notFound": "未找到匹配订单，请检查输入信息",
-      "searchFailed": "查询失败，请检查信息"
-    }
+      "searchFailed": "查询失败，请检查信息",
+      "browserFailed": "浏览器订单加载失败",
+      "orderNoMissing": "请输入订单编号、邮箱和订单密码"
+    },
+    "tabs": {
+      "browser": "浏览器订单",
+      "credentials": "联系方式/订单密码",
+      "orderNo": "订单编号"
+    },
+    "browserEmpty": "此浏览器暂无订单",
+    "browserEmptyHint": "仅显示使用当前浏览器创建的游客订单",
+    "orderNoPlaceholderRequired": "订单编号"
   },
   "guestOrderDetail": {
     "title": "游客订单详情",

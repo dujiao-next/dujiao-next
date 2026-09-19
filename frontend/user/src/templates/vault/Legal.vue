@@ -9,7 +9,7 @@
       <div
         v-if="content"
         class="prose max-w-none dark:prose-invert prose-a:text-primary prose-img:rounded-md"
-        v-html="content"
+        v-html="sanitizeRichHtml(content)"
       ></div>
       <div v-else class="flex flex-col items-center gap-3 py-16 text-center text-muted-foreground">
         <FileText class="h-10 w-10 opacity-60" />
@@ -24,6 +24,7 @@ import { useI18n } from 'vue-i18n'
 import { FileText, Loader2 } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { useLegal } from '../../composables/useLegal'
+import { sanitizeRichHtml } from '../../utils/richContent'
 
 const { t } = useI18n()
 

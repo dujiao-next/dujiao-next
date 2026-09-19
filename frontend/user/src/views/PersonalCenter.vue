@@ -266,16 +266,7 @@
           <SecurityPanel v-else-if="currentSection === 'security'" />
           <OrdersPanel v-else-if="currentSection === 'orders'" />
           <WalletPanel v-else-if="currentSection === 'wallet'" />
-          <AffiliatePanel v-else-if="currentSection === 'affiliate'" />
-          <div v-else-if="currentSection === 'reseller' && canAccessResellerConsole" class="rounded-2xl border bg-card p-6 shadow-sm">
-            <h2 class="text-xl font-bold text-foreground">{{ t('resellerConsole.title') }}</h2>
-            <p class="mt-2 text-sm text-muted-foreground">{{ t('resellerConsole.dashboard.description') }}</p>
-            <Button as-child class="mt-5">
-              <router-link to="/reseller">{{ t('resellerConsole.nav.dashboard') }}</router-link>
-            </Button>
-          </div>
           <GiftCardPanel v-else-if="currentSection === 'giftCard'" />
-          <ApiPanel v-else-if="currentSection === 'api'" />
           <OrdersPanel v-else />
         </section>
       </div>
@@ -297,8 +288,7 @@ import SecurityPanel from './personal/SecurityPanel.vue'
 import OrdersPanel from './personal/OrdersPanel.vue'
 import WalletPanel from './personal/WalletPanel.vue'
 import GiftCardPanel from './personal/GiftCardPanel.vue'
-import AffiliatePanel from './personal/AffiliatePanel.vue'
-import ApiPanel from './personal/ApiPanel.vue'
+
 import { usePersonalCenter, type PersonalSection } from '../composables/usePersonalCenter'
 
 const { t } = useI18n()
@@ -308,7 +298,7 @@ const props = withDefaults(defineProps<{ section?: PersonalSection }>(), {
 })
 
 const {
-  userProfileStore, canAccessResellerConsole, visibleSectionItems, currentSection, globalAlert,
+  userProfileStore, visibleSectionItems, currentSection, globalAlert,
   displayInitial, switchSection, statusLabel, statusVariant, formatMoney, formatDate,
   emailVerifiedLabel, emailVerifiedVariant, discountText, isImagePath, levelName,
 } = usePersonalCenter(() => props.section)

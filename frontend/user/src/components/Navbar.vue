@@ -37,18 +37,6 @@
 
       <!-- Right Side Actions -->
       <div class="flex items-center shrink-0 space-x-2 lg:space-x-4">
-        <!-- Cart (desktop only, mobile has bottom nav) -->
-        <Button as-child variant="ghost" size="sm" class="hidden lg:flex relative gap-2 text-muted-foreground">
-          <router-link to="/cart">
-            <ShoppingCart class="w-4 h-4 shrink-0" />
-            <span class="text-xs font-medium">{{ t('navbar.cart') }}</span>
-            <span v-if="cartCount > 0"
-              class="absolute -top-1 -right-1 inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none min-w-[1.1rem] bg-primary text-primary-foreground"
-              :class="{ 'theme-bounce-in': cartBounce }">
-              {{ cartCount }}
-            </span>
-          </router-link>
-        </Button>
 
         <Button v-if="!userAuthStore.isAuthenticated" as-child variant="ghost" size="sm"
           class="hidden lg:inline-flex gap-1.5 text-muted-foreground whitespace-nowrap">
@@ -204,16 +192,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '../stores/app'
-import { useCartStore } from '../stores/cart'
+
 import { useUserAuthStore } from '../stores/userAuth'
 import { useTheme } from '../utils/theme'
 import { getImageUrl } from '../utils/image'
 import { useNavConfig } from '../composables/useNavConfig'
 import {
-  Sun, Moon, ShoppingCart, ClipboardList, LogIn, User, LogOut, Languages,
+  Sun, Moon, ClipboardList, LogIn, User, LogOut, Languages,
   EllipsisVertical, X,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -221,7 +209,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 
 const { t } = useI18n()
 const appStore = useAppStore()
-const cartStore = useCartStore()
+
 const userAuthStore = useUserAuthStore()
 const { theme, toggleTheme } = useTheme()
 const { primaryNavItems, secondaryNavItems } = useNavConfig()
@@ -229,7 +217,7 @@ const { primaryNavItems, secondaryNavItems } = useNavConfig()
 const showMobileMenu = ref(false)
 const langOpen = ref(false)
 const scrolled = ref(false)
-const cartBounce = ref(false)
+
 
 const menuItems = primaryNavItems
 
@@ -248,7 +236,6 @@ const currentLocale = computed(() => {
   return lang.code === 'en-US' ? 'EN' : (lang.code === 'zh-CN' ? '简' : '繁')
 })
 
-const cartCount = computed(() => cartStore.totalItems)
 
 const brandSiteName = computed(() => {
   const text = String(appStore.config?.brand?.site_name || '').trim()
@@ -273,13 +260,6 @@ const handleScroll = () => {
   scrolled.value = window.scrollY > 20
 }
 
-// Cart badge bounce animation on count change
-watch(cartCount, (newVal, oldVal) => {
-  if (newVal > oldVal) {
-    cartBounce.value = true
-    setTimeout(() => { cartBounce.value = false }, 400)
-  }
-})
 
 onMounted(() => {
   window.addEventListener('scroll', handleScroll, { passive: true })

@@ -114,12 +114,12 @@ const router = createRouter({
     routes: [
         {
             path: '/',
-            name: 'home',
-            component: templateView('Home', homeViewLoader),
+            name: 'products',
+            component: templateView('Products', productsViewLoader),
         },
         {
             path: '/products',
-            name: 'products',
+            name: 'product-catalog',
             component: () => {
                 const appStore = useAppStore()
                 return appStore.config?.template_mode === 'list'
@@ -202,22 +202,20 @@ const router = createRouter({
         {
             path: '/me/api',
             name: 'personal-center-api',
-            component: templateView('PersonalCenter', () => import('../views/PersonalCenter.vue')),
-            props: { section: 'api' },
+            redirect: '/me',
             meta: { requiresUserAuth: true }
         },
         {
             path: '/me/affiliate',
             name: 'personal-center-affiliate',
-            component: templateView('PersonalCenter', () => import('../views/PersonalCenter.vue')),
-            props: { section: 'affiliate' },
+            redirect: '/me',
             meta: { requiresUserAuth: true }
         },
         {
             path: '/me/reseller',
             name: 'personal-center-reseller',
-            redirect: '/reseller',
-            meta: { requiresUserAuth: true, resellerConsole: true }
+            redirect: '/me',
+            meta: { requiresUserAuth: true }
         },
         {
             path: '/reseller',
@@ -332,7 +330,8 @@ router.beforeEach(async (to, _from, next) => {
     const appStore = useAppStore()
     void captureAffiliateFromRoute(to)
 
-    // Ensure config is loaded before checking template mode
+    // 路由组件会根据站点配置选择模板与列表模式。导航解析前只等待配置，
+    // Vue 本身仍会立即挂载，因此不会重新引入全屏 loading 或挂载阻塞。
     if (!appStore.config) {
         await appStore.loadConfig()
     }
