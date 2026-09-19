@@ -677,6 +677,10 @@ const applyLocale = (value: string) => {
   localStorage.setItem('admin_locale', value)
 }
 
+const preventMobileNavAutoFocus = (event: Event) => {
+  event.preventDefault()
+}
+
 const toggleSidebar = () => {
   sidebarCollapsed.value = !sidebarCollapsed.value
   sidebarUserToggled.value = true
@@ -865,7 +869,12 @@ onBeforeUnmount(() => {
 
       <!-- Mobile sidebar (Sheet) -->
       <Sheet v-model:open="mobileNavOpen">
-        <SheetContent v-if="mobileNavOpen" side="left" class="w-72 p-0 flex flex-col">
+        <SheetContent
+          v-if="mobileNavOpen"
+          side="left"
+          class="w-72 p-0 flex flex-col"
+          @open-auto-focus="preventMobileNavAutoFocus"
+        >
           <SheetTitle class="sr-only">{{ t('admin.layout.navigation') }}</SheetTitle>
           <div class="px-6 py-6">
             <div class="text-xl font-semibold tracking-tight">

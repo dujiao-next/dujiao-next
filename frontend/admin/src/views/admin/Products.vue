@@ -640,7 +640,13 @@ watch(
                   <span v-else>{{ t('admin.common.noImage') }}</span>
                 </div>
                 <div class="min-w-0 flex-1">
-                  <div class="font-medium text-foreground break-words">{{ getLocalizedText(product.title) }}</div>
+                  <button
+                    type="button"
+                    class="font-medium cursor-pointer text-left text-foreground break-words hover:text-primary hover:underline underline-offset-2"
+                    @click="openEditById(product.id)"
+                  >
+                    {{ getLocalizedText(product.title) }}
+                  </button>
                   <div class="text-xs text-muted-foreground font-mono break-all">{{ product.slug }}</div>
                   <div class="mt-2 flex flex-wrap gap-2">
                     <span class="rounded-full border px-2 py-0.5 text-[11px]" :class="purchaseTypeBadgeClass(product)">
