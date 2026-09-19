@@ -121,7 +121,7 @@ const langOpen = ref(false)
 const scrolled = ref(false)
 
 
-const menuItems = primaryNavItems
+const menuItems = computed(() => primaryNavItems.value.filter((item) => item.path !== '/'))
 
 const languages = [
   { code: 'zh-CN', name: '简体中文' },

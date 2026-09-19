@@ -12,7 +12,7 @@
 
     <!-- Content -->
     <template v-else-if="product">
-      <nav class="flex flex-wrap items-center gap-1.5 py-5 pb-2 text-[13.5px] font-semibold text-muted-foreground">
+      <nav class="flex flex-wrap items-center gap-1.5 py-5 pb-2 text-[13.5px] font-semibold text-muted-foreground lg:hidden">
         <RouterLink to="/" class="hover:text-primary">{{ t('nav.home') }}</RouterLink>
         <ChevronRight class="h-4 w-4 flex-none" />
         <RouterLink to="/products" class="hover:text-primary">{{ t('nav.products') }}</RouterLink>

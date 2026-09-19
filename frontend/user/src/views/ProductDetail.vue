@@ -34,7 +34,7 @@
       <!-- Product Content -->
       <div v-else-if="product">
         <BreadcrumbNav
-          class="mb-8"
+          class="mb-8 lg:hidden"
           :items="[
             { label: t('nav.home'), to: '/' },
             { label: t('nav.products'), to: '/products' },
