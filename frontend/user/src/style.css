@@ -401,7 +401,7 @@ html[data-telegram-mini-app="true"] body {
 
   /* Animation classes */
   .theme-slide-up {
-    animation: theme-slide-up var(--ui-duration-normal) var(--ui-ease-out) both;
+    animation: theme-slide-up 240ms var(--ui-ease-out) both;
   }
 
   .theme-bounce-in {
@@ -428,6 +428,13 @@ html[data-telegram-mini-app="true"] body {
 @keyframes theme-slide-up {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-slide-up,
+  .theme-bounce-in {
+    animation: none !important;
+  }
 }
 
 @keyframes theme-bounce-in {

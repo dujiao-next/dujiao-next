@@ -51,11 +51,15 @@ const isVault = computed(() => getActiveTemplate() === 'vault')
 
 <style>
 .route-page {
-  animation: page-fade-in 200ms ease both;
+  animation: page-fade-in 260ms var(--ui-ease-out) both;
 }
 
 @keyframes page-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from { opacity: 0; transform: translateY(8px) scale(0.998); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-page { animation: none; }
 }
 </style>

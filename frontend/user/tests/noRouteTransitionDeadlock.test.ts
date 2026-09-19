@@ -8,5 +8,5 @@ test('route animation cannot retain both old and new route roots', () => {
   assert.doesNotMatch(app, /<Transition\s+name="page-fade"/)
   assert.match(app, /class="route-page"/)
   assert.match(app, /@keyframes page-fade-in/)
-  assert.match(app, /animation:\s*page-fade-in 200ms ease both/)
+  assert.match(app, /animation:\s*page-fade-in 260ms var\(--ui-ease-out\) both/)
 })
