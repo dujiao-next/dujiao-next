@@ -22,13 +22,9 @@ const loginViewLoader: RouteComponentLoader = () => import('../views/auth/Login.
 const resellerLayoutLoader: RouteComponentLoader = () => import('../views/reseller/ResellerConsoleLayout.vue')
 
 const routeWarmupLoaders: RouteComponentLoader[] = [
-    productsViewLoader,
     productDetailViewLoader,
-    cartViewLoader,
     checkoutViewLoader,
     paymentViewLoader,
-    blogViewLoader,
-    noticeViewLoader,
     loginViewLoader,
 ]
 

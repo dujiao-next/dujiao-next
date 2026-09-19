@@ -133,18 +133,6 @@
         </div>
 
         <div class="flex items-center gap-2">
-          <!-- Quick buy cart button -->
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            class="w-8 h-8 md:w-9 md:h-9"
-            :aria-label="t('products.quickBuyAria')"
-            :disabled="isSoldOut(product)"
-            @click.stop="$emit('quickBuy', product)"
-          >
-            <ShoppingCart class="h-4 w-4" />
-          </Button>
           <!-- Desktop: view details -->
           <span
             class="hidden md:flex text-xs uppercase font-bold transition-colors items-center gap-1"
@@ -164,11 +152,10 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { computed, ref, watch } from 'vue'
-import { ArrowRight, ChevronRight, Image as ImageIcon, Lock, Pencil, ShoppingCart, UserPlus, Zap } from 'lucide-vue-next'
+import { ArrowRight, ChevronRight, Image as ImageIcon, Lock, Pencil, UserPlus, Zap } from 'lucide-vue-next'
 import { getFirstImageUrl, getImageUrl } from '../utils/image'
 import { useLocalized, useProductLabels } from '../composables/useProduct'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 
 const props = withDefaults(defineProps<{
@@ -184,7 +171,6 @@ const props = withDefaults(defineProps<{
 
 defineEmits<{
   click: [slug: string]
-  quickBuy: [product: any]
 }>()
 
 const { t } = useI18n()

@@ -37,14 +37,13 @@
         </div>
         <div v-else-if="products.length">
           <div class="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 lg:grid-cols-4">
-            <ProductCard v-for="(product, idx) in products" :key="product.id" :product="product" :index="idx" :max-tags="isMobileGrid ? 1 : 2" :animation-step="50" @click="goToProduct" @quick-buy="openQuickBuy" />
+            <ProductCard v-for="(product, idx) in products" :key="product.id" :product="product" :index="idx" :max-tags="isMobileGrid ? 1 : 2" :animation-step="50" @click="goToProduct" />
           </div>
           <PaginationNav :current-page="currentPage" :total-pages="totalPages" :loading="loading" @change-page="changePage" />
         </div>
         <EmptyState v-else variant="soft" size="lg" icon="package" :title="t('products.empty')" />
       </main>
     </div>
-    <ProductQuickBuy v-if="quickBuyProduct" :product="quickBuyProduct" :visible="quickBuyVisible" @update:visible="quickBuyVisible = $event" />
   </div>
 </template>
 
@@ -60,7 +59,6 @@ import { useLocalized } from '../composables/useProduct'
 import { getImageUrl } from '../utils/image'
 import { sanitizeRichHtml } from '../utils/richContent'
 import ProductCard from '../components/ProductCard.vue'
-import ProductQuickBuy from '../components/ProductQuickBuy.vue'
 import PaginationNav from '../components/PaginationNav.vue'
 import EmptyState from '../components/EmptyState.vue'
 
@@ -74,9 +72,6 @@ const announcementTitle = computed(() => getLocalizedText(appStore.config?.annou
 const announcementContent = computed(() => sanitizeRichHtml(getLocalizedText(appStore.config?.announcement?.content) || '<p>欢迎访问雪糕数卡，请在购买前仔细阅读商品说明。</p>'))
 const selectedCategoryTitle = computed(() => selectedCategory.value ? getLocalizedText(categoryMap.value.get(selectedCategory.value)?.name) : t('products.allCategories'))
 usePageSeo({ canonicalPath: () => route.path, title: () => selectedCategoryTitle.value })
-const quickBuyProduct = ref<any>(null)
-const quickBuyVisible = ref(false)
-const openQuickBuy = (product: any) => { quickBuyProduct.value = product; quickBuyVisible.value = true }
 const goToProduct = (slug: string) => router.push(`/products/${slug}`)
 const isMobileGrid = ref(window.innerWidth < 768)
 const handleResize = () => { isMobileGrid.value = window.innerWidth < 768 }
