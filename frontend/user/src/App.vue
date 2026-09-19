@@ -4,7 +4,7 @@
     <VaultLayout v-if="isVault && !isResellerConsole">
       <ErrorBoundary>
         <RouterView v-slot="{ Component, route }">
-          <component :is="Component" :key="route.fullPath" class="route-page" />
+          <component :is="Component" :key="routeRenderKey(route)" class="route-page" />
         </RouterView>
       </ErrorBoundary>
     </VaultLayout>
@@ -15,7 +15,7 @@
       <main class="flex-1" :class="isResellerConsole ? '' : 'pb-14 lg:pb-0'">
         <ErrorBoundary>
           <RouterView v-slot="{ Component, route }">
-            <component :is="Component" :key="route.fullPath" class="route-page" />
+            <component :is="Component" :key="routeRenderKey(route)" class="route-page" />
           </RouterView>
         </ErrorBoundary>
       </main>
@@ -47,6 +47,10 @@ const route = useRoute()
 const isResellerConsole = computed(() => route.meta.resellerConsole === true)
 // getActiveTemplate 读取 appStore.config（响应式），config 加载后会重新计算
 const isVault = computed(() => getActiveTemplate() === 'vault')
+const routeRenderKey = (target: { name?: unknown; fullPath: string }) => {
+  const name = String(target.name || '')
+  return name === 'products' || name === 'category-products' ? 'product-list' : target.fullPath
+}
 </script>
 
 <style>

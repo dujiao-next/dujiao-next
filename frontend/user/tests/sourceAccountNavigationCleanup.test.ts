@@ -77,6 +77,6 @@ test('registration verification remains backend-controlled through shared native
 test('route fade is keyed and cannot retain the prior route', () => {
   assert.equal((app.match(/class="route-page"/g) || []).length, 2)
   assert.doesNotMatch(app, /<Transition name="page-fade"|mode="out-in"/)
-  assert.equal((app.match(/:key="route\.fullPath"/g) || []).length, 2)
+  assert.equal((app.match(/:key="routeRenderKey\(route\)"/g) || []).length, 2)
   assert.match(app, /animation: page-fade-in 260ms var\(--ui-ease-out\) both/)
 })
