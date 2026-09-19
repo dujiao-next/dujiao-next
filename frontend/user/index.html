@@ -4,6 +4,28 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light dark" />
+  <style>
+    :root { color-scheme: light dark; background: #f5f5f7; }
+    html, body, #app { min-height: 100%; margin: 0; background: #f5f5f7; }
+    html.dark, html.dark body, html.dark #app { background: #000; }
+    @media (prefers-color-scheme: dark) {
+      :root, html, body, #app { background: #000; }
+      html.light, html.light body, html.light #app { background: #f5f5f7; }
+    }
+  </style>
+  <script>
+    (() => {
+      try {
+        const saved = localStorage.getItem('dujiao_theme')
+        const dark = saved === 'dark' || (saved !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)
+        document.documentElement.classList.toggle('dark', dark)
+        document.documentElement.classList.toggle('light', !dark)
+      } catch {
+        document.documentElement.classList.toggle('dark', matchMedia('(prefers-color-scheme: dark)').matches)
+      }
+    })()
+  </script>
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
   <link rel="shortcut icon" href="/favicon-v2.ico" />
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
