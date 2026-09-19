@@ -865,7 +865,7 @@ onBeforeUnmount(() => {
 
       <!-- Mobile sidebar (Sheet) -->
       <Sheet v-model:open="mobileNavOpen">
-        <SheetContent side="left" class="w-72 p-0 flex flex-col">
+        <SheetContent v-if="mobileNavOpen" side="left" class="w-72 p-0 flex flex-col">
           <SheetTitle class="sr-only">{{ t('admin.layout.navigation') }}</SheetTitle>
           <div class="px-6 py-6">
             <div class="text-xl font-semibold tracking-tight">
@@ -884,6 +884,7 @@ onBeforeUnmount(() => {
             <RouterLink
               v-if="showDashboardNav"
               to="/"
+              @click="mobileNavOpen = false"
               class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors"
               :class="isItemActive('/') ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-secondary/70'"
             >
@@ -917,6 +918,7 @@ onBeforeUnmount(() => {
                   v-for="item in group.items"
                   :key="`mobile-${group.id}-${item.to}`"
                   :to="item.to"
+                  @click="mobileNavOpen = false"
                   class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors"
                   :class="isItemActive(item.to) ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground'"
                 >
