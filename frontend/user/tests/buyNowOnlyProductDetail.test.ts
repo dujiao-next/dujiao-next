@@ -17,3 +17,10 @@ test('all product purchase surfaces are buy-now only', () => {
     assert.match(source, /buyNow|buy-now/, path)
   }
 })
+
+test('the surviving primary buy button fills the former action row', () => {
+  const classic = read('src/views/ProductDetail.vue')
+  const vault = read('src/templates/vault/ProductDetail.vue')
+  assert.match(classic, /<Button class="[^"]*w-full[^"]*"[^>]*@click="buyNow"/)
+  assert.match(vault, /<Button class="[^"]*flex-1[^"]*"[^>]*@click="buyNow"/)
+})

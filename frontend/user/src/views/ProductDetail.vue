@@ -294,7 +294,7 @@
                     {{ t('productDetail.loginToBuy') }}
                   </Button>
                   <div v-else>
-                    <Button class="h-12 font-bold" :disabled="!canPurchase" @click="buyNow">
+                    <Button class="h-12 w-full font-bold" :disabled="!canPurchase" @click="buyNow">
                       {{ t('productDetail.buyNow') }}
                     </Button>
                   </div>
