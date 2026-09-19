@@ -20,6 +20,7 @@ import { formatDate, getLocalizedText } from '@/utils/format'
 import { confirmAction } from '@/utils/confirm'
 import CardSecretEditModal from './components/CardSecretEditModal.vue'
 import { adminUrl } from '@/utils/adminBase'
+import { buttonVariants } from '@/components/ui/button'
 
 const { t } = useI18n()
 const { refreshing, refreshList } = useListRefresh()
@@ -738,12 +739,10 @@ onMounted(async () => {
   <div class="space-y-6">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <h1 class="text-2xl font-semibold">{{ t('admin.cardSecrets.title') }}</h1>
-      <Button class="w-full sm:w-auto" as-child>
-        <RouterLink to="/card-secret-imports">
-          <Upload class="mr-2 h-4 w-4" />
-          {{ t('admin.cardSecrets.importAction') }}
-        </RouterLink>
-      </Button>
+      <RouterLink :class="[buttonVariants(), 'w-full sm:w-auto']" to="/card-secret-imports">
+        <Upload class="mr-2 h-4 w-4" />
+        {{ t('admin.cardSecrets.importAction') }}
+      </RouterLink>
     </div>
 
     <div v-if="!currentProductId" class="rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 p-8">
