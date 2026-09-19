@@ -11,18 +11,18 @@
 
       <section class="category-card-grid mt-5 flex gap-2.5 overflow-x-auto pb-2 md:mt-6 md:flex-wrap md:gap-3">
         <button type="button" class="category-pill" :class="{ 'category-pill-active': selectedCategory === null }" @click="selectCategory(null)">
-          <span class="category-icon bg-primary text-primary-foreground"><FolderOpen class="h-4 w-4" /></span>
+          <span class="category-icon"><FolderOpen class="h-4 w-4" /></span>
           <span>{{ t('products.allCategories') }}</span>
         </button>
         <template v-for="group in categoryGroups" :key="group.id">
           <button type="button" class="category-pill" :class="{ 'category-pill-active': selectedCategory === group.id }" @click="selectCategory(group.id)">
             <img v-if="group.icon" :src="getImageUrl(group.icon)" :alt="getLocalizedText(group.name)" class="category-icon object-cover" />
-            <span v-else class="category-icon bg-secondary text-primary"><FolderOpen class="h-4 w-4" /></span>
+            <span v-else class="category-icon"><FolderOpen class="h-4 w-4" /></span>
             <span>{{ getLocalizedText(group.name) }}</span>
           </button>
           <button v-for="child in group.children" :key="child.id" type="button" class="category-pill" :class="{ 'category-pill-active': selectedCategory === child.id }" @click="selectCategory(child.id)">
             <img v-if="child.icon" :src="getImageUrl(child.icon)" :alt="getLocalizedText(child.name)" class="category-icon object-cover" />
-            <span v-else class="category-icon bg-secondary text-primary"><FolderOpen class="h-4 w-4" /></span>
+            <span v-else class="category-icon"><FolderOpen class="h-4 w-4" /></span>
             <span>{{ getLocalizedText(child.name) }}</span>
           </button>
         </template>
@@ -108,6 +108,7 @@ onUnmounted(() => { window.removeEventListener('resize', handleResize); cleanup(
 .category-pill { display:flex; flex:none; align-items:center; gap:.55rem; min-height:2.75rem; padding:.35rem .85rem .35rem .4rem; border:1px solid hsl(var(--border)); border-radius:1rem; background:hsl(var(--card)); color:hsl(var(--muted-foreground)); font-size:.875rem; font-weight:600; transition:all .18s ease; }
 .category-pill:hover { border-color:hsl(var(--primary)/.45); color:hsl(var(--foreground)); transform:translateY(-1px); }
 .category-pill-active { border-color:hsl(var(--primary)); background:hsl(var(--primary)/.08); color:hsl(var(--primary)); }
-.category-icon { display:grid; width:2rem; height:2rem; flex:none; place-items:center; border-radius:.65rem; }
+.category-icon { display:grid; width:2rem; height:2rem; flex:none; place-items:center; border-radius:.65rem; background:hsl(var(--secondary)); color:hsl(var(--primary)); transition:background-color .18s ease,color .18s ease; }
+.category-pill-active .category-icon { background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); }
 .announcement-content :deep(a) { color:hsl(var(--primary)); text-decoration:underline; text-underline-offset:3px; }
 </style>
