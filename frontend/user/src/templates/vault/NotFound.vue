@@ -7,27 +7,9 @@
       <h1 class="mt-3 text-3xl font-extrabold">{{ t('notFoundPage.title') }}</h1>
       <p class="mx-auto mt-3 max-w-prose leading-relaxed text-muted-foreground">{{ t('notFoundPage.description', { site: brandSiteName }) }}</p>
 
-      <div class="mt-7 rounded-md border bg-secondary p-5 text-left">
-        <p class="mb-3 text-[11px] uppercase tracking-[0.12em] text-muted-foreground">{{ t('notFoundPage.quickLinksTitle') }}</p>
-        <div class="flex flex-wrap gap-2">
-          <Button as-child variant="outline" size="sm" class="rounded-full">
-            <RouterLink to="/products"><ShoppingBag /> {{ t('nav.products') }}</RouterLink>
-          </Button>
-          <Button as-child variant="outline" size="sm" class="rounded-full">
-            <RouterLink to="/notice"><Bell /> {{ t('nav.notice') }}</RouterLink>
-          </Button>
-          <Button as-child variant="outline" size="sm" class="rounded-full">
-            <RouterLink to="/blog"><BookOpen /> {{ t('nav.blog') }}</RouterLink>
-          </Button>
-        </div>
-      </div>
-
-      <div class="mt-7 flex flex-wrap justify-center gap-3.5">
+      <div class="mt-7 flex justify-center">
         <Button as-child class="h-11 rounded-full px-6 font-bold max-[640px]:w-full">
-          <RouterLink to="/"><Home /> {{ t('notFoundPage.backHome') }}</RouterLink>
-        </Button>
-        <Button variant="outline" class="h-11 rounded-full px-6 font-bold max-[640px]:w-full" @click="goBack">
-          <ArrowLeft /> {{ t('notFoundPage.backPrevious') }}
+          <RouterLink to="/"><ShoppingBag /> {{ t('notFoundPage.backProducts') }}</RouterLink>
         </Button>
       </div>
     </Card>
@@ -36,7 +18,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Bell, BookOpen, Frown, Home, Info, ShoppingBag } from 'lucide-vue-next'
+import { Frown, Info, ShoppingBag } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -44,5 +26,5 @@ import { useNotFound } from '../../composables/useNotFound'
 
 const { t } = useI18n()
 
-const { brandSiteName, goBack } = useNotFound()
+const { brandSiteName } = useNotFound()
 </script>

@@ -108,7 +108,8 @@
     "description": "你訪問的頁面可能已移動、刪除，或連結地址有誤。你可以繼續瀏覽 {site} 的其他內容。",
     "quickLinksTitle": "你可能會用到",
     "backHome": "返回首頁",
-    "backPrevious": "返回上一頁"
+    "backPrevious": "返回上一頁",
+    "backProducts": "返回商品列表"
   },
   "home": {
     "hero": {

@@ -17,42 +17,12 @@
           {{ t('notFoundPage.description', { site: brandSiteName }) }}
         </p>
 
-        <div class="mt-8 rounded-2xl border bg-muted/40 p-4 text-left">
-          <p class="text-xs uppercase tracking-widest text-muted-foreground mb-3">
-            {{ t('notFoundPage.quickLinksTitle') }}
-          </p>
-          <div class="flex flex-wrap gap-2">
-            <Button variant="secondary" size="sm" as-child>
-              <RouterLink to="/products">
-                <ShoppingBag class="opacity-70" />
-                {{ t('nav.products') }}
-              </RouterLink>
-            </Button>
-            <Button variant="secondary" size="sm" as-child>
-              <RouterLink to="/notice">
-                <Bell class="opacity-70" />
-                {{ t('nav.notice') }}
-              </RouterLink>
-            </Button>
-            <Button variant="secondary" size="sm" as-child>
-              <RouterLink to="/blog">
-                <BookOpen class="opacity-70" />
-                {{ t('nav.blog') }}
-              </RouterLink>
-            </Button>
-          </div>
-        </div>
-
-        <div class="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+        <div class="mt-10 flex items-center justify-center">
           <Button as-child class="min-w-[180px] h-12">
             <RouterLink to="/">
-              <Home />
-              {{ t('notFoundPage.backHome') }}
+              <ShoppingBag />
+              {{ t('notFoundPage.backProducts') }}
             </RouterLink>
-          </Button>
-          <Button type="button" variant="secondary" class="min-w-[180px] h-12" @click="goBack">
-            <ArrowLeft />
-            {{ t('notFoundPage.backPrevious') }}
           </Button>
         </div>
       </Card>
@@ -62,7 +32,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Bell, BookOpen, Frown, Home, Info, ShoppingBag } from 'lucide-vue-next'
+import { Frown, Info, ShoppingBag } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -70,5 +40,5 @@ import { useNotFound } from '../composables/useNotFound'
 
 const { t } = useI18n()
 
-const { brandSiteName, goBack } = useNotFound()
+const { brandSiteName } = useNotFound()
 </script>

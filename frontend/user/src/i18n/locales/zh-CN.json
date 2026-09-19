@@ -108,7 +108,8 @@
     "description": "你访问的页面可能已移动、删除，或链接地址有误。你可以继续浏览 {site} 的其他内容。",
     "quickLinksTitle": "你可能会用到",
     "backHome": "返回首页",
-    "backPrevious": "返回上一页"
+    "backPrevious": "返回上一页",
+    "backProducts": "返回商品列表"
   },
   "home": {
     "hero": {
