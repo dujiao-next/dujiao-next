@@ -873,6 +873,7 @@ onBeforeUnmount(() => {
           v-if="mobileNavOpen"
           side="left"
           class="w-72 p-0 flex flex-col"
+          style="animation: none; transform: translateX(0);"
           @open-auto-focus="preventMobileNavAutoFocus"
         >
           <SheetTitle class="sr-only">{{ t('admin.layout.navigation') }}</SheetTitle>

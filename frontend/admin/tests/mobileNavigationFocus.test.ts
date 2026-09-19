@@ -7,5 +7,6 @@ const layout = fs.readFileSync(new URL('../src/layouts/AdminLayout.vue', import.
 test('opening mobile navigation does not autofocus the search field', () => {
   const mobileBlock = layout.match(/<!-- Mobile sidebar \(Sheet\) -->([\s\S]*?)<\/Sheet>/)?.[1] ?? ''
   assert.match(mobileBlock, /<SheetContent[\s\S]*?@open-auto-focus="preventMobileNavAutoFocus"/)
+  assert.match(mobileBlock, /style="animation: none; transform: translateX\(0\);"/)
   assert.match(layout, /const preventMobileNavAutoFocus = \(event: Event\) => \{[\s\S]*?event\.preventDefault\(\)/)
 })
