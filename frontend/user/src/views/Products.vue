@@ -48,7 +48,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { FolderOpen, Megaphone, Package } from 'lucide-vue-next'
@@ -68,8 +68,31 @@ const { t } = useI18n()
 const appStore = useAppStore()
 const { getLocalizedText } = useLocalized()
 const { loading, products, selectedCategory, currentPage, totalPages, categoryGroups, categoryMap, selectCategory, changePage, initialize, cleanup } = useProductList({ pageSize: 12, homeRouteName: 'products' })
-const announcementTitle = computed(() => getLocalizedText(appStore.config?.announcement?.title) || '站点公告')
-const announcementContent = computed(() => sanitizeRichHtml(getLocalizedText(appStore.config?.announcement?.content) || '<p>欢迎访问雪糕数卡，请在购买前仔细阅读商品说明。</p>'))
+const announcementCacheKey = 'storefront:last-announcement'
+const readCachedAnnouncement = () => {
+  try {
+    const value = JSON.parse(localStorage.getItem(announcementCacheKey) || 'null')
+    return value && typeof value === 'object' ? value : null
+  } catch {
+    return null
+  }
+}
+const writeCachedAnnouncement = (announcement: any) => {
+  try {
+    localStorage.setItem(announcementCacheKey, JSON.stringify(announcement))
+  } catch {
+    // Storage may be unavailable in private/restricted browser contexts.
+  }
+}
+const cachedAnnouncement = ref<any>(readCachedAnnouncement())
+const currentAnnouncement = computed(() => appStore.config?.announcement || cachedAnnouncement.value)
+watch(() => appStore.config?.announcement, (announcement) => {
+  if (!announcement) return
+  cachedAnnouncement.value = announcement
+  writeCachedAnnouncement(announcement)
+}, { immediate: true })
+const announcementTitle = computed(() => getLocalizedText(currentAnnouncement.value?.title) || '站点公告')
+const announcementContent = computed(() => sanitizeRichHtml(getLocalizedText(currentAnnouncement.value?.content) || '<p>欢迎访问雪糕数卡，请在购买前仔细阅读商品说明。</p>'))
 const selectedCategoryTitle = computed(() => selectedCategory.value ? getLocalizedText(categoryMap.value.get(selectedCategory.value)?.name) : t('products.allCategories'))
 usePageSeo({ canonicalPath: () => route.path, title: () => selectedCategoryTitle.value })
 const goToProduct = (slug: string) => router.push(`/products/${slug}`)
