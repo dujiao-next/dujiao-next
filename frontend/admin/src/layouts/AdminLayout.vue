@@ -50,7 +50,6 @@ import { Menu } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { RefreshCw } from 'lucide-vue-next'
 import SystemUpdateDialog from '@/components/SystemUpdateDialog.vue'
 import { useAdminAuthStore } from '@/stores/auth'
@@ -677,10 +676,6 @@ const applyLocale = (value: string) => {
   localStorage.setItem('admin_locale', value)
 }
 
-const preventMobileNavAutoFocus = (event: Event) => {
-  event.preventDefault()
-}
-
 const toggleSidebar = () => {
   sidebarCollapsed.value = !sidebarCollapsed.value
   sidebarUserToggled.value = true
@@ -868,15 +863,17 @@ onBeforeUnmount(() => {
       </aside>
 
       <!-- Mobile sidebar (Sheet) -->
-      <Sheet v-model:open="mobileNavOpen">
-        <SheetContent
-          v-if="mobileNavOpen"
-          side="left"
-          class="w-72 p-0 flex flex-col"
-          style="animation: none; transform: translateX(0);"
-          @open-auto-focus="preventMobileNavAutoFocus"
-        >
-          <SheetTitle class="sr-only">{{ t('admin.layout.navigation') }}</SheetTitle>
+      <template v-if="mobileNavOpen">
+        <div class="fixed inset-0 z-50 bg-black/80" aria-hidden="true" @click="mobileNavOpen = false" />
+        <aside class="fixed inset-y-0 left-0 z-[51] flex w-72 flex-col border-r border-border bg-background shadow-lg" aria-label="Mobile navigation">
+          <button
+            type="button"
+            class="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-sm text-xl text-muted-foreground hover:text-foreground"
+            aria-label="Close navigation"
+            @click="mobileNavOpen = false"
+          >
+            ×
+          </button>
           <div class="px-6 py-6">
             <div class="text-xl font-semibold tracking-tight">
               {{ t('admin.brand') }}
@@ -939,8 +936,9 @@ onBeforeUnmount(() => {
           <div class="px-6 py-4 border-t border-border text-[11px] text-muted-foreground space-y-1">
             <p>© {{ new Date().getFullYear() }} Dujiao-Next <span v-if="appVersion" class="text-muted-foreground/70">{{ appVersion }}</span></p>
           </div>
-        </SheetContent>
-      </Sheet>
+        </aside>
+      </template>
+      <!-- Mobile sidebar end -->
 
       <div class="flex-1 flex flex-col min-w-0">
         <header class="flex items-center justify-between border-b border-border bg-background px-4 md:px-8 py-3 md:py-4 gap-2">
