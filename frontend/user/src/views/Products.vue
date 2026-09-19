@@ -1,199 +1,95 @@
 <template>
-  <div class="products-page min-h-screen bg-background text-foreground pt-20 pb-16">
+  <div class="products-page min-h-screen bg-background pb-16 pt-20 text-foreground">
     <div class="container mx-auto px-4">
-      <!-- Page Header -->
-      <div class="mb-12 mt-12 text-center">
-        <h1 class="text-4xl md:text-5xl font-black mb-4 tracking-tight text-foreground">{{ t('nav.products') }}</h1>
-        <p class="text-muted-foreground max-w-2xl mx-auto text-lg border-b pb-8">
-          {{ t('products.subtitle') }}
-        </p>
-      </div>
+      <section class="products-announcement mt-6 rounded-2xl border bg-card p-5 shadow-sm md:mt-8 md:p-6">
+        <div class="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
+          <span class="grid h-8 w-8 place-items-center rounded-full bg-secondary text-primary"><Megaphone class="h-4 w-4" /></span>
+          <span>{{ announcementTitle }}</span>
+        </div>
+        <div class="announcement-content text-sm leading-7 text-muted-foreground" v-html="announcementContent"></div>
+      </section>
 
-      <div class="flex flex-col lg:flex-row gap-8">
-        <CategorySidebar
-          :categories="categoryGroups"
-          :selected-category="selectedCategory"
-          :expanded-parent-ids="expandedParentIds"
-          :show-drawer="showFilterDrawer"
-          :show-search="true"
-          :search-query="searchQuery"
-          @select-category="selectCategory"
-          @toggle-parent="toggleParentCategory"
-          @update:show-drawer="showFilterDrawer = $event"
-          @update:search-query="searchQuery = $event"
-          @clear-search="clearSearch"
-        />
+      <section class="category-card-grid mt-5 flex gap-2.5 overflow-x-auto pb-2 md:mt-6 md:flex-wrap md:gap-3">
+        <button type="button" class="category-pill" :class="{ 'category-pill-active': selectedCategory === null }" @click="selectCategory(null)">
+          <span class="category-icon bg-primary text-primary-foreground"><FolderOpen class="h-4 w-4" /></span>
+          <span>{{ t('products.allCategories') }}</span>
+        </button>
+        <template v-for="group in categoryGroups" :key="group.id">
+          <button type="button" class="category-pill" :class="{ 'category-pill-active': selectedCategory === group.id }" @click="selectCategory(group.id)">
+            <img v-if="group.icon" :src="getImageUrl(group.icon)" :alt="getLocalizedText(group.name)" class="category-icon object-cover" />
+            <span v-else class="category-icon bg-secondary text-primary"><FolderOpen class="h-4 w-4" /></span>
+            <span>{{ getLocalizedText(group.name) }}</span>
+          </button>
+          <button v-for="child in group.children" :key="child.id" type="button" class="category-pill" :class="{ 'category-pill-active': selectedCategory === child.id }" @click="selectCategory(child.id)">
+            <img v-if="child.icon" :src="getImageUrl(child.icon)" :alt="getLocalizedText(child.name)" class="category-icon object-cover" />
+            <span v-else class="category-icon bg-secondary text-primary"><FolderOpen class="h-4 w-4" /></span>
+            <span>{{ getLocalizedText(child.name) }}</span>
+          </button>
+        </template>
+      </section>
 
-        <!-- Main Content - Products Grid -->
-        <main class="flex-1">
-          <!-- Loading Skeleton -->
-          <div v-if="loading" class="grid grid-cols-2 gap-3 md:gap-4 md:grid-cols-3 lg:grid-cols-4">
-            <div v-for="i in 6" :key="i"
-              class="rounded-2xl border bg-card overflow-hidden flex flex-col">
-              <div class="h-36 md:h-56 theme-skeleton"></div>
-              <div class="p-3 md:p-5 space-y-3">
-                <div class="h-3 w-16 rounded theme-skeleton"></div>
-                <div class="h-5 w-3/4 rounded theme-skeleton"></div>
-                <div class="flex gap-2">
-                  <div class="h-5 w-14 rounded-full theme-skeleton"></div>
-                  <div class="h-5 w-14 rounded-full theme-skeleton"></div>
-                </div>
-                <div class="h-3 w-full rounded theme-skeleton"></div>
-                <div class="h-3 w-2/3 rounded theme-skeleton"></div>
-                <div class="border-t pt-3 flex justify-between items-center">
-                  <div class="h-6 w-20 rounded theme-skeleton"></div>
-                  <div class="h-4 w-16 rounded theme-skeleton"></div>
-                </div>
-              </div>
-            </div>
+      <div class="mb-5 mt-8 flex items-center gap-2 text-lg font-bold"><Package class="h-5 w-5 text-primary" /><span>{{ selectedCategoryTitle }}</span></div>
+      <main>
+        <div v-if="loading" class="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 lg:grid-cols-4">
+          <div v-for="i in 6" :key="i" class="overflow-hidden rounded-2xl border bg-card">
+            <div class="h-36 theme-skeleton md:h-56"></div><div class="space-y-3 p-3 md:p-5"><div class="h-5 w-3/4 rounded theme-skeleton"></div><div class="h-3 w-full rounded theme-skeleton"></div></div>
           </div>
-
-          <!-- Products Grid -->
-          <div v-else-if="products.length > 0">
-            <div class="grid grid-cols-2 gap-3 md:gap-4 md:grid-cols-3 lg:grid-cols-4">
-              <ProductCard
-                v-for="(product, idx) in products"
-                :key="product.id"
-                :product="product"
-                :index="idx"
-                :max-tags="isMobileGrid ? 1 : 2"
-                :animation-step="50"
-                @click="goToProduct"
-                @quick-buy="openQuickBuy"
-              />
-            </div>
-
-            <PaginationNav
-              :current-page="currentPage"
-              :total-pages="totalPages"
-              :loading="loading"
-              @change-page="changePage"
-            />
+        </div>
+        <div v-else-if="products.length">
+          <div class="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 lg:grid-cols-4">
+            <ProductCard v-for="(product, idx) in products" :key="product.id" :product="product" :index="idx" :max-tags="isMobileGrid ? 1 : 2" :animation-step="50" @click="goToProduct" @quick-buy="openQuickBuy" />
           </div>
-
-          <!-- Empty State -->
-          <EmptyState
-            v-else
-            variant="soft"
-            size="lg"
-            :icon="(searchQuery || selectedCategory) ? 'search' : 'package'"
-            :title="(searchQuery || selectedCategory) ? t('products.emptyFiltered') : t('products.empty')"
-          >
-            <template v-if="searchQuery || selectedCategory" #action>
-              <Button variant="secondary" @click="clearSearch(); selectCategory(null)">
-                {{ t('products.clearFilters') }}
-              </Button>
-            </template>
-          </EmptyState>
-        </main>
-      </div>
+          <PaginationNav :current-page="currentPage" :total-pages="totalPages" :loading="loading" @change-page="changePage" />
+        </div>
+        <EmptyState v-else variant="soft" size="lg" icon="package" :title="t('products.empty')" />
+      </main>
     </div>
-
-    <ProductQuickBuy
-      v-if="quickBuyProduct"
-      :product="quickBuyProduct"
-      :visible="quickBuyVisible"
-      @update:visible="quickBuyVisible = $event"
-    />
+    <ProductQuickBuy v-if="quickBuyProduct" :product="quickBuyProduct" :visible="quickBuyVisible" @update:visible="quickBuyVisible = $event" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { FolderOpen, Megaphone, Package } from 'lucide-vue-next'
+import { useAppStore } from '../stores/app'
 import { useProductList } from '../composables/useProductList'
 import { usePageSeo } from '../composables/usePageSeo'
 import { useLocalized } from '../composables/useProduct'
+import { getImageUrl } from '../utils/image'
+import { sanitizeRichHtml } from '../utils/richContent'
 import ProductCard from '../components/ProductCard.vue'
 import ProductQuickBuy from '../components/ProductQuickBuy.vue'
-import CategorySidebar from '../components/CategorySidebar.vue'
 import PaginationNav from '../components/PaginationNav.vue'
 import EmptyState from '../components/EmptyState.vue'
-import { Button } from '@/components/ui/button'
 
 const router = useRouter()
-const { t } = useI18n()
-
-const {
-  loading,
-  products,
-  selectedCategory,
-  searchQuery,
-  currentPage,
-  totalPages,
-  showFilterDrawer,
-  expandedParentIds,
-  categoryGroups,
-  categoryMap,
-  selectCategory,
-  toggleParentCategory,
-  changePage,
-  clearSearch,
-  initialize,
-  cleanup,
-} = useProductList({ pageSize: 12, homeRouteName: 'products' })
-
-// ==================== SEO ====================
 const route = useRoute()
+const { t } = useI18n()
+const appStore = useAppStore()
 const { getLocalizedText } = useLocalized()
-const seoCategoryName = computed(() => {
-  if (!selectedCategory.value) return ''
-  const cat = categoryMap.value.get(selectedCategory.value)
-  return cat ? getLocalizedText(cat.name) : ''
-})
-usePageSeo({
-  canonicalPath: () => route.path,
-  title: () => {
-    if (route.name === 'category-products') {
-      return seoCategoryName.value || t('nav.products')
-    }
-    return t('nav.products')
-  },
-})
-
+const { loading, products, selectedCategory, currentPage, totalPages, categoryGroups, categoryMap, selectCategory, changePage, initialize, cleanup } = useProductList({ pageSize: 12, homeRouteName: 'products' })
+const announcementTitle = computed(() => getLocalizedText(appStore.config?.announcement?.title) || '站点公告')
+const announcementContent = computed(() => sanitizeRichHtml(getLocalizedText(appStore.config?.announcement?.content) || '<p>欢迎访问雪糕数卡，请在购买前仔细阅读商品说明。</p>'))
+const selectedCategoryTitle = computed(() => selectedCategory.value ? getLocalizedText(categoryMap.value.get(selectedCategory.value)?.name) : t('products.allCategories'))
+usePageSeo({ canonicalPath: () => route.path, title: () => selectedCategoryTitle.value })
 const quickBuyProduct = ref<any>(null)
 const quickBuyVisible = ref(false)
-
-const openQuickBuy = (product: any) => {
-  quickBuyProduct.value = product
-  quickBuyVisible.value = true
-}
-
-// Detect mobile 2-col grid (< md breakpoint)
+const openQuickBuy = (product: any) => { quickBuyProduct.value = product; quickBuyVisible.value = true }
+const goToProduct = (slug: string) => router.push(`/products/${slug}`)
 const isMobileGrid = ref(window.innerWidth < 768)
-const handleResize = () => {
-  isMobileGrid.value = window.innerWidth < 768
-}
-
-const goToProduct = (slug: string) => {
-  router.push(`/products/${slug}`)
-}
-
-onMounted(async () => {
-  window.addEventListener('resize', handleResize, { passive: true })
-  await initialize()
-})
-
-onUnmounted(() => {
-  window.removeEventListener('resize', handleResize)
-  cleanup()
-})
+const handleResize = () => { isMobileGrid.value = window.innerWidth < 768 }
+onMounted(async () => { window.addEventListener('resize', handleResize, { passive: true }); await initialize() })
+onUnmounted(() => { window.removeEventListener('resize', handleResize); cleanup() })
 </script>
 
 <style scoped>
-.line-clamp-1 {
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1;
-  line-clamp: 1;
-}
-.line-clamp-2 {
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-}
+.category-card-grid { scrollbar-width: none; }
+.category-card-grid::-webkit-scrollbar { display: none; }
+.category-pill { display:flex; flex:none; align-items:center; gap:.55rem; min-height:2.75rem; padding:.35rem .85rem .35rem .4rem; border:1px solid hsl(var(--border)); border-radius:1rem; background:hsl(var(--card)); color:hsl(var(--muted-foreground)); font-size:.875rem; font-weight:600; transition:all .18s ease; }
+.category-pill:hover { border-color:hsl(var(--primary)/.45); color:hsl(var(--foreground)); transform:translateY(-1px); }
+.category-pill-active { border-color:hsl(var(--primary)); background:hsl(var(--primary)/.08); color:hsl(var(--primary)); }
+.category-icon { display:grid; width:2rem; height:2rem; flex:none; place-items:center; border-radius:.65rem; }
+.announcement-content :deep(a) { color:hsl(var(--primary)); text-decoration:underline; text-underline-offset:3px; }
 </style>
