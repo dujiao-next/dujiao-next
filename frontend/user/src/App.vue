@@ -4,9 +4,7 @@
     <VaultLayout v-if="isVault && !isResellerConsole">
       <ErrorBoundary>
         <RouterView v-slot="{ Component, route }">
-          <Transition name="page-fade">
-            <component :is="Component" :key="route.fullPath" />
-          </Transition>
+          <component :is="Component" :key="route.fullPath" class="route-page" />
         </RouterView>
       </ErrorBoundary>
     </VaultLayout>
@@ -17,9 +15,7 @@
       <main class="flex-1" :class="isResellerConsole ? '' : 'pb-14 lg:pb-0'">
         <ErrorBoundary>
           <RouterView v-slot="{ Component, route }">
-            <Transition name="page-fade">
-              <component :is="Component" :key="route.fullPath" />
-            </Transition>
+            <component :is="Component" :key="route.fullPath" class="route-page" />
           </RouterView>
         </ErrorBoundary>
       </main>
@@ -54,13 +50,12 @@ const isVault = computed(() => getActiveTemplate() === 'vault')
 </script>
 
 <style>
-.page-fade-enter-active,
-.page-fade-leave-active {
-  transition: opacity 200ms ease;
+.route-page {
+  animation: page-fade-in 200ms ease both;
 }
 
-.page-fade-enter-from,
-.page-fade-leave-to {
-  opacity: 0;
+@keyframes page-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 </style>

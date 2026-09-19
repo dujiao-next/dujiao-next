@@ -74,8 +74,9 @@ test('registration verification remains backend-controlled through shared native
   assert.match(register, /code: emailVerificationEnabled\.value \? code\.value : ''/)
 })
 
-test('native route fade is simultaneous and keyed so transitions cannot deadlock', () => {
-  assert.equal((app.match(/<Transition name="page-fade">/g) || []).length, 2)
-  assert.doesNotMatch(app, /mode="out-in"/)
+test('route fade is keyed and cannot retain the prior route', () => {
+  assert.equal((app.match(/class="route-page"/g) || []).length, 2)
+  assert.doesNotMatch(app, /<Transition name="page-fade"|mode="out-in"/)
   assert.equal((app.match(/:key="route\.fullPath"/g) || []).length, 2)
+  assert.match(app, /animation: page-fade-in 200ms ease both/)
 })
