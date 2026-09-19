@@ -108,7 +108,7 @@ onUnmounted(() => { window.removeEventListener('resize', handleResize); cleanup(
 .category-pill { display:flex; flex:none; align-items:center; gap:.55rem; min-height:2.75rem; padding:.35rem .85rem .35rem .4rem; border:1px solid hsl(var(--border)); border-radius:1rem; background:hsl(var(--card)); color:hsl(var(--muted-foreground)); font-size:.875rem; font-weight:600; transition:all .18s ease; }
 .category-pill:hover { border-color:hsl(var(--primary)/.45); color:hsl(var(--foreground)); transform:translateY(-1px); }
 .category-pill-active { border-color:hsl(var(--primary)); background:hsl(var(--primary)/.08); color:hsl(var(--primary)); }
-.category-icon { display:grid; width:2rem; height:2rem; flex:none; place-items:center; border-radius:.65rem; background:hsl(var(--secondary)); color:hsl(var(--primary)); transition:background-color .18s ease,color .18s ease; }
-.category-pill-active .category-icon { background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); }
+.category-icon { display:grid; width:2rem; height:2rem; flex:none; place-items:center; border-radius:.65rem; background:var(--ui-bg-soft); color:var(--ui-accent); transition:background-color .18s ease,color .18s ease; }
+.category-pill-active .category-icon { background:var(--ui-accent); color:var(--ui-text-on-accent); }
 .announcement-content :deep(a) { color:hsl(var(--primary)); text-decoration:underline; text-underline-offset:3px; }
 </style>
