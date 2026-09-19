@@ -41,6 +41,7 @@ type Store interface {
 	StatsByUserScoped(filter ListFilter, scope TenantScope) (map[string]int64, error)
 	ListByGuest(email, password string, page, pageSize int) ([]orderdomain.Order, int64, error)
 	ListByGuestScoped(email, password string, page, pageSize int, scope TenantScope) ([]orderdomain.Order, int64, error)
+	ListByBrowserTokenScoped(tokenHash string, page, pageSize int, scope TenantScope) ([]orderdomain.Order, int64, error)
 	ListAdmin(filter ListFilter) ([]orderdomain.Order, int64, error)
 	UpdateStatus(id uint, status string, updates map[string]interface{}) error
 	CountOrderItemsByProduct(productID uint) (int64, error)

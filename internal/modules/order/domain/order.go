@@ -16,6 +16,7 @@ type Order struct {
 	GuestEmail              string       `gorm:"index" json:"guest_email,omitempty"`                                               // 游客邮箱
 	GuestPassword           string       `gorm:"type:varchar(200)" json:"-"`                                                       // 游客订单密码
 	GuestLocale             string       `gorm:"type:varchar(20)" json:"guest_locale,omitempty"`                                   // 游客语言
+	BrowserTokenHash        string       `gorm:"type:char(64);index" json:"-"`                                                     // 浏览器查单令牌 SHA-256 摘要
 	Status                  string       `gorm:"index;not null;index:idx_orders_risk_pending,priority:3" json:"status"`            // 订单状态
 	Currency                string       `gorm:"not null" json:"currency"`                                                         // 币种
 	OriginalAmount          money.Amount `gorm:"type:decimal(20,2);not null;default:0" json:"original_amount"`                     // 原始金额

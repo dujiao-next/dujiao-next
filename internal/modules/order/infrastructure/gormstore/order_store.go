@@ -675,6 +675,27 @@ func (r *Store) ListByGuestScoped(email, password string, page, pageSize int, sc
 	return orders, total, nil
 }
 
+// ListByBrowserTokenScoped returns guest parent orders associated with a browser token.
+func (r *Store) ListByBrowserTokenScoped(tokenHash string, page, pageSize int, scope ordercontract.TenantScope) ([]orderdomain.Order, int64, error) {
+	tokenHash = strings.ToLower(strings.TrimSpace(tokenHash))
+	if len(tokenHash) != sha256.Size*2 {
+		return []orderdomain.Order{}, 0, nil
+	}
+	base := r.db.Model(&orderdomain.Order{}).
+		Where("orders.deleted_at IS NULL AND user_id = 0 AND parent_id IS NULL AND browser_token_hash = ?", tokenHash)
+	base = applyTenantScope(base, scope)
+	var total int64
+	if err := base.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var orders []orderdomain.Order
+	query := r.withChildren(base.Session(&gorm.Session{}))
+	if err := query.Order("id desc").Limit(pageSize).Offset((page - 1) * pageSize).Find(&orders).Error; err != nil {
+		return nil, 0, err
+	}
+	return orders, total, nil
+}
+
 // CountPendingByUserID 统计用户待支付的父订单数量
 func (r *Store) CountPendingByUserID(userID uint) (int64, error) {
 	if userID == 0 {

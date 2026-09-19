@@ -155,6 +155,7 @@ type CreateGuestOrderInput struct {
 	Email               string
 	OrderPassword       string
 	Locale              string
+	BrowserTokenHash    string
 	Tenant              resellercontract.TenantContext
 	Items               []CreateOrderItem
 	CouponCode          string
@@ -258,6 +259,7 @@ func (s *OrderService) CreateGuestOrder(input CreateGuestOrderInput) (*orderdoma
 		GuestEmail:          email,
 		GuestPassword:       password,
 		GuestLocale:         locale,
+		BrowserTokenHash:    strings.ToLower(strings.TrimSpace(input.BrowserTokenHash)),
 		Tenant:              input.Tenant,
 		Items:               input.Items,
 		CouponCode:          input.CouponCode,
@@ -274,6 +276,7 @@ type orderCreateParams struct {
 	GuestEmail               string
 	GuestPassword            string
 	GuestLocale              string
+	BrowserTokenHash         string
 	Tenant                   resellercontract.TenantContext
 	Items                    []CreateOrderItem
 	CouponCode               string
@@ -508,6 +511,7 @@ func (s *OrderService) createOrder(input orderCreateParams) (*orderdomain.Order,
 		GuestEmail:              input.GuestEmail,
 		GuestPassword:           input.GuestPassword,
 		GuestLocale:             input.GuestLocale,
+		BrowserTokenHash:        input.BrowserTokenHash,
 		Status:                  constants.OrderStatusPendingPayment,
 		Currency:                result.Currency,
 		OriginalAmount:          money.FromDecimal(result.OriginalAmount),

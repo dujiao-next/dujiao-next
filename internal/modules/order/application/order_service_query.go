@@ -518,6 +518,22 @@ func (s *OrderService) ListOrdersByGuestForTenant(tenant resellercontract.Tenant
 	return orders, total, nil
 }
 
+// ListOrdersByBrowserTokenForTenant lists guest summaries bound to one browser token.
+func (s *OrderService) ListOrdersByBrowserTokenForTenant(tenant resellercontract.TenantContext, tokenHash string, page, pageSize int) ([]orderdomain.Order, int64, error) {
+	orders, total, err := s.orderStore.ListByBrowserTokenScoped(tokenHash, page, pageSize, orderScopeFromTenant(tenant))
+	if err != nil {
+		return nil, 0, ErrOrderFetchFailed
+	}
+	if err := s.ensureOrdersCanceledIfExpired(orders); err != nil {
+		return nil, 0, ErrOrderUpdateFailed
+	}
+	if err := s.ensureOrdersRefundStatusSynced(orders); err != nil {
+		return nil, 0, ErrOrderUpdateFailed
+	}
+	FillOrdersItemsFromChildren(orders)
+	return orders, total, nil
+}
+
 func orderScopeFromTenant(tenant resellercontract.TenantContext) ordercontract.TenantScope {
 	if isResellerOrderContext(tenant) && tenant.ResellerID != nil {
 		return ordercontract.TenantScope{ResellerID: tenant.ResellerID}

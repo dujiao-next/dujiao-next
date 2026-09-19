@@ -63,6 +63,7 @@ func RegisterGuestReadRoutes(guest gin.IRoutes, handler *GuestHandler) {
 	if guest == nil || handler == nil {
 		panic("order guest read routes: required dependency is nil")
 	}
+	guest.GET("/orders/browser", handler.ListBrowserOrders)
 	guest.GET("/orders", handler.ListGuestOrders)
 	guest.GET("/orders/:order_no", handler.GetGuestOrderByOrderNo)
 	guest.GET("/orders/:order_no/fulfillment/download", handler.DownloadGuestFulfillment)

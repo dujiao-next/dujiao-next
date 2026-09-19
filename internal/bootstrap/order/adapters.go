@@ -194,6 +194,10 @@ func (a orderGuestQueryAdapter) ListOrdersByGuestForTenant(tenant reseller.Tenan
 	return a.orders.ListOrdersByGuestForTenant(tenant, email, password, page, pageSize)
 }
 
+func (a orderGuestQueryAdapter) ListOrdersByBrowserTokenForTenant(tenant reseller.TenantContext, tokenHash string, page, pageSize int) ([]orderdomain.Order, int64, error) {
+	return a.orders.ListOrdersByBrowserTokenForTenant(tenant, tokenHash, page, pageSize)
+}
+
 func (a orderGuestQueryAdapter) GetOrderByGuestOrderNoForTenant(tenant reseller.TenantContext, orderNo, email, password string) (*orderdomain.Order, error) {
 	order, err := a.orders.GetOrderByGuestOrderNoForTenant(tenant, orderNo, email, password)
 	return order, mapOrderTransportError(err)

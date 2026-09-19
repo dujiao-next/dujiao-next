@@ -130,6 +130,7 @@ type CreateGuestOrderInput struct {
 	Email               string
 	OrderPassword       string
 	Locale              string
+	BrowserTokenHash    string
 	Tenant              resellermodule.TenantContext
 	Items               []CreateOrderItem
 	CouponCode          string

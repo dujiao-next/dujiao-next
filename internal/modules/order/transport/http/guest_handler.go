@@ -1,6 +1,9 @@
 package orderhttp
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"strings"
 
@@ -17,8 +20,21 @@ import (
 // GuestOrderQuery 游客订单只读端口。
 type GuestOrderQuery interface {
 	ListOrdersByGuestForTenant(tenant reseller.TenantContext, email, password string, page, pageSize int) ([]orderdomain.Order, int64, error)
+	ListOrdersByBrowserTokenForTenant(tenant reseller.TenantContext, tokenHash string, page, pageSize int) ([]orderdomain.Order, int64, error)
 	GetOrderByGuestOrderNoForTenant(tenant reseller.TenantContext, orderNo, email, password string) (*orderdomain.Order, error)
 	GetAnyOrderByGuestOrderNoForTenant(tenant reseller.TenantContext, orderNo, email, password string) (*orderdomain.Order, error)
+}
+
+const browserOrderCookieName = "__Host-dujiao_browser_orders"
+
+func browserTokenHash(raw string) string {
+	raw = strings.TrimSpace(raw)
+	decoded, err := base64.RawURLEncoding.DecodeString(raw)
+	if err != nil || len(decoded) != 32 || base64.RawURLEncoding.EncodeToString(decoded) != raw {
+		return ""
+	}
+	digest := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(digest[:])
 }
 
 // GuestHandler 处理前台游客订单只读 HTTP。
@@ -83,6 +99,27 @@ func (h *GuestHandler) ListGuestOrders(c *gin.Context) {
 	}
 	pagination := response.BuildPagination(page, pageSize, total)
 	response.SuccessWithPage(c, orderpresenter.NewOrderSummaryList(orders), pagination)
+}
+
+// ListBrowserOrders returns summaries only for guest orders created in this browser.
+func (h *GuestHandler) ListBrowserOrders(c *gin.Context) {
+	page, pageSize := ginutil.ParsePagination(c)
+	raw, err := c.Cookie(browserOrderCookieName)
+	if err != nil {
+		response.SuccessWithPage(c, []orderdomain.Order{}, response.BuildPagination(page, pageSize, 0))
+		return
+	}
+	hash := browserTokenHash(raw)
+	if hash == "" {
+		response.SuccessWithPage(c, []orderdomain.Order{}, response.BuildPagination(page, pageSize, 0))
+		return
+	}
+	orders, total, queryErr := h.orders.ListOrdersByBrowserTokenForTenant(tenantFromRequest(c), hash, page, pageSize)
+	if queryErr != nil {
+		ginutil.RespondError(c, response.CodeInternal, "error.order_fetch_failed", queryErr)
+		return
+	}
+	response.SuccessWithPage(c, orderpresenter.NewOrderSummaryList(orders), response.BuildPagination(page, pageSize, total))
 }
 
 // GetGuestOrderByOrderNo 按订单号获取游客订单详情

@@ -2,7 +2,10 @@ package orderhttp
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
+	"net/http"
 	"strings"
 
 	paymentpresenter "github.com/dujiao-next/internal/modules/payment/transport/presenter"
@@ -22,6 +25,24 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+func ensureBrowserOrderToken(c *gin.Context) (string, error) {
+	if raw, err := c.Cookie(browserOrderCookieName); err == nil && browserTokenHash(raw) != "" {
+		return raw, nil
+	}
+	random := make([]byte, 32)
+	if _, err := rand.Read(random); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(random), nil
+}
+
+func setBrowserOrderCookie(c *gin.Context, token string) {
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name: browserOrderCookieName, Value: token, Path: "/", MaxAge: 365 * 24 * 60 * 60,
+		Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode,
+	})
+}
 
 // OrderCreateService 订单创建端口。
 type OrderCreateService interface {
@@ -140,10 +161,16 @@ func (h *CreateHandler) CreateGuestOrder(c *gin.Context) {
 		return
 	}
 
+	browserToken, err := ensureBrowserOrderToken(c)
+	if err != nil {
+		ginutil.RespondError(c, response.CodeInternal, "error.order_create_failed", err)
+		return
+	}
 	order, err := h.orders.CreateGuestOrder(CreateGuestOrderInput{
 		Email:               req.Email,
 		OrderPassword:       req.OrderPassword,
 		Locale:              i18n.ResolveLocale(c),
+		BrowserTokenHash:    browserTokenHash(browserToken),
 		Tenant:              tenantFromRequest(c),
 		Items:               mapOrderItems(req.Items),
 		CouponCode:          req.CouponCode,
@@ -156,6 +183,7 @@ func (h *CreateHandler) CreateGuestOrder(c *gin.Context) {
 		respondGuestOrderCreateError(c, err)
 		return
 	}
+	setBrowserOrderCookie(c, browserToken)
 	orderDetail := orderpresenter.NewOrderDetail(order)
 	enrichOrderWithAllowedChannels(h.payments, order, &orderDetail)
 	response.Success(c, orderDetail)
@@ -214,10 +242,16 @@ func (h *CreateHandler) CreateGuestOrderAndPay(c *gin.Context) {
 		return
 	}
 
+	browserToken, err := ensureBrowserOrderToken(c)
+	if err != nil {
+		ginutil.RespondError(c, response.CodeInternal, "error.order_create_failed", err)
+		return
+	}
 	order, err := h.orders.CreateGuestOrder(CreateGuestOrderInput{
 		Email:               req.Email,
 		OrderPassword:       req.OrderPassword,
 		Locale:              i18n.ResolveLocale(c),
+		BrowserTokenHash:    browserTokenHash(browserToken),
 		Tenant:              tenantFromRequest(c),
 		Items:               mapOrderItems(req.Items),
 		CouponCode:          req.CouponCode,
@@ -230,6 +264,7 @@ func (h *CreateHandler) CreateGuestOrderAndPay(c *gin.Context) {
 		respondGuestOrderCreateError(c, err)
 		return
 	}
+	setBrowserOrderCookie(c, browserToken)
 	orderResp := orderpresenter.NewOrderDetail(order)
 	enrichOrderWithAllowedChannels(h.payments, order, &orderResp)
 
