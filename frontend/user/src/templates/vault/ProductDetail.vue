@@ -12,13 +12,6 @@
 
     <!-- Content -->
     <template v-else-if="product">
-      <nav class="flex flex-wrap items-center gap-1.5 py-5 pb-2 text-[13.5px] font-semibold text-muted-foreground lg:hidden">
-        <RouterLink to="/" class="hover:text-primary">{{ t('nav.home') }}</RouterLink>
-        <ChevronRight class="h-4 w-4 flex-none" />
-        <RouterLink to="/products" class="hover:text-primary">{{ t('nav.products') }}</RouterLink>
-        <ChevronRight class="h-4 w-4 flex-none" />
-        <span class="text-foreground">{{ getLocalizedText(product.title) }}</span>
-      </nav>
 
       <section class="grid gap-11 py-2.5 lg:grid-cols-2">
         <!-- 图区 -->

@@ -33,14 +33,6 @@
 
       <!-- Product Content -->
       <div v-else-if="product">
-        <BreadcrumbNav
-          class="mb-8 lg:hidden"
-          :items="[
-            { label: t('nav.home'), to: '/' },
-            { label: t('nav.products'), to: '/products' },
-            { label: getLocalizedText(product.title) },
-          ]"
-        />
 
         <!-- Main Info Card -->
         <div
@@ -419,7 +411,6 @@ import { sanitizeRichHtml } from '../utils/richContent'
 import { useProductDetail } from '../composables/useProductDetail'
 import ProductImageGallery from '../components/product/ProductImageGallery.vue'
 import ProductMobileBar from '../components/product/ProductMobileBar.vue'
-import BreadcrumbNav from '../components/BreadcrumbNav.vue'
 import EmptyState from '../components/EmptyState.vue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'

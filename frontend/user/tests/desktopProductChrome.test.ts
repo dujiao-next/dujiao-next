@@ -12,9 +12,9 @@ test('desktop primary navigation omits the redundant home item', () => {
   assert.match(navbar, /primaryNavItems\.value\.filter\(\(item\) => item\.path !== '\/'\)/)
 })
 
-test('product breadcrumb is hidden only at the desktop breakpoint in both themes', () => {
-  assert.match(classic, /<BreadcrumbNav[\s\S]*?class="mb-8 lg:hidden"/)
-  assert.match(vault, /<nav class="[^"]*lg:hidden[^"]*"/)
+test('product breadcrumb is absent from both product-detail themes', () => {
+  assert.doesNotMatch(classic, /<BreadcrumbNav/)
+  assert.doesNotMatch(vault, /<nav class="[^"]*text-muted-foreground[^"]*">[\s\S]*?nav\.products/)
 })
 
 test('mobile home navigation remains available', () => {
