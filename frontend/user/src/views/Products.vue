@@ -30,10 +30,14 @@
 
       <div class="mb-5 mt-8 flex items-center gap-2 text-lg font-bold"><Package class="h-5 w-5 text-primary" /><span>{{ selectedCategoryTitle }}</span></div>
       <main>
-        <div v-if="loading" class="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 lg:grid-cols-4">
+        <div v-if="loading && !hasLoadedOnce" class="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 lg:grid-cols-4">
           <div v-for="i in 6" :key="i" class="overflow-hidden rounded-2xl border bg-card">
             <div class="h-36 theme-skeleton md:h-56"></div><div class="space-y-3 p-3 md:p-5"><div class="h-5 w-3/4 rounded theme-skeleton"></div><div class="h-3 w-full rounded theme-skeleton"></div></div>
           </div>
+        </div>
+        <div v-else-if="loading" class="category-switch-loading">
+          <span class="h-5 w-5 animate-spin rounded-full border-2 border-primary/25 border-t-primary"></span>
+          <span>{{ t('common.loading') }}</span>
         </div>
         <div v-else-if="products.length">
           <div class="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 lg:grid-cols-4">
@@ -67,7 +71,7 @@ const route = useRoute()
 const { t } = useI18n()
 const appStore = useAppStore()
 const { getLocalizedText } = useLocalized()
-const { loading, products, selectedCategory, currentPage, totalPages, categoryGroups, categoryMap, selectCategory, changePage, initialize, cleanup } = useProductList({ pageSize: 12, homeRouteName: 'products' })
+const { loading, hasLoadedOnce, products, selectedCategory, currentPage, totalPages, categoryGroups, categoryMap, selectCategory, changePage, initialize, cleanup } = useProductList({ pageSize: 12, homeRouteName: 'products' })
 const announcementCacheKey = 'storefront:last-announcement'
 const readCachedAnnouncement = () => {
   try {
@@ -110,5 +114,6 @@ onUnmounted(() => { window.removeEventListener('resize', handleResize); cleanup(
 .category-pill-active { border-color:hsl(var(--primary)); background:hsl(var(--primary)/.08); color:hsl(var(--primary)); }
 .category-icon { display:grid; width:2rem; height:2rem; flex:none; place-items:center; border-radius:.65rem; background:var(--ui-bg-soft); color:var(--ui-accent); }
 .category-pill-active .category-icon { background:var(--ui-accent); color:var(--ui-text-on-accent); }
+.category-switch-loading { display:flex; min-height:7rem; align-items:center; justify-content:center; gap:.65rem; color:var(--ui-text-muted); font-size:.875rem; }
 .announcement-content :deep(a) { color:hsl(var(--primary)); text-decoration:underline; text-underline-offset:3px; }
 </style>

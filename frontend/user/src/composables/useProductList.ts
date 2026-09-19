@@ -21,6 +21,7 @@ export function useProductList(options: UseProductListOptions = {}) {
   const route = useRoute()
 
   const loading = ref(true)
+  const hasLoadedOnce = ref(false)
   const products = ref<any[]>([])
   const categories = ref<PublicCategory[]>([])
   const selectedCategory = ref<number | null>(null)
@@ -35,6 +36,7 @@ export function useProductList(options: UseProductListOptions = {}) {
   const categoryMap = computed(() => createCategoryMap(categories.value))
 
   let initializing = true
+  let productRequestId = 0
 
   const isParentExpanded = (categoryId: number) => {
     return expandedParentIds.value.includes(categoryId)
@@ -85,6 +87,7 @@ export function useProductList(options: UseProductListOptions = {}) {
   }
 
   const loadProducts = async () => {
+    const requestId = ++productRequestId
     loading.value = true
     try {
       const params: any = {
@@ -99,6 +102,7 @@ export function useProductList(options: UseProductListOptions = {}) {
         params.search = keyword
       }
       const response = await productAPI.list(params)
+      if (requestId !== productRequestId) return
       products.value = response.data.data || []
       if (response.data.pagination) {
         totalPages.value = response.data.pagination.total_page || 0
@@ -106,7 +110,10 @@ export function useProductList(options: UseProductListOptions = {}) {
     } catch (error) {
       console.error('Failed to load products:', error)
     } finally {
-      loading.value = false
+      if (requestId === productRequestId) {
+        loading.value = false
+        hasLoadedOnce.value = true
+      }
     }
   }
 
@@ -165,7 +172,8 @@ export function useProductList(options: UseProductListOptions = {}) {
     if (initializing) return
     currentPage.value = 1
     syncExpandedCategoryState()
-    debouncedLoadProducts()
+    debouncedLoadProducts.cancel()
+    void loadProducts()
 
     if (selectedCategory.value) {
       const matched = categories.value.find((category) => category.id === selectedCategory.value)
@@ -208,6 +216,7 @@ export function useProductList(options: UseProductListOptions = {}) {
 
   return {
     loading,
+    hasLoadedOnce,
     products,
     categories,
     selectedCategory,
