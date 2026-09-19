@@ -891,16 +891,15 @@ onBeforeUnmount(() => {
             />
           </div>
           <nav class="px-3 pb-3 space-y-2 flex-1 overflow-y-auto">
-            <RouterLink
+            <a
               v-if="showDashboardNav"
-              to="/"
-              @click="mobileNavOpen = false"
+              :href="adminUrl('/')"
               class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors"
               :class="isItemActive('/') ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-secondary/70'"
             >
               <LayoutDashboard class="h-4 w-4 shrink-0" />
               <span>{{ dashboardNavLabel }}</span>
-            </RouterLink>
+            </a>
             <div
               v-if="!showDashboardNav && filteredNavGroups.length === 0"
               class="rounded-lg border border-dashed border-border px-3 py-4 text-xs text-muted-foreground"
@@ -924,17 +923,16 @@ onBeforeUnmount(() => {
                 />
               </button>
               <div v-show="isGroupExpanded(group.id)" class="space-y-1 pl-9">
-                <RouterLink
+                <a
                   v-for="item in group.items"
                   :key="`mobile-${group.id}-${item.to}`"
-                  :to="item.to"
-                  @click="mobileNavOpen = false"
+                  :href="adminUrl(item.to)"
                   class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors"
                   :class="isItemActive(item.to) ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground'"
                 >
                   <component v-if="item.icon" :is="item.icon" class="h-3.5 w-3.5 shrink-0" />
                   <span class="truncate">{{ item.label }}</span>
-                </RouterLink>
+                </a>
               </div>
             </div>
           </nav>

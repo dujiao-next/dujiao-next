@@ -7,6 +7,8 @@ const layout = fs.readFileSync(new URL('../src/layouts/AdminLayout.vue', import.
 test('mobile admin navigation closes explicitly when a page link is selected', () => {
   const mobileBlock = layout.match(/<!-- Mobile sidebar \(Sheet\) -->([\s\S]*?)<\/Sheet>/)?.[1] ?? ''
 
-  assert.match(mobileBlock, /<RouterLink[\s\S]*?@click="mobileNavOpen = false"/)
+  assert.match(mobileBlock, /<a[\s\S]*?:href="adminUrl\('\/'\)"/)
+  assert.match(mobileBlock, /<a[\s\S]*?:href="adminUrl\(item\.to\)"/)
+  assert.doesNotMatch(mobileBlock, /<RouterLink/)
   assert.match(mobileBlock, /<SheetContent[\s\S]*?v-if="mobileNavOpen"/)
 })
