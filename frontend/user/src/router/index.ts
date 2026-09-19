@@ -5,6 +5,8 @@ import { useTelegramMiniAppStore } from '../stores/telegramMiniApp'
 import { captureAffiliateFromRoute } from '../utils/affiliate'
 import { templateView } from '../templates/registry'
 import { GOOGLE_REDIRECT_FRONTEND_CALLBACK_PATH } from '../utils/googleRedirect'
+import Products from '../views/Products.vue'
+import { prefetchProductDetail } from '../utils/productDetailPrefetch'
 
 type RouteComponentLoader = () => Promise<unknown>
 
@@ -115,7 +117,7 @@ const router = createRouter({
         {
             path: '/',
             name: 'products',
-            component: templateView('Products', productsViewLoader),
+            component: Products,
         },
         {
             path: '/products',
@@ -140,7 +142,7 @@ const router = createRouter({
         {
             path: '/products/:slug',
             name: 'product-detail',
-            component: templateView('ProductDetail', productDetailViewLoader),
+            component: productDetailViewLoader,
         },
         {
             path: '/cart',
@@ -329,11 +331,18 @@ router.beforeEach(async (to, _from, next) => {
     const userAuthStore = useUserAuthStore()
     const appStore = useAppStore()
     void captureAffiliateFromRoute(to)
+    if (to.name === 'product-detail') {
+        void prefetchProductDetail(String(to.params.slug || ''))
+    }
 
     // 路由组件会根据站点配置选择模板与列表模式。导航解析前只等待配置，
     // Vue 本身仍会立即挂载，因此不会重新引入全屏 loading 或挂载阻塞。
     if (!appStore.config) {
-        await appStore.loadConfig()
+        if (to.name === 'products' || to.name === 'product-detail') {
+            void appStore.loadConfig()
+        } else {
+            await appStore.loadConfig()
+        }
     }
 
     if (to.meta.requiresUserAuth) {

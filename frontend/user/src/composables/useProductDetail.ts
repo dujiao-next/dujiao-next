@@ -14,6 +14,7 @@ import { buildSkuDisplayText, normalizeSkuId } from '../utils/sku'
 import { resolveSkuAvailableStock, resolveSkuStockDisplay, type PublicStockDisplay } from '../utils/publicStock'
 import { useLocalized, useProductLabels } from './useProduct'
 import { toast } from './useToast'
+import { takeProductDetailRequest } from '../utils/productDetailPrefetch'
 
 /**
  * 商品详情页的全部业务逻辑（数据加载、SKU/数量、促销/会员/批发定价、库存约束、
@@ -528,8 +529,7 @@ export function useProductDetail(options: { onLoaded?: () => void } = {}) {
     loading.value = true
     try {
       const slug = route.params.slug as string
-      const response = await productAPI.detail(slug)
-      product.value = response.data.data || null
+      product.value = await takeProductDetailRequest(slug)
       if (images.value.length > 0) {
         currentImage.value = images.value[0] || ''
       }
@@ -632,8 +632,10 @@ export function useProductDetail(options: { onLoaded?: () => void } = {}) {
     },
   })
 
+  const initialProductRequest = loadProduct()
+
   onMounted(() => {
-    loadProduct()
+    void initialProductRequest
     ensureMemberLevels()
   })
 

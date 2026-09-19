@@ -28,7 +28,7 @@ const routeBlock = (path: string) => {
 test('root renders products directly and removed destinations are absent from storefront navigation', () => {
   const root = routeBlock('/')
   assert.match(root, /name: 'products'/)
-  assert.match(root, /templateView\('Products', productsViewLoader\)/)
+  assert.match(root, /component: Products/)
   assert.doesNotMatch(root, /redirect:/)
 
   assert.doesNotMatch(app, /<Footer\b|import Footer from/)

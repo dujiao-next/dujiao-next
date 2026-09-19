@@ -11,9 +11,10 @@ test('Vue mounts immediately instead of waiting for Telegram promises', () => {
   assert.doesNotMatch(main, /Promise\.all\([\s\S]{0,300}app\.mount\('#app'\)/)
 })
 
-test('navigation waits for config before resolving a config-selected route component', () => {
-  assert.match(router, /if \(!appStore\.config\) \{\s*await appStore\.loadConfig\(\)\s*\}/)
-  assert.doesNotMatch(router, /void appStore\.loadConfig\(\)/)
+test('fixed product routes do not wait for config while other routes still do', () => {
+  assert.match(router, /to\.name === 'products' \|\| to\.name === 'product-detail'/)
+  assert.match(router, /void appStore\.loadConfig\(\)/)
+  assert.match(router, /else \{\s*await appStore\.loadConfig\(\)/)
 })
 
 test('global full-screen loading component is not mounted', () => {

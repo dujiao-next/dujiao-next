@@ -138,12 +138,12 @@ const currentLocale = computed(() => {
 
 const brandSiteName = computed(() => {
   const text = String(appStore.config?.brand?.site_name || '').trim()
-  return text !== '' ? text : 'Dujiao-Next'
+  return text !== '' ? text : '雪糕数卡'
 })
 
 const brandLogo = computed(() => {
   const raw = String(appStore.config?.brand?.site_logo || '').trim()
-  return raw ? getImageUrl(raw) : ''
+  return raw ? getImageUrl(raw) : '/xuegao-logo-v2.svg'
 })
 
 const changeLanguage = (langCode: string) => {

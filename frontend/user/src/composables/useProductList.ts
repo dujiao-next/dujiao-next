@@ -193,11 +193,12 @@ export function useProductList(options: UseProductListOptions = {}) {
   )
 
   const initialize = async () => {
-    await loadCategories()
+    const categoriesRequest = loadCategories()
+    const productsRequest = loadProducts()
+    await Promise.all([categoriesRequest, productsRequest])
     if (syncSelectedCategoryFromRoute()) {
       syncExpandedCategoryState()
     }
-    await loadProducts()
     initializing = false
   }
 
