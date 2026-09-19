@@ -346,6 +346,7 @@ func (a orderCreateAdapter) CreateGuestOrder(input ordertransport.CreateGuestOrd
 		Email:               input.Email,
 		OrderPassword:       input.OrderPassword,
 		Locale:              input.Locale,
+		BrowserTokenHash:    input.BrowserTokenHash,
 		Tenant:              input.Tenant,
 		Items:               mapServiceOrderItems(input.Items),
 		CouponCode:          input.CouponCode,
