@@ -32,9 +32,6 @@
           {{ t('productDetail.loginToBuy') }}
         </Button>
         <template v-else>
-          <Button variant="secondary" size="lg" class="rounded-xl font-bold" :disabled="!canPurchase" @click="$emit('addToCart')">
-            {{ t('productDetail.addToCart') }}
-          </Button>
           <Button size="lg" class="rounded-xl font-bold" :disabled="!canPurchase" @click="$emit('buyNow')">
             {{ t('productDetail.buyNow') }}
           </Button>
@@ -66,7 +63,6 @@ defineProps<{
 }>()
 
 defineEmits<{
-  addToCart: []
   buyNow: []
   goLogin: []
 }>()

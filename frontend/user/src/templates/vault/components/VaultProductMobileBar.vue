@@ -23,9 +23,6 @@
         <!-- 操作 -->
         <Button v-if="requiresLogin" size="lg" class="flex-none rounded-full font-bold" @click="$emit('goLogin')">{{ t('productDetail.loginToBuy') }}</Button>
         <template v-else>
-          <Button variant="outline" size="lg" class="flex-none rounded-full font-bold" :disabled="!canPurchase" @click="$emit('addToCart')">
-            <ShoppingCart /> {{ t('productDetail.addToCart') }}
-          </Button>
           <Button size="lg" class="flex-none rounded-full font-bold" :disabled="!canPurchase" @click="$emit('buyNow')">
             <Zap /> {{ t('productDetail.buyNow') }}
           </Button>
@@ -37,7 +34,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { ShoppingCart, Zap } from 'lucide-vue-next'
+import { Zap } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 
 const { t } = useI18n()
@@ -58,7 +55,6 @@ defineProps<{
 }>()
 
 defineEmits<{
-  addToCart: []
   buyNow: []
   goLogin: []
 }>()

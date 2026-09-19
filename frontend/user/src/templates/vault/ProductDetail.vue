@@ -167,7 +167,6 @@
             <Button v-if="requiresLogin" class="h-12 w-full rounded-full text-[17px] font-bold" @click="goLogin">{{ t('productDetail.loginToBuy') }}</Button>
             <template v-else>
               <Button class="h-12 flex-1 rounded-full text-[17px] font-bold" :disabled="!canPurchase" @click="buyNow"><Zap /> {{ t('productDetail.buyNow') }}</Button>
-              <Button variant="outline" class="h-12 rounded-full text-[17px] font-bold" :disabled="!canPurchase" @click="addToCart"><ShoppingCart /> {{ t('productDetail.addToCart') }}</Button>
             </template>
           </div>
 
@@ -220,7 +219,6 @@
         :show-product-promotion-price="mobileBarShowProductPromotionPrice"
         :product-promotion-price-display="mobileBarProductPromotionPriceDisplay"
         :product-price-display="mobileBarProductPriceDisplay"
-        @add-to-cart="addToCart"
         @buy-now="buyNow"
         @go-login="goLogin"
       />
@@ -243,7 +241,7 @@ import { computed, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   AlertCircle, ArrowLeft, ChevronRight, Lock, Minus, Package, Pencil, Plus,
-  RotateCw, ShoppingCart, Tag, TicketCheck, UserPlus, Zap,
+  RotateCw, Tag, TicketCheck, UserPlus, Zap,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { sanitizeRichHtml } from '../../utils/richContent'
@@ -288,7 +286,7 @@ const {
   quantityEffectiveLimit, quantityEffectiveMin, handleQuantityInput,
   requiresLogin, requiresSKUSelection, canPurchase, cannotPurchaseReason,
   categoryName, images,
-  addToCart, buyNow, goLogin, loadProduct,
+  buyNow, goLogin, loadProduct,
   mobileBarShowMemberPrice, mobileBarMemberPriceDisplay,
   mobileBarShowSkuPromotionPrice, mobileBarSkuPromotionPriceDisplay,
   mobileBarShowSkuPrice, mobileBarSkuPriceDisplay,

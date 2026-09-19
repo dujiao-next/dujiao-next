@@ -293,10 +293,7 @@
                   <Button v-if="requiresLogin" class="w-full h-12 font-bold" @click="goLogin">
                     {{ t('productDetail.loginToBuy') }}
                   </Button>
-                  <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Button variant="secondary" class="h-12 font-bold" :disabled="!canPurchase" @click="addToCart">
-                      {{ t('productDetail.addToCart') }}
-                    </Button>
+                  <div v-else>
                     <Button class="h-12 font-bold" :disabled="!canPurchase" @click="buyNow">
                       {{ t('productDetail.buyNow') }}
                     </Button>
@@ -375,7 +372,6 @@
           :show-product-promotion-price="mobileBarShowProductPromotionPrice"
           :product-promotion-price-display="mobileBarProductPromotionPriceDisplay"
           :product-price-display="mobileBarProductPriceDisplay"
-          @add-to-cart="addToCart"
           @buy-now="buyNow"
           @go-login="goLogin"
         />
@@ -457,7 +453,7 @@ const {
   quantityEffectiveLimit, quantityEffectiveMin, handleQuantityInput,
   requiresLogin, requiresSKUSelection, canPurchase, cannotPurchaseReason,
   categoryName, images,
-  addToCart, buyNow, goLogin, loadProduct,
+  buyNow, goLogin, loadProduct,
   mobileBarShowMemberPrice, mobileBarMemberPriceDisplay,
   mobileBarShowSkuPromotionPrice, mobileBarSkuPromotionPriceDisplay,
   mobileBarShowSkuPrice, mobileBarSkuPriceDisplay,
