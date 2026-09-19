@@ -18,7 +18,8 @@
 
         <template v-else>
           <div class="mb-7 text-center">
-            <p class="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">{{ brandSiteName }}</p>
+            <img v-if="brandLogo" :src="brandLogo" :alt="brandSiteName" class="mx-auto h-16 w-16 object-contain" />
+            <p class="mt-3 text-[11px] font-bold uppercase tracking-[0.2em] text-primary">{{ brandSiteName }}</p>
             <h1 class="mt-3 text-3xl font-extrabold">{{ t('auth.register.title') }}</h1>
             <p class="mt-2 text-sm text-muted-foreground">{{ t('auth.register.subtitle') }}</p>
           </div>
@@ -190,7 +191,7 @@ import { useRegister } from '../../../composables/useRegister'
 const { t } = useI18n()
 
 const {
-  userAuthStore, brandSiteName,
+  userAuthStore, brandSiteName, brandLogo,
   email, emailLocalPart, selectedEmailDomain, password, showPassword, code, agreed,
   passwordStrength, error, sending, countdown,
   captchaPayload, turnstileToken, imageCaptchaRef, turnstileRef,
