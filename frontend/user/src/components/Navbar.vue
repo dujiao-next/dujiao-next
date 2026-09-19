@@ -71,124 +71,28 @@
           <Moon v-else class="w-4 h-4" />
         </Button>
 
-        <!-- Language Switcher (Desktop) -->
+        <!-- Language Switcher -->
         <Popover v-model:open="langOpen">
           <PopoverTrigger as-child>
-            <Button variant="ghost" size="sm" class="hidden lg:inline-flex gap-2 text-muted-foreground">
+            <Button variant="ghost" size="sm" class="inline-flex gap-1.5 px-2 text-muted-foreground">
               <Languages class="w-4 h-4" />
-              <span class="text-xs font-medium uppercase tracking-wider">{{ currentLocale }}</span>
+              <span class="text-xs font-medium">{{ currentLocale }}</span>
             </Button>
           </PopoverTrigger>
           <PopoverContent align="end" class="w-40 p-2">
-            <div class="px-2 pb-2 mb-2 border-b">
-              <span class="text-xs text-muted-foreground font-mono px-2">{{ t('navbar.selectLanguage') }}</span>
-            </div>
             <button v-for="lang in languages" :key="lang.code" @click="changeLanguage(lang.code)"
-              class="w-full text-left px-3 py-2.5 text-sm rounded-md transition-colors flex items-center justify-between hover:bg-accent hover:text-accent-foreground"
-              :class="{ 'text-primary': appStore.locale === lang.code }">
+              class="flex min-h-10 w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+              :class="{ 'text-primary font-semibold': appStore.locale === lang.code }">
               {{ lang.name }}
               <span v-if="appStore.locale === lang.code" class="w-1.5 h-1.5 rounded-full bg-primary"></span>
             </button>
           </PopoverContent>
         </Popover>
-
-        <!-- Mobile Menu Button (more menu, not main nav) -->
-        <Button variant="ghost" size="icon" class="lg:hidden text-muted-foreground [&_svg]:size-5"
-          @click="toggleMobileMenu">
-          <EllipsisVertical />
-        </Button>
       </div>
     </div>
 
   </nav>
 
-  <!-- Teleport drawer outside nav to avoid backdrop-filter containing block bug -->
-  <Teleport to="body">
-    <!-- Mobile Drawer Overlay -->
-    <Transition
-      enter-active-class="transition duration-300 ease-out"
-      enter-from-class="opacity-0"
-      enter-to-class="opacity-100"
-      leave-active-class="transition duration-200 ease-in"
-      leave-from-class="opacity-100"
-      leave-to-class="opacity-0">
-      <div v-if="showMobileMenu" class="lg:hidden fixed inset-0 z-[60] bg-black/50" @click="showMobileMenu = false" style="overscroll-behavior: none;"></div>
-    </Transition>
-
-    <!-- Mobile Drawer (only items NOT in bottom nav) -->
-    <Transition
-      enter-active-class="transition duration-300 ease-out"
-      enter-from-class="translate-x-full"
-      enter-to-class="translate-x-0"
-      leave-active-class="transition duration-200 ease-in"
-      leave-from-class="translate-x-0"
-      leave-to-class="translate-x-full">
-      <div v-if="showMobileMenu"
-        class="lg:hidden fixed right-0 top-0 bottom-0 z-[70] w-72 max-w-[80vw] bg-card/95 backdrop-blur-xl border-l overflow-y-auto"
-        style="overscroll-behavior: none;">
-        <div class="p-5 space-y-1">
-          <!-- Header -->
-          <div class="flex items-center justify-between mb-4">
-            <span class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{{ t('navbar.more') }}</span>
-            <Button variant="secondary" size="icon" class="[&_svg]:size-5" @click="showMobileMenu = false">
-              <X />
-            </Button>
-          </div>
-
-          <!-- Navigation items not in bottom nav -->
-          <template v-for="item in mobileDrawerItems" :key="item.key">
-            <Button v-if="item.type === 'route'" as-child variant="ghost"
-              class="w-full justify-start gap-3 h-auto py-3 rounded-xl text-sm text-muted-foreground [&_svg]:size-5">
-              <router-link :to="item.path" @click="showMobileMenu = false" active-class="!text-primary !bg-primary/10">
-                <component :is="item.icon" class="shrink-0 opacity-60" />
-                {{ item.label }}
-              </router-link>
-            </Button>
-            <Button v-else as-child variant="ghost"
-              class="w-full justify-start gap-3 h-auto py-3 rounded-xl text-sm text-muted-foreground [&_svg]:size-5">
-              <a :href="item.path" :target="item.target" rel="noopener noreferrer" @click="showMobileMenu = false">
-                <component :is="item.icon" class="shrink-0 opacity-60" />
-                {{ item.label }}
-              </a>
-            </Button>
-          </template>
-
-          <!-- Guest orders (not in bottom nav) -->
-          <Button v-if="!userAuthStore.isAuthenticated" as-child variant="ghost"
-            class="w-full justify-start gap-3 h-auto py-3 rounded-xl text-sm text-muted-foreground [&_svg]:size-5">
-            <router-link to="/guest/orders" @click="showMobileMenu = false" active-class="!text-primary !bg-primary/10">
-              <ClipboardList class="shrink-0 opacity-60" />
-              {{ t('navbar.guestOrders') }}
-            </router-link>
-          </Button>
-
-          <!-- Logout (login/me already in bottom nav) -->
-          <Button v-if="userAuthStore.isAuthenticated" variant="ghost"
-            class="w-full justify-start gap-3 h-auto py-3 rounded-xl text-sm text-destructive hover:text-destructive hover:bg-destructive/10 [&_svg]:size-5"
-            @click="userAuthStore.logout(); showMobileMenu = false">
-            <LogOut class="shrink-0 opacity-60" />
-            {{ t('navbar.logout') }}
-          </Button>
-
-          <!-- Language Switcher -->
-          <div class="mt-4 pt-4 border-t">
-            <span class="text-xs text-muted-foreground font-semibold uppercase tracking-wider px-4">{{ t('navbar.selectLanguage') }}</span>
-            <div class="mt-2 space-y-1">
-              <button v-for="lang in languages" :key="lang.code" @click="changeLanguage(lang.code)"
-                class="w-full text-left px-4 py-2.5 rounded-xl text-sm transition-colors min-h-[44px] flex items-center justify-between"
-                :class="appStore.locale === lang.code
-                  ? 'text-primary font-semibold'
-                  : 'text-muted-foreground hover:text-foreground'">
-                {{ lang.name }}
-                <span v-if="appStore.locale === lang.code"
-                  class="w-1.5 h-1.5 rounded-full bg-primary"></span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Transition>
-  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -202,7 +106,6 @@ import { getImageUrl } from '../utils/image'
 import { useNavConfig } from '../composables/useNavConfig'
 import {
   Sun, Moon, ClipboardList, LogIn, User, LogOut, Languages,
-  EllipsisVertical, X,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -212,17 +115,13 @@ const appStore = useAppStore()
 
 const userAuthStore = useUserAuthStore()
 const { theme, toggleTheme } = useTheme()
-const { primaryNavItems, secondaryNavItems } = useNavConfig()
+const { primaryNavItems } = useNavConfig()
 
-const showMobileMenu = ref(false)
 const langOpen = ref(false)
 const scrolled = ref(false)
 
 
 const menuItems = primaryNavItems
-
-// Mobile drawer only shows items NOT in the bottom nav (Home, Products, Cart, Me are in bottom nav)
-const mobileDrawerItems = secondaryNavItems
 
 const languages = [
   { code: 'zh-CN', name: '简体中文' },
@@ -246,10 +145,6 @@ const brandLogo = computed(() => {
   const raw = String(appStore.config?.brand?.site_logo || '').trim()
   return raw ? getImageUrl(raw) : ''
 })
-
-const toggleMobileMenu = () => {
-  showMobileMenu.value = !showMobileMenu.value
-}
 
 const changeLanguage = (langCode: string) => {
   appStore.setLocale(langCode)
