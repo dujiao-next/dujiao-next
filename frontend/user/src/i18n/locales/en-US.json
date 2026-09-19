@@ -1164,9 +1164,9 @@
     "guestEmailPlaceholder": "Email (for order lookup)",
     "guestPasswordPlaceholder": "Order password",
     "guestInstructions": {
-      "title": "Fill Instructions:",
-      "email": "Email: Please provide an email address that can receive emails. After payment, we could send product information and contact you through this email.",
-      "password": "Order Password: Please set a complex password and keep it safe. This password is used for you to query your purchased products through the \"Guest Order Lookup\" menu after purchase."
+      "title": "Guest purchase instructions:",
+      "email": "Email: Used for order notifications and for finding the order by contact details under Order Lookup.",
+      "password": "Order password: This is the lookup password for this guest order, not an account password. Keep it safe. After ordering, this browser can also show the order summary directly under Order Lookup."
     },
     "manualFormTitle": "Required information",
     "manualFormTip": "Manual-delivery information is collected per product. If multiple SKUs of the same product are purchased, fill it once only.",
