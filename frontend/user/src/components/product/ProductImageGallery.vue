@@ -4,7 +4,7 @@
       @touchstart="onImageTouchStart"
       @touchend="onImageTouchEnd">
       <img v-if="currentImage" :src="currentImage" :alt="productTitle"
-        class="w-full aspect-[4/3] object-cover rounded-xl border relative z-10 shadow-lg" />
+        class="w-full aspect-[4/3] object-contain rounded-xl border relative z-10 shadow-lg" />
       <div v-else
         class="w-full aspect-[4/3] bg-muted rounded-xl border flex items-center justify-center relative z-10">
         <ImageIcon class="w-24 h-24 text-muted-foreground" :stroke-width="1.5" />
