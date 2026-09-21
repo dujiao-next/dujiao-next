@@ -118,6 +118,7 @@ export function usePayment() {
   })
   const isRechargeReturn = computed(() => rechargeBizType.value === 'recharge' || /^WR/i.test(rechargeNoQuery.value))
   const isGuest = computed(() => readRouteQueryFlag('guest'))
+  const changePaymentMethodRequested = computed(() => readRouteQueryFlag('change_method'))
   const orderNoQuery = computed(() => {
     const orderNo = readRouteQueryValue('order_no')
     if (orderNo !== '') return orderNo
@@ -631,7 +632,7 @@ export function usePayment() {
             cachedPayment.value = null
             return
           }
-          if (!paymentResult.value && !latestLoaded.value && order.value.status === 'pending_payment') {
+          if (!changePaymentMethodRequested.value && !paymentResult.value && !latestLoaded.value && order.value.status === 'pending_payment') {
             latestLoaded.value = true
             await loadLatestPayment()
           }
