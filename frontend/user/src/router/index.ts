@@ -19,9 +19,13 @@ const paymentViewLoader: RouteComponentLoader = () => import('../views/Payment.v
 const blogViewLoader: RouteComponentLoader = () => import('../views/Blog.vue')
 const noticeViewLoader: RouteComponentLoader = () => import('../views/Notice.vue')
 const loginViewLoader: RouteComponentLoader = () => import('../views/auth/Login.vue')
+const guestOrdersViewLoader: RouteComponentLoader = () => import('../views/GuestOrders.vue')
+const personalCenterViewLoader: RouteComponentLoader = () => import('../views/PersonalCenter.vue')
 const resellerLayoutLoader: RouteComponentLoader = () => import('../views/reseller/ResellerConsoleLayout.vue')
 
 const routeWarmupLoaders: RouteComponentLoader[] = [
+    guestOrdersViewLoader,
+    personalCenterViewLoader,
     productDetailViewLoader,
     checkoutViewLoader,
     paymentViewLoader,
@@ -85,9 +89,7 @@ export const warmupCommonRoutes = () => {
     hasScheduledRouteWarmup = true
 
     const startWarmup = () => {
-        window.setTimeout(() => {
-            scheduleIdleTask(() => runRouteWarmupQueue([...routeWarmupLoaders]))
-        }, 1200)
+        scheduleIdleTask(() => runRouteWarmupQueue([...routeWarmupLoaders]))
     }
 
     if (document.readyState === 'complete') {
@@ -158,42 +160,42 @@ const router = createRouter({
         {
             path: '/me',
             name: 'personal-center',
-            component: templateView('PersonalCenter', () => import('../views/PersonalCenter.vue')),
+            component: templateView('PersonalCenter', personalCenterViewLoader),
             props: { section: 'overview' },
             meta: { requiresUserAuth: true }
         },
         {
             path: '/me/profile',
             name: 'personal-center-profile',
-            component: templateView('PersonalCenter', () => import('../views/PersonalCenter.vue')),
+            component: templateView('PersonalCenter', personalCenterViewLoader),
             props: { section: 'profile' },
             meta: { requiresUserAuth: true }
         },
         {
             path: '/me/security',
             name: 'personal-center-security',
-            component: templateView('PersonalCenter', () => import('../views/PersonalCenter.vue')),
+            component: templateView('PersonalCenter', personalCenterViewLoader),
             props: { section: 'security' },
             meta: { requiresUserAuth: true }
         },
         {
             path: '/me/orders',
             name: 'personal-center-orders',
-            component: templateView('PersonalCenter', () => import('../views/PersonalCenter.vue')),
+            component: templateView('PersonalCenter', personalCenterViewLoader),
             props: { section: 'orders' },
             meta: { requiresUserAuth: true }
         },
         {
             path: '/me/wallet',
             name: 'personal-center-wallet',
-            component: templateView('PersonalCenter', () => import('../views/PersonalCenter.vue')),
+            component: templateView('PersonalCenter', personalCenterViewLoader),
             props: { section: 'wallet' },
             meta: { requiresUserAuth: true }
         },
         {
             path: '/me/gift-cards',
             name: 'personal-center-gift-cards',
-            component: templateView('PersonalCenter', () => import('../views/PersonalCenter.vue')),
+            component: templateView('PersonalCenter', personalCenterViewLoader),
             props: { section: 'giftCard' },
             meta: { requiresUserAuth: true }
         },
@@ -247,7 +249,7 @@ const router = createRouter({
         {
             path: '/guest/orders',
             name: 'guest-orders',
-            component: templateView('GuestOrders', () => import('../views/GuestOrders.vue')),
+            component: templateView('GuestOrders', guestOrdersViewLoader),
         },
         {
             path: '/guest/orders/:order_no',
