@@ -4,8 +4,13 @@ import { readFileSync } from 'node:fs'
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8')
 
-test('guest order details offer a direct change-payment-method route', () => {
-  for (const path of ['../src/views/GuestOrderDetail.vue', '../src/templates/vault/GuestOrderDetail.vue']) {
+test('guest and member order details offer a direct change-payment-method route', () => {
+  for (const path of [
+    '../src/views/GuestOrderDetail.vue',
+    '../src/templates/vault/GuestOrderDetail.vue',
+    '../src/views/OrderDetail.vue',
+    '../src/templates/vault/OrderDetail.vue',
+  ]) {
     const source = read(path)
     assert.match(source, /change_method=1/)
     assert.match(source, /payment\.changeMethod/)

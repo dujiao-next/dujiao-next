@@ -42,6 +42,9 @@
           <Button v-if="order.status === 'pending_payment'" as-child size="sm" class="rounded-full">
             <RouterLink :to="`/pay?order_no=${order.order_no}`">{{ t('orderDetail.payNow') }}</RouterLink>
           </Button>
+          <Button v-if="order.status === 'pending_payment'" as-child variant="outline" size="sm" class="rounded-full">
+            <RouterLink :to="`/pay?change_method=1&order_no=${order.order_no}`">{{ t('payment.changeMethod') }}</RouterLink>
+          </Button>
           <Button v-if="order.status === 'pending_payment'" type="button" variant="outline" size="sm" class="rounded-full border-destructive text-destructive hover:bg-destructive/10" @click="cancelOrder">{{ t('orderDetail.cancel') }}</Button>
         </div>
       </div>
