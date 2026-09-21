@@ -19,6 +19,7 @@ const paymentViewLoader: RouteComponentLoader = () => import('../views/Payment.v
 const blogViewLoader: RouteComponentLoader = () => import('../views/Blog.vue')
 const noticeViewLoader: RouteComponentLoader = () => import('../views/Notice.vue')
 const loginViewLoader: RouteComponentLoader = () => import('../views/auth/Login.vue')
+const registerViewLoader: RouteComponentLoader = () => import('../views/auth/Register.vue')
 const guestOrdersViewLoader: RouteComponentLoader = () => import('../views/GuestOrders.vue')
 const personalCenterViewLoader: RouteComponentLoader = () => import('../views/PersonalCenter.vue')
 const resellerLayoutLoader: RouteComponentLoader = () => import('../views/reseller/ResellerConsoleLayout.vue')
@@ -31,6 +32,8 @@ const routeWarmupLoaders: RouteComponentLoader[] = [
     paymentViewLoader,
     loginViewLoader,
 ]
+
+const authRouteWarmupLoaders: RouteComponentLoader[] = [registerViewLoader]
 
 let hasScheduledRouteWarmup = false
 
@@ -297,7 +300,7 @@ const router = createRouter({
         {
             path: '/auth/register',
             name: 'user-register',
-            component: templateView('auth/Register', () => import('../views/auth/Register.vue')),
+            component: templateView('auth/Register', registerViewLoader),
             meta: { userGuest: true }
         },
         {
@@ -377,6 +380,9 @@ router.afterEach(() => {
         }
         void router.push('/')
     })
+    if (router.currentRoute.value.name === 'user-login' && shouldWarmupRoutes()) {
+        scheduleIdleTask(() => runRouteWarmupQueue([...authRouteWarmupLoaders]))
+    }
 })
 
 export default router
