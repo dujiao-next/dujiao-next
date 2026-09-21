@@ -6,12 +6,20 @@
     <div class="container mx-auto px-4 flex items-center justify-between gap-4">
       <!-- Logo -->
       <router-link to="/" class="theme-wordmark group relative gap-3" :title="brandSiteName">
-        <img
-          v-if="brandLogo"
-          :src="brandLogo"
-          :alt="brandSiteName"
-          class="h-8 max-w-[180px] shrink-0 object-contain"
-        />
+        <svg class="h-8 w-8 shrink-0" viewBox="0 0 64 64" role="img" aria-label="雪糕数卡">
+          <defs>
+            <linearGradient id="navbar-ice-logo" x1="0" y1="0" x2="1" y2="1">
+              <stop stop-color="#60a5fa" />
+              <stop offset="1" stop-color="#2563eb" />
+            </linearGradient>
+          </defs>
+          <rect x="6" y="8" width="38" height="44" rx="12" fill="url(#navbar-ice-logo)" />
+          <path d="M17 8h16v26a8 8 0 0 1-16 0z" fill="#dbeafe" opacity=".92" />
+          <rect x="20" y="51" width="10" height="9" rx="4" fill="#d6a768" />
+          <rect x="31" y="22" width="27" height="30" rx="7" fill="#fff" stroke="#1d4ed8" stroke-width="3" />
+          <circle cx="39" cy="31" r="3" fill="#2563eb" />
+          <path d="M46 29h7M37 40h16M37 46h11" stroke="#60a5fa" stroke-width="3" stroke-linecap="round" />
+        </svg>
         <span class="theme-wordmark-text">{{ brandSiteName }}</span>
       </router-link>
 
@@ -102,7 +110,6 @@ import { useAppStore } from '../stores/app'
 
 import { useUserAuthStore } from '../stores/userAuth'
 import { useTheme } from '../utils/theme'
-import { getImageUrl } from '../utils/image'
 import { useNavConfig } from '../composables/useNavConfig'
 import {
   Sun, Moon, ClipboardList, LogIn, User, LogOut, Languages,
@@ -139,11 +146,6 @@ const currentLocale = computed(() => {
 const brandSiteName = computed(() => {
   const text = String(appStore.config?.brand?.site_name || '').trim()
   return text !== '' ? text : '雪糕数卡'
-})
-
-const brandLogo = computed(() => {
-  const raw = String(appStore.config?.brand?.site_logo || '').trim()
-  return raw ? getImageUrl(raw) : '/xuegao-logo-v2.svg'
 })
 
 const changeLanguage = (langCode: string) => {

@@ -8,10 +8,12 @@ const router = read('src/router/index.ts')
 const productList = read('src/composables/useProductList.ts')
 const productDetail = read('src/composables/useProductDetail.ts')
 
-test('cold shell never renders upstream branding', () => {
+test('cold shell renders the final local brand mark inline before config resolves', () => {
   assert.doesNotMatch(navbar, /Dujiao-Next/)
   assert.match(navbar, /雪糕数卡/)
-  assert.match(navbar, /\/xuegao-logo-v2\.svg/)
+  assert.match(navbar, /<svg[^>]+aria-label="雪糕数卡"/)
+  assert.doesNotMatch(navbar, /<img[\s\S]*?:src="brandLogo"/)
+  assert.doesNotMatch(navbar, /const brandLogo/)
 })
 
 test('root product route is eagerly available without config-selected loader', () => {
