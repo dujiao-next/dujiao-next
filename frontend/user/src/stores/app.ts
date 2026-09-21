@@ -2,7 +2,6 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { configAPI } from '../api'
 import { applyCustomScripts } from '../utils/customScripts'
-import { getImageUrl } from '../utils/image'
 import { getLocalizedText } from '../utils/resellerSiteConfig'
 import { detectLocale, setI18nLocale } from '../i18n'
 import { useHead } from '@unhead/vue'
@@ -15,11 +14,7 @@ export const useAppStore = defineStore('app', () => {
     const loading = ref(false)
     // 服务器与客户端的时间偏移量（毫秒），serverTime = clientTime + offset
     const serverTimeOffset = ref(0)
-    const siteIconHref = computed(() => {
-        const siteIcon = String(config.value?.brand?.site_icon || '').trim()
-        if (!siteIcon || siteIcon === '/favicon.svg') return '/favicon-32x32-v3.png'
-        return getImageUrl(siteIcon)
-    })
+
     const isResellerTenant = computed(() => {
         return String(config.value?.tenant?.mode || '').trim().toLowerCase() === 'reseller'
     })
@@ -45,7 +40,7 @@ export const useAppStore = defineStore('app', () => {
             const siteName = String(config.value?.brand?.site_name || '').trim()
             return siteName || undefined
         },
-        link: () => [{ key: 'favicon', rel: 'icon', href: siteIconHref.value }],
+
         meta: () => {
             const seo = config.value?.seo
             if (!seo) return []
