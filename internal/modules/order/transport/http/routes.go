@@ -67,6 +67,7 @@ func RegisterGuestReadRoutes(guest gin.IRoutes, handler *GuestHandler) {
 	guest.GET("/orders", handler.ListGuestOrders)
 	guest.GET("/orders/:order_no", handler.GetGuestOrderByOrderNo)
 	guest.GET("/orders/:order_no/fulfillment/download", handler.DownloadGuestFulfillment)
+	guest.POST("/orders/:order_no/cancel", handler.CancelGuestOrder)
 }
 
 // RegisterUserPreviewRoute 注册前台用户订单预览路由。

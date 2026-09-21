@@ -6,6 +6,8 @@ import { debounceAsync } from '../utils/debounce'
 import { clearGuestOrderAuth, loadGuestOrderAuth, saveGuestOrderAuth } from '../utils/guestOrderAuth'
 import { resolveGuestOrderDetailViewState } from '../utils/guestOrderDetailState'
 import { useOrderDisplayHelpers } from './useOrderDisplayHelpers'
+import { useConfirmDialog } from './useConfirmDialog'
+import { toast } from './useToast'
 
 /**
  * 游客订单详情逻辑（classic + vault 共用）。
@@ -14,6 +16,7 @@ export function useGuestOrderDetail() {
   const route = useRoute()
   const router = useRouter()
   const { t } = useI18n()
+  const { confirm: showConfirm } = useConfirmDialog()
 
   const loading = ref(true)
   const order = ref<any>(null)
@@ -107,6 +110,24 @@ export function useGuestOrderDetail() {
     authError.value = t('guestOrderDetail.authRequired')
   }
 
+  const cancelOrder = async () => {
+    if (!order.value || order.value.status !== 'pending_payment') return
+    const confirmed = await showConfirm({
+      title: t('orderDetail.cancel'),
+      message: t('orderDetail.cancelConfirm'),
+      confirmText: t('common.confirm'),
+      cancelText: t('common.cancel'),
+      variant: 'danger',
+    })
+    if (!confirmed) return
+    try {
+      await guestOrderAPI.cancel(order.value.order_no, auth.value)
+      await debouncedLoadOrder()
+    } catch {
+      toast.error(t('orderDetail.cancelFailed'))
+    }
+  }
+
   onMounted(() => {
     if (!route.params.order_no) {
       router.push('/guest/orders')
@@ -129,6 +150,7 @@ export function useGuestOrderDetail() {
     viewState,
     handleAuthSubmit,
     clearAuth,
+    cancelOrder,
     fulfillmentDownloading,
     handleDownloadFulfillment,
     ...helpers,

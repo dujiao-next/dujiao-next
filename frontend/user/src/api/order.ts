@@ -73,6 +73,10 @@ export const guestOrderAPI = {
         const request = withGuestAuth(params, { blob: true })
         return userApi.get(`/guest/orders/${encodeURIComponent(orderNo)}/fulfillment/download`, { ...request.options, params: request.payload })
     },
+    cancel: (orderNo: string, data: GuestAuthInput) => {
+        const request = withGuestAuth(data)
+        return userApi.post(`/guest/orders/${encodeURIComponent(orderNo)}/cancel`, request.payload, request.options)
+    },
     createPayment: (data: GuestAuthInput) => {
         const request = withGuestAuth(data)
         return userApi.post('/guest/payments', request.payload, request.options)

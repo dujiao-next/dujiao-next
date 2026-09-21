@@ -23,6 +23,7 @@ type GuestOrderQuery interface {
 	ListOrdersByBrowserTokenForTenant(tenant reseller.TenantContext, tokenHash string, page, pageSize int) ([]orderdomain.Order, int64, error)
 	GetOrderByGuestOrderNoForTenant(tenant reseller.TenantContext, orderNo, email, password string) (*orderdomain.Order, error)
 	GetAnyOrderByGuestOrderNoForTenant(tenant reseller.TenantContext, orderNo, email, password string) (*orderdomain.Order, error)
+	CancelGuestOrder(order *orderdomain.Order) (*orderdomain.Order, error)
 }
 
 const browserOrderCookieName = "__Host-dujiao_browser_orders"
@@ -180,4 +181,44 @@ func (h *GuestHandler) DownloadGuestFulfillment(c *gin.Context) {
 		return
 	}
 	respondFulfillmentDownload(c, order)
+}
+
+// CancelGuestOrder 取消凭邮箱和查询密码验证的待支付游客订单。
+func (h *GuestHandler) CancelGuestOrder(c *gin.Context) {
+	email, password, ok := ginutil.GetGuestCredentials(c)
+	if !ok || strings.TrimSpace(email) == "" {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.guest_email_required", nil)
+		return
+	}
+	if strings.TrimSpace(password) == "" {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.guest_password_required", nil)
+		return
+	}
+	orderNo := strings.TrimSpace(c.Param("order_no"))
+	if orderNo == "" {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.order_item_invalid", nil)
+		return
+	}
+	found, err := h.orders.GetOrderByGuestOrderNoForTenant(tenantFromRequest(c), orderNo, email, password)
+	if err != nil {
+		if errors.Is(err, ErrGuestOrderNotFound) {
+			ginutil.RespondError(c, response.CodeNotFound, "error.guest_order_not_found", nil)
+			return
+		}
+		ginutil.RespondError(c, response.CodeInternal, "error.order_fetch_failed", err)
+		return
+	}
+	order, err := h.orders.CancelGuestOrder(found)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrOrderCancelNotAllowed):
+			ginutil.RespondError(c, response.CodeBadRequest, "error.order_cancel_not_allowed", nil)
+		case errors.Is(err, ErrOrderNotFound):
+			ginutil.RespondError(c, response.CodeNotFound, "error.guest_order_not_found", nil)
+		default:
+			ginutil.RespondError(c, response.CodeInternal, "error.order_update_failed", err)
+		}
+		return
+	}
+	response.Success(c, orderpresenter.NewOrderDetailTruncated(order))
 }

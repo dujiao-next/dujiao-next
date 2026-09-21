@@ -46,6 +46,7 @@
         <div class="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" class="rounded-full" :disabled="loading" @click="handleRefresh">{{ t('payment.refreshStatus') }}</Button>
           <Button variant="outline" size="sm" class="rounded-full" @click="handleChangePaymentMethod">{{ t('payment.changeMethod') }}</Button>
+          <Button v-if="canCancelOrder" variant="outline" size="sm" class="rounded-full border-destructive text-destructive hover:bg-destructive/10" @click="cancelOrder">{{ t('orderDetail.cancel') }}</Button>
         </div>
       </div>
 
@@ -274,6 +275,6 @@ const {
   paymentWalletPaidDisplay, paymentOnlinePayDisplay, isChannelDisabledForAmount, channelAmountLimitHint, canSubmitPayment,
   formatDate, statusLabel, formatMoney, hasDiscountAmount, formatDiscountMoney, getLocalizedText, orderItemSkuText, fulfillmentTypeLabelText,
   handleCopyPayLink, handleCopyWalletAddress, handleOpenPayLink, restoreCachedPayment, handleChangePaymentMethod,
-  handlePayment, handleGuestAuthSubmit, handleRefresh,
+  handlePayment, handleGuestAuthSubmit, handleRefresh, canCancelOrder, cancelOrder,
 } = usePayment()
 </script>

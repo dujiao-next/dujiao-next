@@ -61,6 +61,9 @@
               <Button v-if="order.status === 'pending_payment'" as-child size="sm">
                 <router-link :to="`/pay?guest=1&order_no=${order.order_no}`">{{ t('orders.payNow') }}</router-link>
               </Button>
+              <Button v-if="order.status === 'pending_payment'" variant="destructive" size="sm" @click="cancelOrder">
+                {{ t('orderDetail.cancel') }}
+              </Button>
             </div>
           </div>
         </div>
@@ -429,7 +432,7 @@ import { useGuestOrderDetail } from '../composables/useGuestOrderDetail'
 const { t } = useI18n()
 
 const {
-  order, authError, auth, viewState, handleAuthSubmit, clearAuth,
+  order, authError, auth, viewState, handleAuthSubmit, clearAuth, cancelOrder,
   fulfillmentDownloading, handleDownloadFulfillment,
   statusLabel, statusVariant, fulfillmentTypeLabelText, fulfillmentStatusLabelText,
   formatDate, getLocalizedText, formatMoney, formatDiscountMoney, hasDiscountAmount,

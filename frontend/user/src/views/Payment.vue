@@ -82,6 +82,9 @@
               <Button variant="secondary" @click="handleChangePaymentMethod">
                 {{ t('payment.changeMethod') }}
               </Button>
+              <Button v-if="canCancelOrder" variant="destructive" @click="cancelOrder">
+                {{ t('orderDetail.cancel') }}
+              </Button>
             </div>
           </div>
 
@@ -517,6 +520,6 @@ const {
   paymentWalletPaidDisplay, paymentOnlinePayDisplay, isChannelDisabledForAmount, channelAmountLimitHint, canSubmitPayment,
   formatDate, statusLabel, formatMoney, hasDiscountAmount, formatDiscountMoney, getLocalizedText, orderItemSkuText, fulfillmentTypeLabelText,
   handleCopyPayLink, handleCopyWalletAddress, handleOpenPayLink, restoreCachedPayment, handleChangePaymentMethod,
-  handlePayment, handleGuestAuthSubmit, handleRefresh,
+  handlePayment, handleGuestAuthSubmit, handleRefresh, canCancelOrder, cancelOrder,
 } = usePayment()
 </script>

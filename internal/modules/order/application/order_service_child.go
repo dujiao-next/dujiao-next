@@ -155,6 +155,29 @@ func (s *OrderService) CancelOrder(orderID uint, userID uint) (*orderdomain.Orde
 	return order, nil
 }
 
+// CancelGuestOrder 取消已经通过游客邮箱和查询密码校验的待支付父订单。
+func (s *OrderService) CancelGuestOrder(order *orderdomain.Order) (*orderdomain.Order, error) {
+	if order == nil || order.ID == 0 || order.ParentID != nil {
+		return nil, ErrOrderNotFound
+	}
+	if order.Status != constants.OrderStatusPendingPayment {
+		return nil, ErrOrderCancelNotAllowed
+	}
+	if err := s.cancelOrderWithChildren(order, true); err != nil {
+		if errors.Is(err, ErrOrderCancelNotAllowed) {
+			return nil, err
+		}
+		return nil, ErrOrderUpdateFailed
+	}
+	if s.affiliateSvc != nil {
+		if err := s.affiliateSvc.HandleOrderCanceled(order.ID, "order_canceled_by_guest"); err != nil {
+			logger.Warnw("affiliate_handle_order_canceled_failed", "order_id", order.ID, "error", err)
+		}
+	}
+	FillOrderItemsFromChildren(order)
+	return order, nil
+}
+
 // UpdateOrderStatus 管理端更新订单状态
 func (s *OrderService) UpdateOrderStatus(orderID uint, targetStatus string) (*orderdomain.Order, error) {
 	order, err := s.orderStore.GetByID(orderID)

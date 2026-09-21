@@ -24,6 +24,8 @@ import {
 import QRCode from 'qrcode'
 import { type PageAlert } from '../utils/alerts'
 import { loadGuestOrderAuth, saveGuestOrderAuth } from '../utils/guestOrderAuth'
+import { useConfirmDialog } from './useConfirmDialog'
+import { toast } from './useToast'
 
 /**
  * 支付页共享逻辑（classic + vault 双模板共用）。
@@ -35,6 +37,7 @@ export function usePayment() {
   const appStore = useAppStore()
   const telegramMiniAppStore = useTelegramMiniAppStore()
   const { t } = useI18n()
+  const { confirm: showConfirm } = useConfirmDialog()
 
   const loading = ref(true)
   const submitting = ref(false)
@@ -1340,6 +1343,32 @@ export function usePayment() {
     ])
   }
 
+  const canCancelOrder = computed(() => order.value?.status === 'pending_payment')
+  const cancelOrder = async () => {
+    if (!canCancelOrder.value || !orderNoResolved.value) return
+    const confirmed = await showConfirm({
+      title: t('orderDetail.cancel'),
+      message: t('orderDetail.cancelConfirm'),
+      confirmText: t('common.confirm'),
+      cancelText: t('common.cancel'),
+      variant: 'danger',
+    })
+    if (!confirmed) return
+    try {
+      if (isGuest.value) {
+        await guestOrderAPI.cancel(orderNoResolved.value, guestAuth.value)
+      } else {
+        await userOrderAPI.cancel(orderNoResolved.value)
+      }
+      stopPolling()
+      paymentResult.value = null
+      cachedPayment.value = null
+      await debouncedLoadOrder()
+    } catch {
+      toast.error(t('orderDetail.cancelFailed'))
+    }
+  }
+
   return {
     // state
     loading,
@@ -1425,5 +1454,7 @@ export function usePayment() {
     handlePayment,
     handleGuestAuthSubmit,
     handleRefresh,
+    canCancelOrder,
+    cancelOrder,
   }
 }

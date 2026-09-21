@@ -23,6 +23,9 @@ func (s *browserOrderQueryStub) GetOrderByGuestOrderNoForTenant(reseller.TenantC
 func (s *browserOrderQueryStub) GetAnyOrderByGuestOrderNoForTenant(reseller.TenantContext, string, string, string) (*orderdomain.Order, error) {
 	return nil, nil
 }
+func (s *browserOrderQueryStub) CancelGuestOrder(order *orderdomain.Order) (*orderdomain.Order, error) {
+	return order, nil
+}
 func (s *browserOrderQueryStub) ListOrdersByBrowserTokenForTenant(_ reseller.TenantContext, hash string, _, _ int) ([]orderdomain.Order, int64, error) {
 	s.hash = hash
 	return nil, 0, nil

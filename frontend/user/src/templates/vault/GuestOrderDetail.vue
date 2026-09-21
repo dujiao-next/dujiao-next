@@ -51,6 +51,7 @@
           <Button v-if="order.status === 'pending_payment'" as-child size="sm" class="rounded-full">
             <RouterLink :to="`/pay?guest=1&order_no=${order.order_no}`">{{ t('orders.payNow') }}</RouterLink>
           </Button>
+          <Button v-if="order.status === 'pending_payment'" type="button" variant="outline" size="sm" class="rounded-full border-destructive text-destructive hover:bg-destructive/10" @click="cancelOrder">{{ t('orderDetail.cancel') }}</Button>
         </div>
       </div>
 
@@ -76,7 +77,7 @@ import { useGuestOrderDetail } from '../../composables/useGuestOrderDetail'
 const { t } = useI18n()
 
 const {
-  order, authError, auth, viewState, handleAuthSubmit, clearAuth,
+  order, authError, auth, viewState, handleAuthSubmit, clearAuth, cancelOrder,
   fulfillmentDownloading, handleDownloadFulfillment,
   statusLabel, statusVariant, formatDate, formatMoney,
 } = useGuestOrderDetail()
