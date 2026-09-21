@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="雪糕数卡">
+  <defs>
+    <linearGradient id="ice" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#60a5fa"/>
+      <stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+  </defs>
+  <rect x="6" y="8" width="38" height="44" rx="12" fill="url(#ice)"/>
+  <path d="M17 8h16v26a8 8 0 0 1-16 0z" fill="#dbeafe" opacity=".92"/>
+  <rect x="20" y="51" width="10" height="9" rx="4" fill="#d6a768"/>
+  <rect x="31" y="22" width="27" height="30" rx="7" fill="#fff" stroke="#1d4ed8" stroke-width="3"/>
+  <circle cx="39" cy="31" r="3" fill="#2563eb"/>
+  <path d="M46 29h7M37 40h16M37 46h11" stroke="#60a5fa" stroke-width="3" stroke-linecap="round"/>
+</svg>

@@ -17,7 +17,7 @@ export const useAppStore = defineStore('app', () => {
     const serverTimeOffset = ref(0)
     const siteIconHref = computed(() => {
         const siteIcon = String(config.value?.brand?.site_icon || '').trim()
-        if (!siteIcon || siteIcon === '/favicon.svg') return '/favicon-32x32.png'
+        if (!siteIcon || siteIcon === '/favicon.svg') return '/favicon-32x32-v3.png'
         return getImageUrl(siteIcon)
     })
     const isResellerTenant = computed(() => {
