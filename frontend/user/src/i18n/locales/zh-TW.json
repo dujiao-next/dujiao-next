@@ -1033,6 +1033,7 @@
       "googleLoading": "正在載入 Google 登入",
       "googleHint": "透過 Google 官方授權完成安全登入",
       "googleLoginFailed": "Google 登入失敗，請稍後重試",
+      "githubButton": "使用 GitHub 登入或註冊",
       "googleWidgetLoadFailed": "Google 登入元件載入失敗，請重新整理後重試",
       "googleInvalidCredential": "Google 回傳的登入憑據無效，請重試",
       "totp": {

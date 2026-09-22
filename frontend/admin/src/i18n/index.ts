@@ -2716,6 +2716,7 @@ const messages = {
           captcha: '验证码配置 (Captcha)',
           telegram: 'Telegram设置',
           google: 'Google登录',
+          github: 'GitHub 登录',
           notification: '通知中心 (Notification)',
           orderEmailTemplate: '订单邮件模板 (Order Email)',
           dashboard: '仪表盘 (Dashboard)',
@@ -3193,6 +3194,12 @@ const messages = {
           originHint: '桌面与 Android 使用 popup/FedCM。请在 Google Cloud Console 的 Authorized JavaScript origins 中登记主站及每个白标域名的完整 origin（协议 + 域名 + 端口）。',
           redirectHint: 'iOS/iPadOS 使用 redirect form_post：还需为每个域名精确登记 https://<域名>/api/v1/auth/google/redirect/callback 为 Authorized redirect URI，并确保 Redis 7 已启用且可用。',
         },
+        github: {
+          title: 'GitHub OAuth 登录配置', enabled: '启用 GitHub 登录', clientID: 'Client ID', clientSecret: 'Client Secret',
+          secretConfigured: '已配置；留空可保留原密钥', secretRequired: '启用时必填',
+          callbackHint: '回调地址：https://你的商城域名/api/v1/auth/github/callback；OAuth scope：user:email。',
+        },
+
         notification: {
           title: '通知中心',
           subtitle: '配置管理员通知渠道、场景开关与三语模板',
@@ -7175,6 +7182,7 @@ const messages = {
           captcha: '驗證碼配置 (Captcha)',
           telegram: 'Telegram設定',
           google: 'Google登入',
+          github: 'GitHub 登入',
           notification: '通知中心 (Notification)',
           orderEmailTemplate: '訂單郵件模板 (Order Email)',
           dashboard: '儀表板 (Dashboard)',
@@ -7652,6 +7660,12 @@ const messages = {
           originHint: '桌面與 Android 使用 popup/FedCM。請在 Google Cloud Console 的 Authorized JavaScript origins 中登記主站及每個白標網域的完整 origin（協定 + 網域 + 連接埠）。',
           redirectHint: 'iOS/iPadOS 使用 redirect form_post：還需為每個網域精確登記 https://<網域>/api/v1/auth/google/redirect/callback 為 Authorized redirect URI，並確保 Redis 7 已啟用且可用。',
         },
+        github: {
+          title: 'GitHub OAuth 登入設定', enabled: '啟用 GitHub 登入', clientID: 'Client ID', clientSecret: 'Client Secret',
+          secretConfigured: '已設定；留空可保留原密鑰', secretRequired: '啟用時必填',
+          callbackHint: '回呼網址：https://你的商城網域/api/v1/auth/github/callback；OAuth scope：user:email。',
+        },
+
         notification: {
           title: '通知中心',
           subtitle: '配置管理員通知渠道、場景開關與三語模板',
@@ -11634,7 +11648,8 @@ const messages = {
           captcha: 'Captcha',
           telegram: 'Telegram Settings',
           google: 'Google Login',
-          notification: 'Notification',
+          github: 'GitHub Login',
+          notification: 'Notification Center',
           orderEmailTemplate: 'Order Email Template',
           dashboard: 'Dashboard',
           wallet: 'Wallet',
@@ -12111,6 +12126,12 @@ const messages = {
           originHint: 'Desktop and Android use popup/FedCM. Add the complete origin (scheme + domain + port) for the main site and every white-label domain to Authorized JavaScript origins in Google Cloud Console.',
           redirectHint: 'iOS/iPadOS use redirect form_post. Also add https://<domain>/api/v1/auth/google/redirect/callback as an exact Authorized redirect URI for every domain, and ensure Redis 7 is enabled and available.',
         },
+        github: {
+          title: 'GitHub OAuth Login Settings', enabled: 'Enable GitHub login', clientID: 'Client ID', clientSecret: 'Client Secret',
+          secretConfigured: 'Configured; leave blank to keep it', secretRequired: 'Required when enabled',
+          callbackHint: 'Callback URL: https://your-store-domain/api/v1/auth/github/callback. OAuth scope: user:email.',
+        },
+
         notification: {
           title: 'Notification Center',
           subtitle: 'Configure admin channels, scene switches, and trilingual templates',

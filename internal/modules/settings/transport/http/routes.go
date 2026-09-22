@@ -28,6 +28,11 @@ func RegisterAdminGoogleAuthRoutes(admin gin.IRoutes, handler *GoogleAuthHandler
 	admin.PUT("/settings/google-auth", handler.UpdateGoogleAuth)
 }
 
+func RegisterAdminGitHubAuthRoutes(admin gin.IRoutes, handler *GitHubAuthHandler) {
+	admin.GET("/settings/github-auth", handler.GetGitHubAuth)
+	admin.PUT("/settings/github-auth", handler.UpdateGitHubAuth)
+}
+
 func RegisterAdminAffiliateRoutes(admin gin.IRoutes, handler *AffiliateHandler) {
 	admin.GET("/settings/affiliate", handler.GetAffiliate)
 	admin.PUT("/settings/affiliate", handler.UpdateAffiliate)

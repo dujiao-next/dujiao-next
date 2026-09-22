@@ -287,6 +287,7 @@ const (
 const (
 	UserOAuthProviderTelegram = "telegram"
 	UserOAuthProviderGoogle   = "google"
+	UserOAuthProviderGitHub   = "github"
 )
 
 // 登录日志状态常量
@@ -326,6 +327,7 @@ const (
 	LoginLogSourceWeb      = "web"
 	LoginLogSourceTelegram = "telegram"
 	LoginLogSourceGoogle   = "google"
+	LoginLogSourceGitHub   = "github"
 )
 
 // 验证码用途常量
@@ -471,6 +473,7 @@ const (
 	SettingKeyCaptchaConfig            = "captcha_config"
 	SettingKeyTelegramAuthConfig       = "telegram_auth_config"
 	SettingKeyGoogleAuthConfig         = "google_auth_config"
+	SettingKeyGitHubAuthConfig         = "github_auth_config"
 	SettingKeyDashboardConfig          = "dashboard_config"
 	SettingKeyNotificationCenterConfig = "notification_center_config"
 	SettingKeyAffiliateConfig          = "affiliate_config"

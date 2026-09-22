@@ -47,6 +47,11 @@ type GoogleRedirectStore interface {
 	TakeHandoff(ctx context.Context, handle string) (*GoogleRedirectHandoff, error)
 }
 
+type GitHubStateStore interface {
+	PutGitHubIntent(ctx context.Context, state string, intent GitHubOAuthIntent, ttl time.Duration) error
+	TakeGitHubIntent(ctx context.Context, state string) (*GitHubOAuthIntent, error)
+}
+
 // GoogleRedirectHandoff stores verified claims only. Raw Google credentials
 // must never cross this application boundary into the redirect state store.
 type GoogleRedirectHandoff struct {

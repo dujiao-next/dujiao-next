@@ -251,6 +251,38 @@ func (s *Service) PatchGoogleAuthSetting(defaultCfg config.GoogleAuthConfig, pat
 	return next, nil
 }
 
+// GetGitHubAuthSetting 获取 GitHub OAuth 登录配置。
+func (s *Service) GetGitHubAuthSetting(defaultCfg config.GitHubAuthConfig) (settingssecurity.GitHubAuthSetting, error) {
+	fallback := settingssecurity.DefaultGitHubAuthSetting(defaultCfg)
+	if s == nil {
+		return fallback, nil
+	}
+	value, err := s.GetByKey(constants.SettingKeyGitHubAuthConfig)
+	if err != nil {
+		return fallback, err
+	}
+	if value == nil {
+		return fallback, nil
+	}
+	return settingssecurity.DecodeGitHubAuthSetting(value, fallback), nil
+}
+
+// PatchGitHubAuthSetting 基于补丁更新 GitHub OAuth 登录配置。
+func (s *Service) PatchGitHubAuthSetting(defaultCfg config.GitHubAuthConfig, patch settingssecurity.GitHubAuthSettingPatch) (settingssecurity.GitHubAuthSetting, error) {
+	current, err := s.GetGitHubAuthSetting(defaultCfg)
+	if err != nil {
+		return settingssecurity.GitHubAuthSetting{}, err
+	}
+	next := settingssecurity.NormalizeGitHubAuthSetting(settingssecurity.ApplyGitHubAuthSettingPatch(current, patch))
+	if err := settingssecurity.ValidateGitHubAuthSetting(next); err != nil {
+		return settingssecurity.GitHubAuthSetting{}, err
+	}
+	if _, err := s.Update(constants.SettingKeyGitHubAuthConfig, map[string]interface{}(settingssecurity.EncodeGitHubAuthSetting(next))); err != nil {
+		return settingssecurity.GitHubAuthSetting{}, err
+	}
+	return next, nil
+}
+
 // GetOrderEmailTemplateSetting 获取订单邮件模板配置（优先 settings，空时回退默认）。
 func (s *Service) GetOrderEmailTemplateSetting() (settingsmessaging.OrderEmailTemplateSetting, error) {
 	fallback := settingsmessaging.DefaultOrderEmailTemplateSetting()

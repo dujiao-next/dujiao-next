@@ -192,6 +192,15 @@ export const useUserAuthStore = defineStore('user-auth', () => {
         setUser(nextUser)
     }
 
+    const acceptOAuthLogin = (data: any) => {
+        if (data?.token) setToken(String(data.token))
+        if (data?.user) setUser(data.user)
+        if (data?.requires_totp && data?.challenge_token) {
+            challengeToken.value = String(data.challenge_token)
+            challengeExpiresAt.value = String(data.challenge_expires_at || '')
+        }
+    }
+
     const logout = (redirect = '/auth/login') => {
         clearAuth()
         router.push(redirect)
@@ -214,6 +223,7 @@ export const useUserAuthStore = defineStore('user-auth', () => {
         telegramMiniAppLogin,
         googleLogin,
         googleRedirectLogin,
+        acceptOAuthLogin,
         forgotPassword,
         syncUserProfile,
         logout,

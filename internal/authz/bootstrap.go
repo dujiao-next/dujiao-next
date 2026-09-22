@@ -228,6 +228,7 @@ func BuiltinRoleSeeds() []RoleSeed {
 				{Object: "/admin/settings/captcha", Action: "*"},
 				{Object: "/admin/settings/telegram-auth", Action: "*"},
 				{Object: "/admin/settings/google-auth", Action: "*"},
+				{Object: "/admin/settings/github-auth", Action: "*"},
 				{Object: "/admin/users/:id/oauth/google", Action: "DELETE"},
 				{Object: "/admin/settings/notification-center", Action: "*"},
 				{Object: "/admin/settings/notification-center/logs", Action: "GET"},

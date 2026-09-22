@@ -23,6 +23,7 @@ type Config struct {
 	Bootstrap    BootstrapConfig    `mapstructure:"bootstrap"`
 	TelegramAuth TelegramAuthConfig `mapstructure:"telegram_auth"`
 	GoogleAuth   GoogleAuthConfig   `mapstructure:"google_auth"`
+	GitHubAuth   GitHubAuthConfig   `mapstructure:"github_auth"`
 	Redis        RedisConfig        `mapstructure:"redis"`
 	Queue        QueueConfig        `mapstructure:"queue"`
 	Upload       UploadConfig       `mapstructure:"upload"`
@@ -115,6 +116,12 @@ type TelegramAuthConfig struct {
 type GoogleAuthConfig struct {
 	Enabled  bool   `mapstructure:"enabled"`
 	ClientID string `mapstructure:"client_id"`
+}
+
+type GitHubAuthConfig struct {
+	Enabled      bool   `mapstructure:"enabled"`
+	ClientID     string `mapstructure:"client_id"`
+	ClientSecret string `mapstructure:"client_secret"`
 }
 
 // RedisConfig Redis 配置
@@ -345,6 +352,9 @@ func Load() *Config {
 	viper.SetDefault("telegram_auth.replay_ttl_seconds", 300)
 	viper.SetDefault("google_auth.enabled", false)
 	viper.SetDefault("google_auth.client_id", "")
+	viper.SetDefault("github_auth.enabled", false)
+	viper.SetDefault("github_auth.client_id", "")
+	viper.SetDefault("github_auth.client_secret", "")
 	viper.SetDefault("redis.enabled", true)
 	viper.SetDefault("redis.host", "127.0.0.1")
 	viper.SetDefault("redis.port", 6379)
