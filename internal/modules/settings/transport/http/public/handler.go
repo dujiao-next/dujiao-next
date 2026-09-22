@@ -37,6 +37,7 @@ type Settings interface {
 	GetRegistrationEmailDomainPolicy() (enabled bool, allowedDomains []string, err error)
 	GetByKey(key string) (interface{}, error)
 	GetActiveHomeAnnouncement() (jsonmap.JSON, bool)
+	GetActiveHomepageAd() (jsonmap.JSON, bool)
 }
 
 // PaymentChannels 公开支付渠道端口。
@@ -224,6 +225,9 @@ func (h *Handler) GetConfig(c *gin.Context) {
 
 	if announcement, ok := h.settings.GetActiveHomeAnnouncement(); ok {
 		data["announcement"] = announcement
+	}
+	if ad, ok := h.settings.GetActiveHomepageAd(); ok {
+		data["homepage_ad"] = ad
 	}
 
 	if h.overlay != nil {

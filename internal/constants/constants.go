@@ -508,6 +508,7 @@ const (
 	SettingKeyCallbackRoutesConfig = "callback_routes_config"
 
 	SettingKeyHomeAnnouncement   = "home_announcement"
+	SettingKeyHomepageAd         = "homepage_ad"
 	SettingFieldPaymentCallback  = "payment_callback"
 	SettingFieldDujiaoPayWebhook = "dujiaopay_webhook"
 	SettingFieldPaypalWebhook    = "paypal_webhook"

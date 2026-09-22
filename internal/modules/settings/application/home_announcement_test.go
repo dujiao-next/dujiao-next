@@ -7,6 +7,23 @@ import (
 	"github.com/dujiao-next/internal/shared/jsonmap"
 )
 
+func TestHomepageAdSettingIsIndependentAndInvalidatesPublicCache(t *testing.T) {
+	repo := newMockSettingRepo()
+	svc := NewService(repo)
+	value := map[string]interface{}{"enabled": true, "title": map[string]interface{}{"zh-CN": "广告"}, "content": map[string]interface{}{"zh-CN": "<p>正文</p>"}}
+	result, err := svc.UpdateWithEffects(constants.SettingKeyHomepageAd, value)
+	if err != nil || !result.HasEffect(EffectInvalidatePublicConfigCache) {
+		t.Fatalf("update homepage ad: result=%#v err=%v", result, err)
+	}
+	ad, ok := svc.GetActiveHomepageAd()
+	if !ok || ad["title"].(map[string]interface{})["zh-CN"] != "广告" {
+		t.Fatalf("active homepage ad = %#v, %t", ad, ok)
+	}
+	if _, ok := svc.GetActiveHomeAnnouncement(); ok {
+		t.Fatal("homepage ad must not alter modal announcement")
+	}
+}
+
 func TestHomeAnnouncementActiveDisabled(t *testing.T) {
 	repo := newMockSettingRepo()
 	svc := NewService(repo)

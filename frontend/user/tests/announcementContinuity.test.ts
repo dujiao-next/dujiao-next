@@ -4,9 +4,8 @@ import test from 'node:test'
 
 const products = fs.readFileSync(new URL('../src/views/Products.vue', import.meta.url), 'utf8')
 
-test('announcement uses a cached last-known value before public config resolves', () => {
-  assert.match(products, /readCachedAnnouncement/)
-  assert.match(products, /writeCachedAnnouncement/)
-  assert.match(products, /cachedAnnouncement/)
-  assert.doesNotMatch(products, /announcementContent = computed\(\(\) => sanitizeRichHtml\(getLocalizedText\(appStore\.config\?\.announcement\?\.content\) \|\|/)
+test('inline ad does not reuse a cached modal announcement after public config resolves', () => {
+  assert.doesNotMatch(products, /readCachedAnnouncement|writeCachedAnnouncement|cachedAnnouncement/)
+  assert.match(products, /config\?\.homepage_ad/)
+  assert.match(products, /config\?\.announcement/)
 })

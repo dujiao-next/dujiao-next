@@ -15,6 +15,7 @@ func TestDefaultSettingRegistryCoversLegacyNormalizedKeys(t *testing.T) {
 		constants.SettingKeyDashboardConfig,
 		constants.SettingKeyGoogleAuthConfig,
 		constants.SettingKeyHomeAnnouncement,
+		constants.SettingKeyHomepageAd,
 		constants.SettingKeyNavConfig,
 		constants.SettingKeyNotificationCenterConfig,
 		constants.SettingKeyOrderConfig,

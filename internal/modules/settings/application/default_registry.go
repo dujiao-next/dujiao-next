@@ -81,6 +81,11 @@ var defaultSettingRegistry = MustNewRegistry(
 		Effects:   []Effect{EffectInvalidatePublicConfigCache},
 	},
 	Definition{
+		Key:       constants.SettingKeyHomepageAd,
+		Normalize: settingsstorefront.NormalizeHomepageAdJSON,
+		Effects:   []Effect{EffectInvalidatePublicConfigCache},
+	},
+	Definition{
 		Key:     constants.SettingKeyWalletConfig,
 		Effects: []Effect{EffectInvalidatePublicConfigCache},
 	},

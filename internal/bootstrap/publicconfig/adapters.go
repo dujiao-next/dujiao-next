@@ -102,6 +102,10 @@ func (a publicConfigSettingsAdapter) GetActiveHomeAnnouncement() (jsonmap.JSON, 
 	return a.settings.GetActiveHomeAnnouncement()
 }
 
+func (a publicConfigSettingsAdapter) GetActiveHomepageAd() (jsonmap.JSON, bool) {
+	return a.settings.GetActiveHomepageAd()
+}
+
 type publicConfigPaymentAdapter struct {
 	payments *paymentapp.PaymentService
 }

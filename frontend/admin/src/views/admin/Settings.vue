@@ -21,6 +21,7 @@ import SettingsCaptchaTab from './components/SettingsCaptchaTab.vue'
 import SettingsOrderEmailTemplateTab from './components/SettingsOrderEmailTemplateTab.vue'
 import SettingsNavigationTab from './components/SettingsNavigationTab.vue'
 import SettingsHomeAnnouncementTab from './components/SettingsHomeAnnouncementTab.vue'
+import SettingsHomepageAdTab from './components/SettingsHomepageAdTab.vue'
 import SettingsUpstreamSyncTab from './components/SettingsUpstreamSyncTab.vue'
 
 const { t } = useI18n()
@@ -30,6 +31,7 @@ const captchaTabRef = ref<InstanceType<typeof SettingsCaptchaTab>>()
 const orderEmailTemplateTabRef = ref<InstanceType<typeof SettingsOrderEmailTemplateTab>>()
 const navigationTabRef = ref<InstanceType<typeof SettingsNavigationTab>>()
 const homeAnnouncementTabRef = ref<InstanceType<typeof SettingsHomeAnnouncementTab>>()
+const homepageAdTabRef = ref<InstanceType<typeof SettingsHomepageAdTab>>()
 const upstreamSyncTabRef = ref<InstanceType<typeof SettingsUpstreamSyncTab>>()
 const siteIconPickerRef = ref<InstanceType<typeof MediaPicker> | null>(null)
 const siteLogoPickerRef = ref<InstanceType<typeof MediaPicker> | null>(null)
@@ -77,6 +79,7 @@ const tabs = computed(() => [
   { label: t('admin.settings.tabs.about'), value: 'about' },
   { label: t('admin.settings.tabs.legal'), value: 'legal' },
   { label: t('admin.settings.tabs.homeAnnouncement'), value: 'home_announcement' },
+  { label: t('admin.settings.tabs.homepageAd'), value: 'homepage_ad' },
   { label: t('admin.settings.tabs.smtp'), value: 'smtp' },
   { label: t('admin.settings.tabs.orderEmailTemplate'), value: 'order_email_template' },
   { label: t('admin.settings.tabs.captcha'), value: 'captcha' },
@@ -782,6 +785,10 @@ const saveSettings = async () => {
     await homeAnnouncementTabRef.value?.save()
     return
   }
+  if (currentTab.value === 'homepage_ad') {
+    await homepageAdTabRef.value?.save()
+    return
+  }
   if (currentTab.value === 'upstream_sync') {
     await upstreamSyncTabRef.value?.save()
     return
@@ -831,7 +838,7 @@ onMounted(() => {
             {{ lang.name }}
           </button>
         </div>
-        <Button size="sm" class="w-full sm:w-auto" :disabled="loading || smtpTabRef?.submitting || smtpTabRef?.smtpTesting || captchaTabRef?.submitting || orderEmailTemplateTabRef?.submitting || navigationTabRef?.submitting || homeAnnouncementTabRef?.submitting || upstreamSyncTabRef?.submitting" @click="saveSettings">
+        <Button size="sm" class="w-full sm:w-auto" :disabled="loading || smtpTabRef?.submitting || smtpTabRef?.smtpTesting || captchaTabRef?.submitting || orderEmailTemplateTabRef?.submitting || navigationTabRef?.submitting || homeAnnouncementTabRef?.submitting || homepageAdTabRef?.submitting || upstreamSyncTabRef?.submitting" @click="saveSettings">
           <span v-if="loading" class="h-3 w-3 animate-spin rounded-full border-2 border-primary/30 border-t-primary"></span>
           {{ loading ? t('admin.settings.actions.saving') : t('admin.settings.actions.save') }}
         </Button>
@@ -1377,6 +1384,10 @@ onMounted(() => {
 
       <TabsContent value="home_announcement" :forceMount="true" v-show="currentTab === 'home_announcement'" class="mt-0">
         <SettingsHomeAnnouncementTab ref="homeAnnouncementTabRef" :current-lang="currentLang" @saved="fetchSettings" />
+      </TabsContent>
+
+      <TabsContent value="homepage_ad" :forceMount="true" v-show="currentTab === 'homepage_ad'" class="mt-0">
+        <SettingsHomepageAdTab ref="homepageAdTabRef" :current-lang="currentLang" @saved="fetchSettings" />
       </TabsContent>
 
       <TabsContent value="smtp" :forceMount="true" v-show="currentTab === 'smtp'" class="mt-0">
