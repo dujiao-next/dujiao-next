@@ -41,9 +41,9 @@
         <p class="text-muted-foreground">{{ t('guestOrderDetail.notFound') }}</p>
       </div>
 
-      <div v-else-if="viewState === 'detail' && order" class="space-y-6">
-        <div class="rounded-2xl border bg-card shadow-sm p-6">
-          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div v-else-if="viewState === 'detail' && order" class="space-y-4 md:space-y-6">
+        <div data-order-summary class="rounded-2xl border bg-card p-4 shadow-sm md:p-6">
+          <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4">
             <div>
               <div class="text-xs uppercase tracking-wider text-muted-foreground">{{ t('orders.orderNo') }}</div>
               <div class="text-sm font-semibold text-foreground mt-1">{{ order.order_no }}</div>

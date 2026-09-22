@@ -27,7 +27,7 @@
     </div>
 
     <template v-else>
-      <div class="mb-[18px] flex flex-wrap items-start justify-between gap-[18px] rounded-xl border bg-card p-[22px]">
+      <div data-order-summary class="mb-4 flex flex-wrap items-start justify-between gap-3 rounded-xl border bg-card p-4 sm:mb-[18px] sm:gap-[18px] sm:p-[22px]">
         <div>
           <div class="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">{{ t('orders.orderNo') }}</div>
           <div class="mt-1 font-bold">{{ order.order_no }}</div>
