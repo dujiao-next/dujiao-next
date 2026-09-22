@@ -114,11 +114,11 @@ onUnmounted(() => { window.removeEventListener('resize', handleResize); cleanup(
 .category-card-grid::-webkit-scrollbar { display: none; }
 .category-pill { position:relative; display:flex; flex:none; align-items:center; gap:.55rem; min-height:2.75rem; padding:.35rem .85rem .35rem .4rem; border:1px solid hsl(var(--border)); border-radius:1rem; background:hsl(var(--card)); color:hsl(var(--muted-foreground)); font-size:.875rem; font-weight:600; transition:border-color .18s ease, background-color .18s ease, box-shadow .18s ease, color .18s ease, transform .18s ease; }
 .category-pill:hover { border-color:hsl(var(--primary)/.45); color:hsl(var(--foreground)); transform:translateY(-1px); }
-.category-pill-active { border-color:hsl(var(--primary)); background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); box-shadow:0 6px 16px hsl(var(--primary)/.28); font-weight:800; }
+.category-pill-active { border-color:var(--ui-accent); background:var(--ui-accent); color:var(--ui-text-on-accent); box-shadow:0 6px 16px color-mix(in srgb, var(--ui-accent) 28%, transparent); font-weight:800; }
 .category-icon { display:grid; width:2rem; height:2rem; flex:none; place-items:center; border-radius:.65rem; background:var(--ui-bg-soft); color:var(--ui-accent); }
-.category-pill-active .category-icon { background:hsl(var(--primary-foreground)); color:hsl(var(--primary)); box-shadow:0 0 0 1px hsl(var(--primary-foreground)/.45); }
+.category-pill-active .category-icon { background:var(--ui-text-on-accent); color:var(--ui-accent); box-shadow:0 0 0 1px color-mix(in srgb, var(--ui-text-on-accent) 45%, transparent); }
 .category-active-indicator { position:absolute; right:.75rem; bottom:-1px; left:.75rem; height:3px; border-radius:999px 999px 0 0; background:hsl(var(--primary)); opacity:0; transform:scaleX(.45); transform-origin:center; }
-.category-pill-active .category-active-indicator { background:hsl(var(--primary-foreground)); opacity:1; transform:scaleX(1); }
+.category-pill-active .category-active-indicator { background:var(--ui-text-on-accent); opacity:1; transform:scaleX(1); }
 .category-switch-loading { display:flex; min-height:7rem; align-items:center; justify-content:center; gap:.65rem; color:var(--ui-text-muted); font-size:.875rem; }
 .announcement-content :deep(a) { color:hsl(var(--primary)); text-decoration:underline; text-underline-offset:3px; }
 </style>
