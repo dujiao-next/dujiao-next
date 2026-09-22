@@ -798,10 +798,8 @@ export function usePayment() {
         startPolling()
         void captureCurrentPayment({ silent: true })
         startCountdown()
-        // 对 redirect / WAP / page 跳转类模式自动进入收银台。
-        if (shouldAutoOpenPaymentLink(data)) {
-          openPayLinkInCompatibleWindow(true)
-        }
+        // 恢复已有待支付记录时只展示状态和操作按钮，绝不再次自动进入外部收银台。
+        // 自动跳转仅发生在用户刚刚主动创建支付的那一次。
       }
     } catch (err) {
       // 没有历史支付记录时忽略错误

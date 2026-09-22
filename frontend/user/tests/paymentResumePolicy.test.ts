@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import {
   getCachedPaymentRestorePolicy,
   getPaymentResetPolicy,
@@ -28,11 +29,15 @@ test('route changes keep the normal latest payment resume behavior', () => {
   })
 })
 
-test('cached payment restore resumes status watching without opening a cashier', () => {
+test('cached and latest payment restoration never reopens the external cashier', () => {
   assert.deepEqual(getCachedPaymentRestorePolicy(), {
     startActivePaymentWatch: true,
     autoOpenPayLink: false,
   })
+  const paymentComposable = readFileSync(new URL('../src/composables/usePayment.ts', import.meta.url), 'utf8')
+  const latestPaymentBlock = paymentComposable.match(/const loadLatestPayment = async \(\) => \{([\s\S]*?)\n  \}\n\n  const buildPayRouteQuery/)?.[1] || ''
+  assert.doesNotMatch(latestPaymentBlock, /openPayLinkInCompatibleWindow/)
+  assert.doesNotMatch(latestPaymentBlock, /shouldAutoOpenPaymentLink/)
 })
 
 test('Alipay page and WAP modes use redirect presentation while QR stays scannable', () => {
