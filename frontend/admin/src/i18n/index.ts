@@ -3117,6 +3117,7 @@ const messages = {
           scenesTitle: '启用场景',
           scenes: {
             login: '登录验证（前台+后台）',
+            register: '用户注册提交',
             registerSendCode: '注册发送邮件验证码',
             resetSendCode: '找回密码发送邮件验证码',
             guestCreateOrder: '游客下单创建订单',
@@ -7564,6 +7565,7 @@ const messages = {
           scenesTitle: '啟用場景',
           scenes: {
             login: '登入驗證（前台+後台）',
+            register: '使用者註冊提交',
             registerSendCode: '註冊發送郵件驗證碼',
             resetSendCode: '找回密碼發送郵件驗證碼',
             guestCreateOrder: '遊客下單建立訂單',
@@ -12011,6 +12013,7 @@ const messages = {
           scenesTitle: 'Enabled scenes',
           scenes: {
             login: 'Login verification (web + admin)',
+            register: 'User registration submission',
             registerSendCode: 'Register email code sending',
             resetSendCode: 'Reset password email code sending',
             guestCreateOrder: 'Guest checkout create order',

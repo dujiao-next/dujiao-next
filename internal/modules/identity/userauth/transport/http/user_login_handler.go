@@ -54,10 +54,11 @@ func NewUserLoginHandler(settings UserLoginSettings, auth UserLoginAuth, captcha
 
 // UserRegisterRequest 注册请求。
 type UserRegisterRequest struct {
-	Email             string `json:"email" binding:"required"`
-	Password          string `json:"password" binding:"required"`
-	Code              string `json:"code"`
-	AgreementAccepted bool   `json:"agreement_accepted"`
+	Email             string                            `json:"email" binding:"required"`
+	Password          string                            `json:"password" binding:"required"`
+	Code              string                            `json:"code"`
+	AgreementAccepted bool                              `json:"agreement_accepted"`
+	CaptchaPayload    captchahttp.CaptchaPayloadRequest `json:"captcha_payload"`
 }
 
 // UserLoginRequest 登录请求。
@@ -103,6 +104,13 @@ func (h *UserLoginHandler) UserRegister(c *gin.Context) {
 	if err != nil {
 		ginutil.RespondError(c, response.CodeInternal, "error.register_failed", err)
 		return
+	}
+
+	if h.captcha != nil {
+		if captchaErr := h.captcha.Verify(constants.CaptchaSceneRegister, req.CaptchaPayload, c.ClientIP()); captchaErr != nil {
+			respondCaptchaError(c, captchaErr)
+			return
+		}
 	}
 
 	user, token, expiresAt, err := h.auth.Register(req.Email, req.Password, req.Code, req.AgreementAccepted, emailVerificationEnabled)

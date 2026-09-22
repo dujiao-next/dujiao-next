@@ -246,6 +246,7 @@ const captchaData = reactive({
   provider: 'none',
   scenes: {
     login: false,
+    register: false,
     register_send_code: false,
     reset_send_code: false,
     guest_create_order: false,
@@ -495,6 +496,7 @@ const fetchSettings = async () => {
       captchaData.provider = String(captcha.provider || 'none')
       const captchaScenes = captcha.scenes as Record<string, unknown> | undefined
       captchaData.scenes.login = !!captchaScenes?.login
+      captchaData.scenes.register = !!captchaScenes?.register
       captchaData.scenes.register_send_code = !!captchaScenes?.register_send_code
       captchaData.scenes.reset_send_code = !!captchaScenes?.reset_send_code
       captchaData.scenes.guest_create_order = !!captchaScenes?.guest_create_order

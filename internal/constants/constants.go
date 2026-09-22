@@ -347,6 +347,7 @@ const (
 // 验证码校验场景常量
 const (
 	CaptchaSceneLogin            = "login"
+	CaptchaSceneRegister         = "register"
 	CaptchaSceneRegisterSendCode = "register_send_code"
 	CaptchaSceneResetSendCode    = "reset_send_code"
 	CaptchaSceneGuestCreateOrder = "guest_create_order"

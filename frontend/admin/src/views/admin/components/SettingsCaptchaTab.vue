@@ -14,6 +14,7 @@ interface CaptchaData {
   provider: string
   scenes: {
     login: boolean
+    register: boolean
     register_send_code: boolean
     reset_send_code: boolean
     guest_create_order: boolean
@@ -51,6 +52,7 @@ const form = reactive({
   provider: 'none',
   scenes: {
     login: false,
+    register: false,
     register_send_code: false,
     reset_send_code: false,
     guest_create_order: false,
@@ -104,6 +106,7 @@ const save = async () => {
       provider: form.provider,
       scenes: {
         login: form.scenes.login,
+        register: form.scenes.register,
         register_send_code: form.scenes.register_send_code,
         reset_send_code: form.scenes.reset_send_code,
         guest_create_order: form.scenes.guest_create_order,
@@ -178,6 +181,10 @@ defineExpose({ save, submitting })
             <div class="flex items-center gap-2 text-sm">
               <Switch v-model="form.scenes.login" />
               <Label class="text-sm">{{ t('admin.settings.captcha.scenes.login') }}</Label>
+            </div>
+            <div class="flex items-center gap-2 text-sm">
+              <Switch v-model="form.scenes.register" />
+              <Label class="text-sm">{{ t('admin.settings.captcha.scenes.register') }}</Label>
             </div>
             <div class="flex items-center gap-2 text-sm">
               <Switch v-model="form.scenes.register_send_code" />

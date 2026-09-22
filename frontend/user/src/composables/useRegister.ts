@@ -45,10 +45,15 @@ export function useRegister() {
   const turnstileToken = ref('')
   const imageCaptchaRef = ref<InstanceType<typeof ImageCaptcha> | null>(null)
   const turnstileRef = ref<InstanceType<typeof TurnstileCaptcha> | null>(null)
+  const registerCaptchaPayload = ref<CaptchaPayload>({})
+  const registerTurnstileToken = ref('')
+  const registerImageCaptchaRef = ref<InstanceType<typeof ImageCaptcha> | null>(null)
+  const registerTurnstileRef = ref<InstanceType<typeof TurnstileCaptcha> | null>(null)
   let timer: number | undefined
 
   const captchaConfig = computed(() => appStore.config?.captcha || null)
   const captchaProvider = computed(() => String(captchaConfig.value?.provider || 'none'))
+  const registerCaptchaEnabled = computed(() => !!captchaConfig.value?.scenes?.register && captchaProvider.value !== 'none')
   const sendCodeCaptchaEnabled = computed(() => !!captchaConfig.value?.scenes?.register_send_code && captchaProvider.value !== 'none')
   const turnstileSiteKey = computed(() => String(captchaConfig.value?.turnstile?.site_key || ''))
   const registrationEnabled = computed(() => appStore.config?.registration_enabled !== false)
@@ -131,17 +136,17 @@ export function useRegister() {
     }, 1000)
   }
 
-  const getCaptchaPayload = (): CaptchaPayload | undefined => {
-    if (!sendCodeCaptchaEnabled.value) return undefined
+  const getCaptchaPayload = (enabled: boolean, payload: CaptchaPayload, token: string): CaptchaPayload | undefined => {
+    if (!enabled) return undefined
     if (captchaProvider.value === 'image') {
       return {
-        captcha_id: captchaPayload.value.captcha_id || '',
-        captcha_code: captchaPayload.value.captcha_code || '',
+        captcha_id: payload.captcha_id || '',
+        captcha_code: payload.captcha_code || '',
       }
     }
     if (captchaProvider.value === 'turnstile') {
       return {
-        turnstile_token: turnstileToken.value,
+        turnstile_token: token,
       }
     }
     return undefined
@@ -151,6 +156,8 @@ export function useRegister() {
     await appStore.loadConfig(true)
     captchaPayload.value = {}
     turnstileToken.value = ''
+    registerCaptchaPayload.value = {}
+    registerTurnstileToken.value = ''
   }
 
   const performSendCode = async () => {
@@ -182,7 +189,7 @@ export function useRegister() {
       await userAuthStore.sendVerifyCode({
         email: currentEmail,
         purpose: 'register',
-        captcha_payload: getCaptchaPayload(),
+        captcha_payload: getCaptchaPayload(sendCodeCaptchaEnabled.value, captchaPayload.value, turnstileToken.value),
       })
       startCountdown()
     } catch (err: any) {
@@ -208,16 +215,36 @@ export function useRegister() {
       error.value = t('auth.register.errors.agreementRequired')
       return
     }
+    if (registerCaptchaEnabled.value && captchaProvider.value === 'image') {
+      if (!registerCaptchaPayload.value.captcha_id || !registerCaptchaPayload.value.captcha_code) {
+        error.value = t('auth.common.captchaRequired')
+        return
+      }
+    }
+    if (registerCaptchaEnabled.value && captchaProvider.value === 'turnstile') {
+      if (!registerTurnstileToken.value) {
+        error.value = t('auth.common.captchaRequired')
+        return
+      }
+    }
     try {
       await userAuthStore.register({
         email: currentEmail,
         password: password.value,
         code: emailVerificationEnabled.value ? code.value : '',
         agreement_accepted: agreed.value,
+        captcha_payload: getCaptchaPayload(registerCaptchaEnabled.value, registerCaptchaPayload.value, registerTurnstileToken.value),
       })
       router.push('/me/orders')
     } catch (err: any) {
       error.value = err.message || t('auth.register.errors.registerFailed')
+      if (captchaProvider.value === 'image') {
+        registerImageCaptchaRef.value?.refresh()
+      }
+      if (captchaProvider.value === 'turnstile') {
+        registerTurnstileRef.value?.reset()
+        registerTurnstileToken.value = ''
+      }
     }
   }
 
@@ -247,7 +274,12 @@ export function useRegister() {
     turnstileToken,
     imageCaptchaRef,
     turnstileRef,
+    registerCaptchaPayload,
+    registerTurnstileToken,
+    registerImageCaptchaRef,
+    registerTurnstileRef,
     captchaProvider,
+    registerCaptchaEnabled,
     sendCodeCaptchaEnabled,
     turnstileSiteKey,
     registrationEnabled,

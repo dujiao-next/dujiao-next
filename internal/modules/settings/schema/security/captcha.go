@@ -16,6 +16,7 @@ var ErrCaptchaConfigInvalid = errors.New("captcha config invalid")
 // CaptchaSceneSetting 验证码场景配置。
 type CaptchaSceneSetting struct {
 	Login            bool `json:"login"`
+	Register         bool `json:"register"`
 	RegisterSendCode bool `json:"register_send_code"`
 	ResetSendCode    bool `json:"reset_send_code"`
 	GuestCreateOrder bool `json:"guest_create_order"`
@@ -52,6 +53,7 @@ type CaptchaSetting struct {
 // CaptchaScenePatch 场景配置补丁。
 type CaptchaScenePatch struct {
 	Login            *bool `json:"login"`
+	Register         *bool `json:"register"`
 	RegisterSendCode *bool `json:"register_send_code"`
 	ResetSendCode    *bool `json:"reset_send_code"`
 	GuestCreateOrder *bool `json:"guest_create_order"`
@@ -91,6 +93,7 @@ func DefaultCaptchaSetting(cfg config.CaptchaConfig) CaptchaSetting {
 		Provider: strings.ToLower(strings.TrimSpace(cfg.Provider)),
 		Scenes: CaptchaSceneSetting{
 			Login:            cfg.Scenes.Login,
+			Register:         cfg.Scenes.Register,
 			RegisterSendCode: cfg.Scenes.RegisterSendCode,
 			ResetSendCode:    cfg.Scenes.ResetSendCode,
 			GuestCreateOrder: cfg.Scenes.GuestCreateOrder,
@@ -206,6 +209,7 @@ func CaptchaSettingToConfig(setting CaptchaSetting) config.CaptchaConfig {
 		Provider: normalized.Provider,
 		Scenes: config.CaptchaSceneConfig{
 			Login:            normalized.Scenes.Login,
+			Register:         normalized.Scenes.Register,
 			RegisterSendCode: normalized.Scenes.RegisterSendCode,
 			ResetSendCode:    normalized.Scenes.ResetSendCode,
 			GuestCreateOrder: normalized.Scenes.GuestCreateOrder,
@@ -236,6 +240,7 @@ func EncodeCaptchaSetting(setting CaptchaSetting) jsonmap.JSON {
 		"provider": normalized.Provider,
 		"scenes": map[string]interface{}{
 			"login":              normalized.Scenes.Login,
+			"register":           normalized.Scenes.Register,
 			"register_send_code": normalized.Scenes.RegisterSendCode,
 			"reset_send_code":    normalized.Scenes.ResetSendCode,
 			"guest_create_order": normalized.Scenes.GuestCreateOrder,
@@ -266,6 +271,7 @@ func MaskCaptchaSettingForAdmin(setting CaptchaSetting) jsonmap.JSON {
 		"provider": normalized.Provider,
 		"scenes": map[string]interface{}{
 			"login":              normalized.Scenes.Login,
+			"register":           normalized.Scenes.Register,
 			"register_send_code": normalized.Scenes.RegisterSendCode,
 			"reset_send_code":    normalized.Scenes.ResetSendCode,
 			"guest_create_order": normalized.Scenes.GuestCreateOrder,
@@ -297,6 +303,7 @@ func PublicCaptchaSetting(setting CaptchaSetting) jsonmap.JSON {
 		"provider": normalized.Provider,
 		"scenes": map[string]interface{}{
 			"login":              normalized.Scenes.Login,
+			"register":           normalized.Scenes.Register,
 			"register_send_code": normalized.Scenes.RegisterSendCode,
 			"reset_send_code":    normalized.Scenes.ResetSendCode,
 			"guest_create_order": normalized.Scenes.GuestCreateOrder,
@@ -316,6 +323,8 @@ func (s CaptchaSetting) IsSceneEnabled(scene string) bool {
 	switch strings.ToLower(strings.TrimSpace(scene)) {
 	case constants.CaptchaSceneLogin:
 		return s.Scenes.Login
+	case constants.CaptchaSceneRegister:
+		return s.Scenes.Register
 	case constants.CaptchaSceneRegisterSendCode:
 		return s.Scenes.RegisterSendCode
 	case constants.CaptchaSceneResetSendCode:
@@ -340,6 +349,7 @@ func DecodeCaptchaSetting(raw jsonmap.JSON, fallback CaptchaSetting) CaptchaSett
 
 	if scenesMap := settingsvalue.ToStringAnyMap(raw["scenes"]); scenesMap != nil {
 		next.Scenes.Login = settingsvalue.ReadBool(scenesMap, "login", next.Scenes.Login)
+		next.Scenes.Register = settingsvalue.ReadBool(scenesMap, "register", next.Scenes.Register)
 		next.Scenes.RegisterSendCode = settingsvalue.ReadBool(scenesMap, "register_send_code", next.Scenes.RegisterSendCode)
 		next.Scenes.ResetSendCode = settingsvalue.ReadBool(scenesMap, "reset_send_code", next.Scenes.ResetSendCode)
 		next.Scenes.GuestCreateOrder = settingsvalue.ReadBool(scenesMap, "guest_create_order", next.Scenes.GuestCreateOrder)
@@ -375,6 +385,9 @@ func ApplyCaptchaSettingPatch(current CaptchaSetting, patch CaptchaSettingPatch)
 	if patch.Scenes != nil {
 		if patch.Scenes.Login != nil {
 			next.Scenes.Login = *patch.Scenes.Login
+		}
+		if patch.Scenes.Register != nil {
+			next.Scenes.Register = *patch.Scenes.Register
 		}
 		if patch.Scenes.RegisterSendCode != nil {
 			next.Scenes.RegisterSendCode = *patch.Scenes.RegisterSendCode
@@ -438,5 +451,5 @@ func ApplyCaptchaSettingPatch(current CaptchaSetting, patch CaptchaSettingPatch)
 }
 
 func (s CaptchaSceneSetting) anyEnabled() bool {
-	return s.Login || s.RegisterSendCode || s.ResetSendCode || s.GuestCreateOrder || s.GiftCardRedeem
+	return s.Login || s.Register || s.RegisterSendCode || s.ResetSendCode || s.GuestCreateOrder || s.GiftCardRedeem
 }

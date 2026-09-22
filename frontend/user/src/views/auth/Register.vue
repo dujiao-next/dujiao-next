@@ -164,6 +164,26 @@
             </div>
           </div>
 
+          <div v-if="registerCaptchaEnabled">
+            <label class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              <ShieldCheck class="h-3.5 w-3.5 opacity-60" />
+              {{ t('auth.common.captchaLabel') }}
+            </label>
+            <ImageCaptcha
+              v-if="captchaProvider === 'image'"
+              ref="registerImageCaptchaRef"
+              v-model="registerCaptchaPayload"
+              :disabled="userAuthStore.loading"
+              @config-stale="handleCaptchaConfigStale"
+            />
+            <TurnstileCaptcha
+              v-else-if="captchaProvider === 'turnstile'"
+              ref="registerTurnstileRef"
+              v-model="registerTurnstileToken"
+              :site-key="turnstileSiteKey"
+            />
+          </div>
+
           <label class="flex items-start gap-3 rounded-xl border bg-secondary px-4 py-3 text-sm text-muted-foreground transition-colors">
             <input
               v-model="agreed"
@@ -230,7 +250,8 @@ const {
   email, emailLocalPart, selectedEmailDomain, password, showPassword, code, agreed,
   passwordStrength, error, sending, countdown,
   captchaPayload, turnstileToken, imageCaptchaRef, turnstileRef,
-  captchaProvider, sendCodeCaptchaEnabled, turnstileSiteKey,
+  registerCaptchaPayload, registerTurnstileToken, registerImageCaptchaRef, registerTurnstileRef,
+  captchaProvider, registerCaptchaEnabled, sendCodeCaptchaEnabled, turnstileSiteKey,
   registrationEnabled, emailVerificationEnabled,
   emailDomainAllowlistEnabled, allowedEmailDomains, allowedEmailDomainsText, emailDomainSelectionRequired,
   touchRegistrationEmail, formValidation, handleCaptchaConfigStale, handleSendCode, handleRegister,
@@ -239,4 +260,6 @@ const {
 // imageCaptchaRef / turnstileRef 仅通过字符串模板 ref 绑定，显式标记避免 noUnusedLocals 误报。
 void imageCaptchaRef
 void turnstileRef
+void registerImageCaptchaRef
+void registerTurnstileRef
 </script>

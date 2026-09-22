@@ -145,6 +145,26 @@
               </div>
             </div>
 
+            <!-- 注册验证 -->
+            <div v-if="registerCaptchaEnabled">
+              <label class="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                <ShieldCheck class="h-3.5 w-3.5 opacity-70" /> {{ t('auth.common.captchaLabel') }}
+              </label>
+              <ImageCaptcha
+                v-if="captchaProvider === 'image'"
+                ref="registerImageCaptchaRef"
+                v-model="registerCaptchaPayload"
+                :disabled="userAuthStore.loading"
+                @config-stale="handleCaptchaConfigStale"
+              />
+              <TurnstileCaptcha
+                v-else-if="captchaProvider === 'turnstile'"
+                ref="registerTurnstileRef"
+                v-model="registerTurnstileToken"
+                :site-key="turnstileSiteKey"
+              />
+            </div>
+
             <!-- 协议 -->
             <label class="flex items-start gap-3 rounded-2xl border bg-muted px-4 py-3 text-sm leading-6 text-muted-foreground">
               <input v-model="agreed" type="checkbox" class="mt-0.5 h-4 w-4 shrink-0 accent-[var(--ui-accent)]" />
@@ -195,7 +215,8 @@ const {
   email, emailLocalPart, selectedEmailDomain, password, showPassword, code, agreed,
   passwordStrength, error, sending, countdown,
   captchaPayload, turnstileToken, imageCaptchaRef, turnstileRef,
-  captchaProvider, sendCodeCaptchaEnabled, turnstileSiteKey,
+  registerCaptchaPayload, registerTurnstileToken, registerImageCaptchaRef, registerTurnstileRef,
+  captchaProvider, registerCaptchaEnabled, sendCodeCaptchaEnabled, turnstileSiteKey,
   registrationEnabled, emailVerificationEnabled,
   emailDomainAllowlistEnabled, allowedEmailDomains, allowedEmailDomainsText, emailDomainSelectionRequired,
   touchRegistrationEmail, formValidation, handleCaptchaConfigStale, handleSendCode, handleRegister,
@@ -204,4 +225,6 @@ const {
 // imageCaptchaRef / turnstileRef 仅通过字符串模板 ref 绑定，显式标记避免 noUnusedLocals 误报。
 void imageCaptchaRef
 void turnstileRef
+void registerImageCaptchaRef
+void registerTurnstileRef
 </script>
