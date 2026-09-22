@@ -970,6 +970,11 @@ export function usePayment() {
       void captureCurrentPayment({ silent: true })
       startCountdown()
       window.scrollTo({ top: 0, behavior: 'smooth' })
+      // 此处是用户主动再次点击「提交订单并支付」，不同于页面加载时恢复支付。
+      // 已有支付记录也应立即打开收银台，避免桌面端只能手动点击链接。
+      if (shouldAutoOpenPaymentLink(paymentResult.value)) {
+        openPayLinkInCompatibleWindow(true)
+      }
       return
     }
     submitting.value = true

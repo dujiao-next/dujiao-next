@@ -88,6 +88,15 @@ test('redirect-style payments auto open after the customer confirmed the checkou
   assert.equal(isCustomerSurchargePayment({ fee_policy: 'legacy_customer_surcharge' }), true)
 })
 
+test('explicit pay click on an existing redirect payment opens its cashier without reopening on restore', () => {
+  const source = readFileSync(new URL('../src/composables/usePayment.ts', import.meta.url), 'utf8')
+  const submitBlock = source.match(/if \(requiresOnlineChannel\.value && cachedPayment\.value && selectedChannelId\.value && selectedChannelId\.value === cachedPayment\.value\.channel_id\) \{([\s\S]*?)\n    \}/)?.[1] || ''
+  assert.match(submitBlock, /shouldAutoOpenPaymentLink\(paymentResult\.value\)/)
+  assert.match(submitBlock, /openPayLinkInCompatibleWindow\(true\)/)
+  const restoreBlock = source.match(/const loadLatestPayment = async \(\) => \{([\s\S]*?)\n  \}\n\n  const buildPayRouteQuery/)?.[1] || ''
+  assert.doesNotMatch(restoreBlock, /openPayLinkInCompatibleWindow/)
+})
+
 test('automatic cashier navigation uses the current tab to avoid popup blocking', () => {
   assert.equal(resolvePaymentLinkNavigationTarget(true), 'current-tab')
   assert.equal(resolvePaymentLinkNavigationTarget(false), 'new-window')
