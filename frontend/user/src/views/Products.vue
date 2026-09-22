@@ -10,20 +10,23 @@
       </section>
 
       <section class="category-card-grid mt-5 flex gap-2.5 overflow-x-auto pb-2 md:mt-6 md:flex-wrap md:gap-3">
-        <button type="button" class="category-pill" :class="{ 'category-pill-active': selectedCategory === null }" @click="selectCategory(null)">
+        <button type="button" class="category-pill" :class="{ 'category-pill-active': selectedCategory === null }" :aria-pressed="selectedCategory === null" @click="selectCategory(null)">
           <span class="category-icon"><FolderOpen class="h-4 w-4" /></span>
           <span>{{ t('products.allCategories') }}</span>
+          <span class="category-active-indicator" aria-hidden="true"></span>
         </button>
         <template v-for="group in categoryGroups" :key="group.id">
-          <button type="button" class="category-pill" :class="{ 'category-pill-active': selectedCategory === group.id }" @click="selectCategory(group.id)">
+          <button type="button" class="category-pill" :class="{ 'category-pill-active': selectedCategory === group.id }" :aria-pressed="selectedCategory === group.id" @click="selectCategory(group.id)">
             <img v-if="group.icon" :src="getImageUrl(group.icon)" :alt="getLocalizedText(group.name)" class="category-icon object-cover" />
             <span v-else class="category-icon"><FolderOpen class="h-4 w-4" /></span>
             <span>{{ getLocalizedText(group.name) }}</span>
+            <span class="category-active-indicator" aria-hidden="true"></span>
           </button>
-          <button v-for="child in group.children" :key="child.id" type="button" class="category-pill" :class="{ 'category-pill-active': selectedCategory === child.id }" @click="selectCategory(child.id)">
+          <button v-for="child in group.children" :key="child.id" type="button" class="category-pill" :class="{ 'category-pill-active': selectedCategory === child.id }" :aria-pressed="selectedCategory === child.id" @click="selectCategory(child.id)">
             <img v-if="child.icon" :src="getImageUrl(child.icon)" :alt="getLocalizedText(child.name)" class="category-icon object-cover" />
             <span v-else class="category-icon"><FolderOpen class="h-4 w-4" /></span>
             <span>{{ getLocalizedText(child.name) }}</span>
+            <span class="category-active-indicator" aria-hidden="true"></span>
           </button>
         </template>
       </section>
@@ -109,11 +112,13 @@ onUnmounted(() => { window.removeEventListener('resize', handleResize); cleanup(
 <style scoped>
 .category-card-grid { scrollbar-width: none; }
 .category-card-grid::-webkit-scrollbar { display: none; }
-.category-pill { display:flex; flex:none; align-items:center; gap:.55rem; min-height:2.75rem; padding:.35rem .85rem .35rem .4rem; border:1px solid hsl(var(--border)); border-radius:1rem; background:hsl(var(--card)); color:hsl(var(--muted-foreground)); font-size:.875rem; font-weight:600; transition:all .18s ease; }
+.category-pill { position:relative; display:flex; flex:none; align-items:center; gap:.55rem; min-height:2.75rem; padding:.35rem .85rem .35rem .4rem; border:1px solid hsl(var(--border)); border-radius:1rem; background:hsl(var(--card)); color:hsl(var(--muted-foreground)); font-size:.875rem; font-weight:600; transition:border-color .18s ease, background-color .18s ease, box-shadow .18s ease, color .18s ease, transform .18s ease; }
 .category-pill:hover { border-color:hsl(var(--primary)/.45); color:hsl(var(--foreground)); transform:translateY(-1px); }
-.category-pill-active { border-color:hsl(var(--primary)); background:hsl(var(--primary)/.08); color:hsl(var(--primary)); }
+.category-pill-active { border-color:hsl(var(--primary)); background:hsl(var(--primary)/.12); color:hsl(var(--primary)); box-shadow:0 0 0 2px hsl(var(--primary)/.16); }
 .category-icon { display:grid; width:2rem; height:2rem; flex:none; place-items:center; border-radius:.65rem; background:var(--ui-bg-soft); color:var(--ui-accent); }
 .category-pill-active .category-icon { background:var(--ui-accent); color:var(--ui-text-on-accent); }
+.category-active-indicator { position:absolute; right:.75rem; bottom:-1px; left:.75rem; height:3px; border-radius:999px 999px 0 0; background:hsl(var(--primary)); opacity:0; transform:scaleX(.45); transform-origin:center; }
+.category-pill-active .category-active-indicator { opacity:1; transform:scaleX(1); }
 .category-switch-loading { display:flex; min-height:7rem; align-items:center; justify-content:center; gap:.65rem; color:var(--ui-text-muted); font-size:.875rem; }
 .announcement-content :deep(a) { color:hsl(var(--primary)); text-decoration:underline; text-underline-offset:3px; }
 </style>
