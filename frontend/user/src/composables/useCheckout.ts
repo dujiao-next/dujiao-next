@@ -7,6 +7,7 @@ import { useAppStore } from '../stores/app'
 import { useUserAuthStore } from '../stores/userAuth'
 import { guestOrderAPI, userOrderAPI, walletAPI, type CaptchaPayload } from '../api'
 import { debounceAsync } from '../utils/debounce'
+import { createCheckoutRedirectIntent } from '../utils/checkoutRedirectIntent'
 import { type PageAlert } from '../utils/alerts'
 import { amountToCents, basisPointsToPercent, centsToAmount, parseInteger, rateToBasisPoints } from '../utils/money'
 import { buildSkuDisplayText, normalizeSkuId } from '../utils/sku'
@@ -846,6 +847,11 @@ export function useCheckout() {
         throw new Error(t('checkout.errors.submitFailed'))
       }
 
+      // create-and-pay 已在结算阶段创建支付；下一页只恢复该记录。
+      // 用一次性意图区分这次主动提交与后来从外部收银台返回。
+      if (responseData.payment_id && responseData.pay_url) {
+        createCheckoutRedirectIntent(window.sessionStorage, responseData.order_no, responseData.payment_id)
+      }
       clearSourceStore()
 
       // Redirect to the existing Payment page which handles all payment display

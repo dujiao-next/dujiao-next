@@ -29,15 +29,15 @@ test('route changes keep the normal latest payment resume behavior', () => {
   })
 })
 
-test('cached and latest payment restoration never reopens the external cashier', () => {
+test('ordinary latest payment restoration does not reopen without a checkout intent', () => {
   assert.deepEqual(getCachedPaymentRestorePolicy(), {
     startActivePaymentWatch: true,
     autoOpenPayLink: false,
   })
   const paymentComposable = readFileSync(new URL('../src/composables/usePayment.ts', import.meta.url), 'utf8')
   const latestPaymentBlock = paymentComposable.match(/const loadLatestPayment = async \(\) => \{([\s\S]*?)\n  \}\n\n  const buildPayRouteQuery/)?.[1] || ''
-  assert.doesNotMatch(latestPaymentBlock, /openPayLinkInCompatibleWindow/)
-  assert.doesNotMatch(latestPaymentBlock, /shouldAutoOpenPaymentLink/)
+  assert.match(latestPaymentBlock, /consumeCheckoutRedirectIntent\(window\.sessionStorage, orderNoResolved\.value, data\.payment_id\)/)
+  assert.doesNotMatch(latestPaymentBlock, /getCachedPaymentRestorePolicy/)
 })
 
 test('Alipay page and WAP modes use redirect presentation while QR stays scannable', () => {
@@ -94,7 +94,7 @@ test('explicit pay click on an existing redirect payment opens its cashier witho
   assert.match(submitBlock, /shouldAutoOpenPaymentLink\(paymentResult\.value\)/)
   assert.match(submitBlock, /openPayLinkInCompatibleWindow\(true\)/)
   const restoreBlock = source.match(/const loadLatestPayment = async \(\) => \{([\s\S]*?)\n  \}\n\n  const buildPayRouteQuery/)?.[1] || ''
-  assert.doesNotMatch(restoreBlock, /openPayLinkInCompatibleWindow/)
+  assert.match(restoreBlock, /if \(consumeCheckoutRedirectIntent\([\s\S]*?\)\) \{\s*if \(shouldAutoOpenPaymentLink\(data\)\) openPayLinkInCompatibleWindow\(true\)/)
 })
 
 test('automatic cashier navigation uses the current tab to avoid popup blocking', () => {

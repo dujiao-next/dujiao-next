@@ -7,6 +7,7 @@ import { useTelegramMiniAppStore } from '../stores/telegramMiniApp'
 import { orderStatusLabel } from '../utils/status'
 import { fulfillmentTypeLabel } from '../utils/fulfillment'
 import { debounceAsync } from '../utils/debounce'
+import { consumeCheckoutRedirectIntent } from '../utils/checkoutRedirectIntent'
 import { copyText } from '../utils/clipboard'
 import { amountToCents, centsToAmount } from '../utils/money'
 import { buildSkuDisplayTextFromSnapshot } from '../utils/sku'
@@ -798,8 +799,10 @@ export function usePayment() {
         startPolling()
         void captureCurrentPayment({ silent: true })
         startCountdown()
-        // 恢复已有待支付记录时只展示状态和操作按钮，绝不再次自动进入外部收银台。
-        // 自动跳转仅发生在用户刚刚主动创建支付的那一次。
+        // 仅结算页刚创建的这笔支付自动跳转；普通查单/浏览器返回不会跳走。
+        if (consumeCheckoutRedirectIntent(window.sessionStorage, orderNoResolved.value, data.payment_id)) {
+          if (shouldAutoOpenPaymentLink(data)) openPayLinkInCompatibleWindow(true)
+        }
       }
     } catch (err) {
       // 没有历史支付记录时忽略错误
