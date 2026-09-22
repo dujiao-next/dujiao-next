@@ -6,19 +6,12 @@
     <div class="container mx-auto px-4 flex items-center justify-between gap-4">
       <!-- Logo -->
       <router-link to="/" class="theme-wordmark group relative gap-3" :title="brandSiteName">
-        <svg class="h-8 w-8 shrink-0" viewBox="0 0 64 64" role="img" aria-label="雪糕数卡">
-          <defs>
-            <linearGradient id="navbar-ice-logo" x1="0" y1="0" x2="1" y2="1">
-              <stop stop-color="#60a5fa" />
-              <stop offset="1" stop-color="#2563eb" />
-            </linearGradient>
-          </defs>
-          <rect x="6" y="8" width="38" height="44" rx="12" fill="url(#navbar-ice-logo)" />
-          <path d="M17 8h16v26a8 8 0 0 1-16 0z" fill="#dbeafe" opacity=".92" />
-          <rect x="20" y="51" width="10" height="9" rx="4" fill="#d6a768" />
-          <rect x="31" y="22" width="27" height="30" rx="7" fill="#fff" stroke="#1d4ed8" stroke-width="3" />
-          <circle cx="39" cy="31" r="3" fill="#2563eb" />
-          <path d="M46 29h7M37 40h16M37 46h11" stroke="#60a5fa" stroke-width="3" stroke-linecap="round" />
+        <svg class="h-8 w-8 shrink-0" viewBox="0 0 32 32" role="img" aria-label="雪糕数卡" shape-rendering="geometricPrecision">
+          <rect x="6" y="3" width="16" height="23" rx="5" fill="#2563eb" />
+          <rect x="11" y="26" width="6" height="4" rx="2" fill="#c58b45" />
+          <path d="M14 3h4v12a2 2 0 0 1-4 0V3Z" fill="#bfdbfe" />
+          <rect x="17" y="11" width="12" height="15" rx="3" fill="#fff" stroke="#1d4ed8" stroke-width="2" />
+          <path d="M21 16h4M21 20h4" stroke="#2563eb" stroke-width="2" stroke-linecap="round" />
         </svg>
         <span class="theme-wordmark-text">{{ brandSiteName }}</span>
       </router-link>
