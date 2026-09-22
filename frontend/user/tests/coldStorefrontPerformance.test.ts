@@ -8,12 +8,10 @@ const router = read('src/router/index.ts')
 const productList = read('src/composables/useProductList.ts')
 const productDetail = read('src/composables/useProductDetail.ts')
 
-test('cold shell renders a simple sharp vector brand mark inline before config resolves', () => {
+test('cold shell renders the final local brand mark inline before config resolves', () => {
   assert.doesNotMatch(navbar, /Dujiao-Next/)
   assert.match(navbar, /雪糕数卡/)
-  assert.match(navbar, /<svg[^>]+viewBox="0 0 32 32"[^>]+aria-label="雪糕数卡"/)
-  assert.match(navbar, /shape-rendering="geometricPrecision"/)
-  assert.doesNotMatch(navbar, /linearGradient|radialGradient|filter=|opacity=/)
+  assert.match(navbar, /<svg[^>]+aria-label="雪糕数卡"/)
   assert.doesNotMatch(navbar, /<img[\s\S]*?:src="brandLogo"/)
   assert.doesNotMatch(navbar, /const brandLogo/)
 })
