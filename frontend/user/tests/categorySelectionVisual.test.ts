@@ -10,8 +10,8 @@ test('selected category has a stable visual and semantic indicator', () => {
   assert.match(products, /:aria-pressed="selectedCategory === child\.id"/)
   assert.match(products, /<span class="category-active-indicator" aria-hidden="true"><\/span>/)
   assert.match(products, /\.category-pill \{[^}]*position:relative/s)
-  assert.match(products, /\.category-pill-active \{[^}]*box-shadow:/s)
-  assert.match(products, /\.category-active-indicator \{[^}]*opacity:0/s)
+  assert.match(products, /\.category-pill-active \{[^}]*background:hsl\(var\(--primary\)\)[^}]*color:hsl\(var\(--primary-foreground\)\)/s)
+  assert.match(products, /\.category-pill-active \.category-icon \{[^}]*background:hsl\(var\(--primary-foreground\)\)[^}]*color:hsl\(var\(--primary\)\)/s)
   assert.match(products, /\.category-pill-active \.category-active-indicator \{[^}]*opacity:1/s)
 })
 
