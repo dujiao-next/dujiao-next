@@ -9,7 +9,7 @@ test('selected category has a stable visual and semantic indicator', () => {
   assert.match(products, /:aria-pressed="selectedCategory === group\.id"/)
   assert.match(products, /:aria-pressed="selectedCategory === child\.id"/)
   assert.match(products, /<span class="category-active-indicator" aria-hidden="true"><\/span>/)
-  assert.match(products, /\.category-pill \{[^}]*position:relative/s)
+  assert.match(products, /\.category-pill \{[^}]*transition:transform \.18s ease/s)
   assert.match(products, /\.category-pill-active \{[^}]*background:var\(--ui-accent\)[^}]*color:var\(--ui-text-on-accent\)/s)
   assert.match(products, /\.category-pill-active \.category-icon \{[^}]*background:var\(--ui-text-on-accent\)[^}]*color:var\(--ui-accent\)/s)
   assert.match(products, /\.category-pill-active \.category-active-indicator \{[^}]*opacity:1/s)

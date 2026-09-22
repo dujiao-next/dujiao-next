@@ -112,7 +112,7 @@ onUnmounted(() => { window.removeEventListener('resize', handleResize); cleanup(
 <style scoped>
 .category-card-grid { scrollbar-width: none; }
 .category-card-grid::-webkit-scrollbar { display: none; }
-.category-pill { position:relative; display:flex; flex:none; align-items:center; gap:.55rem; min-height:2.75rem; padding:.35rem .85rem .35rem .4rem; border:1px solid hsl(var(--border)); border-radius:1rem; background:hsl(var(--card)); color:hsl(var(--muted-foreground)); font-size:.875rem; font-weight:600; transition:border-color .18s ease, background-color .18s ease, box-shadow .18s ease, color .18s ease, transform .18s ease; }
+.category-pill { position:relative; display:flex; flex:none; align-items:center; gap:.55rem; min-height:2.75rem; padding:.35rem .85rem .35rem .4rem; border:1px solid hsl(var(--border)); border-radius:1rem; background:hsl(var(--card)); color:hsl(var(--muted-foreground)); font-size:.875rem; font-weight:600; transition:transform .18s ease; }
 .category-pill:hover { border-color:hsl(var(--primary)/.45); color:hsl(var(--foreground)); transform:translateY(-1px); }
 .category-pill-active { border-color:var(--ui-accent); background:var(--ui-accent); color:var(--ui-text-on-accent); box-shadow:0 6px 16px color-mix(in srgb, var(--ui-accent) 28%, transparent); font-weight:800; }
 .category-icon { display:grid; width:2rem; height:2rem; flex:none; place-items:center; border-radius:.65rem; background:var(--ui-bg-soft); color:var(--ui-accent); }
