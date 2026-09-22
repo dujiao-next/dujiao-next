@@ -50,7 +50,7 @@ test('Alipay page and WAP modes use redirect presentation while QR stays scannab
   assert.equal(resolvePaymentResultTitleKey('page'), 'payment.modePage')
 })
 
-test('redirect-style payments auto open unless a customer fee needs confirmation', () => {
+test('redirect-style payments auto open after the customer confirmed the checkout total', () => {
   assert.equal(
     shouldAutoOpenPaymentLink({ interaction_mode: 'redirect', pay_url: 'https://pay.example.com' }),
     true,
@@ -73,11 +73,11 @@ test('redirect-style payments auto open unless a customer fee needs confirmation
   )
   assert.equal(
     shouldAutoOpenPaymentLink({ interaction_mode: 'redirect', pay_url: 'https://pay.example.com', fee_policy: 'customer_surcharge' }),
-    false,
+    true,
   )
   assert.equal(
     shouldAutoOpenPaymentLink({ interaction_mode: 'redirect', pay_url: 'https://pay.example.com', fee_policy: 'legacy_customer_surcharge' }),
-    false,
+    true,
   )
   assert.equal(isCustomerSurchargePayment({ fee_policy: 'merchant_absorbed' }), false)
   assert.equal(isCustomerSurchargePayment({ fee_policy: 'legacy_customer_surcharge' }), true)

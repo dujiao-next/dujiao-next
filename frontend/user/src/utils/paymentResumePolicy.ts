@@ -94,7 +94,7 @@ export const getCachedPaymentRestorePolicy = (): CachedPaymentRestorePolicy => (
 })
 
 export const shouldAutoOpenPaymentLink = (payment?: { interaction_mode?: unknown; pay_url?: unknown; fee_policy?: unknown } | null) => {
-  if (!payment || isCustomerSurchargePayment(payment)) return false
+  if (!payment) return false
   const payURL = String(payment.pay_url || '').trim()
   return isRedirectPaymentInteractionMode(payment.interaction_mode) && payURL !== ''
 }
