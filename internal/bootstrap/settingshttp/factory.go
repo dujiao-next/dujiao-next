@@ -29,3 +29,9 @@ func NewGoogleAuthHandler(c *container.Container, cfg *config.Config) *settingst
 		settings: c.SettingService, cfg: cfg, googleAuth: c.GoogleAuthService,
 	})
 }
+
+func NewGitHubAuthHandler(c *container.Container, cfg *config.Config) *settingstransport.GitHubAuthHandler {
+	return settingstransport.NewGitHubAuthHandler(settingsGitHubAuthAdapter{
+		settings: c.SettingService, cfg: cfg, gitHubAuth: c.GitHubAuthService,
+	})
+}

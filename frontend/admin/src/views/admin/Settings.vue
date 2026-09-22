@@ -82,6 +82,7 @@ const tabs = computed(() => [
   { label: t('admin.settings.tabs.captcha'), value: 'captcha' },
   { label: t('admin.settings.tabs.telegram'), value: 'telegram' },
   { label: t('admin.settings.tabs.google'), value: 'google' },
+  { label: t('admin.settings.tabs.github'), value: 'github' },
   { label: t('admin.settings.tabs.dashboard'), value: 'dashboard' },
   { label: t('admin.settings.tabs.upstreamSync'), value: 'upstream_sync' },
 ])
@@ -288,6 +289,13 @@ const googleForm = reactive({
   client_id: '',
 })
 
+const githubForm = reactive({
+  enabled: false,
+  client_id: '',
+  client_secret: '',
+  client_secret_configured: false,
+})
+
 const createOrderEmailLocalizedTemplate = () => ({ subject: '', body: '' })
 const createOrderEmailSceneTemplate = () => ({
   'zh-CN': createOrderEmailLocalizedTemplate(),
@@ -371,13 +379,14 @@ const notifyErrorIfNeeded = (err: unknown, fallback: string) => {
 const fetchSettings = async () => {
   loading.value = true
   try {
-    const [siteRes, orderRes, smtpRes, captchaRes, telegramRes, googleRes, dashboardRes, registrationRes, orderEmailTmplRes] = await Promise.all([
+    const [siteRes, orderRes, smtpRes, captchaRes, telegramRes, googleRes, githubRes, dashboardRes, registrationRes, orderEmailTmplRes] = await Promise.all([
       adminAPI.getSettings({ key: 'site_config' }),
       adminAPI.getSettings({ key: 'order_config' }),
       adminAPI.getSMTPSettings(),
       adminAPI.getCaptchaSettings(),
       adminAPI.getTelegramAuthSettings(),
       adminAPI.getGoogleAuthSettings(),
+      adminAPI.getGitHubAuthSettings(),
       adminAPI.getSettings({ key: 'dashboard_config' }),
       adminAPI.getSettings({ key: 'registration_config' }),
       adminAPI.getOrderEmailTemplateSettings(),
@@ -536,6 +545,14 @@ const fetchSettings = async () => {
       const google = googleRes.data.data as Record<string, unknown>
       googleForm.enabled = !!google.enabled
       googleForm.client_id = String(google.client_id || '')
+    }
+
+    if (githubRes.data?.data) {
+      const github = githubRes.data.data as Record<string, unknown>
+      githubForm.enabled = !!github.enabled
+      githubForm.client_id = String(github.client_id || '')
+      githubForm.client_secret = ''
+      githubForm.client_secret_configured = !!github.client_secret_configured
     }
 
     if (dashboardRes.data && dashboardRes.data.data) {
@@ -727,6 +744,15 @@ const saveGoogleAuthSettings = async () => {
   googleForm.client_id = String(data?.client_id || '')
 }
 
+const saveGitHubAuthSettings = async () => {
+  const payload: Record<string, unknown> = { enabled: githubForm.enabled, client_id: githubForm.client_id.trim() }
+  if (githubForm.client_secret.trim()) payload.client_secret = githubForm.client_secret.trim()
+  const res = await adminAPI.updateGitHubAuthSettings(payload)
+  const data = res.data?.data as Record<string, unknown> | undefined
+  githubForm.client_secret = ''
+  githubForm.client_secret_configured = !!data?.client_secret_configured
+}
+
 const saveDashboardSettings = async () => {
   const normalized = {
     accounting: {
@@ -790,6 +816,8 @@ const saveSettings = async () => {
       await saveTelegramAuthSettings()
     } else if (currentTab.value === 'google') {
       await saveGoogleAuthSettings()
+    } else if (currentTab.value === 'github') {
+      await saveGitHubAuthSettings()
     } else if (currentTab.value === 'dashboard') {
       await saveDashboardSettings()
     } else {
@@ -1483,6 +1511,16 @@ onMounted(() => {
               <p class="mt-1">{{ t('admin.settings.google.redirectHint') }}</p>
             </div>
           </div>
+        </div>
+      </TabsContent>
+
+      <TabsContent value="github" :forceMount="true" v-show="currentTab === 'github'" class="space-y-6 mt-0">
+        <div class="rounded-xl border border-border bg-card p-6 space-y-5">
+          <h2 class="text-lg font-semibold">{{ t('admin.settings.github.title') }}</h2>
+          <div class="flex items-center gap-3"><Switch id="github-auth-enabled" v-model="githubForm.enabled" /><Label for="github-auth-enabled">{{ t('admin.settings.github.enabled') }}</Label></div>
+          <div class="space-y-2"><Label>{{ t('admin.settings.github.clientID') }}</Label><Input v-model="githubForm.client_id" autocomplete="off" /></div>
+          <div class="space-y-2"><Label>{{ t('admin.settings.github.clientSecret') }}</Label><Input v-model="githubForm.client_secret" type="password" autocomplete="new-password" :placeholder="githubForm.client_secret_configured ? t('admin.settings.github.secretConfigured') : t('admin.settings.github.secretRequired')" /></div>
+          <p class="text-xs text-muted-foreground">{{ t('admin.settings.github.callbackHint') }}</p>
         </div>
       </TabsContent>
 

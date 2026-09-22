@@ -85,6 +85,20 @@ export function useLogin() {
   const googleConfig = computed(() => appStore.config?.google_auth || null)
   const googleClientID = computed(() => String(googleConfig.value?.client_id || '').trim())
   const googleEnabled = computed(() => !!googleConfig.value?.enabled && googleClientID.value !== '')
+  const githubConfig = computed(() => appStore.config?.github_auth || null)
+  const showGitHubLogin = computed(() => !!githubConfig.value?.enabled && String(githubConfig.value?.client_id || '').trim() !== '')
+  const startGitHubLogin = () => {
+    const popup = window.open('/api/v1/auth/github', 'dujiao-github-oauth', 'popup,width=640,height=720')
+    if (!popup) window.location.assign('/api/v1/auth/github')
+  }
+  const handleGitHubMessage = (event: MessageEvent) => {
+    if (event.origin !== window.location.origin || event.data?.type !== 'dujiao:github-oauth') return
+    const data = event.data.data || {}
+    if (data.error) { error.value = t('auth.login.loginFailed'); return }
+    userAuthStore.acceptOAuthLogin(data)
+    if (data.requires_totp) step.value = 'totp'
+    else void router.push(String(route.query.redirect || '/'))
+  }
   const googleButtonLocale = computed(() => String(appStore.locale || '').trim())
   const googleIdentityUXMode = detectGoogleIdentityUXMode()
   const googleRedirectLoginURI = googleIdentityUXMode === 'redirect'
@@ -108,7 +122,7 @@ export function useLogin() {
     showTelegramWidget.value,
     showTelegramOidc.value,
     showMiniAppLoginHint.value,
-    showGoogleLogin.value,
+    showGoogleLogin.value || showGitHubLogin.value,
   ))
   const telegramMiniAppEntryLink = computed(() => buildTelegramMiniAppEntryLink(telegramBotUsername.value, telegramMiniAppURL.value))
   const showTelegramMiniAppEntry = computed(() => !isTelegramMiniApp.value && telegramMiniAppEntryLink.value !== '')
@@ -425,6 +439,7 @@ export function useLogin() {
   }
 
   onMounted(async () => {
+    window.addEventListener('message', handleGitHubMessage)
     await appStore.loadConfig(true)
     const win = window as Window & Record<string, any>
     win[telegramCallbackName] = handleTelegramAuth
@@ -463,6 +478,7 @@ export function useLogin() {
   })
 
   onUnmounted(() => {
+    window.removeEventListener('message', handleGitHubMessage)
     const win = window as Window & Record<string, any>
     delete win[telegramCallbackName]
     clearTelegramWidget()
@@ -520,6 +536,8 @@ export function useLogin() {
     googleRedirectLoginURI,
     prepareGoogleRedirectLogin,
     showGoogleLogin,
+    showGitHubLogin,
+    startGitHubLogin,
     showThirdPartyLogin,
     handleGoogleCredential,
     handleGoogleScriptError,

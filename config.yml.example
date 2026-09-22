@@ -189,3 +189,8 @@ web:
   # 强烈建议改成不易猜测的字符串以降低自动化扫描风险
   # 例如: "/dj-mgmt-7x9k2" 或 "/console-private"
   admin_path: "/admin"
+# GitHub OAuth（默认关闭；回调地址为 https://站点域名/api/v1/auth/github/callback）
+github_auth:
+  enabled: false
+  client_id: ""
+  client_secret: ""

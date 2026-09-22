@@ -72,6 +72,15 @@ type GoogleAuthFallback struct {
 	ClientID string
 }
 
+type GitHubAuthPublic interface {
+	PublicConfig() map[string]interface{}
+}
+
+type GitHubAuthFallback struct {
+	Enabled  bool
+	ClientID string
+}
+
 // ResellerOverlay 分销站配置叠加端口。
 type ResellerOverlay interface {
 	ApplyPublicConfigOverlay(ctx context.Context, tenant reseller.TenantContext, base map[string]interface{}) (map[string]interface{}, error)
@@ -87,6 +96,8 @@ type Handler struct {
 	fallback       TelegramAuthFallback
 	google         GoogleAuthPublic
 	googleFallback GoogleAuthFallback
+	github         GitHubAuthPublic
+	githubFallback GitHubAuthFallback
 	overlay        ResellerOverlay
 }
 
@@ -99,6 +110,8 @@ func NewHandler(
 	fallback TelegramAuthFallback,
 	google GoogleAuthPublic,
 	googleFallback GoogleAuthFallback,
+	github GitHubAuthPublic,
+	githubFallback GitHubAuthFallback,
 	overlay ResellerOverlay,
 ) *Handler {
 	if cache == nil {
@@ -119,6 +132,8 @@ func NewHandler(
 		fallback:       fallback,
 		google:         google,
 		googleFallback: googleFallback,
+		github:         github,
+		githubFallback: githubFallback,
 		overlay:        overlay,
 	}
 }
@@ -191,6 +206,7 @@ func (h *Handler) GetConfig(c *gin.Context) {
 	data["telegram_auth"] = telegramAuthConfig
 
 	data["google_auth"] = resolveGoogleAuthPublicConfig(h.google, h.googleFallback)
+	data["github_auth"] = resolveGitHubAuthPublicConfig(h.github, h.githubFallback)
 
 	affiliateSetting, err := h.settings.GetAffiliateSettingMap()
 	if err != nil {
@@ -260,4 +276,15 @@ func resolveGoogleAuthPublicConfig(source GoogleAuthPublic, fallback GoogleAuthF
 		"enabled":   enabled && clientID != "",
 		"client_id": clientID,
 	}
+}
+
+func resolveGitHubAuthPublicConfig(source GitHubAuthPublic, fallback GitHubAuthFallback) map[string]interface{} {
+	enabled := fallback.Enabled
+	clientID := strings.TrimSpace(fallback.ClientID)
+	if source != nil {
+		public := source.PublicConfig()
+		enabled, _ = public["enabled"].(bool)
+		clientID = strings.TrimSpace(stringValue(public["client_id"]))
+	}
+	return map[string]interface{}{"enabled": enabled && clientID != "", "client_id": clientID}
 }

@@ -30,3 +30,22 @@ func (a settingsGoogleAuthAdapter) ApplyRuntime(setting settingssecurity.GoogleA
 		a.googleAuth.SetConfig(runtimeCfg)
 	}
 }
+
+type gitHubAuthRuntime interface{ SetConfig(config.GitHubAuthConfig) }
+type settingsGitHubAuthAdapter struct {
+	settings   *settingsapp.Service
+	cfg        *config.Config
+	gitHubAuth gitHubAuthRuntime
+}
+
+func (a settingsGitHubAuthAdapter) GetGitHubAuthSetting() (settingssecurity.GitHubAuthSetting, error) {
+	return a.settings.GetGitHubAuthSetting(a.cfg.GitHubAuth)
+}
+func (a settingsGitHubAuthAdapter) PatchGitHubAuthSetting(p settingssecurity.GitHubAuthSettingPatch) (settingssecurity.GitHubAuthSetting, error) {
+	return a.settings.PatchGitHubAuthSetting(a.cfg.GitHubAuth, p)
+}
+func (a settingsGitHubAuthAdapter) ApplyRuntime(s settingssecurity.GitHubAuthSetting) {
+	if a.gitHubAuth != nil {
+		a.gitHubAuth.SetConfig(settingssecurity.GitHubAuthSettingToConfig(s))
+	}
+}

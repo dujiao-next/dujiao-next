@@ -61,11 +61,16 @@ func (h *AdminHandler) Update(c *gin.Context) {
 		ginutil.RespondBindError(c, err)
 		return
 	}
-	if strings.TrimSpace(req.Key) == constants.SettingKeyGoogleAuthConfig {
+	key := strings.TrimSpace(req.Key)
+	if key == constants.SettingKeyGoogleAuthConfig || key == constants.SettingKeyGitHubAuthConfig {
+		endpoint := "/admin/settings/google-auth"
+		if key == constants.SettingKeyGitHubAuthConfig {
+			endpoint = "/admin/settings/github-auth"
+		}
 		ginutil.RespondErrorWithMsg(
 			c,
 			response.CodeBadRequest,
-			"google_auth_config must be updated through /admin/settings/google-auth",
+			key+" must be updated through "+endpoint,
 			nil,
 		)
 		return

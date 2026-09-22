@@ -1031,6 +1031,7 @@
       "googleLoading": "Loading Google sign-in",
       "googleHint": "Sign in securely with official Google authorization",
       "googleLoginFailed": "Google sign-in failed, please try again later",
+      "githubButton": "Continue with GitHub",
       "googleWidgetLoadFailed": "Failed to load Google sign-in, please refresh and retry",
       "googleInvalidCredential": "Google returned an invalid credential, please try again",
       "totp": {

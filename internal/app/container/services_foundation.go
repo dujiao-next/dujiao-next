@@ -13,6 +13,7 @@ import (
 	complianceapp "github.com/dujiao-next/internal/modules/compliance/application"
 	adminauthapp "github.com/dujiao-next/internal/modules/identity/adminauth/application"
 	admintotpapp "github.com/dujiao-next/internal/modules/identity/adminauth/totp/application"
+	githubauthapp "github.com/dujiao-next/internal/modules/identity/githubauth/application"
 	googleauthapp "github.com/dujiao-next/internal/modules/identity/googleauth/application"
 	telegramauthapp "github.com/dujiao-next/internal/modules/identity/telegramauth/application"
 	userauthapp "github.com/dujiao-next/internal/modules/identity/userauth/application"
@@ -98,6 +99,14 @@ func (c *Container) loadRuntimeSettings() {
 	} else {
 		c.Config.GoogleAuth = settingssecurity.GoogleAuthSettingToConfig(googleAuthSetting)
 	}
+
+	gitHubAuthSetting, gitHubErr := c.SettingService.GetGitHubAuthSetting(c.Config.GitHubAuth)
+	if gitHubErr != nil {
+		c.Config.GitHubAuth.Enabled = false
+		logger.Warnw("provider_load_github_auth_setting_failed", "error", gitHubErr, "fail_closed", true)
+	} else {
+		c.Config.GitHubAuth = settingssecurity.GitHubAuthSettingToConfig(gitHubAuthSetting)
+	}
 }
 
 // initIdentityAndCatalogServices 装配身份认证、上传、推广与商品读取能力。
@@ -109,9 +118,11 @@ func (c *Container) initIdentityAndCatalogServices() {
 	c.UserTOTPService = usertotpapp.NewService(c.Config, c.UserStore, cache.Client())
 	c.TelegramAuthService = telegramauthapp.NewService(c.Config.TelegramAuth, telegramauthcache.Options()...)
 	c.GoogleAuthService = googleauthapp.NewService(c.Config.GoogleAuth)
+	c.GitHubAuthService = githubauthapp.NewService(c.Config.GitHubAuth)
 	c.UserAuthService = userauthapp.NewService(c.Config, c.UserStore, c.ExternalIdentityStore, c.EmailVerificationStore, c.SettingService, c.EmailSender, c.TelegramAuthService)
 	c.UserAuthService.SetGoogleAuthService(c.GoogleAuthService)
 	c.UserAuthService.SetGoogleRedirectStore(userauthcachestore.NewGoogleRedirectStore())
+	c.UserAuthService.SetGitHubStateStore(userauthcachestore.NewGitHubStateStore())
 	c.UserAuthService.SetAuthUnitOfWork(userauthgormstore.New(gormdb.DB))
 	c.UserAuthService.SetEmailBrandResolver(c.EmailBrandResolver)
 	c.UploadService = uploadapp.NewService(uploadapp.Policy{

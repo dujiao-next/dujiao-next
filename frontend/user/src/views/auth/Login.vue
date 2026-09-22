@@ -247,6 +247,7 @@
                   {{ t('auth.login.googleHint') }}
                 </p>
               </div>
+              <Button v-if="showGitHubLogin" type="button" variant="secondary" class="h-11 w-full font-semibold" @click="startGitHubLogin">{{ t('auth.login.githubButton') }}</Button>
             </div>
           </div>
           <div v-if="showTelegramMiniAppEntry" class="space-y-2 pt-1">
@@ -300,6 +301,7 @@ const {
   showMiniAppLoginHint, attemptingMiniAppLogin, showTelegramMiniAppEntry, openTelegramMiniAppEntry,
   googleClientID, googleButtonLocale, googleIdentityUXMode, googleRedirectLoginURI,
   prepareGoogleRedirectLogin, showGoogleLogin, showThirdPartyLogin,
+  showGitHubLogin, startGitHubLogin,
   handleGoogleCredential, handleGoogleScriptError,
   handleLogin,
 } = useLogin()

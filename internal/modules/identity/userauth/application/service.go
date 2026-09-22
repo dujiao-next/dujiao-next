@@ -47,6 +47,7 @@ type Service struct {
 	telegramAuthService   *telegramauthapp.Service
 	googleAuthService     *googleauthapp.Service
 	googleRedirectStore   GoogleRedirectStore
+	gitHubStateStore      GitHubStateStore
 	memberLevelSvc        MemberLevelAssigner
 	authUnitOfWork        AuthUnitOfWork
 }
@@ -69,6 +70,10 @@ func (s *Service) SetGoogleAuthService(service *googleauthapp.Service) {
 // only by the redirect UX. Popup Google login remains independent of Redis.
 func (s *Service) SetGoogleRedirectStore(store GoogleRedirectStore) {
 	s.googleRedirectStore = store
+}
+
+func (s *Service) SetGitHubStateStore(store GitHubStateStore) {
+	s.gitHubStateStore = store
 }
 
 // SetAuthUnitOfWork injects the transaction boundary shared by user accounts
