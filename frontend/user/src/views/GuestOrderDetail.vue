@@ -73,23 +73,11 @@
 
         <div v-if="order.children && order.children.length > 0"
           class="rounded-2xl border bg-card shadow-sm p-6">
-          <h2 class="text-lg font-bold mb-4">{{ t('orderDetail.childOrdersTitle') }}</h2>
+          <h2 class="text-lg font-bold mb-4">{{ t('orderDetail.itemsTitle') }}</h2>
           <div class="space-y-4">
             <div v-for="child in order.children" :key="child.id"
               class="border rounded-2xl p-4">
-              <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                <div>
-                  <div class="text-sm text-muted-foreground">{{ t('orderDetail.childOrderNo') }}：{{ child.order_no }}</div>
-                  <div class="text-xs text-muted-foreground mt-1">{{ t('orderDetail.childOrderAmount') }}：{{
-                    formatMoney(child.total_amount, child.currency || order.currency) }}</div>
-                </div>
-                <Badge :variant="statusVariant(resolvedChildStatus(child))" size="sm">
-                  {{ statusLabel(resolvedChildStatus(child)) }}
-                </Badge>
-              </div>
               <div class="mt-4">
-                <h3 class="text-sm font-semibold text-foreground mb-3">{{ t('orderDetail.childItemsTitle')
-                  }}</h3>
                 <div v-if="child.items && child.items.length" class="space-y-3">
                   <div v-for="(item, cidx) in child.items" :key="cidx"
                     class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 border-b border-gray-100 pb-3 text-sm text-muted-foreground dark:border-white/5">
@@ -157,7 +145,7 @@
               <div class="mt-4">
                 <div class="flex items-center justify-between mb-3">
                   <h3 class="text-sm font-semibold text-foreground">{{
-                    t('orderDetail.childFulfillmentTitle') }}</h3>
+                    t('orderDetail.fulfillmentTitle') }}</h3>
                   <button v-if="child.fulfillment?.status === 'delivered'"
                     class="inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shadow-sm"
                     :class="fulfillmentCopied ? 'bg-emerald-600 text-white' : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'"
@@ -267,7 +255,7 @@
           </div>
         </div>
 
-        <div class="rounded-2xl border bg-card shadow-sm p-6">
+        <div v-if="!order.children || order.children.length === 0" class="rounded-2xl border bg-card shadow-sm p-6">
           <h2 class="text-lg font-bold mb-4">{{ t('orderDetail.itemsTitle') }}</h2>
           <div v-if="order.items && order.items.length > 0" class="space-y-4">
             <div v-for="(item, idx) in order.items" :key="idx"
@@ -441,7 +429,7 @@ const {
   formatDate, getLocalizedText, formatMoney, formatDiscountMoney, hasDiscountAmount,
   refundReasonText, showRefundRecordsCard, refundRecords, showTimeCard,
   orderItemImage, orderItemSkuText, manualSubmissionRows,
-  hasItemDiscount, formatItemDiscountTotal, formatItemPaidAmount, resolvedChildStatus,
+  hasItemDiscount, formatItemDiscountTotal, formatItemPaidAmount,
   fulfillmentDeliveryLines, instructionBlocks, isFulfillmentTruncated,
   fulfillmentCopied, handleCopyFulfillment,
 } = useGuestOrderDetail()
