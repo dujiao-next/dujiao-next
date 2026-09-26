@@ -40,6 +40,13 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5174,
     strictPort: true,
+    // 同 frontend/user：Docker Desktop 的 bind mount 不转发 inotify，
+    // 必须开启轮询才能感知宿主上的文件改动。原生 Linux 可设 VITE_USE_POLLING=0 关闭。
+    watch: {
+      usePolling: process.env.VITE_USE_POLLING !== '0',
+      interval: Number(process.env.VITE_POLL_INTERVAL || 300),
+      ignored: ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/coverage/**'],
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:8080',

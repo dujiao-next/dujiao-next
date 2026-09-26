@@ -67,8 +67,12 @@ start_process() {
 
 
 # --------------------------------------------------
-# 2. 启动 Go 后端
+# 2. 启动 Go 后端（带热重载）
 # --------------------------------------------------
+# 走 watch-backend.sh 而不是直接 go run：
+#   Docker Desktop 的 bind mount 不转发 inotify，改 .go 文件后必须手动重启，
+#   该脚本用轮询检测 mtime 变化并自动重编译重启（零依赖）。
+#   如需退回「只跑不重载」，把下面的命令换成 "cd '$ROOT' && exec go run ./cmd/server"。
 
 echo "[2/4] Starting Go backend..."
 
@@ -76,7 +80,7 @@ start_process \
     "Go backend" \
     "$LOG_DIR/backend.pid" \
     "$LOG_DIR/backend.log" \
-    "cd '$ROOT' && exec go run ./cmd/server"
+    "cd '$ROOT' && exec bash '$ROOT/.devcontainer/watch-backend.sh' '$ROOT'"
 
 
 # --------------------------------------------------

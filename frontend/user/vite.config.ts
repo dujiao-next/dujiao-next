@@ -49,6 +49,15 @@ export default defineConfig(({ mode }) => ({
     host: '0.0.0.0', // 监听所有网络接口
     port: 5173,
     strictPort: true,
+    // Docker Desktop（Windows/macOS 宿主）的 bind mount 不转发 inotify 事件，
+    // 宿主上保存文件时容器内收不到任何 fs 事件，Vite 便不会触发 HMR。
+    // mtime 是正常同步的，因此改用轮询即可让 HMR 恢复。
+    // 原生 Linux 开发可设 VITE_USE_POLLING=0 关闭，避免空耗 CPU。
+    watch: {
+      usePolling: process.env.VITE_USE_POLLING !== '0',
+      interval: Number(process.env.VITE_POLL_INTERVAL || 300),
+      ignored: ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/coverage/**'],
+    },
     // 允许通过分销商子域名(*.dujiao-next.test)访问 dev server，否则 Vite 5.4+ 会拦截非 localhost 的 Host
     allowedHosts: ['.dujiao.test'],
     proxy: {
