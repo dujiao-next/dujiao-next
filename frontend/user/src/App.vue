@@ -1,7 +1,7 @@
 <template>
   <div id="app" class="min-h-screen bg-background text-foreground flex flex-col">
-    <!-- vault 模板：自带顶栏/页脚的外壳包裹页面（控制台仍走下方分支） -->
-    <VaultLayout v-if="isVault && !isResellerConsole">
+    <!-- 自带顶栏/页脚的外壳模板（vault / ember）：包裹页面；分销控制台仍走下方分支 -->
+    <component :is="templateShell" v-if="templateShell && !isResellerConsole">
       <ErrorBoundary>
         <RouterView v-slot="{ Component }">
           <Transition name="page-fade" mode="out-in">
@@ -9,7 +9,7 @@
           </Transition>
         </RouterView>
       </ErrorBoundary>
-    </VaultLayout>
+    </component>
 
     <!-- classic 模板 / 分销控制台（保持原有结构不变） -->
     <template v-else>
@@ -48,15 +48,24 @@ import ErrorBoundary from './components/ErrorBoundary.vue'
 import BackToTop from './components/BackToTop.vue'
 import MobileBottomNav from './components/MobileBottomNav.vue'
 
-// vault 外壳按需加载，classic 用户不会拉取其 chunk/样式
+// 各模板外壳按需加载，classic 用户不会拉取其 chunk/样式
 const VaultLayout = defineAsyncComponent(() => import('./templates/vault/layout/VaultLayout.vue'))
+const EmberLayout = defineAsyncComponent(() => import('./templates/ember/layout/EmberLayout.vue'))
 
 // config 由 router.beforeEach 统一加载，无需在此重复调用
 const appStore = useAppStore()
 const route = useRoute()
 const isResellerConsole = computed(() => route.meta.resellerConsole === true)
+
 // getActiveTemplate 读取 appStore.config（响应式），config 加载后会重新计算
-const isVault = computed(() => getActiveTemplate() === 'vault')
+const activeTemplate = computed(() => getActiveTemplate())
+
+/** 外壳模板：返回 null 表示该模板不自带外壳（classic），走下方分支。 */
+const templateShell = computed(() => {
+  if (activeTemplate.value === 'ember') return EmberLayout
+  if (activeTemplate.value === 'vault') return VaultLayout
+  return null
+})
 </script>
 
 <style>

@@ -75,6 +75,78 @@
       "payWechat": "WeChat"
     }
   },
+  "ember": {
+    "hero": {
+      "badge": "Digital goods · Instant delivery",
+      "titleLead": "Pick what you need, pay, ",
+      "titleHighlight": "get it instantly.",
+      "lede": "No account required. Delivery is automatic once payment completes, and your keys and order status stay available at any time.",
+      "ctaPrimary": "Start shopping",
+      "ctaSecondary": "Find my order",
+      "trustAuto": "Automatic delivery",
+      "trustGuest": "Guest checkout",
+      "trustTrace": "Orders always retrievable",
+      "hotTitle": "Best sellers",
+      "hotMore": "View all",
+      "hotEmpty": "No products yet"
+    },
+    "featured": {
+      "title": "All products",
+      "subtitle": "Prices and stock are live. Open a card for details.",
+      "empty": "No products in this store yet",
+      "emptyHint": "Create a product in the admin panel and it will show up here automatically."
+    },
+    "categories": {
+      "title": "Browse by category",
+      "all": "All categories"
+    },
+    "latest": {
+      "title": "Latest updates"
+    },
+    "features": {
+      "autoTitle": "Automatic delivery",
+      "autoBody": "Keys are issued the moment payment succeeds — no manual step.",
+      "secureTitle": "Secure payment",
+      "secureBody": "Connected to mainstream payment channels with encrypted transactions and reviewable order status.",
+      "traceTitle": "Orders you can find",
+      "traceBody": "Look up past orders and delivered keys with your email and order password.",
+      "multiTitle": "Multiple methods",
+      "multiBody": "Pay by card, wallet or crypto — choose at checkout."
+    },
+    "footer": {
+      "tagline": "Digital goods, delivered instantly. Orders and keys stay retrievable.",
+      "shop": "Shop",
+      "account": "Account",
+      "support": "Support",
+      "builtOn": "Built on Dujiao-Next"
+    },
+    "cart": {
+      "count": "{count} items",
+      "empty": "Your cart is empty",
+      "emptyHint": "Add something to your cart and check out whenever you like.",
+      "browse": "Browse products",
+      "subtotal": "Subtotal",
+      "checkout": "Checkout",
+      "shippingNote": "Shipping and discounts are calculated at checkout"
+    },
+    "common": {
+      "copy": "Copy"
+    },
+    "guestOrders": {
+      "emailLabel": "Email",
+      "passwordLabel": "Order password",
+      "resultCount": "{count} orders"
+    },
+    "product": {
+      "memberPrice": "Member price"
+    },
+    "notFound": {
+      "title": "This page is missing",
+      "desc": "The address does not exist, or the content has moved.",
+      "back": "Back to home"
+    }
+  },
+
   "breadcrumb": {
     "label": "Breadcrumb",
     "back": "Back to {name}"

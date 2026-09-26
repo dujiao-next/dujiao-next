@@ -75,6 +75,78 @@
       "payWechat": "微信"
     }
   },
+  "ember": {
+    "hero": {
+      "badge": "數位商品 · 即時交付",
+      "titleLead": "挑好商品，付款，",
+      "titleHighlight": "立刻拿到。",
+      "lede": "無需註冊即可下單。付款完成後系統自動發貨，卡密與訂單狀態隨時可查。",
+      "ctaPrimary": "開始選購",
+      "ctaSecondary": "查詢我的訂單",
+      "trustAuto": "付款後自動發貨",
+      "trustGuest": "支援訪客下單",
+      "trustTrace": "訂單永久可查",
+      "hotTitle": "熱銷商品",
+      "hotMore": "查看全部",
+      "hotEmpty": "暫無商品"
+    },
+    "featured": {
+      "title": "全部商品",
+      "subtitle": "價格與庫存皆為即時資料，點擊卡片查看詳情。",
+      "empty": "商店尚未上架商品",
+      "emptyHint": "請先在後台「商品管理」建立商品，這裡會自動顯示。"
+    },
+    "categories": {
+      "title": "依分類逛",
+      "all": "全部分類"
+    },
+    "latest": {
+      "title": "最新動態"
+    },
+    "features": {
+      "autoTitle": "自動發貨",
+      "autoBody": "付款成功後系統立即交付卡密，無需等待人工處理。",
+      "secureTitle": "付款安全",
+      "secureBody": "串接主流付款管道，交易全程加密，訂單狀態可隨時複核。",
+      "traceTitle": "訂單可查",
+      "traceBody": "憑信箱與訂單密碼即可查詢歷史訂單與已交付的卡密。",
+      "multiTitle": "多種付款",
+      "multiBody": "支援微信、支付寶、加密貨幣等管道，下單時自由選擇。"
+    },
+    "footer": {
+      "tagline": "數位商品即時交付。下單後自動發貨，訂單與卡密可隨時查詢。",
+      "shop": "商店",
+      "account": "帳戶",
+      "support": "支援",
+      "builtOn": "基於 Dujiao-Next 建置"
+    },
+    "cart": {
+      "count": "共 {count} 件",
+      "empty": "購物車還是空的",
+      "emptyHint": "挑一件商品加入購物車，隨時可以結算。",
+      "browse": "去逛逛",
+      "subtotal": "小計",
+      "checkout": "去結算",
+      "shippingNote": "運費與優惠將在結算頁計算"
+    },
+    "common": {
+      "copy": "複製"
+    },
+    "guestOrders": {
+      "emailLabel": "信箱",
+      "passwordLabel": "訂單密碼",
+      "resultCount": "共 {count} 筆訂單"
+    },
+    "product": {
+      "memberPrice": "會員價"
+    },
+    "notFound": {
+      "title": "這個頁面不見了",
+      "desc": "你訪問的網址不存在，或內容已經被移動。",
+      "back": "回到首頁"
+    }
+  },
+
   "breadcrumb": {
     "label": "麵包屑導航",
     "back": "返回{name}"
