@@ -121,12 +121,22 @@ cd /workspaces/dujiao-next && nohup bash .devcontainer/watch-backend.sh /workspa
 
 ## 五、排查手册
 
-### 5.1 先判断是「热重载坏了」还是「模板没选中」
-
-如果你期望看到 ember 模板却看到 classic/vault 的**设计**，那不一定是 HMR 问题：
+### 5.0 一键体检（先跑这个）
 
 ```bash
-# 确认站点配置里的模板
+bash .devcontainer/doctor.sh
+# 宿主上（端口已转发时）：bash .devcontainer/doctor.sh http://localhost
+```
+
+它会逐层验证：服务可达性 → 端口指向的项目 → dev server 是否已加载最新代码 →
+**当前实际激活的模板** → 模板文件完整性 → git 状态。
+
+### 5.1 先判断是「热重载坏了」还是「模板没选中」
+
+**这是最高频的误判**：页面显示旧模板，绝大多数情况下不是 HMR 问题，而是
+**站点配置里根本没选中那个模板**。先确认：
+
+```bash
 curl -s http://localhost:8080/api/v1/public/config | grep -o '"storefront_template":"[^"]*"'
 ```
 
@@ -134,7 +144,25 @@ curl -s http://localhost:8080/api/v1/public/config | grep -o '"storefront_templa
   或到后台「设置 → 站点与主题 → 前台模板」切换
 - 输出 `"ember"` → 模板已选中，问题在渲染侧
 
-### 5.2 区分「文件监听失效」还是「HMR 通道断了」
+### 5.2 确认 dev server 真的加载了新代码
+
+不要靠"看起来是新的"来判断 —— **直接向 dev server 要源文件**，
+它返回什么，浏览器就能拿到什么：
+
+```bash
+# 前台：registry.ts 里应能看到 ember
+curl -s http://localhost:5173/src/templates/registry.ts | grep -o ember | head -3
+
+# 前台：新增的模板文件应可被提供
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:5173/src/templates/ember/Home.vue
+
+# 后台：设置页应含 ember 选项
+curl -s http://localhost:5174/src/views/admin/Settings.vue | grep -o emberMode
+```
+
+返回 200 / 有命中 ⇒ 代码是新的，别再折腾 HMR 了，问题在别处。
+
+### 5.3 区分「文件监听失效」还是「HMR 通道断了」
 
 在**容器内**（VS Code 集成终端）改一个文件，与在 Windows 上改，对比行为：
 
@@ -154,7 +182,7 @@ WebSocket connection to 'ws://[::1]:5173/' failed
 处理：确认没有经过会改写 Host 的反向代理；必要时在 `server` 里显式指定
 `hmr: { host: 'localhost', clientPort: 5173 }`。
 
-### 5.3 确认轮询真的开了
+### 5.4 确认轮询真的开了
 
 ```bash
 # 容器内：确认 vite 进程看到了环境变量
@@ -164,7 +192,7 @@ tr '\0' '\n' < /proc/$(pgrep -f "vite" | head -1)/environ | grep VITE_
 没输出说明环境变量没传进去；`usePolling` 的默认值仍是 `true`（因为判断是 `!== '0'`），
 所以不传也能工作。
 
-### 5.4 确认后端热重载在跑
+### 5.5 确认后端热重载在跑
 
 ```bash
 tail -f /tmp/dujiao-next-dev/backend.log
@@ -177,7 +205,7 @@ tail -f /tmp/dujiao-next-dev/backend.log
 #   [watch-backend] ✓ 服务已启动 PID=12346
 ```
 
-### 5.5 端口被占用 / 服务起不来
+### 5.6 端口被占用 / 服务起不来
 
 热重载脚本在编译失败时会保留旧服务，这是刻意的。若确实要强制清干净：
 
