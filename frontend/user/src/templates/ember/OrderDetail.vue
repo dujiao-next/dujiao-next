@@ -94,6 +94,6 @@ const pillClass = (status?: string) => {
     accent: 'ember-pill--accent',
     neutral: '',
   }
-  return map[statusVariant(status)] || ''
+  return map[statusVariant(status ?? '')] || ''
 }
 </script>

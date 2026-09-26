@@ -11,7 +11,18 @@
         >{{ fulfillmentCopied ? t('orderDetail.fulfillmentCopied') : t('orderDetail.fulfillmentCopy') }}</button>
       </div>
 
-      <div class="flex flex-col gap-2">
+      <!-- 交付内容超过 100 条时只给预览，引导下载完整内容 -->
+      <template v-if="isFulfillmentTruncated(order.fulfillment)">
+        <div class="text-[12.5px] text-muted-foreground">
+          {{ t('orderDetail.fulfillmentTotalLines', { count: order.fulfillment.payload_line_count }) }}
+        </div>
+        <div class="rounded-[var(--r)] bg-[color:var(--warning-soft)] px-3.5 py-2.5 text-[12.5px] leading-[1.6] text-[color:var(--warning-strong)]">
+          {{ t('orderDetail.fulfillmentTruncatedHint') }}
+        </div>
+        <pre class="max-h-[280px] overflow-y-auto whitespace-pre-wrap break-all rounded-[var(--r)] border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-3.5 font-mono text-[12.5px] text-muted-foreground">{{ order.fulfillment.payload }}</pre>
+      </template>
+
+      <div v-else class="flex flex-col gap-2">
         <div
           v-for="(line, idx) in secretLines"
           :key="idx"
@@ -43,7 +54,7 @@
         type="button"
         class="mt-4 rounded-full border border-border px-4 py-2 text-[13px] text-muted-foreground transition-colors hover:border-[color:var(--border-strong)] hover:text-foreground disabled:opacity-50"
         :disabled="fulfillmentDownloading"
-        @click="$emit('download')"
+        @click="emit('download', order.order_no)"
       >{{ t('orderDetail.fulfillmentDownload') }}</button>
     </section>
 
@@ -246,7 +257,7 @@ const props = withDefaults(
   { variant: 'guest', fulfillmentDownloading: false },
 )
 
-defineEmits<{ download: [] }>()
+const emit = defineEmits<{ download: [orderNo: string] }>()
 
 const { t } = useI18n()
 
@@ -288,7 +299,7 @@ const pillClass = (status?: string) => {
     accent: 'ember-pill--accent',
     neutral: '',
   }
-  return map[statusVariant(status)] || ''
+  return map[statusVariant(status ?? '')] || ''
 }
 
 /** 交付内容按行拆分（去重、去空行） */
