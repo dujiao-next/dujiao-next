@@ -31,12 +31,21 @@
     }
   },
 
-  // postCreateCommand 只在「容器创建时」执行，是补装依赖的正确时机：
-  // node_modules/ 不受 git 跟踪，宿主目录被移动后不会随 git restore 回来，
-  // 必须在这里补装，否则前台/后台的 dev server 起不来。
-  // 注意先 cd 进子目录再执行 pnpm —— corepack 按「当前目录 package.json 的
-  // packageManager 字段」解析版本，在仓库根目录执行会拿到另一个 pnpm 大版本。
-  "postCreateCommand": "corepack enable && corepack prepare pnpm@10.34.3 --activate && go mod download && (cd frontend/user && pnpm install) && (cd frontend/admin && pnpm install)",
+  // 这里只做「不依赖工作区状态」的事。
+  //
+  // 反面教材：曾在此追加 (cd frontend/user && pnpm install)。当 node_modules 已存在
+  // 但属主不是 vscode 时（例如有人以 root 在容器里装过一次），它会以
+  //   EACCES: permission denied, open '.../node_modules/.pnpm/.../.bin/tsc'
+  // 失败；而生命周期命令一旦以非零码结束，Dev Containers 会打印
+  //   postCreateCommand ... failed with exit code 243.
+  //   Skipping any further user-provided commands.
+  // 并跳过包括 postStartCommand 在内的**所有后续命令** —— 容器看起来是打开的，
+  // 三个服务却一个都没起，日志里只有一行 EACCES，极难定位。
+  //
+  // 前端依赖因此改为按需手动安装（见 README 8.5）：
+  //   cd frontend/user && pnpm install
+  //   cd ../admin      && pnpm install
+  "postCreateCommand": "corepack enable && corepack prepare pnpm@10.34.3 --activate && go mod download",
 
   // 用 ${containerWorkspaceFolder} 拼出绝对路径，而不是写相对路径。
   //

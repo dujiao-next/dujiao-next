@@ -366,3 +366,47 @@ bash .devcontainer/doctor.sh      # 一键体检
    cd ../admin      && pnpm install
    ```
 
+### 8.6 重建后后端要编译几分钟（正常现象，不是卡死）
+
+容器每次重建都会丢掉 Go 构建缓存 —— `GOCACHE` 默认是 `/home/vscode/.cache/go-build`，
+位于容器可写层，容器一重建就没了。再加上源码在 Windows bind mount 上，I/O 很慢。实测：
+
+| 场景 | `go build ./cmd/server` 耗时 |
+|---|---|
+| 冷缓存（刚重建容器） | ~210s |
+| 热缓存 | ~50s（其中 CPU 仅 ~15s，其余全是 bind mount 的 I/O 等待） |
+
+所以重建容器后 `postStartCommand` 会在 `Waiting for Go backend` 处停留几分钟 ——
+那是编译，不是卡死。等待窗口是环境变量 `BACKEND_WAIT`（默认 300s），
+等待期间每 30s 打印一次进度。想确认是否真在编译：
+
+```bash
+tail -f /tmp/dujiao-next-dev/backend.log
+```
+
+> 教训：这个窗口**不要凭感觉调小**。曾把它设成 60s，短于冷编译的 210s，
+> 于是每次重建都稳定打印一条「Go backend did not become ready」的告警，
+> 让人误以为后端坏了。
+
+**可选优化：把构建缓存放进具名卷，重建后不再冷编译**
+
+`docker-compose.yml` 加一个具名卷（`docker compose down` 不删具名卷，
+只有 `down -v` 才删），重建后缓存仍在，后端编译回到 ~50s：
+
+```yaml
+services:
+  app:
+    volumes:
+      - ..:/workspaces/dujiao-next:cached
+      - go-build-cache:/home/vscode/.cache/go-build
+
+volumes:
+  go-build-cache:
+```
+
+> ⚠️ 这条**尚未在本仓库实测**。具名卷首次创建由 Docker 初始化，属主可能是 root，
+> 而生命周期命令以 `vscode` 运行。挂载后必须先确认可写：
+> `docker exec -u vscode <容器> touch /home/vscode/.cache/go-build/.probe`。
+> 不可写的话需要在镜像里预先建好该目录（并保证属主为 vscode）再挂载。
+> 改完请重建容器实测一次再长期使用。
+

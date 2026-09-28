@@ -5,7 +5,7 @@
 # 由 devcontainer.json 的 postStartCommand 调用，负责拉起三个进程：
 #   Go 后端（带轮询热重载）、用户前台、管理后台。
 #
-# 两个刻意的设计决策：
+# 三个刻意的设计决策：
 #
 # 1) 项目根目录从「脚本自身位置」推导，而不是写死 /workspaces/dujiao-next。
 #    写死路径在宿主目录被移动/重命名后会失效（挂载点变了，脚本还指向老位置）。
@@ -17,6 +17,12 @@
 #    随后整个附加流程失败，容器直接打不开 —— 一个服务起不来会升级成
 #    「连 shell 都进不去」，反而无法排查。因此这里改为
 #    「尽力启动 + 明确汇报」：失败信息照常打印，但不阻断容器打开。
+#
+# 3) 三个进程全部拉起之后才探测后端就绪，而不是在启动前台之前同步等待。
+#    容器每次重建都会丢掉 Go 构建缓存（~/.cache/go-build 在容器可写层里），
+#    重建后的首次编译通常要 1~2 分钟。若在启动前台前同步等待，
+#    前台会被这段编译时间白白卡住；而 60s 的窗口又短于冷编译，
+#    会稳定打印一条误导性的「未就绪」告警。
 # =============================================================================
 
 set -u
@@ -137,28 +143,7 @@ start_process \
 
 
 # --------------------------------------------------
-# 3. 等待 Go 后端启动
-# --------------------------------------------------
-
-echo "Waiting for Go backend..."
-
-for i in $(seq 1 60); do
-
-    if (echo > /dev/tcp/127.0.0.1/8080) >/dev/null 2>&1; then
-        echo "Go backend is ready."
-        break
-    fi
-
-    if [ "$i" -eq 60 ]; then
-        echo "WARNING: Go backend did not become ready."
-    fi
-
-    sleep 1
-done
-
-
-# --------------------------------------------------
-# 4. 启动用户前台
+# 3. 启动用户前台
 # --------------------------------------------------
 
 echo "[3/4] Starting user frontend..."
@@ -171,7 +156,7 @@ start_process \
 
 
 # --------------------------------------------------
-# 5. 启动管理后台
+# 4. 启动管理后台
 # --------------------------------------------------
 
 echo "[4/4] Starting admin frontend..."
@@ -181,6 +166,44 @@ start_process \
     "$LOG_DIR/admin.pid" \
     "$LOG_DIR/admin.log" \
     "cd '$ROOT/frontend/admin' && exec pnpm run dev --host 0.0.0.0"
+
+
+# --------------------------------------------------
+# 5. 等待后端就绪（放在最后，见文件头第 3 条）
+# --------------------------------------------------
+# 窗口按实测值设定，不要凭感觉调小：
+#   容器每次重建都会丢掉 Go 构建缓存（GOCACHE=/home/vscode/.cache/go-build
+#   在容器可写层里），而源码在 Windows bind mount 上，I/O 很慢。
+#   实测：冷编译约 210s；缓存命中约 50s（其中 CPU 只占 ~15s，其余是 I/O 等待）。
+#   窗口短于冷编译就会稳定打印一条误导性的「未就绪」告警 —— 见 README 8.6。
+
+BACKEND_WAIT="${BACKEND_WAIT:-300}"
+backend_ready=0
+
+echo ""
+echo "Waiting for Go backend (最多 ${BACKEND_WAIT}s)..."
+
+for i in $(seq 1 "$BACKEND_WAIT"); do
+
+    if (echo > /dev/tcp/127.0.0.1/8080) >/dev/null 2>&1; then
+        echo "Go backend is ready. (${i}s)"
+        backend_ready=1
+        break
+    fi
+
+    # 每 30s 报一次进度，避免长时间静默
+    if [ $((i % 30)) -eq 0 ]; then
+        echo "  ... 已等待 ${i}s（编译中，进度见 $LOG_DIR/backend.log）"
+    fi
+
+    sleep 1
+done
+
+if [ "$backend_ready" -ne 1 ]; then
+    echo "WARNING: Go backend 在 ${BACKEND_WAIT}s 内未就绪。"
+    echo "         首次冷编译较慢属正常，可能稍后自行起来；"
+    echo "         请查 $LOG_DIR/backend.log 确认是否编译报错。"
+fi
 
 
 # --------------------------------------------------
