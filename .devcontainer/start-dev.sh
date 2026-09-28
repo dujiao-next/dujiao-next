@@ -103,25 +103,38 @@ start_process() {
     LOG_FILE="$3"
     COMMAND="$4"
 
-    if [ -f "$PID_FILE" ]; then
-        PID=$(cat "$PID_FILE")
-
-        if kill -0 "$PID" 2>/dev/null; then
-            echo "$NAME is already running. PID=$PID"
-            return
-        fi
+    if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE" 2>/dev/null)" 2>/dev/null; then
+        echo "$NAME is already running. PID=$(cat "$PID_FILE")"
+        return
     fi
 
     rm -f "$PID_FILE"
 
-    nohup bash -lc "$COMMAND" \
-        > "$LOG_FILE" 2>&1 &
+    # 用 setsid 让服务进入独立的会话与进程组，而不是只靠 nohup。
+    #
+    # 本脚本由 docker exec 以 postStartCommand 的身份运行，而脚本里用
+    # `nohup ... &` 起的后台进程**仍然留在调用方的进程组里**。实测：
+    #     PID    PPID    PGID     SID
+    #   11365   11357   11357   11357     ← 与父 shell 同 PGID/SID
+    # 一旦这个 exec 会话被回收、或调用方按进程组发信号，后台服务会被一起带走。
+    # nohup 只忽略 SIGHUP，挡不住 SIGTERM —— 表现就是「服务起来过一会儿又没了，
+    # 而日志里没有任何崩溃信息」。
+    #
+    # setsid 之后服务自成会话（SID = 自身 PID），不再受调用方进程组影响。
+    #
+    # PID 文件由子进程自己写：setsid 在必要时会 fork，父进程拿到的 $! 未必是真实 PID。
+    setsid bash -c '
+        echo $$ > "$1"
+        exec bash -lc "$2"
+    ' _ "$PID_FILE" "$COMMAND" > "$LOG_FILE" 2>&1 < /dev/null &
 
-    PID=$!
+    # 等子进程把 PID 写出来（最多 2s）
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        [ -s "$PID_FILE" ] && break
+        sleep 0.2
+    done
 
-    echo "$PID" > "$PID_FILE"
-
-    echo "$NAME started. PID=$PID"
+    echo "$NAME started. PID=$(cat "$PID_FILE" 2>/dev/null || echo '?')"
 }
 
 

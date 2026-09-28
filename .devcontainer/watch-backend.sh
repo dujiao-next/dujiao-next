@@ -46,9 +46,27 @@ trap cleanup INT TERM EXIT
 # ---------------------------------------------------------------- 变更指纹
 # 取所有 .go / go.mod / go.sum 中最新的 mtime（秒级 + 纳秒）。
 # 只要有任何一个文件被改动，这个值就会变。
+#
+# prune 列表必须包含 .pnpm-store：本仓库把它纳入了 git 跟踪，里面有 1.8 万个文件，
+# 却不可能有 Go 源码。不排除的话每次轮询都要白 stat 它们一遍。
+# 实测（Windows bind mount，本仓库）单次 stamp()：
+#   未排除 .pnpm-store  ≈ 5.9s
+#   已排除              ≈ 3.3s（剩下的是 internal/ 下 1151 个 .go 文件的逐文件 stat）
+#
+# 注意：轮询间隔 WATCH_INTERVAL 默认 1s，而单次扫描就要 3s 以上 ——
+# 也就是说这个监视器几乎在持续遍历文件系统，会和 go build 抢 I/O。
+# 若嫌吵，把 WATCH_INTERVAL 调到 5，代价是热重载延迟变长。
 stamp() {
     find "$ROOT" \
-        -type d \( -name node_modules -o -name .git -o -name dist -o -name .devcontainer \) -prune -o \
+        -type d \( \
+            -name node_modules -o \
+            -name .git -o \
+            -name dist -o \
+            -name .devcontainer -o \
+            -name .pnpm-store -o \
+            -name vendor -o \
+            -name coverage \
+        \) -prune -o \
         -type f \( -name '*.go' -o -name 'go.mod' -o -name 'go.sum' \) -printf '%T@\n' \
         2>/dev/null | sort -rn | head -1
 }

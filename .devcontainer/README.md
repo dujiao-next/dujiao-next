@@ -304,8 +304,23 @@ tmp_dir = "/tmp/air"
 | `VITE_POLL_INTERVAL` | `300`（毫秒） | 越小越灵敏、越吃 CPU |
 | `WATCH_INTERVAL` | `1`（秒） | 后端轮询间隔 |
 
-在 Dev Container 里，默认值已经过权衡：前端 300ms 响应足够快，
-后端 1s 只扫描 `.go` 文件（数量远少于前端），开销可忽略。
+**后端扫描并不是「开销可忽略」** —— 实测（Windows bind mount，本仓库）：
+
+| 项 | 单次耗时 |
+|---|---|
+| `stamp()`，未排除 `.pnpm-store`（修复前） | ~5.9s |
+| `stamp()`，已排除 `.pnpm-store`（当前） | ~3.4s |
+
+其中绝大部分是 `internal/` 下 1151 个 `.go` 文件的逐文件 `stat`。
+瓶颈是 bind mount 上每次 `stat` 约 2~3ms 的往返延迟，不是文件数量本身 ——
+所以只扫 Go 目录（3.2s）相比扫全仓库（5.9s）并没有质变。
+
+`.pnpm-store` 必须排除：本仓库把它纳入了 git 跟踪，有 1.8 万个文件，
+却不可能有 Go 源码，不排除就是纯白扫（这正是修复前那 5.9s 里多出来的 2.5s）。
+
+> 于是 `WATCH_INTERVAL=1` 配合 3.4s 的单次扫描，等于监视器几乎在持续遍历
+> 文件系统，会和 `go build` 抢 I/O。嫌吵就把 `WATCH_INTERVAL` 调到 5，
+> 代价是热重载延迟从 ~4s 变成 ~8s。
 
 若你只在原生 Linux 上开发，可在 `.devcontainer/start-dev.sh` 里加
 `export VITE_USE_POLLING=0`，或直接在 shell 里 `export` 后重启 dev server。
