@@ -21,7 +21,10 @@
 
 set -u
 
-ROOT="${1:-/workspaces/dujiao-next}"
+# 项目根目录：优先取位置参数，其次按「脚本所在目录的上一级」推导。
+# 不写死 /workspaces/dujiao-next，宿主目录被移动/重命名后依然可用。
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="${1:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 INTERVAL="${WATCH_INTERVAL:-1}"
 SERVER_PKG="${SERVER_PKG:-./cmd/server}"
 BIN="/tmp/dujiao-next-server"

@@ -1,17 +1,70 @@
 #!/usr/bin/env bash
+# =============================================================================
+# 开发环境启动脚本
+# -----------------------------------------------------------------------------
+# 由 devcontainer.json 的 postStartCommand 调用，负责拉起三个进程：
+#   Go 后端（带轮询热重载）、用户前台、管理后台。
+#
+# 两个刻意的设计决策：
+#
+# 1) 项目根目录从「脚本自身位置」推导，而不是写死 /workspaces/dujiao-next。
+#    写死路径在宿主目录被移动/重命名后会失效（挂载点变了，脚本还指向老位置）。
+#
+# 2) 本脚本始终以 0 退出，即便有子进程启动失败。
+#    Dev Containers 把 postStartCommand 的非零退出视为致命错误：
+#       postStartCommand from devcontainer.json failed with exit code N.
+#       Skipping any further user-provided commands.
+#    随后整个附加流程失败，容器直接打不开 —— 一个服务起不来会升级成
+#    「连 shell 都进不去」，反而无法排查。因此这里改为
+#    「尽力启动 + 明确汇报」：失败信息照常打印，但不阻断容器打开。
+# =============================================================================
 
 set -u
 
-ROOT="/workspaces/dujiao-next"
+# 项目根目录：优先取环境变量 DUJIAO_ROOT，其次按「脚本所在目录的上一级」推导
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="${DUJIAO_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 LOG_DIR="/tmp/dujiao-next-dev"
 
 mkdir -p "$LOG_DIR"
 
-cd "$ROOT"
+# 目录不可达时不在这里抛 bash 原生错误，交给下面的前置自检统一给出可操作提示
+cd "$ROOT" 2>/dev/null || true
 
 echo "======================================"
 echo " Dujiao-Next development environment"
 echo "======================================"
+echo "ROOT=$ROOT"
+echo ""
+
+
+# --------------------------------------------------
+# 0. 前置自检：确认挂载进来的确实是完整的项目根目录
+# --------------------------------------------------
+# 迁移/重命名宿主目录后最常踩的坑：容器复用了迁移前创建的旧容器，
+# 其 bind 源仍指向已不存在的旧路径，于是 /workspaces/dujiao-next 是个空目录。
+# 此时后续每一步都会以 "No such file or directory" 失败，且报错位置离真因很远。
+# 这里提前识别，并给出可操作的修复指引。
+if [ ! -f "$ROOT/go.mod" ] || [ ! -d "$ROOT/.devcontainer" ] || [ ! -d "$ROOT/cmd" ]; then
+    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+    echo " 错误：$ROOT 不是完整的项目根目录"
+    echo "       （缺少 go.mod / .devcontainer / cmd 之一）"
+    echo ""
+    echo " 当前实际内容："
+    ls -A "$ROOT" 2>/dev/null | sed 's/^/   /'
+    echo ""
+    echo " 最可能的原因：宿主上的项目目录被移动或重命名后，容器仍复用了旧容器，"
+    echo " 它的 bind 源指向已不存在的旧路径，挂载进来的是一个空目录。"
+    echo ""
+    echo " 修复方式（任选其一）："
+    echo "   · VS Code 命令面板 → Dev Containers: Rebuild Container"
+    echo "   · 或先在宿主上执行 bash .devcontainer/reset-devcontainer.sh，"
+    echo "     再重新打开容器"
+    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+    echo ""
+    exit 0
+fi
+
 
 # --------------------------------------------------
 # 1. 等待 Redis
@@ -26,8 +79,8 @@ for i in $(seq 1 60); do
     fi
 
     if [ "$i" -eq 60 ]; then
-        echo "ERROR: Redis is not ready."
-        exit 1
+        echo "WARNING: Redis 未就绪，仍继续启动（后端可能连接失败）。"
+        break
     fi
 
     sleep 1
@@ -130,6 +183,26 @@ start_process \
     "cd '$ROOT/frontend/admin' && exec pnpm run dev --host 0.0.0.0"
 
 
+# --------------------------------------------------
+# 6. 结果自检（只汇报，不改退出码）
+# --------------------------------------------------
+
+DEAD=""
+
+for item in "Go backend:$LOG_DIR/backend.pid" \
+            "User frontend:$LOG_DIR/user.pid" \
+            "Admin frontend:$LOG_DIR/admin.pid"; do
+    NAME="${item%%:*}"
+    PID_FILE="${item#*:}"
+
+    if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+        :
+    else
+        DEAD="$DEAD $NAME"
+    fi
+done
+
+
 echo ""
 echo "======================================"
 echo " Dujiao-Next services started"
@@ -146,4 +219,17 @@ echo "http://localhost:8080"
 echo ""
 echo "Logs:"
 echo "$LOG_DIR"
+
+if [ -n "$DEAD" ]; then
+    echo ""
+    echo "--------------------------------------"
+    echo " 注意：以下进程未存活:$DEAD"
+    echo ""
+    echo " 最近日志："
+    tail -n 10 "$LOG_DIR"/*.log 2>/dev/null | sed 's/^/   /'
+    echo ""
+    echo " 一键体检： bash $ROOT/.devcontainer/doctor.sh"
+    echo "--------------------------------------"
+fi
+
 echo "======================================"

@@ -94,6 +94,43 @@ watch: {
 > `go run` 会 fork 出真正跑服务的子进程，`kill` 父进程后端口仍被占用；
 > 运行独立二进制则 kill 谁就是谁。
 
+### 3.3 启动链路与宿主路径解耦
+
+把项目目录从桌面移到 `D:\GitHub项目\dujiao-next` 后，出现了「Dev Containers 打不开
+容器或项目」。根因有两条，都是路径变更引起的：
+
+**① 容器复用了迁移前的旧容器。** Dev Containers 用「工作区目录名 + `_devcontainer`」
+推导 compose 项目名（扩展日志里可见 `--project-name dujiao-next_devcontainer`）。
+目录改名前后项目名不变，于是扩展匹配到了迁移前创建的容器，而它的 bind 源仍指向
+已不存在的旧路径。Docker 对「源不存在的 bind mount」不报错，而是在挂载点造一个
+空目录 —— 容器里的 `/workspaces/dujiao-next` 是空的。
+
+**② `postStartCommand` 用了相对路径。** `bash .devcontainer/start-dev.sh` 隐含依赖
+「工作目录恰好等于 workspaceFolder」。挂载为空时它以 exit 127 失败：
+
+```
+bash: .devcontainer/start-dev.sh: No such file or directory
+postStartCommand from devcontainer.json failed with exit code 127.
+Skipping any further user-provided commands.
+```
+
+Dev Containers 把 `postStartCommand` 的非零退出视为致命错误，随后整个附加流程失败、
+容器打不开 —— 于是一个「服务起不来」被放大成「连 shell 都进不去」。
+
+对应改动：
+
+| 位置 | 改动 |
+|---|---|
+| `devcontainer.json` | `postStartCommand` 改用 `${containerWorkspaceFolder}` 绝对路径 |
+| `devcontainer.json` | `postCreateCommand` 增加前端 `pnpm install`（补回不受 git 跟踪的依赖） |
+| `start-dev.sh` | `ROOT` 从脚本自身位置推导；新增「空挂载」前置自检；始终以 0 退出 |
+| `watch-backend.sh` | `ROOT` 默认值同样改为按脚本位置推导 |
+| 新增 `reset-devcontainer.sh` | 迁移/改名后一键清理陈旧容器 |
+
+> 为什么 `start-dev.sh` 不再以非零码退出：bootstrap 脚本失败不应该把开发者挡在容器
+> 外面。失败信息照常打印，结尾还会汇总哪些进程没起来并指向 `doctor.sh`，
+> 但不阻断容器打开 —— 否则连排查的入口都没有。
+
 ---
 
 ## 四、让修复生效
@@ -210,9 +247,14 @@ tail -f /tmp/dujiao-next-dev/backend.log
 热重载脚本在编译失败时会保留旧服务，这是刻意的。若确实要强制清干净：
 
 ```bash
-pkill -f "dujiao-next-server"   # 杀掉热重载跑起来的后端二进制
-pkill -f "go run ./cmd/server"  # 杀掉可能残留的 go run
+pkill -f "[d]ujiao-next-server"   # 杀掉热重载跑起来的后端二进制
+pkill -f "[g]o run ./cmd/server"  # 杀掉可能残留的 go run
 ```
+
+> 方括号是刻意的，别去掉。`pkill -f` 匹配的是完整命令行，而你自己敲的这条命令
+> 命令行里就含有 `dujiao-next-server` 这串字面量 —— 不加方括号时它会把自己也匹配上，
+> 表现为「命令执行到一半进程莫名消失、没有任何输出」。`[d]ujiao...` 作为正则仍然匹配
+> `dujiao...`，但字面量 `[d]ujiao...` 不匹配它自己，从而避开这个坑。
 
 ---
 
@@ -267,3 +309,60 @@ tmp_dir = "/tmp/air"
 
 若你只在原生 Linux 上开发，可在 `.devcontainer/start-dev.sh` 里加
 `export VITE_USE_POLLING=0`，或直接在 shell 里 `export` 后重启 dev server。
+
+---
+
+## 八、宿主目录迁移 / 重命名后打不开容器
+
+### 8.1 症状
+
+- 打开项目时 VS Code 报错，或提示
+  `postStartCommand ... failed with exit code 127. Skipping any further user-provided commands.`
+- 容器里 `/workspaces/dujiao-next` 是空的（`ls` 看不到 `cmd/`、`frontend/`、`internal/`）
+- 后端日志：`stat /workspaces/dujiao-next/cmd/server: directory not found`
+- 前台日志：`cd: /workspaces/dujiao-next/frontend/user: No such file or directory`
+
+### 8.2 原因
+
+Dev Containers 按「工作区目录名 + `_devcontainer`」推导 compose 项目名。目录改名前后
+项目名不变 → 扩展匹配到迁移前创建的旧容器 → 旧容器的 bind 源指向已不存在的旧路径
+→ 挂载点是个空目录。详见 3.3。
+
+### 8.3 处理
+
+```bash
+# 在宿主上执行（会先列出待删容器并要求确认；加 --yes 跳过确认）
+bash .devcontainer/reset-devcontainer.sh --yes
+```
+
+然后回到 VS Code：命令面板 → `Dev Containers: Reopen in Container`。
+
+若仍不正常，用更彻底的一档：
+
+```
+Dev Containers: Rebuild Container Without Cache
+```
+
+### 8.4 确认已恢复
+
+```bash
+# 容器内
+ls /workspaces/dujiao-next        # 应看到 cmd/ frontend/ internal/
+bash .devcontainer/doctor.sh      # 一键体检
+```
+
+### 8.5 迁移前建议
+
+1. **先关容器再搬目录**：命令面板 → `Dev Containers: Close Remote Connection`，
+   再移动文件夹，最后重新打开。这样不会留下指向旧路径的容器。
+2. **搬家后不要指望「打开即恢复」**：即便 VS Code 没报错，也执行一次
+   `Dev Containers: Rebuild Container`，确保容器按新路径重建。
+3. `node_modules/`、`dist/` 等**不受 git 跟踪**的目录不会随 git 恢复。
+   `postCreateCommand` 已包含前端 `pnpm install`，重建容器时会自动补装；
+   若只是想在现有容器里补，手动执行：
+
+   ```bash
+   cd frontend/user && pnpm install
+   cd ../admin      && pnpm install
+   ```
+
