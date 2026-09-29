@@ -221,6 +221,7 @@ export interface AdminCardSecret {
   batch_id?: number
   secret: string
   status: string
+  is_loop: boolean
   order_id?: number
   reserved_at?: string
   used_at?: string

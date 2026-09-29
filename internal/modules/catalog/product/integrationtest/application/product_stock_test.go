@@ -2,6 +2,7 @@ package integrationtest
 
 import (
 	"testing"
+	"time"
 
 	cardsecretdomain "github.com/dujiao-next/internal/modules/cardsecret/domain"
 	cardsecretgormstore "github.com/dujiao-next/internal/modules/cardsecret/infrastructure/gormstore"
@@ -99,5 +100,52 @@ func TestApplyAutoStockCounts_LegacyStockPrefersDefaultSKU(t *testing.T) {
 	}
 	if got.SKUs[1].AutoStockSold != 1 {
 		t.Fatalf("expected default sku auto sold=1, got %d", got.SKUs[1].AutoStockSold)
+	}
+}
+
+func TestApplyAutoStockCounts_LoopSecretMarksSKUUnlimited(t *testing.T) {
+	svc, db := newAutoStockProductService(t)
+	productID := uint(3101)
+	loopSKUID := uint(201)
+	normalSKUID := uint(202)
+
+	insertCardSecrets(t, db, productID, loopSKUID, cardsecretdomain.StatusAvailable, 2)
+	insertCardSecrets(t, db, productID, normalSKUID, cardsecretdomain.StatusAvailable, 4)
+	now := time.Now()
+	for _, row := range []cardsecretdomain.Secret{
+		{ProductID: productID, SKUID: loopSKUID, Secret: "LOOP", Status: cardsecretdomain.StatusAvailable, IsLoop: true},
+		// 已停用的循环卡密不生效，按普通状态计数
+		{ProductID: productID, SKUID: normalSKUID, Secret: "LOOP-DISABLED", Status: cardsecretdomain.StatusUsed, IsLoop: true},
+	} {
+		row.CreatedAt, row.UpdatedAt = now, now
+		if err := db.Create(&row).Error; err != nil {
+			t.Fatalf("create loop secret failed: %v", err)
+		}
+	}
+
+	products := []productdomain.Product{{
+		ID:              productID,
+		FulfillmentType: constants.FulfillmentTypeAuto,
+		SKUs: []productdomain.ProductSKU{
+			{ID: loopSKUID, SKUCode: productdomain.DefaultSKUCode, IsActive: true},
+			{ID: normalSKUID, SKUCode: "B", IsActive: true},
+		},
+	}}
+	if err := svc.Read.ApplyAutoStockCounts(products); err != nil {
+		t.Fatalf("apply auto stock counts failed: %v", err)
+	}
+
+	got := products[0]
+	if got.AutoStockAvailable != -1 {
+		t.Fatalf("expected product auto available=-1, got %d", got.AutoStockAvailable)
+	}
+	if got.SKUs[0].AutoStockAvailable != -1 {
+		t.Fatalf("expected loop sku auto available=-1, got %d", got.SKUs[0].AutoStockAvailable)
+	}
+	if got.SKUs[1].AutoStockAvailable != 4 {
+		t.Fatalf("expected normal sku auto available=4, got %d", got.SKUs[1].AutoStockAvailable)
+	}
+	if got.SKUs[1].AutoStockSold != 1 {
+		t.Fatalf("expected disabled loop secret counted as sold=1, got %d", got.SKUs[1].AutoStockSold)
 	}
 }

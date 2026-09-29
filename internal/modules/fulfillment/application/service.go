@@ -256,12 +256,26 @@ func (s *Service) CreateAuto(orderID uint) (*fulfillmentdomain.Fulfillment, erro
 			reservedByKey[key] = append(reservedByKey[key], reserved)
 		}
 		var secrets []cardsecretdomain.Secret
+		var loopLines []string
 		for _, item := range order.Items {
 			if item.ProductID == 0 || item.Quantity <= 0 {
 				return ErrFulfillmentInvalid
 			}
 			key := orderdomain.ItemKey(item.ProductID, item.SKUID)
 			cachedReserved := reservedByKey[key]
+			// 循环卡密：按数量重复发同一条内容，不占用也不消耗。已占用普通卡密的订单仍按原逻辑发货。
+			if len(cachedReserved) == 0 {
+				loopSecret, err := secretRepo.FindAvailableLoop(item.ProductID, item.SKUID)
+				if err != nil {
+					return err
+				}
+				if loopSecret != nil {
+					for i := 0; i < item.Quantity; i++ {
+						loopLines = append(loopLines, loopSecret.Secret)
+					}
+					continue
+				}
+			}
 			selected := make([]cardsecretdomain.Secret, 0, item.Quantity)
 			if len(cachedReserved) > 0 {
 				take := item.Quantity
@@ -287,11 +301,12 @@ func (s *Service) CreateAuto(orderID uint) (*fulfillmentdomain.Fulfillment, erro
 		}
 
 		ids := make([]uint, 0, len(secrets))
-		secretLines := make([]string, 0, len(secrets))
+		secretLines := make([]string, 0, len(secrets)+len(loopLines))
 		for _, secret := range secrets {
 			ids = append(ids, secret.ID)
 			secretLines = append(secretLines, secret.Secret)
 		}
+		secretLines = append(secretLines, loopLines...)
 
 		affected, err := secretRepo.MarkUsed(ids, orderID, now)
 		if err != nil {

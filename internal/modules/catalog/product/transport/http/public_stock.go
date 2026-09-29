@@ -84,14 +84,22 @@ func (h *PublicHandler) decorateProductStock(product *productdomain.Product, ite
 	autoTotal := int64(0)
 	autoLocked := int64(0)
 	autoSold := int64(0)
+	hasUnlimitedSKU := false
 	for _, sku := range product.SKUs {
 		if !sku.IsActive {
 			continue
 		}
-		autoAvailable += sku.AutoStockAvailable
+		if sku.AutoStockAvailable < 0 {
+			hasUnlimitedSKU = true
+		} else {
+			autoAvailable += sku.AutoStockAvailable
+		}
 		autoTotal += sku.AutoStockTotal
 		autoLocked += sku.AutoStockLocked
 		autoSold += sku.AutoStockSold
+	}
+	if hasUnlimitedSKU {
+		autoAvailable = -1
 	}
 	item.AutoStockAvailable = autoAvailable
 	item.AutoStockTotal = autoTotal

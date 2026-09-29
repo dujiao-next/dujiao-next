@@ -47,6 +47,7 @@ type CreateCardSecretBatchRequest struct {
 	BatchNo     string   `json:"batch_no"`
 	Note        string   `json:"note"`
 	Deduplicate *bool    `json:"deduplicate"`
+	IsLoop      bool     `json:"is_loop"`
 }
 
 // UpdateCardSecretRequest 更新卡密请求
@@ -133,6 +134,7 @@ func (h *AdminHandler) CreateCardSecretBatch(c *gin.Context) {
 		Source:      constants.CardSecretSourceManual,
 		AdminID:     adminID,
 		Deduplicate: req.Deduplicate,
+		IsLoop:      req.IsLoop,
 	})
 	if err != nil {
 		switch {
@@ -189,6 +191,11 @@ func (h *AdminHandler) ImportCardSecretCSV(c *gin.Context) {
 		ginutil.RespondError(c, response.CodeBadRequest, "error.card_secret_invalid", nil)
 		return
 	}
+	isLoop, err := ginutil.ParseOptionalBoolValue(c.PostForm("is_loop"))
+	if err != nil {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.card_secret_invalid", nil)
+		return
+	}
 
 	batch, created, err := h.service.ImportCardSecretCSV(cardsecretapp.ImportCardSecretCSVInput{
 		ProductID:   productID,
@@ -198,6 +205,7 @@ func (h *AdminHandler) ImportCardSecretCSV(c *gin.Context) {
 		Note:        note,
 		AdminID:     adminID,
 		Deduplicate: deduplicate,
+		IsLoop:      isLoop != nil && *isLoop,
 	})
 	if err != nil {
 		switch {

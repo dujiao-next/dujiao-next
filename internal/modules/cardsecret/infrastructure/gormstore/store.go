@@ -202,6 +202,26 @@ func (r *Store) ListAvailableByProductForUpdate(productID, skuID uint, limit int
 	return rows, nil
 }
 
+// FindAvailableLoop 返回商品/SKU 下可用的循环卡密，没有时返回 nil。
+// 循环卡密可重复发货，不参与占用和状态流转，因此无需加锁。
+func (r *Store) FindAvailableLoop(productID, skuID uint) (*cardsecretdomain.Secret, error) {
+	if productID == 0 {
+		return nil, nil
+	}
+	query := r.db.Where("product_id = ? AND status = ? AND is_loop = ? AND deleted_at IS NULL", productID, cardsecretdomain.StatusAvailable, true)
+	if skuID > 0 {
+		query = query.Where("sku_id = ?", skuID)
+	}
+	var rows []cardsecretdomain.Secret
+	if err := query.Order("id asc").Limit(1).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	return &rows[0], nil
+}
+
 // ListAvailableByProductBatchForUpdate 按商品/SKU/批次锁定可用卡密。
 func (r *Store) ListAvailableByProductBatchForUpdate(productID, skuID, batchID uint, limit int) ([]cardsecretdomain.Secret, error) {
 	if productID == 0 || limit <= 0 {
@@ -366,9 +386,9 @@ func (r *Store) CountStockByProductIDs(productIDs []uint) ([]cardsecretcontract.
 
 	var rows []cardsecretcontract.SKUStockCount
 	if err := r.db.Model(&cardsecretdomain.Secret{}).
-		Select("product_id, sku_id, status, COUNT(*) as total").
+		Select("product_id, sku_id, status, is_loop, COUNT(*) as total").
 		Where("product_id IN ? AND deleted_at IS NULL", productIDs).
-		Group("product_id, sku_id, status").
+		Group("product_id, sku_id, status, is_loop").
 		Scan(&rows).Error; err != nil {
 		return nil, err
 	}

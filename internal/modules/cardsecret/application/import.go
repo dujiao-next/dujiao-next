@@ -26,6 +26,7 @@ type CreateCardSecretBatchInput struct {
 	Source      string
 	AdminID     uint
 	Deduplicate *bool
+	IsLoop      bool
 }
 
 // CreateCardSecretBatch 批量录入卡密
@@ -96,6 +97,7 @@ func (s *Service) CreateCardSecretBatch(input CreateCardSecretBatchInput) (*card
 				BatchID:   &batch.ID,
 				Secret:    secret,
 				Status:    cardsecretdomain.StatusAvailable,
+				IsLoop:    input.IsLoop,
 				CreatedAt: now,
 				UpdatedAt: now,
 			})
@@ -123,6 +125,7 @@ type ImportCardSecretCSVInput struct {
 	Note        string
 	AdminID     uint
 	Deduplicate *bool
+	IsLoop      bool
 }
 
 // ImportCardSecretCSV 从 CSV 导入卡密
@@ -150,6 +153,7 @@ func (s *Service) ImportCardSecretCSV(input ImportCardSecretCSVInput) (*cardsecr
 		Source:      constants.CardSecretSourceCSV,
 		AdminID:     input.AdminID,
 		Deduplicate: input.Deduplicate,
+		IsLoop:      input.IsLoop,
 	})
 }
 

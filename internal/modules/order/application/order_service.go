@@ -610,11 +610,20 @@ func (s *OrderService) createOrder(input orderCreateParams) (*orderdomain.Order,
 
 			if strings.TrimSpace(plan.Item.FulfillmentType) == constants.FulfillmentTypeAuto {
 				secretRepo := tx.CardSecrets()
-				rows, err := secretRepo.ListAvailableByProductForUpdate(plan.Item.ProductID, plan.Item.SKUID, plan.Item.Quantity)
+				// 循环卡密可重复发货，不占用库存，发货时再取。
+				loopSecret, err := secretRepo.FindAvailableLoop(plan.Item.ProductID, plan.Item.SKUID)
 				if err != nil {
 					return err
 				}
-				if len(rows) < plan.Item.Quantity {
+				need := plan.Item.Quantity
+				if loopSecret != nil {
+					need = 0
+				}
+				rows, err := secretRepo.ListAvailableByProductForUpdate(plan.Item.ProductID, plan.Item.SKUID, need)
+				if err != nil {
+					return err
+				}
+				if len(rows) < need {
 					return ErrCardSecretInsufficient
 				}
 				ids := make([]uint, 0, len(rows))

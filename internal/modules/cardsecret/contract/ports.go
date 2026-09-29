@@ -19,6 +19,7 @@ type Repository interface {
 	ListAvailableByProduct(productID, skuID uint, limit int) ([]cardsecretdomain.Secret, error)
 	ListAvailableByProductForUpdate(productID, skuID uint, limit int) ([]cardsecretdomain.Secret, error)
 	ListAvailableByProductBatchForUpdate(productID, skuID, batchID uint, limit int) ([]cardsecretdomain.Secret, error)
+	FindAvailableLoop(productID, skuID uint) (*cardsecretdomain.Secret, error)
 	GetByID(id uint) (*cardsecretdomain.Secret, error)
 	Update(secret *cardsecretdomain.Secret) error
 	BatchUpdateStatus(ids []uint, status string, updatedAt time.Time) (int64, error)

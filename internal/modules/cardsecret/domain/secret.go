@@ -18,6 +18,7 @@ type Secret struct {
 	BatchID    *uint      `gorm:"index" json:"batch_id,omitempty"`                                              // 批次ID
 	Secret     string     `gorm:"type:text;not null" json:"secret"`                                             // 卡密内容
 	Status     string     `gorm:"not null;index:idx_card_secret_reserve" json:"status"`                         // 状态（available/used）
+	IsLoop     bool       `gorm:"not null;default:false" json:"is_loop"`                                        // 循环卡密：可重复发货，不占用不消耗
 	OrderID    *uint      `gorm:"index" json:"order_id,omitempty"`                                              // 关联订单ID
 	ReservedAt *time.Time `gorm:"index" json:"reserved_at"`                                                     // 占用时间
 	UsedAt     *time.Time `gorm:"index" json:"used_at"`                                                         // 使用时间

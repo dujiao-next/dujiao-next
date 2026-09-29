@@ -28,6 +28,7 @@ const batchForm = ref({
   batch_no: '',
   note: '',
   deduplicate: true,
+  is_loop: false,
 })
 const batchSubmitting = ref(false)
 const batchError = ref('')
@@ -39,6 +40,7 @@ const importForm = ref({
   batch_no: '',
   note: '',
   deduplicate: true,
+  is_loop: false,
 })
 const importSubmitting = ref(false)
 const importError = ref('')
@@ -49,6 +51,7 @@ const resetBatchForm = () => {
   batchForm.value.batch_no = ''
   batchForm.value.note = ''
   batchForm.value.deduplicate = true
+  batchForm.value.is_loop = false
   batchError.value = ''
   batchSuccess.value = ''
 }
@@ -82,6 +85,7 @@ const handleBatchCreate = async () => {
       batch_no: batchForm.value.batch_no.trim(),
       note: batchForm.value.note.trim(),
       deduplicate: batchForm.value.deduplicate,
+      is_loop: batchForm.value.is_loop,
     })
     batchSuccess.value = t('admin.cardSecrets.success.batchCreated')
     batchForm.value.secrets = ''
@@ -106,6 +110,7 @@ const resetImportForm = () => {
   importForm.value.batch_no = ''
   importForm.value.note = ''
   importForm.value.deduplicate = true
+  importForm.value.is_loop = false
   importError.value = ''
   importSuccess.value = ''
 }
@@ -136,6 +141,7 @@ const handleImport = async () => {
     formData.append('batch_no', importForm.value.batch_no.trim())
     formData.append('note', importForm.value.note.trim())
     formData.append('deduplicate', String(importForm.value.deduplicate))
+    formData.append('is_loop', String(importForm.value.is_loop))
     formData.append('file', importForm.value.file)
     await adminAPI.importCardSecretCSV(formData)
     importSuccess.value = t('admin.cardSecrets.success.imported')
@@ -177,6 +183,15 @@ const handleImport = async () => {
             <p class="mt-1 text-xs text-muted-foreground">{{ t('admin.cardSecrets.deduplicateHint') }}</p>
           </div>
           <Switch id="card-secret-batch-deduplicate" v-model="batchForm.deduplicate" class="mt-0.5" />
+        </div>
+        <div class="flex items-start justify-between gap-4 border-y border-border py-3">
+          <div>
+            <label for="card-secret-batch-is-loop" class="text-sm font-medium text-foreground">
+              {{ t('admin.cardSecrets.isLoopLabel') }}
+            </label>
+            <p class="mt-1 text-xs text-muted-foreground">{{ t('admin.cardSecrets.isLoopHint') }}</p>
+          </div>
+          <Switch id="card-secret-batch-is-loop" v-model="batchForm.is_loop" class="mt-0.5" />
         </div>
         <div v-if="batchError" class="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
           {{ batchError }}
@@ -227,6 +242,15 @@ const handleImport = async () => {
             <p class="mt-1 text-xs text-muted-foreground">{{ t('admin.cardSecrets.deduplicateHint') }}</p>
           </div>
           <Switch id="card-secret-csv-deduplicate" v-model="importForm.deduplicate" class="mt-0.5" />
+        </div>
+        <div class="flex items-start justify-between gap-4 border-y border-border py-3">
+          <div>
+            <label for="card-secret-csv-is-loop" class="text-sm font-medium text-foreground">
+              {{ t('admin.cardSecrets.isLoopLabel') }}
+            </label>
+            <p class="mt-1 text-xs text-muted-foreground">{{ t('admin.cardSecrets.isLoopHint') }}</p>
+          </div>
+          <Switch id="card-secret-csv-is-loop" v-model="importForm.is_loop" class="mt-0.5" />
         </div>
         <div v-if="importError" class="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
           {{ importError }}

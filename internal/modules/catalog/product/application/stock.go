@@ -28,14 +28,23 @@ func (s *Service) ApplyAutoStockCounts(products []productdomain.Product) error {
 
 	// map[product_id]map[sku_id]map[status]total
 	stockMap := make(map[uint]map[uint]map[string]int64)
+	// 有可用循环卡密的 SKU 视为无限库存：map[product_id]map[sku_id]bool
+	loopMap := make(map[uint]map[uint]bool)
 	for _, count := range counts {
+		if count.IsLoop && count.Status == cardsecretdomain.StatusAvailable {
+			if loopMap[count.ProductID] == nil {
+				loopMap[count.ProductID] = make(map[uint]bool)
+			}
+			loopMap[count.ProductID][count.SKUID] = true
+			continue
+		}
 		if stockMap[count.ProductID] == nil {
 			stockMap[count.ProductID] = make(map[uint]map[string]int64)
 		}
 		if stockMap[count.ProductID][count.SKUID] == nil {
 			stockMap[count.ProductID][count.SKUID] = make(map[string]int64)
 		}
-		stockMap[count.ProductID][count.SKUID][count.Status] = count.Total
+		stockMap[count.ProductID][count.SKUID][count.Status] += count.Total
 	}
 
 	for i := range products {
@@ -43,7 +52,8 @@ func (s *Service) ApplyAutoStockCounts(products []productdomain.Product) error {
 			continue
 		}
 		pMap := stockMap[products[i].ID]
-		if pMap == nil {
+		pLoop := loopMap[products[i].ID]
+		if pMap == nil && pLoop == nil {
 			continue
 		}
 
@@ -57,6 +67,9 @@ func (s *Service) ApplyAutoStockCounts(products []productdomain.Product) error {
 		products[i].AutoStockTotal = pAvailable + pLocked
 		products[i].AutoStockLocked = pLocked
 		products[i].AutoStockSold = pUsed
+		if len(pLoop) > 0 {
+			products[i].AutoStockAvailable = -1
+		}
 
 		legacyTargetIdx := resolveLegacyStockTargetSKUIndex(products[i].SKUs)
 		for j := range products[i].SKUs {
@@ -79,6 +92,9 @@ func (s *Service) ApplyAutoStockCounts(products []productdomain.Product) error {
 			products[i].SKUs[j].AutoStockTotal = available + locked
 			products[i].SKUs[j].AutoStockLocked = locked
 			products[i].SKUs[j].AutoStockSold = used
+			if pLoop[skuID] || (j == legacyTargetIdx && pLoop[0]) {
+				products[i].SKUs[j].AutoStockAvailable = -1
+			}
 		}
 	}
 	return nil
