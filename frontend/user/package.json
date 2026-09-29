@@ -11,6 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
     "@fontsource/nunito-sans": "^5.2.7",
     "@fontsource/rubik": "^5.2.8",
     "@tiptap/extension-image": "^2.27.2",

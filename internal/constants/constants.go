@@ -531,6 +531,7 @@ const (
 	StorefrontTemplateClassic = "classic"
 	StorefrontTemplateVault   = "vault"
 	StorefrontTemplateEmber   = "ember"
+	StorefrontTemplateNova    = "nova"
 	StorefrontTemplateDefault = StorefrontTemplateClassic
 )
 

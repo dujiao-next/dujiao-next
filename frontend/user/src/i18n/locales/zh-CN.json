@@ -147,6 +147,37 @@
     }
   },
 
+  "nova": {
+    "footer": {
+      "tagline": "数字商品即时交付。下单后自动发货，订单与卡密可随时查询。",
+      "shop": "商店",
+      "account": "账户",
+      "support": "支持",
+      "builtOn": "基于 Dujiao-Next 构建"
+    },
+    "steps": {
+      "cart": "购物车",
+      "confirm": "确认订单",
+      "pay": "支付",
+      "done": "完成"
+    },
+    "list": {
+      "eyebrow": "全部商品",
+      "resultCount": "共 {count} 件商品",
+      "viewCard": "卡片视图",
+      "viewList": "列表视图",
+      "empty": "暂无商品",
+      "emptyHint": "换个分类或稍后再来看看。"
+    },
+    "order": {
+      "eyebrow": "订单明细",
+      "itemsCount": "{count} 件商品",
+      "unitPrice": "单价",
+      "lineTotal": "小计",
+      "unitPriceTimes": "{price} × {qty}"
+    }
+  },
+
   "breadcrumb": {
     "label": "面包屑导航",
     "back": "返回{name}"

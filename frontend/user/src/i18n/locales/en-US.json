@@ -147,6 +147,37 @@
     }
   },
 
+  "nova": {
+    "footer": {
+      "tagline": "Digital goods delivered instantly. Orders ship automatically and keys stay retrievable.",
+      "shop": "Shop",
+      "account": "Account",
+      "support": "Support",
+      "builtOn": "Built on Dujiao-Next"
+    },
+    "steps": {
+      "cart": "Cart",
+      "confirm": "Confirm",
+      "pay": "Payment",
+      "done": "Done"
+    },
+    "list": {
+      "eyebrow": "All products",
+      "resultCount": "{count} products",
+      "viewCard": "Card view",
+      "viewList": "List view",
+      "empty": "No products yet",
+      "emptyHint": "Try another category or check back later."
+    },
+    "order": {
+      "eyebrow": "Order details",
+      "itemsCount": "{count} items",
+      "unitPrice": "Unit price",
+      "lineTotal": "Subtotal",
+      "unitPriceTimes": "{price} × {qty}"
+    }
+  },
+
   "breadcrumb": {
     "label": "Breadcrumb",
     "back": "Back to {name}"

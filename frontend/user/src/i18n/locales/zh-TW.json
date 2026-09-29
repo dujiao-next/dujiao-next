@@ -147,6 +147,37 @@
     }
   },
 
+  "nova": {
+    "footer": {
+      "tagline": "數位商品即時交付。下單後自動發貨，訂單與卡密可隨時查詢。",
+      "shop": "商店",
+      "account": "帳戶",
+      "support": "支援",
+      "builtOn": "基於 Dujiao-Next 構建"
+    },
+    "steps": {
+      "cart": "購物車",
+      "confirm": "確認訂單",
+      "pay": "付款",
+      "done": "完成"
+    },
+    "list": {
+      "eyebrow": "全部商品",
+      "resultCount": "共 {count} 件商品",
+      "viewCard": "卡片檢視",
+      "viewList": "列表檢視",
+      "empty": "暫無商品",
+      "emptyHint": "換個分類或稍後再來看看。"
+    },
+    "order": {
+      "eyebrow": "訂單明細",
+      "itemsCount": "{count} 件商品",
+      "unitPrice": "單價",
+      "lineTotal": "小計",
+      "unitPriceTimes": "{price} × {qty}"
+    }
+  },
+
   "breadcrumb": {
     "label": "麵包屑導航",
     "back": "返回{name}"

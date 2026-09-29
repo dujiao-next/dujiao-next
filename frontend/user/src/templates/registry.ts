@@ -8,9 +8,9 @@ import { useAppStore } from '../stores/app'
  *   因此可以一页一页地把新设计搬进模板目录，旧站全程可用。
  */
 
-export type StorefrontTemplate = 'classic' | 'vault' | 'ember'
+export type StorefrontTemplate = 'classic' | 'vault' | 'ember' | 'nova'
 
-export const STOREFRONT_TEMPLATES: StorefrontTemplate[] = ['classic', 'vault', 'ember']
+export const STOREFRONT_TEMPLATES: StorefrontTemplate[] = ['classic', 'vault', 'ember', 'nova']
 export const DEFAULT_TEMPLATE: StorefrontTemplate = 'classic'
 
 const OVERRIDE_KEY = 'dj-storefront-template'
@@ -68,6 +68,7 @@ const templateViews: Record<
 > = {
     vault: import.meta.glob('./vault/**/*.vue'),
     ember: import.meta.glob('./ember/**/*.vue'),
+    nova: import.meta.glob('./nova/**/*.vue'),
 }
 
 type ViewLoader = () => Promise<unknown>

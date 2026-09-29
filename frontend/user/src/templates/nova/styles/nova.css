@@ -1,0 +1,439 @@
+/* =========================================================================
+   Nova — 前台模板设计令牌
+   -------------------------------------------------------------------------
+   设计来源：参考站点 https://novaos.framer.website/ 的内联 design token
+   （从站点 CSS 变量中提取，非目测）：
+       --token-5d0dc7d1  #161816   主文字（近黑、偏暖）
+       --token-ec5aaae9  #0082de   强调蓝
+       --token-78218d52  #5bb8f5   亮蓝
+       --token-4aa48c8a  #f7f7f7   浅底
+       --token-3bc54664  #f3f4f2   暖浅灰（卡片底）
+       --token-b752aaeb  #e4e7e2   暖灰边框
+       --token-507a78d8  #757677   次级文字
+       --token-c4979e11  #a7a9ac   三级文字
+       --framer-font-family      Inter
+       --framer-font-size        19px
+       --framer-line-height      25px
+       --framer-letter-spacing   -.015em
+       --framer-paragraph-spacing 40px
+
+   方向：暖中性（不是纯灰）+ 单一冷蓝强调色。所有中性色都带一点点暖调
+   （#e4e7e2 而非 #e5e5e5），这是参考站点最容易被忽略、也最决定观感的细节。
+
+   作用域：全部选择器限定在 .nova-scope / body.nova-tokens 下，
+           不影响 classic / vault / ember。
+   为什么令牌要额外挂一份到 body.nova-tokens：
+           Toast / ConfirmDialog / 公告弹窗 / reka-ui 的 SelectContent 等浮层
+           都 Teleport 到 <body>，落在 .nova-scope 之外。只写 .nova-scope 的话
+           这些浮层会退回 classic 的调色板。body 上的 class 由 NovaLayout
+           挂载时打上、卸载时摘掉。
+   注意：只有「令牌」双挂；背景/字体/布局那几条仍只作用于 .nova-scope，
+         否则会改掉 body 自身的布局。
+   ========================================================================= */
+
+/* ---------- Tokens: 亮色（默认） ---------- */
+.nova-scope,
+body.nova-tokens {
+  /* 字体：Inter 为设计本体，缺失时逐级回退到系统 UI 字体，不出现无字体状态 */
+  --font-head: 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont,
+    'Segoe UI Variable Display', 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei UI', 'Noto Sans SC', sans-serif;
+  --font-body: 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont,
+    'Segoe UI Variable Text', 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei UI', 'Noto Sans SC', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+
+  /* 主色：暖中性基底 */
+  --bg: #ffffff;
+  --bg-soft: #f7f7f7;
+  --surface: #ffffff;
+  --surface-2: #f3f4f2;
+  --surface-sunken: #eef0ec;
+
+  /* 文字：四级，对比度全部 ≥ WCAG AA */
+  --ink: #161816;
+  --ink-2: #4a4d4a;
+  --ink-3: #757677;
+  --ink-4: #a7a9ac;
+
+  /* 边框：暖灰，不用纯灰 */
+  --border: #e4e7e2;
+  --border-soft: #eef0ec;
+  --border-strong: #cfd3cc;
+
+  /* 强调色：单一冷蓝，仅用于行动点与链接 */
+  --accent: #0082de;
+  --accent-strong: #006bb8;
+  --accent-soft: #e6f3fd;
+  --accent-lift: #5bb8f5;
+  --on-accent: #ffffff;
+
+  /* 功能色：仅状态用 */
+  --success: #1f9d55;
+  --success-strong: #16743f;
+  --success-soft: #e7f6ec;
+  --warning: #c47d00;
+  --warning-strong: #8a5700;
+  --warning-soft: #fdf3e2;
+  --danger: #d92d20;
+  --danger-strong: #a81e13;
+  --danger-soft: #fdeceb;
+
+  /* 圆角阶梯：参考站点偏大圆角（卡片 20~24px） */
+  --r-xs: 8px;
+  --r-sm: 12px;
+  --r: 16px;
+  --r-lg: 22px;
+  --r-xl: 28px;
+  --r-2xl: 36px;
+  --r-pill: 999px;
+
+  /* 阴影：暖中性黑，极低透明度，靠边框而非阴影分隔 */
+  --shadow-sm: 0 1px 2px rgba(22, 24, 22, 0.04), 0 2px 6px -2px rgba(22, 24, 22, 0.05);
+  --shadow: 0 2px 4px rgba(22, 24, 22, 0.04), 0 10px 24px -10px rgba(22, 24, 22, 0.1);
+  --shadow-lg: 0 4px 10px rgba(22, 24, 22, 0.05), 0 24px 56px -20px rgba(22, 24, 22, 0.16);
+  --shadow-accent: 0 8px 24px -10px rgba(0, 130, 222, 0.45);
+  --ring: 0 0 0 4px rgba(0, 130, 222, 0.22);
+
+  --gap-block: 80px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ----------------------------------------------------------------------
+     shadcn --ui-* 覆盖 —— nova 作用域内 components/ui/* 与所有标准 utility
+     (bg-primary / bg-card / text-foreground / border-border / rounded-xl …)
+     自动穿上 nova 皮肤。值用 var(nova token)，custom property 惰性求值，
+     暗色块无需重复。
+     ---------------------------------------------------------------------- */
+  --ui-bg-page: var(--bg);
+  --ui-bg-elevated: var(--surface);
+  --ui-bg-soft: var(--surface-2);
+  --ui-bg-muted: var(--bg-soft);
+  --ui-bg-overlay: color-mix(in srgb, var(--surface) 80%, transparent);
+  --ui-bg-overlay-strong: color-mix(in srgb, var(--surface) 92%, transparent);
+  --ui-text-primary: var(--ink);
+  --ui-text-secondary: var(--ink-2);
+  --ui-text-muted: var(--ink-3);
+  --ui-text-on-accent: var(--on-accent);
+  --ui-border: var(--border);
+  --ui-border-strong: var(--border-strong);
+  --ui-accent: var(--accent);
+  --ui-accent-hover: var(--accent-strong);
+  --ui-accent-soft: var(--accent-soft);
+  --ui-accent-warm: var(--warning);
+  --ui-accent-warm-hover: var(--warning-strong);
+  --ui-accent-warm-soft: var(--warning-soft);
+  --ui-success: var(--success);
+  --ui-success-soft: var(--success-soft);
+  --ui-warning: var(--warning);
+  --ui-warning-soft: var(--warning-soft);
+  --ui-danger: var(--danger);
+  --ui-danger-soft: var(--danger-soft);
+  --ui-info: var(--accent);
+  --ui-info-soft: var(--accent-soft);
+  --ui-focus-ring: var(--ring);
+  --ui-radius-sm: var(--r-sm);
+  --ui-radius-md: var(--r);
+  --ui-radius-lg: var(--r-lg);
+  --ui-radius-xl: var(--r-xl);
+  --ui-shadow-soft: var(--shadow);
+  --ui-shadow-card: var(--shadow-lg);
+}
+
+/* ---------- 外壳自身的排版与布局（不能挂到 body） ---------- */
+.nova-scope {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  /* 参考站点基准 19px/25px；中文 19px 偏大，取 16px 并靠 line-height 保持呼吸感 */
+  font-size: 16px;
+  line-height: 1.65;
+  letter-spacing: -0.011em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- Tokens: 暗色（跟随全局 .dark） ----------
+   参考站点是亮色优先，暗色按同一「暖中性 + 单一冷蓝」方向推导。 */
+.dark .nova-scope,
+.dark body.nova-tokens {
+  --bg: #101110;
+  --bg-soft: #161816;
+  --surface: #1a1c1a;
+  --surface-2: #222522;
+  --surface-sunken: #0c0d0c;
+
+  --ink: #f7f7f7;
+  --ink-2: #c9cbc8;
+  --ink-3: #a7a9ac;
+  --ink-4: #757677;
+
+  --border: #2e312e;
+  --border-soft: #242724;
+  --border-strong: #3d413d;
+
+  --accent: #5bb8f5;
+  --accent-strong: #8fd0fa;
+  --accent-soft: #10283a;
+  --accent-lift: #8fd0fa;
+  --on-accent: #06121c;
+
+  --success: #3ecf72;
+  --success-strong: #6fe096;
+  --success-soft: #102a1a;
+  --warning: #e5a53a;
+  --warning-strong: #f3c477;
+  --warning-soft: #33260d;
+  --danger: #f2695e;
+  --danger-strong: #ff9a91;
+  --danger-soft: #361512;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow: 0 2px 4px rgba(0, 0, 0, 0.5), 0 10px 24px -10px rgba(0, 0, 0, 0.7);
+  --shadow-lg: 0 4px 10px rgba(0, 0, 0, 0.5), 0 24px 56px -20px rgba(0, 0, 0, 0.8);
+  --shadow-accent: 0 8px 24px -10px rgba(91, 184, 245, 0.4);
+  --ring: 0 0 0 4px rgba(91, 184, 245, 0.28);
+}
+
+/* ---------- Base（限定在作用域内） ----------
+   放进 @layer base，确保低于 Tailwind 的 @layer utilities，
+   工具类（text-* / bg-* …）始终可覆盖这些元素 reset。 */
+@layer base {
+  .nova-scope h1,
+  .nova-scope h2,
+  .nova-scope h3,
+  .nova-scope h4 {
+    font-family: var(--font-head);
+    font-weight: 600;
+    line-height: 1.14;
+    margin: 0;
+    /* 参考站点 letter-spacing -.015em，大标题收紧更多 */
+    letter-spacing: -0.025em;
+    color: var(--ink);
+  }
+  .nova-scope p { margin: 0; }
+  .nova-scope a { color: inherit; text-decoration: none; }
+  .nova-scope img,
+  .nova-scope svg { display: block; max-width: 100%; }
+  .nova-scope button { font-family: inherit; cursor: pointer; }
+  .nova-scope ul { margin: 0; padding: 0; list-style: none; }
+  .nova-scope :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .nova-scope ::selection { background: var(--accent-soft); color: var(--ink); }
+  .nova-scope code,
+  .nova-scope pre { font-family: var(--font-mono); }
+  .nova-scope input,
+  .nova-scope select,
+  .nova-scope textarea { font-family: inherit; letter-spacing: inherit; }
+}
+
+/* =========================================================================
+   Nova 专有组件类
+   ========================================================================= */
+
+/* ---------- 全大写小标题（参考站点最强的结构信号） ----------
+   CORE ARCHITECTURE / AI WORKSPACE / PRICING … 都是这个样式。 */
+.nova-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-3);
+}
+
+.nova-eyebrow::before {
+  content: '';
+  width: 18px;
+  height: 1px;
+  background: var(--border-strong);
+}
+
+.nova-eyebrow--plain::before { display: none; }
+.nova-eyebrow--accent { color: var(--accent); }
+.nova-eyebrow--accent::before { background: var(--accent); }
+
+/* ---------- 玻璃材质（吸顶导航） ---------- */
+.nova-glass {
+  background: color-mix(in srgb, var(--bg) 76%, transparent);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+
+/* ---------- 状态胶囊 ---------- */
+.nova-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--r-pill);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+
+.nova-pill--accent { background: var(--accent-soft); color: var(--accent-strong); }
+.nova-pill--success { background: var(--success-soft); color: var(--success-strong); }
+.nova-pill--warning { background: var(--warning-soft); color: var(--warning-strong); }
+.nova-pill--danger { background: var(--danger-soft); color: var(--danger-strong); }
+.nova-pill--solid { background: var(--ink); color: var(--bg); }
+
+/* ---------- 卡片 ---------- */
+.nova-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  transition: transform 280ms var(--ease), box-shadow 280ms var(--ease),
+    border-color 280ms var(--ease);
+}
+
+.nova-card--hover:hover {
+  transform: translateY(-4px);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow);
+}
+
+.nova-card__media {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.nova-card__media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 520ms var(--ease);
+}
+
+.nova-card--hover:hover .nova-card__media img { transform: scale(1.045); }
+
+/* ---------- 分区节奏：白 / 浅灰交替 ---------- */
+.nova-band { background: var(--bg-soft); }
+
+/* ---------- 分隔线：暖灰，比边框更轻 ---------- */
+.nova-rule { border-top: 1px solid var(--border); }
+.nova-rule--soft { border-top: 1px solid var(--border-soft); }
+
+/* ---------- 背景装饰：极克制的暖调网格 + 冷蓝光晕 ----------
+   参考站点 Hero 背后有一层几乎不可见的网格与光晕，是「高级感」的来源。 */
+.nova-mesh {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.nova-mesh__grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(22, 24, 22, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(22, 24, 22, 0.04) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 76% 60% at 50% 30%, #000 18%, transparent 76%);
+  -webkit-mask-image: radial-gradient(ellipse 76% 60% at 50% 30%, #000 18%, transparent 76%);
+}
+
+.nova-mesh__blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  will-change: transform;
+}
+
+.nova-mesh__blob--a {
+  top: -26%;
+  right: -14%;
+  width: 44vw;
+  min-width: 300px;
+  aspect-ratio: 1;
+  background: radial-gradient(circle at 40% 40%, var(--accent-lift), transparent 68%);
+  opacity: 0.16;
+  animation: nova-drift-a 28s var(--ease-out) infinite;
+}
+
+.nova-mesh__blob--b {
+  bottom: -22%;
+  left: -12%;
+  width: 38vw;
+  min-width: 260px;
+  aspect-ratio: 1;
+  background: radial-gradient(circle at 55% 45%, #9fd8b8, transparent 70%);
+  opacity: 0.12;
+  animation: nova-drift-b 34s var(--ease-out) infinite;
+}
+
+.nova-mesh__fade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 44%, var(--bg) 94%);
+}
+
+.dark .nova-mesh__grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+}
+
+@keyframes nova-drift-a {
+  50% { transform: translate3d(-6%, 6%, 0) scale(1.1); }
+}
+
+@keyframes nova-drift-b {
+  50% { transform: translate3d(7%, -5%, 0) scale(1.07); }
+}
+
+/* ---------- 入场动效 ----------
+   参考站点大量使用「淡入 + 轻微上移」，时长 600~800ms、缓出。
+   用 CSS 动画而非 IntersectionObserver，保证首屏与懒加载区一致。 */
+@keyframes nova-rise {
+  from { opacity: 0; transform: translate3d(0, 14px, 0); }
+  to { opacity: 1; transform: none; }
+}
+
+.nova-rise {
+  animation: nova-rise 640ms var(--ease-out) both;
+}
+
+.nova-rise--d1 { animation-delay: 80ms; }
+.nova-rise--d2 { animation-delay: 160ms; }
+.nova-rise--d3 { animation-delay: 240ms; }
+.nova-rise--d4 { animation-delay: 320ms; }
+
+/* ---------- 富文本（订单使用说明等 v-html 内容） ---------- */
+.nova-prose { color: var(--ink-2); }
+.nova-prose :deep(img) { border-radius: var(--r); margin-block: 12px; }
+.nova-prose :deep(a) { color: var(--accent); }
+.nova-prose :deep(p) { margin-block: 6px; }
+.nova-prose :deep(ul),
+.nova-prose :deep(ol) { margin-block: 6px; padding-left: 20px; list-style: revert; }
+
+/* ---------- 响应式 / 无障碍 ---------- */
+@media (max-width: 900px) {
+  .nova-scope { --gap-block: 56px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nova-scope *,
+  .nova-scope *::before,
+  .nova-scope *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

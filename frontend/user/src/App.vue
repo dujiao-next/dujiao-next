@@ -51,6 +51,7 @@ import MobileBottomNav from './components/MobileBottomNav.vue'
 // 各模板外壳按需加载，classic 用户不会拉取其 chunk/样式
 const VaultLayout = defineAsyncComponent(() => import('./templates/vault/layout/VaultLayout.vue'))
 const EmberLayout = defineAsyncComponent(() => import('./templates/ember/layout/EmberLayout.vue'))
+const NovaLayout = defineAsyncComponent(() => import('./templates/nova/layout/NovaLayout.vue'))
 
 // config 由 router.beforeEach 统一加载，无需在此重复调用
 const appStore = useAppStore()
@@ -64,6 +65,7 @@ const activeTemplate = computed(() => getActiveTemplate())
 const templateShell = computed(() => {
   if (activeTemplate.value === 'ember') return EmberLayout
   if (activeTemplate.value === 'vault') return VaultLayout
+  if (activeTemplate.value === 'nova') return NovaLayout
   return null
 })
 </script>
