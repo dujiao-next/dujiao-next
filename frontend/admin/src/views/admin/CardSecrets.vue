@@ -1123,9 +1123,18 @@ onMounted(async () => {
                   <div class="break-words">{{ secretSkuLabel(secret) }}</div>
                 </TableCell>
                 <TableCell class="min-w-[90px] px-4 py-3 text-xs">
-                  <span class="inline-flex rounded-full border px-2.5 py-1 text-xs" :class="cardSecretStatusClass(secret.status)">
-                    {{ cardSecretStatusLabel(secret.status) }}
-                  </span>
+                  <div class="flex flex-wrap items-center gap-1">
+                    <span class="inline-flex rounded-full border px-2.5 py-1 text-xs" :class="cardSecretStatusClass(secret.status)">
+                      {{ cardSecretStatusLabel(secret.status) }}
+                    </span>
+                    <span
+                      v-if="secret.is_loop"
+                      class="inline-flex rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs text-sky-700"
+                      :title="t('admin.cardSecrets.isLoopHint')"
+                    >
+                      {{ t('admin.cardSecrets.isLoopLabel') }}
+                    </span>
+                  </div>
                 </TableCell>
                 <TableCell class="min-w-[90px] px-4 py-3 text-xs">
                   <div class="flex flex-col gap-1">
