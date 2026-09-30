@@ -40,34 +40,53 @@ func resolveDashboardManualAvailableStock(product productdomain.Product) (int64,
 	return total, false
 }
 
-// loopSecretProductSet 返回存在可用循环卡密的商品。循环卡密可无限发货，
-// 这些商品与手动无限库存一样不参与库存预警统计。
-func (r *Store) loopSecretProductSet(productIDs []uint) (map[uint]bool, error) {
-	result := make(map[uint]bool)
+// loopSecretSKUSet 返回存在可用循环卡密的 SKU：map[product_id]map[sku_id]bool，sku_id=0 为遗留卡密。
+// 循环卡密可无限发货，这些 SKU 与手动无限库存一样不参与库存预警。
+func (r *Store) loopSecretSKUSet(productIDs []uint) (map[uint]map[uint]bool, error) {
+	result := make(map[uint]map[uint]bool)
 	if len(productIDs) == 0 {
 		return result, nil
 	}
-	var ids []uint
+	type loopRow struct {
+		ProductID uint
+		SKUID     uint `gorm:"column:sku_id"`
+	}
+	var rows []loopRow
 	if err := r.db.Model(&cardsecretdomain.Secret{}).
+		Distinct("product_id", "sku_id").
 		Where("product_id IN ? AND status = ? AND is_loop = ? AND deleted_at IS NULL", productIDs, cardsecretdomain.StatusAvailable, true).
-		Distinct().
-		Pluck("product_id", &ids).Error; err != nil {
+		Scan(&rows).Error; err != nil {
 		return nil, err
 	}
-	for _, id := range ids {
-		result[id] = true
+	for _, row := range rows {
+		if result[row.ProductID] == nil {
+			result[row.ProductID] = make(map[uint]bool)
+		}
+		result[row.ProductID][row.SKUID] = true
 	}
 	return result, nil
 }
 
-func excludeProductIDs(ids []uint, excluded map[uint]bool) []uint {
-	result := make([]uint, 0, len(ids))
-	for _, id := range ids {
-		if !excluded[id] {
-			result = append(result, id)
+// isLoopSKU 判断 SKU 是否有循环卡密；遗留 sku_id=0 的循环卡密归入 legacy 目标 SKU。
+func isLoopSKU(loops map[uint]bool, skuID uint, isLegacyTarget bool) bool {
+	return loops[skuID] || (isLegacyTarget && loops[0])
+}
+
+// productHasLoopSKU 任一启用 SKU 有循环卡密时，商品级视为无限库存（与前台商品级展示一致）。
+// activeSKUIDs[0] 为遗留卡密归入的目标 SKU，与 GetStockStats 的 SKU 统计口径一致。
+func productHasLoopSKU(loops map[uint]bool, activeSKUIDs []uint) bool {
+	if len(loops) == 0 {
+		return false
+	}
+	if len(activeSKUIDs) == 0 {
+		return loops[0]
+	}
+	for idx, skuID := range activeSKUIDs {
+		if isLoopSKU(loops, skuID, idx == 0) {
+			return true
 		}
 	}
-	return result
+	return false
 }
 
 // GetStockStats 获取库存总览统计
@@ -132,13 +151,9 @@ func (r *Store) GetStockStats(lowStockThreshold int64) (dashboard.StockStatsRow,
 		}
 	}
 
-	loopProducts, err := r.loopSecretProductSet(autoProductIDs)
+	loopSKUs, err := r.loopSecretSKUSet(autoProductIDs)
 	if err != nil {
 		return result, err
-	}
-	autoProductIDs = excludeProductIDs(autoProductIDs, loopProducts)
-	for productID := range loopProducts {
-		delete(autoProductActiveSKUs, productID)
 	}
 
 	if len(autoProductIDs) == 0 {
@@ -154,7 +169,7 @@ func (r *Store) GetStockStats(lowStockThreshold int64) (dashboard.StockStatsRow,
 	var rows []countRow
 	query := r.db.Model(&cardsecretdomain.Secret{}).
 		Select("product_id, sku_id, COUNT(*) as total").
-		Where("product_id IN ? AND status = ? AND deleted_at IS NULL", autoProductIDs, cardsecretdomain.StatusAvailable)
+		Where("product_id IN ? AND status = ? AND is_loop = ? AND deleted_at IS NULL", autoProductIDs, cardsecretdomain.StatusAvailable, false)
 	if len(allActiveSKUIDs) > 0 {
 		query = query.Where("sku_id = 0 OR sku_id IN ?", allActiveSKUIDs)
 	} else {
@@ -178,6 +193,9 @@ func (r *Store) GetStockStats(lowStockThreshold int64) (dashboard.StockStatsRow,
 
 	// 商品级别统计
 	for _, productID := range autoProductIDs {
+		if productHasLoopSKU(loopSKUs[productID], autoProductActiveSKUs[productID]) {
+			continue
+		}
 		available := productAvailableMap[productID]
 		switch classifyInventoryAlertType(available, lowStockThreshold) {
 		case constants.NotificationAlertTypeOutOfStockProducts:
@@ -195,6 +213,9 @@ func (r *Store) GetStockStats(lowStockThreshold int64) (dashboard.StockStatsRow,
 			legacyTargetSKUID = skuIDs[0] // 简化处理：sku_id=0 库存归入第一个启用 SKU
 		}
 		for _, skuID := range skuIDs {
+			if isLoopSKU(loopSKUs[productID], skuID, skuID == legacyTargetSKUID) {
+				continue
+			}
 			skuAvail := int64(0)
 			if skuMap != nil {
 				skuAvail = skuMap[skuID]
@@ -238,11 +259,10 @@ func (r *Store) GetInventoryAlertItems(lowStockThreshold int64) ([]dashboard.Inv
 		}
 	}
 
-	loopProducts, err := r.loopSecretProductSet(autoProductIDs)
+	loopSKUs, err := r.loopSecretSKUSet(autoProductIDs)
 	if err != nil {
 		return nil, err
 	}
-	autoProductIDs = excludeProductIDs(autoProductIDs, loopProducts)
 
 	autoAvailableMap := make(map[uint]map[uint]int64)
 	if len(autoProductIDs) > 0 {
@@ -254,7 +274,7 @@ func (r *Store) GetInventoryAlertItems(lowStockThreshold int64) ([]dashboard.Inv
 		rows := make([]countRow, 0)
 		if err := r.db.Model(&cardsecretdomain.Secret{}).
 			Select("product_id, sku_id, COUNT(*) as total").
-			Where("product_id IN ? AND status = ? AND deleted_at IS NULL", autoProductIDs, cardsecretdomain.StatusAvailable).
+			Where("product_id IN ? AND status = ? AND is_loop = ? AND deleted_at IS NULL", autoProductIDs, cardsecretdomain.StatusAvailable, false).
 			Group("product_id, sku_id").
 			Scan(&rows).Error; err != nil {
 			return nil, err
@@ -313,10 +333,7 @@ func (r *Store) GetInventoryAlertItems(lowStockThreshold int64) ([]dashboard.Inv
 	for _, product := range products {
 		switch strings.TrimSpace(product.FulfillmentType) {
 		case constants.FulfillmentTypeAuto:
-			if loopProducts[product.ID] {
-				continue
-			}
-			result = append(result, collectAutoInventoryAlertRows(product, autoAvailableMap[product.ID], lowStockThreshold)...)
+			result = append(result, collectAutoInventoryAlertRows(product, autoAvailableMap[product.ID], loopSKUs[product.ID], lowStockThreshold)...)
 		case constants.FulfillmentTypeManual:
 			result = append(result, collectManualInventoryAlertRows(product, lowStockThreshold)...)
 		case constants.FulfillmentTypeUpstream:
@@ -450,7 +467,8 @@ func collectUpstreamInventoryAlertRows(product productdomain.Product, skuMapping
 	return result
 }
 
-func collectAutoInventoryAlertRows(product productdomain.Product, availableMap map[uint]int64, lowStockThreshold int64) []dashboard.InventoryAlertRow {
+// loops 为该商品有循环卡密的 SKU，这些 SKU 不产生预警。
+func collectAutoInventoryAlertRows(product productdomain.Product, availableMap map[uint]int64, loops map[uint]bool, lowStockThreshold int64) []dashboard.InventoryAlertRow {
 	result := make([]dashboard.InventoryAlertRow, 0)
 	activeSKUs := activeProductSKUs(product.SKUs)
 	totalAvailable := int64(0)
@@ -470,6 +488,9 @@ func collectAutoInventoryAlertRows(product productdomain.Product, availableMap m
 		legacyInactiveAvailable += total
 	}
 	if len(activeSKUs) == 0 {
+		if len(loops) > 0 {
+			return result
+		}
 		if alertType := classifyInventoryAlertType(totalAvailable, lowStockThreshold); alertType != "" {
 			result = append(result, dashboard.InventoryAlertRow{
 				ProductID:        product.ID,
@@ -484,7 +505,12 @@ func collectAutoInventoryAlertRows(product productdomain.Product, availableMap m
 
 	legacyTargetIdx := resolveDashboardLegacyStockTargetSKUIndex(activeSKUs)
 	hasPositiveActive := false
+	hasLoopSKU := false
 	for idx, sku := range activeSKUs {
+		if isLoopSKU(loops, sku.ID, idx == legacyTargetIdx) {
+			hasLoopSKU = true
+			continue
+		}
 		available := availableMap[sku.ID]
 		if idx == legacyTargetIdx {
 			available += availableMap[0]
@@ -508,7 +534,7 @@ func collectAutoInventoryAlertRows(product productdomain.Product, availableMap m
 			})
 		}
 	}
-	if hasPositiveActive || legacyInactiveAvailable <= 0 {
+	if hasPositiveActive || hasLoopSKU || legacyInactiveAvailable <= 0 {
 		return result
 	}
 	if fallbackType := classifyInventoryAlertType(totalAvailable, lowStockThreshold); fallbackType != "" {

@@ -255,14 +255,18 @@ func TestGetInventoryAlertItemsFallsBackToProductLevelWhenOnlyInactiveAutoSKUHas
 	}
 }
 
-func TestInventoryStatsSkipProductsWithLoopCardSecret(t *testing.T) {
+func TestInventoryStatsSkipSKUsWithLoopCardSecret(t *testing.T) {
 	repo, db := setupDashboardRepositoryTest(t)
 	if err := db.AutoMigrate(&cardsecretdomain.Secret{}); err != nil {
 		t.Fatalf("migrate card secret failed: %v", err)
 	}
 
 	category := createDashboardCategory(t, db, "dashboard-auto-loop")
-	createAuto := func(slug string, secrets []cardsecretdomain.Secret) *productdomain.Product {
+	type skuSpec struct {
+		code    string
+		secrets []cardsecretdomain.Secret
+	}
+	createAuto := func(slug string, skus ...skuSpec) (*productdomain.Product, map[string]uint) {
 		product := &productdomain.Product{
 			CategoryID:      category.ID,
 			Slug:            slug,
@@ -275,42 +279,78 @@ func TestInventoryStatsSkipProductsWithLoopCardSecret(t *testing.T) {
 		if err := db.Create(product).Error; err != nil {
 			t.Fatalf("create product failed: %v", err)
 		}
-		sku := &productdomain.ProductSKU{ProductID: product.ID, SKUCode: productdomain.DefaultSKUCode, PriceAmount: product.PriceAmount, IsActive: true}
-		if err := db.Create(sku).Error; err != nil {
-			t.Fatalf("create sku failed: %v", err)
-		}
-		for i := range secrets {
-			secrets[i].ProductID, secrets[i].SKUID = product.ID, sku.ID
-			if err := db.Create(&secrets[i]).Error; err != nil {
-				t.Fatalf("create card secret failed: %v", err)
+		skuIDs := make(map[string]uint, len(skus))
+		for _, spec := range skus {
+			sku := &productdomain.ProductSKU{ProductID: product.ID, SKUCode: spec.code, PriceAmount: product.PriceAmount, IsActive: true}
+			if err := db.Create(sku).Error; err != nil {
+				t.Fatalf("create sku failed: %v", err)
+			}
+			skuIDs[spec.code] = sku.ID
+			for i := range spec.secrets {
+				spec.secrets[i].ProductID, spec.secrets[i].SKUID = product.ID, sku.ID
+				if err := db.Create(&spec.secrets[i]).Error; err != nil {
+					t.Fatalf("create card secret failed: %v", err)
+				}
 			}
 		}
-		return product
+		return product, skuIDs
+	}
+	loop := func(secret string) cardsecretdomain.Secret {
+		return cardsecretdomain.Secret{Secret: secret, Status: cardsecretdomain.StatusAvailable, IsLoop: true}
+	}
+	normal := func(secret string) cardsecretdomain.Secret {
+		return cardsecretdomain.Secret{Secret: secret, Status: cardsecretdomain.StatusAvailable}
 	}
 
-	// 1 张循环卡密：可无限发货，不应产生低库存预警
-	createAuto("dashboard-auto-loop", []cardsecretdomain.Secret{
-		{Secret: "LOOP", Status: cardsecretdomain.StatusAvailable, IsLoop: true},
-	})
-	// 2 张普通卡密：低于阈值，照常预警
-	normal := createAuto("dashboard-auto-normal", []cardsecretdomain.Secret{
-		{Secret: "N-1", Status: cardsecretdomain.StatusAvailable},
-		{Secret: "N-2", Status: cardsecretdomain.StatusAvailable},
-	})
+	// 全部 SKU 为循环卡密：不预警
+	createAuto("dashboard-auto-loop", skuSpec{productdomain.DefaultSKUCode, []cardsecretdomain.Secret{loop("LOOP")}})
+	// 普通卡密低于阈值：照常预警
+	normalProduct, _ := createAuto("dashboard-auto-normal", skuSpec{productdomain.DefaultSKUCode, []cardsecretdomain.Secret{normal("N-1"), normal("N-2")}})
+	// 混合商品：循环 SKU 不预警，普通 SKU 照常预警
+	mixedProduct, mixedSKUs := createAuto("dashboard-auto-mixed",
+		skuSpec{"LOOP", []cardsecretdomain.Secret{loop("M-LOOP")}},
+		skuSpec{"NORMAL", []cardsecretdomain.Secret{normal("M-N-1")}},
+	)
 
 	rows, err := repo.GetInventoryAlertItems(5)
 	if err != nil {
 		t.Fatalf("get inventory alert items failed: %v", err)
 	}
-	if len(rows) != 1 || rows[0].ProductID != normal.ID || rows[0].AlertType != constants.NotificationAlertTypeLowStockProducts {
-		t.Fatalf("only the normal product should raise low stock alert, got %+v", rows)
+	got := make(map[[2]uint]int64, len(rows))
+	for _, row := range rows {
+		if row.AlertType != constants.NotificationAlertTypeLowStockProducts {
+			t.Fatalf("unexpected alert type: %+v", row)
+		}
+		got[[2]uint{row.ProductID, row.SKUID}] = row.AvailableStock
+	}
+	if len(rows) != 2 {
+		t.Fatalf("want 2 low stock rows (normal product + mixed normal sku), got %+v", rows)
+	}
+	if stock, ok := got[[2]uint{mixedProduct.ID, mixedSKUs["NORMAL"]}]; !ok || stock != 1 {
+		t.Fatalf("mixed product normal sku should alert with stock 1, got %+v", rows)
+	}
+	if _, ok := got[[2]uint{mixedProduct.ID, mixedSKUs["LOOP"]}]; ok {
+		t.Fatalf("mixed product loop sku should not alert, got %+v", rows)
+	}
+	normalFound := false
+	for key := range got {
+		if key[0] == normalProduct.ID {
+			normalFound = true
+		}
+	}
+	if !normalFound {
+		t.Fatalf("normal product should alert, got %+v", rows)
 	}
 
 	stats, err := repo.GetStockStats(5)
 	if err != nil {
 		t.Fatalf("get stock stats failed: %v", err)
 	}
-	if stats.LowStockProducts != 1 || stats.OutOfStockProducts != 0 || stats.LowStockSKUs != 1 || stats.OutOfStockSKUs != 0 {
-		t.Fatalf("loop product should be excluded from stock stats, got %+v", stats)
+	// 商品级：含循环 SKU 的商品视为无限，只有普通商品计入；SKU 级：普通商品 + 混合商品普通 SKU
+	if stats.LowStockProducts != 1 || stats.OutOfStockProducts != 0 || stats.LowStockSKUs != 2 || stats.OutOfStockSKUs != 0 {
+		t.Fatalf("unexpected stock stats: %+v", stats)
+	}
+	if stats.AutoAvailableSecrets != 3 {
+		t.Fatalf("loop secrets should not be counted as available units, want 3 got %d", stats.AutoAvailableSecrets)
 	}
 }
