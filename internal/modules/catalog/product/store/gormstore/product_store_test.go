@@ -388,6 +388,11 @@ func TestListStockStatusAutoUsesLowStockThreshold(t *testing.T) {
 
 	createAvailableCardSecrets(t, db, low3.ID, 3)
 	createAvailableCardSecrets(t, db, normal6.ID, 6)
+	// 仅 1 张循环卡密：视为无限库存，不应计入 low/normal
+	loop1 := createAutoProduct(t, repo, "auto-loop-1")
+	if err := db.Create(&cardsecretdomain.Secret{ProductID: loop1.ID, Secret: "LOOP", Status: cardsecretdomain.StatusAvailable, IsLoop: true}).Error; err != nil {
+		t.Fatalf("create loop card secret failed: %v", err)
+	}
 
 	checkSlugs := func(status string, expected map[string]bool) {
 		products, _, err := repo.List(productcontract.ListFilter{
@@ -416,12 +421,20 @@ func TestListStockStatusAutoUsesLowStockThreshold(t *testing.T) {
 		"auto-low-0":    true,
 		"auto-low-3":    true,
 		"auto-normal-6": false,
+		"auto-loop-1":   false,
 	})
 
 	checkSlugs("normal", map[string]bool{
 		"auto-low-0":    false,
 		"auto-low-3":    false,
 		"auto-normal-6": true,
+		"auto-loop-1":   false,
+	})
+
+	checkSlugs("unlimited", map[string]bool{
+		"auto-low-0":    false,
+		"auto-normal-6": false,
+		"auto-loop-1":   true,
 	})
 }
 

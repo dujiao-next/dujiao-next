@@ -189,6 +189,9 @@ const formatManualStockSummary = (product: AdminProduct) => {
 }
 
 const formatAutoStockSummary = (product: AdminProduct) => {
+  if (Number(product?.auto_stock_available) === -1) {
+    return `${t('admin.products.stock.unlimited')} · ${t('admin.cardSecrets.isLoopLabel')}`
+  }
   const total = toSafeInt(product?.auto_stock_total)
   const locked = toSafeInt(product?.auto_stock_locked)
   const sold = toSafeInt(product?.auto_stock_sold)
@@ -220,6 +223,9 @@ const manualStockBadgeClass = (product: AdminProduct) => {
 }
 
 const autoStockBadgeClass = (product: AdminProduct) => {
+  if (Number(product?.auto_stock_available) === -1) {
+    return 'border-zinc-200 bg-zinc-50 text-zinc-700'
+  }
   const available = toSafeInt(product?.auto_stock_available)
   if (available <= 0) {
     return 'border-rose-200 bg-rose-50 text-rose-700'
