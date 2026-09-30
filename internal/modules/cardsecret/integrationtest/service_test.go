@@ -2,6 +2,7 @@ package integrationtest
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"mime/multipart"
 	"net/http/httptest"
@@ -889,5 +890,72 @@ func TestExportAvailableCardSecretsDeletesAfterExport(t *testing.T) {
 	}
 	if len(rows) != 1 || rows[0].Secret != "EXP-D-002" || rows[0].Status != cardsecretdomain.StatusAvailable {
 		t.Fatalf("unexpected remaining rows: %+v", rows)
+	}
+}
+
+// 出库导出不应带走循环卡密（循环卡密可无限发货，导出后标记已用会让商品变成售罄）。
+func TestExportAvailableCardSecretsSkipsLoopSecrets(t *testing.T) {
+	db := setupCardSecretServiceTestDB(t)
+	product := &productdomain.Product{
+		CategoryID:      1,
+		Slug:            "export-available-loop",
+		TitleJSON:       jsonmap.JSON{"zh-CN": "循环卡密导出商品"},
+		PriceAmount:     money.FromDecimal(decimal.NewFromInt(88)),
+		PurchaseType:    constants.ProductPurchaseMember,
+		FulfillmentType: constants.FulfillmentTypeAuto,
+		IsActive:        true,
+	}
+	if err := db.Create(product).Error; err != nil {
+		t.Fatalf("create product failed: %v", err)
+	}
+	sku := &productdomain.ProductSKU{
+		ProductID:   product.ID,
+		SKUCode:     productdomain.DefaultSKUCode,
+		PriceAmount: money.FromDecimal(decimal.NewFromInt(88)),
+		IsActive:    true,
+	}
+	if err := db.Create(sku).Error; err != nil {
+		t.Fatalf("create sku failed: %v", err)
+	}
+
+	svc := NewCardSecretService(
+		cardsecretgormstore.New(db),
+		cardsecretgormstore.NewBatch(db),
+		productgormstore.NewProductStore(db),
+		productgormstore.NewSKUStore(db),
+	)
+	// 循环卡密先录入，ID 更小；若导出不排除它会被优先取走
+	for _, input := range []CreateCardSecretBatchInput{
+		{ProductID: product.ID, Secrets: []string{"EXP-LOOP"}, BatchNo: "EXP-LOOP", Source: constants.CardSecretSourceManual, IsLoop: true},
+		{ProductID: product.ID, Secrets: []string{"EXP-NORMAL"}, BatchNo: "EXP-NORMAL", Source: constants.CardSecretSourceManual},
+	} {
+		if _, _, err := svc.CreateCardSecretBatch(input); err != nil {
+			t.Fatalf("create batch failed: %v", err)
+		}
+	}
+
+	if _, err := svc.ExportAvailableCardSecrets(ExportAvailableCardSecretInput{
+		ProductID: product.ID, SKUID: sku.ID, Limit: 2, Format: constants.ExportFormatTXT,
+	}); !errors.Is(err, cardsecretapp.ErrInsufficient) {
+		t.Fatalf("export 2 with only 1 normal secret want ErrInsufficient, got %v", err)
+	}
+	result, err := svc.ExportAvailableCardSecrets(ExportAvailableCardSecretInput{
+		ProductID: product.ID, SKUID: sku.ID, Limit: 1, Format: constants.ExportFormatTXT,
+	})
+	if err != nil {
+		t.Fatalf("export available failed: %v", err)
+	}
+	if strings.TrimSpace(string(result.Content)) != "EXP-NORMAL" {
+		t.Fatalf("export should only include normal secret, got %q", string(result.Content))
+	}
+
+	rows, _, err := svc.ListCardSecrets(ListCardSecretInput{ProductID: product.ID, SKUID: sku.ID, Page: 1, PageSize: 10})
+	if err != nil {
+		t.Fatalf("list secrets failed: %v", err)
+	}
+	for _, row := range rows {
+		if row.Secret == "EXP-LOOP" && row.Status != cardsecretdomain.StatusAvailable {
+			t.Fatalf("loop secret should stay available, got %s", row.Status)
+		}
 	}
 }

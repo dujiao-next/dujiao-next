@@ -254,3 +254,63 @@ func TestGetInventoryAlertItemsFallsBackToProductLevelWhenOnlyInactiveAutoSKUHas
 		t.Fatalf("fallback row alert type want low_stock_products got %s", rows[0].AlertType)
 	}
 }
+
+func TestInventoryStatsSkipProductsWithLoopCardSecret(t *testing.T) {
+	repo, db := setupDashboardRepositoryTest(t)
+	if err := db.AutoMigrate(&cardsecretdomain.Secret{}); err != nil {
+		t.Fatalf("migrate card secret failed: %v", err)
+	}
+
+	category := createDashboardCategory(t, db, "dashboard-auto-loop")
+	createAuto := func(slug string, secrets []cardsecretdomain.Secret) *productdomain.Product {
+		product := &productdomain.Product{
+			CategoryID:      category.ID,
+			Slug:            slug,
+			TitleJSON:       jsonmap.JSON{"zh-CN": slug},
+			PriceAmount:     money.FromDecimal(decimal.NewFromInt(10)),
+			PurchaseType:    constants.ProductPurchaseMember,
+			FulfillmentType: constants.FulfillmentTypeAuto,
+			IsActive:        true,
+		}
+		if err := db.Create(product).Error; err != nil {
+			t.Fatalf("create product failed: %v", err)
+		}
+		sku := &productdomain.ProductSKU{ProductID: product.ID, SKUCode: productdomain.DefaultSKUCode, PriceAmount: product.PriceAmount, IsActive: true}
+		if err := db.Create(sku).Error; err != nil {
+			t.Fatalf("create sku failed: %v", err)
+		}
+		for i := range secrets {
+			secrets[i].ProductID, secrets[i].SKUID = product.ID, sku.ID
+			if err := db.Create(&secrets[i]).Error; err != nil {
+				t.Fatalf("create card secret failed: %v", err)
+			}
+		}
+		return product
+	}
+
+	// 1 张循环卡密：可无限发货，不应产生低库存预警
+	createAuto("dashboard-auto-loop", []cardsecretdomain.Secret{
+		{Secret: "LOOP", Status: cardsecretdomain.StatusAvailable, IsLoop: true},
+	})
+	// 2 张普通卡密：低于阈值，照常预警
+	normal := createAuto("dashboard-auto-normal", []cardsecretdomain.Secret{
+		{Secret: "N-1", Status: cardsecretdomain.StatusAvailable},
+		{Secret: "N-2", Status: cardsecretdomain.StatusAvailable},
+	})
+
+	rows, err := repo.GetInventoryAlertItems(5)
+	if err != nil {
+		t.Fatalf("get inventory alert items failed: %v", err)
+	}
+	if len(rows) != 1 || rows[0].ProductID != normal.ID || rows[0].AlertType != constants.NotificationAlertTypeLowStockProducts {
+		t.Fatalf("only the normal product should raise low stock alert, got %+v", rows)
+	}
+
+	stats, err := repo.GetStockStats(5)
+	if err != nil {
+		t.Fatalf("get stock stats failed: %v", err)
+	}
+	if stats.LowStockProducts != 1 || stats.OutOfStockProducts != 0 || stats.LowStockSKUs != 1 || stats.OutOfStockSKUs != 0 {
+		t.Fatalf("loop product should be excluded from stock stats, got %+v", stats)
+	}
+}

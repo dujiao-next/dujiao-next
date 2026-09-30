@@ -222,13 +222,13 @@ func (r *Store) FindAvailableLoop(productID, skuID uint) (*cardsecretdomain.Secr
 	return &rows[0], nil
 }
 
-// ListAvailableByProductBatchForUpdate 按商品/SKU/批次锁定可用卡密。
+// ListAvailableByProductBatchForUpdate 按商品/SKU/批次锁定可用卡密（用于导出出库，不含循环卡密）。
 func (r *Store) ListAvailableByProductBatchForUpdate(productID, skuID, batchID uint, limit int) ([]cardsecretdomain.Secret, error) {
 	if productID == 0 || limit <= 0 {
 		return nil, nil
 	}
 	query := r.db.Clauses(clause.Locking{Strength: "UPDATE"}).
-		Where("product_id = ? AND status = ? AND deleted_at IS NULL", productID, cardsecretdomain.StatusAvailable)
+		Where("product_id = ? AND status = ? AND is_loop = ? AND deleted_at IS NULL", productID, cardsecretdomain.StatusAvailable, false)
 	if skuID > 0 {
 		query = query.Where("sku_id = ?", skuID)
 	}

@@ -40,6 +40,36 @@ func resolveDashboardManualAvailableStock(product productdomain.Product) (int64,
 	return total, false
 }
 
+// loopSecretProductSet 返回存在可用循环卡密的商品。循环卡密可无限发货，
+// 这些商品与手动无限库存一样不参与库存预警统计。
+func (r *Store) loopSecretProductSet(productIDs []uint) (map[uint]bool, error) {
+	result := make(map[uint]bool)
+	if len(productIDs) == 0 {
+		return result, nil
+	}
+	var ids []uint
+	if err := r.db.Model(&cardsecretdomain.Secret{}).
+		Where("product_id IN ? AND status = ? AND is_loop = ? AND deleted_at IS NULL", productIDs, cardsecretdomain.StatusAvailable, true).
+		Distinct().
+		Pluck("product_id", &ids).Error; err != nil {
+		return nil, err
+	}
+	for _, id := range ids {
+		result[id] = true
+	}
+	return result, nil
+}
+
+func excludeProductIDs(ids []uint, excluded map[uint]bool) []uint {
+	result := make([]uint, 0, len(ids))
+	for _, id := range ids {
+		if !excluded[id] {
+			result = append(result, id)
+		}
+	}
+	return result
+}
+
 // GetStockStats 获取库存总览统计
 func (r *Store) GetStockStats(lowStockThreshold int64) (dashboard.StockStatsRow, error) {
 	result := dashboard.StockStatsRow{}
@@ -100,6 +130,15 @@ func (r *Store) GetStockStats(lowStockThreshold int64) (dashboard.StockStatsRow,
 				result.LowStockSKUs += 1
 			}
 		}
+	}
+
+	loopProducts, err := r.loopSecretProductSet(autoProductIDs)
+	if err != nil {
+		return result, err
+	}
+	autoProductIDs = excludeProductIDs(autoProductIDs, loopProducts)
+	for productID := range loopProducts {
+		delete(autoProductActiveSKUs, productID)
 	}
 
 	if len(autoProductIDs) == 0 {
@@ -199,6 +238,12 @@ func (r *Store) GetInventoryAlertItems(lowStockThreshold int64) ([]dashboard.Inv
 		}
 	}
 
+	loopProducts, err := r.loopSecretProductSet(autoProductIDs)
+	if err != nil {
+		return nil, err
+	}
+	autoProductIDs = excludeProductIDs(autoProductIDs, loopProducts)
+
 	autoAvailableMap := make(map[uint]map[uint]int64)
 	if len(autoProductIDs) > 0 {
 		type countRow struct {
@@ -268,6 +313,9 @@ func (r *Store) GetInventoryAlertItems(lowStockThreshold int64) ([]dashboard.Inv
 	for _, product := range products {
 		switch strings.TrimSpace(product.FulfillmentType) {
 		case constants.FulfillmentTypeAuto:
+			if loopProducts[product.ID] {
+				continue
+			}
 			result = append(result, collectAutoInventoryAlertRows(product, autoAvailableMap[product.ID], lowStockThreshold)...)
 		case constants.FulfillmentTypeManual:
 			result = append(result, collectManualInventoryAlertRows(product, lowStockThreshold)...)
