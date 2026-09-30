@@ -959,3 +959,88 @@ func TestExportAvailableCardSecretsSkipsLoopSecrets(t *testing.T) {
 		}
 	}
 }
+
+func newLoopSecretTestService(t *testing.T, slug string) (*gorm.DB, *cardsecretapp.Service, *productdomain.Product, *productdomain.ProductSKU) {
+	t.Helper()
+	db := setupCardSecretServiceTestDB(t)
+	product := &productdomain.Product{
+		CategoryID:      1,
+		Slug:            slug,
+		TitleJSON:       jsonmap.JSON{"zh-CN": slug},
+		PriceAmount:     money.FromDecimal(decimal.NewFromInt(10)),
+		PurchaseType:    constants.ProductPurchaseMember,
+		FulfillmentType: constants.FulfillmentTypeAuto,
+		IsActive:        true,
+	}
+	if err := db.Create(product).Error; err != nil {
+		t.Fatalf("create product failed: %v", err)
+	}
+	sku := &productdomain.ProductSKU{ProductID: product.ID, SKUCode: productdomain.DefaultSKUCode, PriceAmount: product.PriceAmount, IsActive: true}
+	if err := db.Create(sku).Error; err != nil {
+		t.Fatalf("create sku failed: %v", err)
+	}
+	svc := NewCardSecretService(
+		cardsecretgormstore.New(db),
+		cardsecretgormstore.NewBatch(db),
+		productgormstore.NewProductStore(db),
+		productgormstore.NewSKUStore(db),
+	)
+	return db, svc, product, sku
+}
+
+func TestGetStatsReportsAvailableLoopSecrets(t *testing.T) {
+	_, svc, product, sku := newLoopSecretTestService(t, "stats-loop")
+	for _, input := range []CreateCardSecretBatchInput{
+		{ProductID: product.ID, SKUID: sku.ID, Secrets: []string{"N-1", "N-2"}, Source: constants.CardSecretSourceManual},
+		{ProductID: product.ID, SKUID: sku.ID, Secrets: []string{"LOOP"}, Source: constants.CardSecretSourceManual, IsLoop: true},
+	} {
+		if _, _, err := svc.CreateCardSecretBatch(input); err != nil {
+			t.Fatalf("create batch failed: %v", err)
+		}
+	}
+	stats, err := svc.GetStats(product.ID, sku.ID)
+	if err != nil {
+		t.Fatalf("get stats failed: %v", err)
+	}
+	if stats.Available != 3 || stats.LoopAvailable != 1 {
+		t.Fatalf("want available=3 loop_available=1, got %+v", stats)
+	}
+}
+
+func TestUpdateCardSecretTogglesLoop(t *testing.T) {
+	db, svc, product, sku := newLoopSecretTestService(t, "update-loop")
+	if _, _, err := svc.CreateCardSecretBatch(CreateCardSecretBatchInput{
+		ProductID: product.ID, SKUID: sku.ID, Secrets: []string{"S-1"}, Source: constants.CardSecretSourceManual,
+	}); err != nil {
+		t.Fatalf("create batch failed: %v", err)
+	}
+	var secret cardsecretdomain.Secret
+	if err := db.Where("secret = ?", "S-1").First(&secret).Error; err != nil {
+		t.Fatalf("query secret failed: %v", err)
+	}
+
+	on, off := true, false
+	updated, err := svc.UpdateCardSecret(secret.ID, "", "", &on)
+	if err != nil || !updated.IsLoop {
+		t.Fatalf("enable loop failed: err=%v item=%+v", err, updated)
+	}
+	// 只改内容不传 is_loop 时保持原值
+	if updated, err = svc.UpdateCardSecret(secret.ID, "S-1-NEW", "", nil); err != nil || !updated.IsLoop || updated.Secret != "S-1-NEW" {
+		t.Fatalf("update secret should keep loop flag: err=%v item=%+v", err, updated)
+	}
+	if updated, err = svc.UpdateCardSecret(secret.ID, "", "", &off); err != nil || updated.IsLoop {
+		t.Fatalf("disable loop failed: err=%v item=%+v", err, updated)
+	}
+
+	// 已被订单占用的卡密不允许切换循环状态
+	if err := db.Model(&cardsecretdomain.Secret{}).Where("id = ?", secret.ID).Update("status", cardsecretdomain.StatusReserved).Error; err != nil {
+		t.Fatalf("reserve secret failed: %v", err)
+	}
+	if _, err := svc.UpdateCardSecret(secret.ID, "", "", &on); !errors.Is(err, cardsecretapp.ErrInvalid) {
+		t.Fatalf("toggling loop on reserved secret want ErrInvalid, got %v", err)
+	}
+	var after cardsecretdomain.Secret
+	if err := db.First(&after, secret.ID).Error; err != nil || after.IsLoop {
+		t.Fatalf("reserved secret should stay non-loop: err=%v is_loop=%v", err, after.IsLoop)
+	}
+}

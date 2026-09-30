@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import { Button } from '@/components/ui/button'
@@ -46,6 +46,40 @@ const importSubmitting = ref(false)
 const importError = ref('')
 const importSuccess = ref('')
 
+// 当前商品/规格的可用卡密统计：循环卡密会优先发放，普通卡密与之并存时不会被发放，需要提示
+const stockStats = ref({ available: 0, loopAvailable: 0 })
+let stockStatsSeq = 0
+const fetchStockStats = async () => {
+  const seq = ++stockStatsSeq
+  stockStats.value = { available: 0, loopAvailable: 0 }
+  if (!props.productId || (props.requireSkuSelection && !props.skuId)) return
+  try {
+    const res = await adminAPI.getCardSecretStats({ product_id: props.productId, sku_id: props.skuId || undefined })
+    if (seq !== stockStatsSeq) return
+    const data = res.data?.data || {}
+    stockStats.value = { available: Number(data.available) || 0, loopAvailable: Number(data.loop_available) || 0 }
+  } catch {
+    // 统计仅用于提示，失败不影响录入
+  }
+}
+
+watch(
+  () => [props.modelValue, props.productId, props.skuId],
+  () => {
+    if (props.modelValue) fetchStockStats()
+  },
+  { immediate: true },
+)
+
+const loopWarning = (isLoop: boolean) => {
+  const normalAvailable = stockStats.value.available - stockStats.value.loopAvailable
+  if (isLoop && normalAvailable > 0) return t('admin.cardSecrets.loopWarnNormalExists', { count: normalAvailable })
+  if (!isLoop && stockStats.value.loopAvailable > 0) return t('admin.cardSecrets.loopWarnLoopExists')
+  return ''
+}
+const batchLoopWarning = computed(() => loopWarning(batchForm.value.is_loop))
+const importLoopWarning = computed(() => loopWarning(importForm.value.is_loop))
+
 const resetBatchForm = () => {
   batchForm.value.secrets = ''
   batchForm.value.batch_no = ''
@@ -89,6 +123,7 @@ const handleBatchCreate = async () => {
     })
     batchSuccess.value = t('admin.cardSecrets.success.batchCreated')
     batchForm.value.secrets = ''
+    fetchStockStats()
     emit('success')
   } catch (err: any) {
     batchError.value = err.message || t('admin.cardSecrets.errors.batchFailed')
@@ -146,6 +181,7 @@ const handleImport = async () => {
     await adminAPI.importCardSecretCSV(formData)
     importSuccess.value = t('admin.cardSecrets.success.imported')
     resetImportForm()
+    fetchStockStats()
     emit('success')
   } catch (err: any) {
     importError.value = err.message || t('admin.cardSecrets.errors.importFailed')
@@ -192,6 +228,9 @@ const handleImport = async () => {
             <p class="mt-1 text-xs text-muted-foreground">{{ t('admin.cardSecrets.isLoopHint') }}</p>
           </div>
           <Switch id="card-secret-batch-is-loop" v-model="batchForm.is_loop" class="mt-0.5" />
+        </div>
+        <div v-if="batchLoopWarning" class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+          {{ batchLoopWarning }}
         </div>
         <div v-if="batchError" class="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
           {{ batchError }}
@@ -251,6 +290,9 @@ const handleImport = async () => {
             <p class="mt-1 text-xs text-muted-foreground">{{ t('admin.cardSecrets.isLoopHint') }}</p>
           </div>
           <Switch id="card-secret-csv-is-loop" v-model="importForm.is_loop" class="mt-0.5" />
+        </div>
+        <div v-if="importLoopWarning" class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+          {{ importLoopWarning }}
         </div>
         <div v-if="importError" class="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
           {{ importError }}

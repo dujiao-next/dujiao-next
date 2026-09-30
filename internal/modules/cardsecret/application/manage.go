@@ -103,7 +103,7 @@ func (s *Service) BatchDeleteCardSecrets(ids []uint, batchID uint, filter ListCa
 }
 
 // UpdateCardSecret 更新卡密
-func (s *Service) UpdateCardSecret(id uint, secret, status string) (*cardsecretdomain.Secret, error) {
+func (s *Service) UpdateCardSecret(id uint, secret, status string, isLoop *bool) (*cardsecretdomain.Secret, error) {
 	if id == 0 {
 		return nil, ErrInvalid
 	}
@@ -126,6 +126,13 @@ func (s *Service) UpdateCardSecret(id uint, secret, status string) (*cardsecretd
 		default:
 			return nil, ErrInvalid
 		}
+	}
+	if isLoop != nil && *isLoop != item.IsLoop {
+		// 已被订单占用的卡密不允许切换循环状态，避免影响待支付订单的发货
+		if item.Status == cardsecretdomain.StatusReserved {
+			return nil, ErrInvalid
+		}
+		item.IsLoop = *isLoop
 	}
 	item.UpdatedAt = time.Now()
 	if err := s.secretRepo.Update(item); err != nil {

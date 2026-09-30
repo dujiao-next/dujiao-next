@@ -396,6 +396,23 @@ func (r *Store) CountStockByProductIDs(productIDs []uint) ([]cardsecretcontract.
 	return rows, nil
 }
 
+// CountAvailableLoop 统计可用循环卡密数量
+func (r *Store) CountAvailableLoop(productID, skuID uint) (int64, error) {
+	if productID == 0 {
+		return 0, errors.New("invalid product id")
+	}
+	query := r.db.Model(&cardsecretdomain.Secret{}).
+		Where("product_id = ? AND status = ? AND is_loop = ? AND deleted_at IS NULL", productID, cardsecretdomain.StatusAvailable, true)
+	if skuID > 0 {
+		query = query.Where("sku_id = ?", skuID)
+	}
+	var count int64
+	if err := query.Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 // CountReserved 统计占用库存
 func (r *Store) CountReserved(productID, skuID uint) (int64, error) {
 	if productID == 0 {

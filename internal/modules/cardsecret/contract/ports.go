@@ -28,6 +28,7 @@ type Repository interface {
 	CountAvailable(productID, skuID uint) (int64, error)
 	CountAvailableByProductIDs(productIDs []uint) (map[uint]int64, error)
 	CountReserved(productID, skuID uint) (int64, error)
+	CountAvailableLoop(productID, skuID uint) (int64, error)
 	CountStockByProductIDs(productIDs []uint) ([]SKUStockCount, error)
 	Reserve(ids []uint, orderID uint, reservedAt time.Time) (int64, error)
 	ReleaseByOrder(orderID uint) (int64, error)

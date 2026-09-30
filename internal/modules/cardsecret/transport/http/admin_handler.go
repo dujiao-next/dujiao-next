@@ -19,7 +19,7 @@ type Service interface {
 	CreateCardSecretBatch(cardsecretapp.CreateCardSecretBatchInput) (*cardsecretdomain.Batch, int, error)
 	ImportCardSecretCSV(cardsecretapp.ImportCardSecretCSVInput) (*cardsecretdomain.Batch, int, error)
 	ListCardSecrets(cardsecretapp.ListCardSecretInput) ([]cardsecretdomain.Secret, int64, error)
-	UpdateCardSecret(id uint, secret, status string) (*cardsecretdomain.Secret, error)
+	UpdateCardSecret(id uint, secret, status string, isLoop *bool) (*cardsecretdomain.Secret, error)
 	BatchUpdateCardSecretStatus(ids []uint, batchID uint, filter cardsecretapp.ListCardSecretInput, status string) (int64, error)
 	BatchDeleteCardSecrets(ids []uint, batchID uint, filter cardsecretapp.ListCardSecretInput) (int64, error)
 	ExportCardSecrets(ids []uint, batchID uint, filter cardsecretapp.ListCardSecretInput, format string) ([]byte, string, error)
@@ -54,6 +54,7 @@ type CreateCardSecretBatchRequest struct {
 type UpdateCardSecretRequest struct {
 	Secret *string `json:"secret"`
 	Status *string `json:"status"`
+	IsLoop *bool   `json:"is_loop"`
 }
 
 // CardSecretQueryRequest 卡密查询条件
@@ -321,12 +322,12 @@ func (h *AdminHandler) UpdateCardSecret(c *gin.Context) {
 	if req.Status != nil {
 		status = *req.Status
 	}
-	if strings.TrimSpace(secret) == "" && strings.TrimSpace(status) == "" {
+	if strings.TrimSpace(secret) == "" && strings.TrimSpace(status) == "" && req.IsLoop == nil {
 		ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", nil)
 		return
 	}
 
-	item, err := h.service.UpdateCardSecret(rawID, secret, status)
+	item, err := h.service.UpdateCardSecret(rawID, secret, status, req.IsLoop)
 	if err != nil {
 		switch {
 		case errors.Is(err, cardsecretapp.ErrNotFound):

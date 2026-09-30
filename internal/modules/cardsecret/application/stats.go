@@ -12,6 +12,8 @@ type CardSecretStats struct {
 	Available int64 `json:"available"`
 	Reserved  int64 `json:"reserved"`
 	Used      int64 `json:"used"`
+	// LoopAvailable 可用循环卡密数量（已包含在 Available 中）
+	LoopAvailable int64 `json:"loop_available"`
 }
 
 // CardSecretBatchSummary 卡密批次列表摘要
@@ -48,11 +50,16 @@ func (s *Service) GetStats(productID, skuID uint) (*CardSecretStats, error) {
 	if err != nil {
 		return nil, ErrStatsFailed
 	}
+	loopAvailable, err := s.secretRepo.CountAvailableLoop(productID, skuID)
+	if err != nil {
+		return nil, ErrStatsFailed
+	}
 	return &CardSecretStats{
-		Total:     total,
-		Available: available,
-		Reserved:  reserved,
-		Used:      used,
+		Total:         total,
+		Available:     available,
+		Reserved:      reserved,
+		Used:          used,
+		LoopAvailable: loopAvailable,
 	}, nil
 }
 

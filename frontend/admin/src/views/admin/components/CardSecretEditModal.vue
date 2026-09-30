@@ -5,6 +5,7 @@ import { adminAPI } from '@/api/admin'
 import type { AdminCardSecret } from '@/api/types'
 import IdCell from '@/components/IdCell.vue'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -27,6 +28,7 @@ const editForm = reactive({
   id: 0,
   secret: '',
   status: 'available',
+  is_loop: false,
 })
 
 watch(
@@ -36,6 +38,7 @@ watch(
       editForm.id = secret.id
       editForm.secret = secret.secret || ''
       editForm.status = secret.status || 'available'
+      editForm.is_loop = Boolean(secret.is_loop)
       editError.value = ''
     }
   },
@@ -58,6 +61,7 @@ const submitEdit = async () => {
     await adminAPI.updateCardSecret(editForm.id, {
       secret: editForm.secret,
       status: editForm.status,
+      is_loop: editForm.is_loop,
     })
     closeModal()
     emit('success')
@@ -97,6 +101,21 @@ const submitEdit = async () => {
               <SelectItem value="used">{{ t('admin.cardSecrets.status.used') }}</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+        <div class="flex items-start justify-between gap-4 border-y border-border py-3">
+          <div>
+            <label for="card-secret-edit-is-loop" class="text-sm font-medium text-foreground">
+              {{ t('admin.cardSecrets.isLoopLabel') }}
+            </label>
+            <p class="mt-1 text-xs text-muted-foreground">{{ t('admin.cardSecrets.isLoopHint') }}</p>
+          </div>
+          <!-- 已占用的卡密属于待支付订单，后端不允许切换循环状态 -->
+          <Switch
+            id="card-secret-edit-is-loop"
+            v-model="editForm.is_loop"
+            class="mt-0.5"
+            :disabled="editForm.status === 'reserved'"
+          />
         </div>
         <div v-if="editError" class="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
           {{ editError }}
