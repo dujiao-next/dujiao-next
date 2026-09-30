@@ -1056,6 +1056,7 @@ export function useCheckout() {
       return Math.max(upstreamStock, 0)
     }
     if (item.fulfillmentType === 'auto') {
+      if (Number(item.skuAutoStockAvailable) === -1) return null // 无限库存（循环卡密）
       return normalizeStockNumber(item.skuAutoStockAvailable)
     }
     const total = normalizeManualStockTotal(item.skuManualStockTotal)

@@ -120,7 +120,7 @@ export const refreshCartStockSnapshots = async (cartStore: CartStoreLike) => {
     const manualStockTotal = normalizeManualStockTotal(matchedSku?.manual_stock_total)
     const manualStockLocked = normalizeStockNumber(matchedSku?.manual_stock_locked)
     const manualStockSold = normalizeStockNumber(matchedSku?.manual_stock_sold)
-    const autoStockAvailable = normalizeStockNumber(matchedSku?.auto_stock_available)
+    const autoStockAvailable = normalizeManualStockTotal(matchedSku?.auto_stock_available)
     const upstreamStock = normalizeManualStockTotal(matchedSku?.upstream_stock)
     const skuStockEnforced = shouldEnforceSkuStock(product, matchedSku)
     const stockRangeMin = normalizeStockNumber(matchedSku?.stock_range_min)

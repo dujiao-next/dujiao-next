@@ -155,6 +155,7 @@ export function useCart() {
       return Math.max(upstreamStock, 0)
     }
     if (item.fulfillmentType === 'auto') {
+      if (Number(item.skuAutoStockAvailable) === -1) return null
       return normalizeStockNumber(item.skuAutoStockAvailable)
     }
     const total = normalizeManualStockTotal(item.skuManualStockTotal)

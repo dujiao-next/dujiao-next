@@ -388,7 +388,7 @@ export function useProductDetail(options: { onLoaded?: () => void } = {}) {
     skuManualStockTotal: normalizeManualStockTotal(sku?.manual_stock_total),
     skuManualStockLocked: normalizeStockNumber(sku?.manual_stock_locked),
     skuManualStockSold: normalizeStockNumber(sku?.manual_stock_sold),
-    skuAutoStockAvailable: normalizeStockNumber(sku?.auto_stock_available),
+    skuAutoStockAvailable: normalizeManualStockTotal(sku?.auto_stock_available),
     skuUpstreamStock: normalizeManualStockTotal(sku?.upstream_stock),
     skuStockStatus: String(sku?.stock_status || ''),
     skuStockDisplayMode: String(sku?.stock_display_mode || product.value?.stock_display_mode || ''),

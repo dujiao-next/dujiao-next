@@ -101,7 +101,7 @@ const loadCartItems = (): CartItem[] => {
                     skuManualStockTotal: normalizeOptionalStockNumber(row.skuManualStockTotal ?? row.sku_manual_stock_total, true),
                     skuManualStockLocked: normalizeOptionalStockNumber(row.skuManualStockLocked ?? row.sku_manual_stock_locked),
                     skuManualStockSold: normalizeOptionalStockNumber(row.skuManualStockSold ?? row.sku_manual_stock_sold),
-                    skuAutoStockAvailable: normalizeOptionalStockNumber(row.skuAutoStockAvailable ?? row.sku_auto_stock_available),
+                    skuAutoStockAvailable: normalizeOptionalStockNumber(row.skuAutoStockAvailable ?? row.sku_auto_stock_available, true),
                     skuUpstreamStock: normalizeOptionalStockNumber(row.skuUpstreamStock ?? row.sku_upstream_stock, true),
                     skuStockStatus: normalizeOptionalString(row.skuStockStatus ?? row.sku_stock_status),
                     skuStockDisplayMode: normalizeOptionalString(row.skuStockDisplayMode ?? row.sku_stock_display_mode),
@@ -139,7 +139,7 @@ export const useCartStore = defineStore('cart', () => {
             skuManualStockTotal: normalizeOptionalStockNumber(item.skuManualStockTotal, true),
             skuManualStockLocked: normalizeOptionalStockNumber(item.skuManualStockLocked),
             skuManualStockSold: normalizeOptionalStockNumber(item.skuManualStockSold),
-            skuAutoStockAvailable: normalizeOptionalStockNumber(item.skuAutoStockAvailable),
+            skuAutoStockAvailable: normalizeOptionalStockNumber(item.skuAutoStockAvailable, true),
             skuUpstreamStock: normalizeOptionalStockNumber(item.skuUpstreamStock, true),
             skuStockStatus: normalizeOptionalString(item.skuStockStatus),
             skuStockDisplayMode: normalizeOptionalString(item.skuStockDisplayMode),
@@ -211,7 +211,7 @@ export const useCartStore = defineStore('cart', () => {
         target.skuManualStockTotal = normalizeOptionalStockNumber(target.skuManualStockTotal, true)
         target.skuManualStockLocked = normalizeOptionalStockNumber(target.skuManualStockLocked)
         target.skuManualStockSold = normalizeOptionalStockNumber(target.skuManualStockSold)
-        target.skuAutoStockAvailable = normalizeOptionalStockNumber(target.skuAutoStockAvailable)
+        target.skuAutoStockAvailable = normalizeOptionalStockNumber(target.skuAutoStockAvailable, true)
         target.skuUpstreamStock = normalizeOptionalStockNumber(target.skuUpstreamStock, true)
         target.skuStockStatus = normalizeOptionalString(target.skuStockStatus)
         target.skuStockDisplayMode = normalizeOptionalString(target.skuStockDisplayMode)
