@@ -37,7 +37,7 @@
         <div class="atlas-pcard__titlebox">
           <div class="atlas-pcard__title">{{ getLocalizedText(product.title) }}</div>
         </div>
-        <div v-if="tagsText" class="atlas-pcard__desc">{{ tagsText }}</div>
+        <div v-if="subLabel" class="atlas-pcard__desc">{{ subLabel }}</div>
       </div>
     </div>
 
@@ -62,11 +62,10 @@ import { useLocalized } from '../../../composables/useProduct'
 const props = withDefaults(
   defineProps<{
     product: any
-    maxTags?: number
     /** 紧凑尺寸：参考站分类页的 .item.long —— 260x159 / 上半部 120 / 图标 64 */
     compact?: boolean
   }>(),
-  { maxTags: 3, compact: false },
+  { compact: false },
 )
 
 defineEmits<{ click: [slug: string] }>()
@@ -79,15 +78,21 @@ const cover = computed(() => {
   return url ? getImageUrl(url) : ''
 })
 
-/* 参考站的标签是一行纯文本（如「平台账号,CDK,手游账号」），不是多个 pill */
-const tagsText = computed(() => {
-  const raw = props.product?.tags
-  if (!Array.isArray(raw)) return ''
-  return raw
-    .map((tag: any) => (typeof tag === 'string' ? tag : getLocalizedText(tag?.name ?? tag)))
-    .filter((tag: string) => tag)
-    .slice(0, props.maxTags)
-    .join(',')
+/*
+ * 卡片副标题 —— 参考站 .desc，就是商品图下方那行小字（如「平台账号」「平台账号,CDK」）。
+ *
+ * 数据源是「商品简介」(description)，不是「商品标签」(tags)：简介才是商户用来
+ * 一句话交代「这个商品是什么」的字段，与参考站那行小字的语义一致。
+ * description 在接口里是**按语言的对象**（{ 'zh-CN': '…', en: '…' }），必须过
+ * getLocalizedText 取当前语言。
+ *
+ * 纯占位符（整串只有一个 "." / "。"）按空处理：线上商品的简介目前普遍还是这种
+ * 占位，不挡掉的话每张卡片都会挂一个孤零零的句号。商户在后台把简介填成
+ * 「平台账号」这类文案后，这行就会正常显示。
+ */
+const subLabel = computed(() => {
+  const raw = getLocalizedText(props.product?.description).trim()
+  return /^[.。·・]+$/.test(raw) ? '' : raw
 })
 
 /* 货币符号：参考站是「小号￥ + 大号数字」，所以不能用 formatPrice（它会把币种码缀在数字后） */
