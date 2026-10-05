@@ -178,9 +178,13 @@
     }
   },
   "atlas": {
+      "brand": {
+        "sub": "官方商店"
+      },
       "nav": {
         "affiliate": "推廣合作",
-        "loginOrRegister": "登入 / 註冊"
+        "loginOrRegister": "登入 / 註冊",
+        "hot": "AI 智能"
       },
       "footer": {
         "tagline": "面向個人與團隊的帳號與訂閱服務，即時交付。",
@@ -195,6 +199,34 @@
       "product": {
         "from": "起"
       },
+      "notice": {
+        "text": "請透過本站官方網域存取，注意辨識仿冒站點，保護帳戶與資金安全。",
+        "close": "關閉"
+      },
+      "search": {
+        "placeholder": "搜尋"
+      },
+      "service": {
+        "online": "線上客服",
+        "offline": "客服尚未設定，請在站點設定裡填寫聯絡方式"
+      },
+      "appfloat": {
+        "desc": "下載官方 App，享優惠低價",
+        "cta": "下載 App",
+        "close": "關閉",
+        "noApp": "App 下載位址未設定"
+      },
+      "banner": {
+        "title": "全量商品 即刻選購",
+        "cta": "立即選購"
+      },
+      "reco": {
+        "kicker": "推薦",
+        "cta": "立即查看"
+      },
+      "sidebar": {
+        "recommend": "推薦"
+      },
       "home": {
         "heroTagline": "帳號 · 訂閱 · 禮品卡，一站備齊",
         "hot": "熱門商品",
@@ -203,12 +235,14 @@
         "categoriesSub": "按用途快速找到所需",
         "viewAll": "查看全部商品",
         "trust": {
-          "fast": "即時交付",
+          "fast": "即時交貨",
           "fastSub": "出貨時間少於 5 分鐘",
-          "global": "被廣泛信賴",
-          "globalSub": "服務全球用戶",
-          "secure": "支付安全",
-          "secureSub": "官方渠道付款"
+          "global": "被數百萬人信任",
+          "globalSub": "全球超一百萬用戶",
+          "secure": "支付安全快捷",
+          "secureSub": "官方渠道付款",
+          "service": "24 小時線上服務",
+          "serviceSub": "即時回應 售後無憂"
         }
       }
     },

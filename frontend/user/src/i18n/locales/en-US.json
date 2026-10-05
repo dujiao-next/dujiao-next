@@ -178,9 +178,13 @@
     }
   },
   "atlas": {
+      "brand": {
+        "sub": "Official Store"
+      },
       "nav": {
         "affiliate": "Affiliate",
-        "loginOrRegister": "Sign in / Register"
+        "loginOrRegister": "Sign in / Register",
+        "hot": "AI Picks"
       },
       "footer": {
         "tagline": "Accounts and subscriptions for individuals and teams, delivered instantly.",
@@ -195,6 +199,34 @@
       "product": {
         "from": "from"
       },
+      "notice": {
+        "text": "Access this site only through its official domain. Beware of look-alike sites.",
+        "close": "Close"
+      },
+      "search": {
+        "placeholder": "Search"
+      },
+      "service": {
+        "online": "Live support",
+        "offline": "Support contact is not configured yet"
+      },
+      "appfloat": {
+        "desc": "Get the app for lower prices",
+        "cta": "Get app",
+        "close": "Close",
+        "noApp": "App download URL is not configured"
+      },
+      "banner": {
+        "title": "Everything in stock — shop now",
+        "cta": "Shop now"
+      },
+      "reco": {
+        "kicker": "Featured",
+        "cta": "Explore"
+      },
+      "sidebar": {
+        "recommend": "Featured"
+      },
       "home": {
         "heroTagline": "Accounts, subscriptions and gift cards in one place",
         "hot": "Popular",
@@ -205,10 +237,12 @@
         "trust": {
           "fast": "Instant delivery",
           "fastSub": "Delivered in under 5 minutes",
-          "global": "Widely trusted",
-          "globalSub": "Serving users worldwide",
+          "global": "Trusted by millions",
+          "globalSub": "Over one million users",
           "secure": "Secure payment",
-          "secureSub": "Official payment channels"
+          "secureSub": "Official payment channels",
+          "service": "24/7 support",
+          "serviceSub": "Fast response, after-sales covered"
         }
       }
     },

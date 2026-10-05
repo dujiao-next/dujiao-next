@@ -8,29 +8,42 @@
 
 ## 一、视觉风格的来源（可核对，非目测）
 
-令牌直接抽取自参考站 `:root` 的 CSS 变量：
+令牌抽取自参考站 SSR HTML 内联的 styled-components CSS（`data-styled` 的
+语义名→哈希映射可反查）。**不是目测，也不是从 `:root` 变量猜的** ——
+参考站的 `:root` 只有 10 个全局变量，真正的版式数值全在各组件的规则里：
 
-| 参考站变量 | 值 | 映射到 atlas |
+| 参考站组件 | 关键数值 | 映射到 atlas |
 |---|---|---|
-| `--bodyBgColor` | `#F1F1F2` | `--bg` |
-| `--bgColor1` | `#fff` | `--surface` |
-| `--bgColor2` | `#D8D8D8` | `--placeholder` |
-| `--mainTextColor` | `#1A1A1A` | `--ink` |
-| `--secondaryTextColor` | `#333` | `--ink-2` |
-| `--mainColor` | `#E60027` | `--accent` |
-| `--mainColorLight` | `#fa1b41` | `--accent-light` |
-| `--buttonBgColor` | `#242424` | `--btn` |
-| `--buttonHoverBgColor` | `#353535` | `--btn-hover` |
-| 页脚底色 | `#000` | `--footer-bg` |
-| 字体 | D-DIN-PRO | 见下 |
+| `layout-header__StyledHeader` | `height:72px; background:#050505` | `.atlas-header` |
+| `…StyledLayoutHeaderContent` | `width:1340px; margin:0 auto` | `--shell: 1340px` |
+| `…StyledSearchBox` | `flex:1; max-width:485px; background:#fff; height:40px; border-radius:5px` | `.atlas-search` |
+| `…StyledLanguage` | `font-size:14px; color:#fff; margin-right:16px` | `.atlas-lang` |
+| `…StyledCooperate` | `height:36px`；图标 `fill:#d49c0a`；hover 填金 | `.atlas-cooperate` |
+| `…StyledLoginBtn` | hover `border-color:#fff; background:rgba(255,255,255,.1)` | `.atlas-ghost-btn` |
+| `…StyledPcHeaderAd` | `height:40px; background:#050505; border-bottom:2px solid #e60027` | `.atlas-navbar` |
+| `…pc-header-ad-item` | `height:34px; border-radius:8px 8px 0 0; padding:0 20px; font-size:14px; color:rgba(255,255,255,.85)` | `.atlas-navbar__item` |
+| `…pc-header-ad-item.has-url` | `color:#5ff8ff; font-weight:700` | `.atlas-navbar__item--hot` |
+| `home__StyledTop` | `background:#ebebf1; padding:16px 0`；`.icon 40x40` | `.atlas-trustbar` |
+| `home-banner__StyledHomeBanner` | `width:1340px; height:70px; border-radius:12px` | `.atlas-banner` |
+| `home__StyledSidebar` | `width:240px; background:#fff; border-radius:14px; padding:18px 20px; box-shadow:2px 2px 8px 0 rgba(43,74,129,.1)` | `.atlas-sidebar` |
+| `…sidebar row` | `padding:12px 16px; border-radius:10px; font-size:14px`；hover `rgba(230,0,39,.1)`；激活 `#e60027` | `.atlas-sidebar__row` |
+| `home__StyledMain` | `width:1080px` | `.atlas-main-col` |
+| `home__StyledRecommendList` | `.recommend-top` grid `700px 335px` gap `30px`；item `border-radius:12px`、`aspect-ratio:335/178` | `.atlas-reco-*` |
+| `home__StyledRecommendModule` | `.module-content width:1340px; background:#f3f0ef; border-radius:14px; padding:30px 25px`；`.module-title font-size:26px/700`；`.module-list repeat(4,1fr) gap:27px 26px` | `.atlas-module*` |
+| `download-float__StyledPageDownFloat` | `width:1340px; position:fixed; bottom:0`；`.btn min-width:183px; height:40px; border-radius:28px` | `.atlas-appfloat` |
+| `layout__StyledCustomerFloat` | `position:fixed; bottom:-8px; right:0`；`.box background:#e60027`；`.box2 linear-gradient(134deg,#4f545d,#131321)` | `.atlas-custfloat` |
 
-**三个最容易被做错、也最决定观感的点：**
+**四个决定观感、也最容易被做错的点：**
 
-1. **主 CTA 是近黑 `#242424`，不是品牌红。** 红色只用于价格、标签、选中态这类
-   「信息强调」。把主按钮做成红色会立刻失去参考站那股工具感。
-2. **圆角刻意小（2/4/6/8px），阴影极轻。** 分层靠底色差（`#F1F1F2` 底 + `#fff` 卡），
-   不靠描边和投影。加大圆角 + 重投影 = 变成另一个站。
-3. **字体是 DIN 系。** D-DIN-PRO 是参考站自托管文件，**不引外部资源**；
+1. **整条顶栏是深色 `#050505`，不是白底。** 顶栏分两层：72px 主行（品牌 + 白色
+   搜索框 + 右侧操作）+ 40px 分类导航条，导航条底部有一条 **2px 红 `#e60027` 下边框**。
+   把它做成白底是上一版最大的错。
+2. **主 CTA 是红 `#e60027`，不是黑。** 红色用于：搜索按钮、导航条激活项、
+   侧栏「推荐」表头、HOT 标、右侧客服。金色 `#d49c0a` 专给「推广合作」。
+   青色 `#5ff8ff` 专给导航条末尾那个带图标的特殊入口。
+3. **版心 1340px。** 主区是 **240px 侧栏 + 1080px 内容**（含 20px 间隙正好 1340），
+   推荐位是 `700px + 335px` 的 grid，下排 3×335px。用 1200px 版心 + 全宽宫格是错的。
+4. **字体是 DIN 系。** D-DIN-PRO 是参考站自托管文件，**不引外部资源**；
    改用「DIN 观感」的本地字体栈：`Bahnschrift`（Windows 自带）→ `DIN Alternate`
    （macOS 自带）→ Inter（项目已有依赖）→ 系统 UI。不新增任何依赖。
 

@@ -1,50 +1,82 @@
 /* =========================================================================
    Atlas — 前台模板设计令牌
    -------------------------------------------------------------------------
-   设计来源：参考站点 https://accboy7flybird.acceboy.com/ 的 :root CSS 变量
-   （直接抽取，非目测）：
+   设计来源：参考站点 https://accboy7flybird.acceboy.com/ 的 SSR HTML 内联
+   styled-components CSS。**全部数值为直接提取，非目测**（选择器名保留参考站
+   的语义前缀，便于回查）：
 
-       --bodyBgColor      #F1F1F2   页面底色（浅冷灰）
-       --bgColor1         #fff      卡片 / 内容面板底
-       --bgColor2         #D8D8D8   图片占位底
-       --mainTextColor    #1A1A1A   主文字
-       --secondaryTextColor #333    次级文字
-       --mainColor        #E60027   强调红（价格「起」字、HOT 标、选中态）
-       --mainColorLight   #fa1b41   强调红亮色
-       --buttonBgColor    #242424   主按钮底（近黑，不是纯黑）
-       --buttonHoverBgColor #353535
-       --buttonTextColor  #fff
-       页脚底色           #000      纯黑
-       字体               D-DIN-PRO（DIN 系无衬线）
+     layout-header__StyledHeader            height:72px  background:#050505
+     layout-header__StyledLayoutHeaderContent width:1340px margin:0 auto
+     layout-header__StyledSearchBox         flex:1 max-width:485px
+                                            background:#fff height:40px border-radius:5px
+     layout-header__StyledLanguage          font-size:14px color:#ffffff margin-right:16px
+     layout-header__StyledCooperate         height:36px; .rocket-svg fill:#d49c0a
+                                            hover background:#d49c0a color:#050505
+     layout-header__StyledLoginBtn          hover border-color:#fff background:rgba(255,255,255,.1)
+     layout-header__StyledPcHeaderAd        height:40px background:#050505
+                                            border-bottom:2px solid #e60027
+       .pc-header-ad-item                   height:34px border-radius:8px 8px 0 0
+                                            line-height:34px padding:0 20px font-size:14px
+                                            color:rgba(255,255,255,.85)
+       .pc-header-ad-item.has-url           color:#5ff8ff font-weight:700 gap:8px
+       .pc-header-ad-item（高亮/HOT）        background:#e60027 color:#fff
+     home__StyledTop                        background:#ebebf1 padding:16px 0
+       .item font-size:14px / .item strong margin-bottom:4px
+       .icon 40x40 margin-right:12px
+     home-banner__StyledHomeBanner          width:1340px height:70px border-radius:12px
+                                            margin:20px auto 0 background:#ebebf1
+     home__StyledSidebar                    width:240px background:#fff
+                                            border-radius:14px padding:18px 20px
+                                            box-shadow:2px 2px 8px 0 rgba(43,74,129,.1)
+       row padding:12px 16px margin-bottom:3px border-radius:10px font-size:14px
+           hover background:rgba(230,0,39,.1) / 激活 background:#e60027 color:#fff
+       .icon 24x24 margin-right:8px border-radius:4px
+     home__StyledMain                       width:1080px
+     home__StyledRecommendList
+       .recommend-top    grid 700px 335px gap:30px
+       .recommend-item   border-radius:12px overflow:hidden
+                         box-shadow:2px 2px 8px 0 rgba(43,74,129,.1)
+                         aspect-ratio:335/178（右列与底部）
+       .recommend-bottom flex gap:30px，item 335px
+     home__StyledRecommendModule            width:100% margin-bottom:40px
+       .module-content   width:1340px background:#f3f0ef border-radius:14px
+                         padding:30px 25px margin:0 auto
+       .module-title     height:36px font-weight:700 font-size:26px color:#000
+       .module-desc      font-size:14px color:#1a1a1a
+       .module-more      font-size:14px color:#767676 gap:4px
+       .module-list      grid repeat(4,1fr) gap:27px 26px margin-top:20px
+     download-float__StyledPageDownFloat    width:1340px position:fixed bottom:0
+       .text font-weight:900 font-size:22px color:#fff
+       .desc font-weight:400 font-size:22px color:rgba(255,255,255,.8)
+       .btn  min-width:183px height:40px border-radius:28px border:1px solid #fff
+     layout__StyledCustomerFloat            position:fixed bottom:-8px right:0
+                                            border-radius:8px 8px 0 0
+       .box background:#e60027 color:#fff font-size:14px padding:9px 12px 0
+       .box2 background:linear-gradient(134deg,#4f545d 0%,#131321 100%)
 
-   方向：**浅灰底 + 白卡 + 近黑按钮 + 单一红强调**。
-   这套配色的性格来自「工具感」而非「消费感」——圆角极小、几乎没有阴影、
-   靠底色分层而不是靠描边/投影。复刻时最容易被做错的两点：
-     1) 把 #242424 按钮写成纯黑或品牌红。参考站的主 CTA 是近黑，
-        红色只用于价格/标签/选中态这类「信息强调」，不用于主按钮。
-     2) 给卡片加大圆角和重投影。参考站是 4~8px 小圆角 + 极轻的阴影，
-        底色差（#F1F1F2 vs #fff）才是主要的分层手段。
+   ⚠️ 与上一版的差别（上一版是我自己臆造的简化版式，不是复刻）：
+     1) 版心 1200 → **1340**
+     2) header 由「白底 + 文字链导航」→ **深色 #050505 两层**
+        （72px 主行含搜索框 + 40px 分类导航条，导航条带 2px 红下边框）
+     3) 主 CTA 不是黑按钮，而是**红 #e60027**（搜索按钮/高亮导航项/HOT 标）
+        与**金 #d49c0a**（推广合作）
+     4) 新增：公告条、搜索框、分类导航条、底部 App 浮层、右侧客服浮层
+     5) 主区由「全宽宫格」→ **240px 侧栏 + 1080px 内容**（700/335 推荐网格）
 
-   字体：D-DIN-PRO 是参考站自托管的字体文件，**不引外部资源**。
-   改用「DIN 观感」的本地字体栈（Bahnschrift 随 Windows 分发、
-   DIN Alternate 随 macOS 分发），缺失时回退 Inter / 系统 UI，
-   不出现无字体状态，也不新增任何依赖。
+   字体：参考站自托管 D-DIN-PRO，**不引外部资源**。改用 DIN 观感的本地字体栈
+   （Bahnschrift 随 Windows 分发 / DIN Alternate 随 macOS 分发），
+   缺失时回退 Inter / 系统 UI。
 
    作用域：全部选择器限定在 .atlas-scope / body.atlas-tokens 下，
            不影响 classic / vault / ember / nova。
    为什么令牌要额外挂一份到 body.atlas-tokens：
            Toast / ConfirmDialog / 公告弹窗 / reka-ui 的 SelectContent 等浮层
-           都 Teleport 到 <body>，落在 .atlas-scope 之外。只写 .atlas-scope
-           的话这些浮层会退回 classic 的调色板。body 上的 class 由 AtlasLayout
-           挂载时打上、卸载时摘掉。
-   注意：只有「令牌」双挂；背景/字体/布局那几条仍只作用于 .atlas-scope，
-         否则会改掉 body 自身的布局。
+           都 Teleport 到 <body>，落在 .atlas-scope 之外。
    ========================================================================= */
 
 /* ---------- Tokens ---------- */
 .atlas-scope,
 body.atlas-tokens {
-  /* 字体：DIN 观感优先，逐级回退，最后落到系统 UI */
   --font-head: 'Bahnschrift', 'DIN Alternate', 'D-DIN-PRO', 'Inter Variable',
     'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Display',
     'Segoe UI', 'PingFang SC', 'Microsoft YaHei UI', 'Noto Sans SC', sans-serif;
@@ -53,76 +85,80 @@ body.atlas-tokens {
     'Noto Sans SC', sans-serif;
   --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
 
-  /* 底色分层 */
-  --bg: #f1f1f2;
-  --bg-soft: #f7f7f8;
+  /* 版心：参考站是 1340px，不是 1200px */
+  --shell: 1340px;
+
+  /* 深色区（header / 分类导航条） */
+  --dark: #050505;
+  --dark-ink: #ffffff;
+  --dark-ink-dim: rgba(255, 255, 255, 0.85);
+
+  /* 浅灰区（信任徽章行 / banner 兜底底） */
+  --strip: #ebebf1;
+  /* 模块底色（商品分区） */
+  --module: #f3f0ef;
+
+  /* 表面 */
+  --bg: #f5f5f5;
   --surface: #ffffff;
-  --surface-2: #f1f1f2;
-  --placeholder: #d8d8d8;
+  --surface-2: #f3f0ef;
+  --placeholder: #ececf1;
 
   /* 文字 */
   --ink: #1a1a1a;
   --ink-2: #333333;
-  --ink-3: #6b6b70;
-  --ink-4: #9a9aa0;
+  --ink-3: #767676;
+  --ink-4: #aaaaaa;
 
-  /* 描边（参考站几乎不用描边，只在输入框/分隔处出现） */
+  /* 描边 */
   --border: rgba(0, 0, 0, 0.08);
   --border-strong: rgba(0, 0, 0, 0.16);
 
-  /* 强调红：只用于价格、标签、选中态 */
+  /* 强调色：红（主 CTA / 高亮 / HOT） */
   --accent: #e60027;
   --accent-hover: #c40021;
-  --accent-light: #fa1b41;
-  --accent-soft: rgba(230, 0, 39, 0.08);
+  --accent-soft: rgba(230, 0, 39, 0.1);
+  /* 金（推广合作） */
+  --gold: #d49c0a;
+  /* 青（分类导航条高亮项） */
+  --cyan: #5ff8ff;
 
-  /* 主按钮：近黑，不是纯黑也不是红 */
-  --btn: #242424;
-  --btn-hover: #353535;
-  --on-btn: #ffffff;
+  --on-accent: #ffffff;
 
-  /* 页脚：纯黑 */
-  --footer-bg: #000000;
-  --footer-ink: rgba(255, 255, 255, 0.7);
-  --footer-ink-strong: #ffffff;
-  --footer-line: rgba(255, 255, 255, 0.12);
-
-  /* 语义色（沿用项目既有语义，避免与 classic 语义冲突） */
+  /* 语义色 */
   --ok: #1f7a4d;
-  --ok-soft: rgba(31, 122, 77, 0.1);
   --warn: #a8620a;
-  --warn-soft: rgba(168, 98, 10, 0.1);
   --danger: #c40021;
-  --danger-soft: rgba(196, 0, 33, 0.1);
 
-  /* 圆角：刻意小。参考站不用大圆角 */
-  --r-xs: 2px;
-  --r-sm: 4px;
-  --r-md: 6px;
-  --r-lg: 8px;
+  /* 圆角：按参考站各组件分别取值，不统一 */
+  --r-search: 5px;
+  --r-nav: 8px 8px 0 0;
+  --r-banner: 12px;
+  --r-sidebar: 14px;
+  --r-item: 10px;
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
   --r-pill: 999px;
 
-  /* 阴影：极轻。分层主要靠底色差，不靠投影 */
+  /* 阴影：参考站统一的卡片阴影 */
+  --shadow-card: 2px 2px 8px 0 rgba(43, 74, 129, 0.1);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 12px -6px rgba(0, 0, 0, 0.1);
+  --shadow-md: 2px 2px 8px 0 rgba(43, 74, 129, 0.1);
   --shadow-lg: 0 16px 32px -20px rgba(0, 0, 0, 0.18);
 
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --dur: 180ms;
-
-  /* 版心与节奏 */
-  --shell: 1200px;
-  --gap-block: 56px;
-  --gap-inline: 16px;
 }
 
-/* ---------- 作用域内的基础表现 ---------- */
+/* ---------- 作用域基础 ---------- */
 .atlas-scope {
   background-color: var(--bg);
   color: var(--ink);
   font-family: var(--font-body);
   font-size: 14px;
-  line-height: 1.6;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -130,20 +166,710 @@ body.atlas-tokens {
   font-family: var(--font-head);
   font-weight: 700;
   color: var(--ink);
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
-/* 版心 */
+/* 版心 1340 */
 .atlas-shell {
   width: 100%;
   max-width: var(--shell);
   margin-inline: auto;
-  padding-inline: var(--gap-inline);
+  padding-inline: 16px;
 }
 
-/* ---------- 复用件 ---------- */
+@media (min-width: 1372px) {
+  .atlas-shell { padding-inline: 0; }
+}
 
-/* 主按钮：近黑底 */
+/* =======================================================================
+   顶栏：公告条 + 深色主行 + 深色分类导航条
+   ======================================================================= */
+
+/* 公告条：sticky 置顶，参考站用一张 56px 高的整图；这里用等价的结构 */
+.atlas-notice {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--dark);
+}
+
+.atlas-notice__inner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 56px;
+  font-size: 14px;
+  color: #fff;
+}
+
+.atlas-notice__badge {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 3px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.atlas-notice__close {
+  margin-left: auto;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.atlas-notice__close:hover { color: #fff; }
+
+/* 主行：72px，深色 */
+.atlas-header {
+  background: var(--dark);
+}
+
+.atlas-header__row {
+  display: flex;
+  align-items: center;
+  height: 72px;
+  gap: 0;
+}
+
+/* 品牌：高 40px，右间距 40px */
+.atlas-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  margin-right: 40px;
+  flex: none;
+  color: #fff;
+}
+
+.atlas-brand__logo {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--accent);
+}
+
+.atlas-brand__mark {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.atlas-brand__text { line-height: 1.15; }
+.atlas-brand__name { display: block; font-size: 15px; font-weight: 700; color: #fff; }
+.atlas-brand__sub { display: block; font-size: 11px; color: rgba(255, 255, 255, 0.6); }
+
+/* 搜索框：flex:1 max-width:485px 白底 40px 圆角 5px */
+.atlas-search {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  max-width: 485px;
+  height: 40px;
+  padding-left: 9px;
+  border-radius: var(--r-search);
+  background: #fff;
+  overflow: hidden;
+}
+
+.atlas-search__input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 10px;
+  border: none;
+  outline: none;
+  background: none;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.atlas-search__input::placeholder { color: #9a9aa0; }
+
+/* 搜索按钮：红底，图标 26px 容器 */
+.atlas-search__btn {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 54px;
+  height: 40px;
+  background: var(--accent);
+  color: #fff;
+  transition: filter var(--dur) var(--ease);
+}
+
+.atlas-search__btn:hover { filter: brightness(1.08); }
+
+/* 右侧操作组：gap 6px，语言 margin-right 16px */
+.atlas-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.atlas-lang {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 16px;
+  color: #fff;
+  font-size: 14px;
+  line-height: 20px;
+  cursor: pointer;
+}
+
+/* 推广合作：36px 高，金色描边，hover 填金 */
+.atlas-cooperate {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--gold);
+  border-radius: var(--r-sm);
+  color: var(--gold);
+  font-size: 14px;
+  white-space: nowrap;
+  transition: all var(--dur) var(--ease);
+}
+
+.atlas-cooperate:hover {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: var(--dark);
+  box-shadow: 0 0 15px rgba(212, 156, 10, 0.4);
+  transform: translateY(-1px);
+}
+
+/* 订单查询 / 登录注册：白描边幽灵按钮 */
+.atlas-ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: var(--r-sm);
+  color: #fff;
+  font-size: 14px;
+  white-space: nowrap;
+  transition: all var(--dur) var(--ease);
+}
+
+.atlas-ghost-btn:hover {
+  border-color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+/* 分类导航条：40px 深色 + 2px 红下边框，项上圆角、底部对齐 */
+.atlas-navbar {
+  background: var(--dark);
+  border-bottom: 2px solid var(--accent);
+}
+
+.atlas-navbar__row {
+  display: flex;
+  align-items: flex-end;
+  height: 40px;
+}
+
+.atlas-navbar__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 20px;
+  border-radius: var(--r-nav);
+  color: var(--dark-ink-dim);
+  font-size: 14px;
+  line-height: 34px;
+  white-space: nowrap;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+.atlas-navbar__item:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+
+.atlas-navbar__item--on {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* 参考站把带图标的入口做成青色加粗 + 图标放大 */
+.atlas-navbar__item--hot {
+  color: var(--cyan);
+  font-weight: 700;
+}
+
+.atlas-navbar__hot {
+  display: inline-grid;
+  place-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 3px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* =======================================================================
+   信任徽章行：浅灰底，4 个，40px 图标
+   ======================================================================= */
+.atlas-trustbar {
+  background: var(--strip);
+  padding: 16px 0;
+}
+
+.atlas-trustbar__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.atlas-trustbar__item {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+}
+
+.atlas-trustbar__icon {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  margin-right: 12px;
+  color: var(--ink);
+}
+
+.atlas-trustbar__title {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 700;
+  line-height: 20px;
+}
+
+.atlas-trustbar__sub {
+  margin: 0;
+  color: var(--ink);
+  line-height: 20px;
+}
+
+/* =======================================================================
+   轮播 banner：1340x70，圆角 12
+   ======================================================================= */
+.atlas-banner {
+  width: 100%;
+  max-width: var(--shell);
+  height: 70px;
+  margin: 20px auto 0;
+  border-radius: var(--r-banner);
+  overflow: hidden;
+  background: var(--strip);
+}
+
+.atlas-banner__slide {
+  display: flex;
+  align-items: center;
+  height: 70px;
+  padding: 0 28px;
+  background: linear-gradient(96deg, #1b1f4b 0%, #3a2a7a 45%, #1f2b6b 100%);
+  color: #fff;
+}
+
+.atlas-banner__title {
+  font-family: var(--font-head);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.atlas-banner__cta {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  height: 38px;
+  padding: 0 22px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  backdrop-filter: blur(6px);
+  transition: background-color var(--dur) var(--ease);
+}
+
+.atlas-banner__cta:hover { background: #fff; color: var(--dark); }
+
+.atlas-banner__dots {
+  position: absolute;
+  right: 35px;
+  bottom: 8px;
+  display: flex;
+  gap: 8px;
+}
+
+.atlas-banner__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.7);
+  transition: width var(--dur) var(--ease);
+}
+
+.atlas-banner__dot--on { width: 24px; background: #fff; }
+
+/* =======================================================================
+   三栏主区：240px 侧栏 + 1080px 内容
+   ======================================================================= */
+.atlas-home-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding-top: 20px;
+}
+
+/* 侧栏：白底 14px 圆角，18/20 内边距，卡片阴影 */
+.atlas-sidebar {
+  width: 240px;
+  flex: none;
+  padding: 18px 20px;
+  border-radius: var(--r-sidebar);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.atlas-sidebar__head {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  margin-bottom: 3px;
+  border-radius: var(--r-item);
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.atlas-sidebar__row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 12px 16px;
+  margin-bottom: 3px;
+  border-radius: var(--r-item);
+  font-size: 14px;
+  color: var(--ink);
+  text-align: left;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+.atlas-sidebar__row:last-child { margin-bottom: 0; }
+.atlas-sidebar__row:hover { background: var(--accent-soft); }
+
+.atlas-sidebar__row--on {
+  background: var(--accent);
+  color: #fff;
+}
+
+.atlas-sidebar__icon {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  margin-right: 8px;
+  border-radius: var(--r-xs);
+  overflow: hidden;
+  object-fit: contain;
+}
+
+.atlas-sidebar__name {
+  flex: 1;
+  min-width: 0;
+  margin-right: 10px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.atlas-sidebar__chev { flex: none; opacity: 0.45; }
+
+/* 内容区 1080px */
+.atlas-main-col {
+  width: 1080px;
+  min-width: 0;
+  flex: none;
+}
+
+/* 推荐位：700 + 335，gap 30；右列两张堆叠 */
+.atlas-reco-top {
+  display: grid;
+  grid-template-columns: 700px 335px;
+  gap: 30px;
+  margin-bottom: 20px;
+}
+
+.atlas-reco-bottom {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+}
+
+.atlas-reco-item {
+  position: relative;
+  display: block;
+  border-radius: var(--r-banner);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+  background: var(--surface);
+  aspect-ratio: 335 / 178;
+}
+
+.atlas-reco-top .atlas-reco-item:first-child { aspect-ratio: 700 / 386; }
+
+.atlas-reco-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.atlas-reco-item__fallback {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  height: 100%;
+  padding: 22px 24px;
+  background: linear-gradient(140deg, #2b2f66 0%, #4b3a8f 55%, #22305f 100%);
+  color: #fff;
+}
+
+.atlas-reco-item__kicker {
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.atlas-reco-item__title {
+  margin-top: 6px;
+  font-family: var(--font-head);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.atlas-reco-item__cta {
+  margin-top: 12px;
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  height: 32px;
+  padding: 0 16px;
+  border-radius: var(--r-pill);
+  background: #fff;
+  color: var(--dark);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* =======================================================================
+   商品分区（参考站的 module）：1340 宽、#f3f0ef 底、圆角 14、30/25 内边距
+   ======================================================================= */
+.atlas-module {
+  width: 100%;
+  margin-bottom: 40px;
+}
+
+.atlas-module__content {
+  width: 100%;
+  max-width: var(--shell);
+  margin: 0 auto;
+  padding: 30px 25px;
+  border-radius: var(--r-sidebar);
+  background: var(--module);
+}
+
+.atlas-module__title {
+  height: 36px;
+  font-family: var(--font-head);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 36px;
+  color: #000;
+}
+
+.atlas-module__descrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.atlas-module__desc { font-size: 14px; color: var(--ink); }
+
+.atlas-module__more {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  color: var(--ink-3);
+  transition: color var(--dur) var(--ease);
+}
+
+.atlas-module__more:hover { color: var(--accent); }
+
+.atlas-module__list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 27px 26px;
+  margin-top: 20px;
+}
+
+/* =======================================================================
+   底部 App 浮层 + 右侧客服浮层
+   ======================================================================= */
+.atlas-appfloat {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  width: 100%;
+  max-width: var(--shell);
+  display: flex;
+  align-items: center;
+  height: 62px;
+  padding: 0 28px;
+  border-radius: 10px 10px 0 0;
+  background: linear-gradient(100deg, #c40021 0%, #7a0014 45%, #1a1a1a 100%);
+}
+
+.atlas-appfloat__logo {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.atlas-appfloat__mark {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--accent);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.atlas-appfloat__text {
+  margin-left: 10px;
+  color: #fff;
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.atlas-appfloat__desc {
+  margin-left: 10px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.atlas-appfloat__btn {
+  margin-left: 70px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 183px;
+  height: 40px;
+  padding: 0 20px;
+  border: 1px solid #fff;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.01);
+  backdrop-filter: blur(6px);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+.atlas-appfloat__btn:hover { background: #fff; color: #000; }
+
+.atlas-appfloat__close {
+  margin-left: 16px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.atlas-appfloat__close:hover { color: #fff; }
+
+/* 右侧客服浮层 */
+.atlas-custfloat {
+  position: fixed;
+  bottom: -8px;
+  right: 0;
+  z-index: 30;
+  display: flex;
+  height: 50px;
+  padding: 5px 5px 0;
+  border-radius: 8px 8px 0 0;
+}
+
+.atlas-custfloat__box {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  height: 50px;
+  padding: 9px 12px 0;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform var(--dur) var(--ease);
+}
+
+.atlas-custfloat__box:hover { transform: translateY(-10px); }
+
+.atlas-custfloat__box--alt {
+  background: linear-gradient(134deg, #4f545d 0%, #131321 100%);
+}
+
+.atlas-custfloat__box + .atlas-custfloat__box { margin-left: 14px; }
+
+/* =======================================================================
+   通用件（Products.vue 等页面复用）
+   ======================================================================= */
 .atlas-btn {
   display: inline-flex;
   align-items: center;
@@ -152,23 +878,16 @@ body.atlas-tokens {
   min-height: 40px;
   padding: 0 20px;
   border-radius: var(--r-sm);
-  background: var(--btn);
-  color: var(--on-btn);
+  background: var(--accent);
+  color: var(--on-accent);
   font-size: 14px;
   font-weight: 600;
   transition: background-color var(--dur) var(--ease);
 }
 
-.atlas-btn:hover {
-  background: var(--btn-hover);
-}
+.atlas-btn:hover { background: var(--accent-hover); }
+.atlas-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.atlas-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* 次按钮：白底细描边 */
 .atlas-btn-ghost {
   display: inline-flex;
   align-items: center;
@@ -185,19 +904,14 @@ body.atlas-tokens {
   transition: border-color var(--dur) var(--ease), background-color var(--dur) var(--ease);
 }
 
-.atlas-btn-ghost:hover {
-  border-color: var(--ink);
-  background: var(--bg-soft);
-}
+.atlas-btn-ghost:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 
-/* 白卡 */
 .atlas-card {
   background: var(--surface);
   border-radius: var(--r-lg);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-card);
 }
 
-/* 小标签（参考站的「平台账号,CDK」标签样式） */
 .atlas-tag {
   display: inline-flex;
   align-items: center;
@@ -211,7 +925,6 @@ body.atlas-tokens {
   white-space: nowrap;
 }
 
-/* 强调标签（HOT 之类） */
 .atlas-tag-hot {
   background: var(--accent);
   color: #fff;
@@ -219,7 +932,6 @@ body.atlas-tokens {
   letter-spacing: 0.04em;
 }
 
-/* 价格：数字用等宽 + DIN 观感，红色只给「起」字与促销价 */
 .atlas-price {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
@@ -227,13 +939,8 @@ body.atlas-tokens {
   color: var(--ink);
 }
 
-.atlas-price-from {
-  color: var(--accent);
-  font-size: 12px;
-  font-weight: 500;
-}
+.atlas-price-from { color: var(--accent); font-size: 12px; font-weight: 500; }
 
-/* 分区标题：左标题 + 右「发现更多」 */
 .atlas-section-head {
   display: flex;
   align-items: flex-end;
@@ -242,57 +949,20 @@ body.atlas-tokens {
   margin-bottom: 16px;
 }
 
-.atlas-section-title {
-  font-size: 20px;
-  font-weight: 700;
-}
+.atlas-section-title { font-size: 20px; font-weight: 700; }
+.atlas-section-sub { margin-top: 2px; color: var(--ink-3); font-size: 12px; }
 
-.atlas-section-sub {
-  margin-top: 2px;
-  color: var(--ink-3);
-  font-size: 12px;
-}
+.atlas-more { flex: none; color: var(--ink-3); font-size: 13px; transition: color var(--dur) var(--ease); }
+.atlas-more:hover { color: var(--accent); }
 
-.atlas-more {
-  flex: none;
-  color: var(--ink-3);
-  font-size: 13px;
-  transition: color var(--dur) var(--ease);
-}
+.atlas-crumb { display: flex; align-items: center; gap: 6px; color: var(--ink-3); font-size: 12px; }
+.atlas-crumb a:hover { color: var(--accent); }
 
-.atlas-more:hover {
-  color: var(--accent);
-}
+.atlas-thumb { background: var(--placeholder); border-radius: var(--r-md); overflow: hidden; }
+.atlas-thumb img { width: 100%; height: 100%; object-fit: contain; }
 
-/* 面包屑 */
-.atlas-crumb {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--ink-3);
-  font-size: 12px;
-}
-
-.atlas-crumb a:hover {
-  color: var(--accent);
-}
-
-/* 图片占位：参考站用纯色底而不是骨架屏 */
-.atlas-thumb {
-  background: var(--placeholder);
-  border-radius: var(--r-md);
-  overflow: hidden;
-}
-
-.atlas-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-/* 骨架屏 */
 .atlas-skeleton {
-  background: linear-gradient(90deg, var(--surface-2) 25%, var(--bg-soft) 37%, var(--surface-2) 63%);
+  background: linear-gradient(90deg, var(--placeholder) 25%, #f6f6f9 37%, var(--placeholder) 63%);
   background-size: 400% 100%;
   animation: atlas-shimmer 1.4s ease infinite;
   border-radius: var(--r-sm);
@@ -303,28 +973,23 @@ body.atlas-tokens {
   100% { background-position: 0% 50%; }
 }
 
-/* 深色页脚里的链接 */
 .atlas-foot-link {
   display: block;
   padding: 4px 0;
-  color: var(--footer-ink);
+  color: rgba(255, 255, 255, 0.7);
   font-size: 13px;
   transition: color var(--dur) var(--ease);
 }
 
-.atlas-foot-link:hover {
-  color: var(--footer-ink-strong);
-}
+.atlas-foot-link:hover { color: #fff; }
 
-/* 页脚小标题 */
 .atlas-foot-head {
   margin-bottom: 12px;
-  color: var(--footer-ink-strong);
+  color: #fff;
   font-size: 14px;
   font-weight: 600;
 }
 
-/* 下拉浮层 */
 .atlas-menu {
   position: absolute;
   right: 0;
@@ -353,10 +1018,7 @@ body.atlas-tokens {
   transition: background-color var(--dur) var(--ease);
 }
 
-.atlas-menu__item:hover {
-  background: var(--surface-2);
-  color: var(--ink);
-}
+.atlas-menu__item:hover { background: var(--surface-2); color: var(--ink); }
 
 .atlas-menu__label {
   padding: 6px 10px 2px;
@@ -365,4 +1027,47 @@ body.atlas-tokens {
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+
+/* =======================================================================
+   响应式：参考站是固定 1340 的 PC 版式，这里按断点降级（移动端参考站走另一套）
+   ======================================================================= */
+@media (max-width: 1400px) {
+  .atlas-main-col { width: auto; flex: 1; }
+  .atlas-reco-top { grid-template-columns: 1fr 335px; }
+}
+
+@media (max-width: 1180px) {
+  .atlas-search { max-width: 320px; }
+  .atlas-brand { margin-right: 20px; }
+  .atlas-navbar__item { padding: 0 12px; }
+}
+
+@media (max-width: 1023px) {
+  .atlas-home-main { flex-direction: column; gap: 16px; }
+  .atlas-sidebar { width: 100%; }
+  .atlas-reco-top { grid-template-columns: 1fr; }
+  .atlas-reco-bottom { flex-wrap: wrap; gap: 16px; }
+  .atlas-reco-bottom .atlas-reco-item { width: calc(50% - 8px); }
+  .atlas-module__list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .atlas-trustbar__row { flex-wrap: wrap; gap: 12px 24px; }
+  .atlas-appfloat { display: none; }
+}
+
+@media (max-width: 767px) {
+  .atlas-header__row { height: 56px; }
+  .atlas-brand { margin-right: 12px; }
+  .atlas-brand__logo, .atlas-brand__mark { width: 32px; height: 32px; }
+  .atlas-search { max-width: none; }
+  .atlas-actions { display: none; }
+  .atlas-navbar__row { overflow-x: auto; }
+  .atlas-notice__inner { height: 44px; font-size: 12px; }
+  .atlas-trustbar__row { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .atlas-module__title { font-size: 20px; height: 28px; line-height: 28px; }
+  .atlas-module__content { padding: 20px 16px; }
+  .atlas-banner { height: 56px; }
+  .atlas-banner__slide { height: 56px; padding: 0 16px; }
+  .atlas-banner__title { font-size: 18px; }
+  .atlas-custfloat { display: none; }
+  .atlas-scope { padding-bottom: 0; }
 }

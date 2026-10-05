@@ -1,159 +1,130 @@
 <template>
   <div class="atlas-scope flex min-h-screen flex-col">
-    <!-- ==================== 顶栏工具条 ==================== -->
-    <!-- 参考站是「工具条 + 主导航」两层：工具条放语言/币种与账户类入口，
-         主导航只放商品分类。分开的好处是主导航不被账户操作挤占。 -->
-    <div class="atlas-utility">
-      <div class="atlas-shell flex h-9 items-center gap-3 text-[12px]">
-        <!-- 语言 / 币种 -->
-        <div class="relative" ref="langEl">
-          <button
-            class="flex items-center gap-1.5 text-[color:var(--footer-ink)] transition-colors hover:text-[color:var(--footer-ink-strong)]"
-            type="button"
-            @click="toggleLang"
-          >
-            <Languages class="h-3.5 w-3.5" />
-            <span>{{ currentLanguageName }}</span>
-            <span class="opacity-40">|</span>
-            <span>{{ currencyLabel }}</span>
-          </button>
-          <div v-if="langOpen" class="atlas-menu">
-            <span class="atlas-menu__label">{{ t('navbar.selectLanguage') }}</span>
-            <button
-              v-for="lang in languages"
-              :key="lang.code"
-              class="atlas-menu__item justify-between"
-              :class="appStore.locale === lang.code ? 'text-[color:var(--accent)]' : ''"
-              @click="changeLanguage(lang.code)"
-            >
-              {{ lang.name }}
-              <span v-if="appStore.locale === lang.code" class="h-1.5 w-1.5 rounded-full bg-[color:var(--accent)]"></span>
-            </button>
-          </div>
-        </div>
-
-        <div class="ml-auto flex items-center gap-4">
-          <RouterLink v-if="affiliateEnabled" to="/affiliate" class="atlas-utility__link">
-            {{ t('atlas.nav.affiliate') }}
-          </RouterLink>
-          <RouterLink to="/guest/orders" class="atlas-utility__link">
-            {{ t('navbar.guestOrders') }}
-          </RouterLink>
-          <RouterLink v-if="!userAuthStore.isAuthenticated" to="/auth/login" class="atlas-utility__link">
-            {{ t('atlas.nav.loginOrRegister') }}
-          </RouterLink>
-          <template v-else>
-            <RouterLink to="/me" class="atlas-utility__link">{{ t('navbar.personalCenter') }}</RouterLink>
-            <button class="atlas-utility__link" type="button" @click="userAuthStore.logout()">
-              {{ t('navbar.logout') }}
-            </button>
-          </template>
-        </div>
+    <!-- ==================== 公告条（sticky 置顶） ==================== -->
+    <div v-if="noticeOpen" class="atlas-notice">
+      <div class="atlas-shell atlas-notice__inner">
+        <span class="atlas-notice__badge">NOTICE</span>
+        <span class="atlas-notice__text">{{ t('atlas.notice.text') }}</span>
+        <button class="atlas-notice__close" type="button" :aria-label="t('atlas.notice.close')" @click="closeNotice">
+          <X class="h-4 w-4" />
+        </button>
       </div>
     </div>
 
-    <!-- ==================== 主导航 ==================== -->
-    <header class="atlas-header sticky top-0 z-50">
-      <div class="atlas-shell flex h-[64px] items-center gap-4">
-        <!-- 品牌 -->
-        <RouterLink
-          class="flex flex-none items-center gap-2 text-[17px] font-bold tracking-[-0.02em] text-[color:var(--ink)]"
-          to="/"
-          :title="brandName"
-        >
-          <img v-if="brandLogo" :src="brandLogo" :alt="brandName" class="h-7 max-w-[120px] object-contain" />
-          <template v-else>
-            <span class="grid h-7 w-7 flex-none place-items-center rounded-[var(--r-sm)] bg-[color:var(--btn)] text-[13px] font-bold text-[color:var(--on-btn)]">
-              {{ brandInitial }}
-            </span>
-            <span class="truncate">{{ brandName }}</span>
-          </template>
+    <!-- ==================== 主行：深色 72px ==================== -->
+    <header class="atlas-header">
+      <div class="atlas-shell atlas-header__row">
+        <!-- 品牌：圆标 + 两行文字 -->
+        <RouterLink class="atlas-brand" to="/" :title="brandName">
+          <img v-if="brandLogo" class="atlas-brand__logo" :src="brandLogo" :alt="brandName" />
+          <span v-else class="atlas-brand__mark">{{ brandInitial }}</span>
+          <span class="atlas-brand__text">
+            <span class="atlas-brand__name">{{ brandName }}</span>
+            <span class="atlas-brand__sub">{{ brandSub }}</span>
+          </span>
         </RouterLink>
 
-        <!-- 分类导航：参考站把热门品类直接铺在主导航里 -->
-        <nav class="mx-auto flex items-center gap-0.5 max-[1024px]:hidden">
-          <RouterLink
-            v-if="!isListMode"
-            to="/products"
-            class="atlas-navlink"
-            active-class="atlas-navlink--on"
-          >{{ t('nav.home') }}</RouterLink>
-          <RouterLink
-            v-for="cat in topCategories"
-            :key="cat.id"
-            :to="`/categories/${cat.slug}`"
-            class="atlas-navlink"
-            active-class="atlas-navlink--on"
-          >{{ getLocalizedText(cat.name) }}</RouterLink>
-          <RouterLink
-            v-for="item in secondaryNavItems"
-            :key="item.key"
-            :to="item.path"
-            class="atlas-navlink"
-            active-class="atlas-navlink--on"
-          >{{ item.label }}</RouterLink>
-        </nav>
+        <!-- 搜索框：白底 40px 圆角 5，右侧红色按钮 -->
+        <form class="atlas-search" @submit.prevent="submitSearch">
+          <input
+            v-model="keyword"
+            class="atlas-search__input"
+            type="search"
+            :placeholder="t('atlas.search.placeholder')"
+            :aria-label="t('atlas.search.placeholder')"
+          />
+          <button class="atlas-search__btn" type="submit" :aria-label="t('atlas.search.placeholder')">
+            <Search class="h-[22px] w-[22px]" />
+          </button>
+        </form>
 
-        <!-- 右侧：购物车 + 移动端菜单 -->
-        <div class="ml-auto flex items-center gap-2 max-[1024px]:ml-0">
-          <RouterLink
-            class="relative inline-flex h-9 items-center gap-2 rounded-[var(--r-sm)] bg-[color:var(--btn)] px-3.5 text-[13px] font-semibold text-[color:var(--on-btn)] transition-colors hover:bg-[color:var(--btn-hover)]"
-            to="/cart"
-            :aria-label="t('navbar.cart')"
-          >
-            <ShoppingCart class="h-4 w-4" />
-            <span class="max-[420px]:hidden">{{ t('navbar.cart') }}</span>
-            <span
-              v-if="cartCount > 0"
-              class="grid h-[18px] min-w-[18px] place-items-center rounded-[var(--r-pill)] bg-[color:var(--accent)] px-1 text-[11px] font-bold text-white"
-            >{{ cartCount > 99 ? '99+' : cartCount }}</span>
-          </RouterLink>
-
-          <div class="relative hidden max-[1024px]:block" ref="moreEl">
-            <button
-              class="grid h-9 w-9 place-items-center rounded-[var(--r-sm)] text-[color:var(--ink-2)] transition-colors hover:bg-[color:var(--surface-2)]"
-              type="button"
-              :aria-label="t('navbar.more')"
-              @click="toggleMore"
-            >
-              <X v-if="moreOpen" class="pointer-events-none h-[18px] w-[18px]" />
-              <Menu v-else class="pointer-events-none h-[18px] w-[18px]" />
+        <!-- 右侧：语言 / 推广合作 / 订单查询 / 登录注册 -->
+        <div class="atlas-actions">
+          <div class="relative" ref="langEl">
+            <button class="atlas-lang" type="button" @click="toggleLang">
+              <span>{{ currentLanguageName }}</span>
+              <span class="mx-2 opacity-40">|</span>
+              <span>{{ currencyLabel }}</span>
+              <ChevronDown class="ml-2 h-4 w-4" />
             </button>
-            <div v-if="moreOpen" class="atlas-menu min-w-[220px]">
-              <RouterLink v-if="!isListMode" to="/products" class="atlas-menu__item" @click="moreOpen = false">{{ t('nav.home') }}</RouterLink>
-              <RouterLink
-                v-for="cat in topCategories"
-                :key="`m-${cat.id}`"
-                :to="`/categories/${cat.slug}`"
-                class="atlas-menu__item"
-                @click="moreOpen = false"
-              >{{ getLocalizedText(cat.name) }}</RouterLink>
-              <template v-for="item in secondaryNavItems" :key="`ms-${item.key}`">
-                <RouterLink v-if="item.type === 'route'" :to="item.path" class="atlas-menu__item" @click="moreOpen = false">{{ item.label }}</RouterLink>
-                <a v-else :href="item.path" :target="item.target" rel="noopener noreferrer" class="atlas-menu__item" @click="moreOpen = false">{{ item.label }}</a>
-              </template>
-              <RouterLink to="/guest/orders" class="atlas-menu__item" @click="moreOpen = false">{{ t('navbar.guestOrders') }}</RouterLink>
-              <RouterLink v-if="affiliateEnabled" to="/affiliate" class="atlas-menu__item" @click="moreOpen = false">{{ t('atlas.nav.affiliate') }}</RouterLink>
-              <button class="atlas-menu__item text-left" @click="toggleTheme">{{ t('resellerConsole.common.toggleTheme') }}</button>
+            <div v-if="langOpen" class="atlas-menu">
+              <span class="atlas-menu__label">{{ t('navbar.selectLanguage') }}</span>
+              <button
+                v-for="lang in languages"
+                :key="lang.code"
+                class="atlas-menu__item justify-between"
+                :class="appStore.locale === lang.code ? 'text-[color:var(--accent)]' : ''"
+                @click="changeLanguage(lang.code)"
+              >
+                {{ lang.name }}
+                <span v-if="appStore.locale === lang.code" class="h-1.5 w-1.5 rounded-full bg-[color:var(--accent)]"></span>
+              </button>
             </div>
           </div>
+
+          <RouterLink v-if="affiliateEnabled" to="/affiliate" class="atlas-cooperate">
+            <Rocket class="h-4 w-4" />
+            {{ t('atlas.nav.affiliate') }}
+          </RouterLink>
+
+          <RouterLink to="/guest/orders" class="atlas-ghost-btn">
+            <SearchCheck class="h-[18px] w-[18px]" />
+            {{ t('navbar.guestOrders') }}
+          </RouterLink>
+
+          <RouterLink v-if="!userAuthStore.isAuthenticated" to="/auth/login" class="atlas-ghost-btn">
+            {{ t('atlas.nav.loginOrRegister') }}
+          </RouterLink>
+          <template v-else>
+            <RouterLink to="/me" class="atlas-ghost-btn">{{ t('navbar.personalCenter') }}</RouterLink>
+            <button class="atlas-ghost-btn" type="button" @click="userAuthStore.logout()">{{ t('navbar.logout') }}</button>
+          </template>
         </div>
       </div>
     </header>
+
+    <!-- ==================== 分类导航条：40px + 2px 红下边框 ==================== -->
+    <nav class="atlas-navbar">
+      <div class="atlas-shell atlas-navbar__row">
+        <RouterLink to="/" class="atlas-navbar__item" exact-active-class="atlas-navbar__item--on">
+          {{ t('nav.home') }}
+        </RouterLink>
+        <RouterLink
+          v-for="cat in navCategories"
+          :key="cat.id"
+          :to="`/categories/${cat.slug}`"
+          class="atlas-navbar__item"
+          active-class="atlas-navbar__item--on"
+        >{{ getLocalizedText(cat.name) }}</RouterLink>
+
+        <!-- 参考站末尾有一个带图标 + HOT 的高亮入口 -->
+        <RouterLink to="/products" class="atlas-navbar__item atlas-navbar__item--hot">
+          <Sparkles class="h-[18px] w-[18px]" />
+          {{ t('atlas.nav.hot') }}
+          <span class="atlas-navbar__hot">HOT</span>
+        </RouterLink>
+
+        <RouterLink to="/cart" class="atlas-navbar__item ml-auto">
+          <ShoppingCart class="h-[17px] w-[17px]" />
+          {{ t('navbar.cart') }}
+          <span v-if="cartCount > 0" class="atlas-navbar__hot">{{ cartCount > 99 ? '99+' : cartCount }}</span>
+        </RouterLink>
+      </div>
+    </nav>
 
     <!-- ==================== 页面内容 ==================== -->
     <main class="flex-1">
       <slot />
     </main>
 
-    <!-- ==================== 页脚（纯黑） ==================== -->
-    <footer class="mt-[var(--gap-block)] bg-[color:var(--footer-bg)]">
+    <!-- ==================== 页脚 ==================== -->
+    <footer class="bg-[color:var(--dark)]">
       <div class="atlas-shell grid grid-cols-1 gap-8 pb-10 pt-[52px] sm:grid-cols-2 lg:grid-cols-[1.8fr_repeat(3,1fr)]">
         <div>
-          <RouterLink class="inline-flex items-center gap-2 text-[17px] font-bold text-[color:var(--footer-ink-strong)]" to="/">
+          <RouterLink class="inline-flex items-center gap-2 text-[17px] font-bold text-white" to="/">
             <img v-if="brandLogo" :src="brandLogo" :alt="brandName" class="h-7 max-w-[140px] object-contain" />
             <template v-else>
-              <span class="grid h-7 w-7 flex-none place-items-center rounded-[var(--r-sm)] bg-white text-[13px] font-bold text-black">{{ brandInitial }}</span>
+              <span class="grid h-7 w-7 flex-none place-items-center rounded-full bg-[color:var(--accent)] text-[13px] font-bold text-white">{{ brandInitial }}</span>
               <span>{{ brandName }}</span>
             </template>
           </RouterLink>
@@ -164,8 +135,8 @@
 
         <div>
           <h4 class="atlas-foot-head">{{ t('atlas.footer.shop') }}</h4>
-          <RouterLink v-if="!isListMode" to="/products" class="atlas-foot-link">{{ t('products.allCategories') }}</RouterLink>
-          <RouterLink v-for="cat in topCategories" :key="`f-${cat.id}`" :to="`/categories/${cat.slug}`" class="atlas-foot-link">
+          <RouterLink to="/products" class="atlas-foot-link">{{ t('products.allCategories') }}</RouterLink>
+          <RouterLink v-for="cat in navCategories" :key="`f-${cat.id}`" :to="`/categories/${cat.slug}`" class="atlas-foot-link">
             {{ getLocalizedText(cat.name) }}
           </RouterLink>
         </div>
@@ -197,46 +168,94 @@
         </div>
       </div>
 
-      <div class="atlas-shell flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--footer-line)] py-4 text-[12px] text-[color:var(--footer-ink)]">
+      <div class="atlas-shell flex flex-wrap items-center justify-between gap-3 border-t border-white/10 py-4 text-[12px] text-[color:var(--footer-ink)]">
         <span>© {{ year }} {{ brandName }}</span>
         <span>{{ t('atlas.footer.builtOn') }}</span>
       </div>
     </footer>
+
+    <!-- ==================== 底部 App 浮层 ==================== -->
+    <div v-if="appFloatOpen" class="atlas-appfloat">
+      <img v-if="brandLogo" class="atlas-appfloat__logo" :src="brandLogo" :alt="brandName" />
+      <span v-else class="atlas-appfloat__mark">{{ brandInitial }}</span>
+      <span class="atlas-appfloat__text">{{ brandName }}</span>
+      <span class="atlas-appfloat__desc">{{ t('atlas.appfloat.desc') }}</span>
+      <!-- 参考站这里指向 App 下载页；本站没有 App，配置里也没有对应字段，
+           所以保留同样的卡位与按钮样式，点击给出提示而不臆造跳转地址。 -->
+      <button class="atlas-appfloat__btn" type="button" @click="onAppCta">
+        {{ t('atlas.appfloat.cta') }}
+      </button>
+      <button class="atlas-appfloat__close" type="button" :aria-label="t('atlas.appfloat.close')" @click="closeAppFloat">
+        <X class="h-4 w-4" />
+      </button>
+    </div>
+
+    <!-- ==================== 右侧客服浮层 ==================== -->
+    <div class="atlas-custfloat">
+      <a
+        v-if="contact?.telegram"
+        class="atlas-custfloat__box"
+        :href="contact.telegram"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <Headset class="h-5 w-5" />
+        {{ t('atlas.service.online') }}
+      </a>
+      <button v-else class="atlas-custfloat__box" type="button" @click="openService">
+        <Headset class="h-5 w-5" />
+        {{ t('atlas.service.online') }}
+      </button>
+      <button class="atlas-custfloat__box atlas-custfloat__box--alt" type="button" @click="scrollToTop">
+        <ArrowUp class="h-5 w-5" />
+      </button>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { Languages, Menu, ShoppingCart, X } from 'lucide-vue-next'
+import {
+  ArrowUp, ChevronDown, Headset, Rocket, Search, SearchCheck, ShoppingCart, Sparkles, X,
+} from 'lucide-vue-next'
 import { useAppStore } from '../../../stores/app'
 import { useCartStore } from '../../../stores/cart'
 import { useUserAuthStore } from '../../../stores/userAuth'
 import { useNavConfig } from '../../../composables/useNavConfig'
 import { useLocalized } from '../../../composables/useProduct'
+import { toast } from '../../../composables/useToast'
 import { categoryAPI } from '../../../api/product'
-import type { PublicCategory } from '../../../utils/category'
-import { useTheme } from '../../../utils/theme'
 import { getImageUrl } from '../../../utils/image'
 import { getLocalizedText as getResellerText } from '../../../utils/resellerSiteConfig'
+import type { PublicCategory } from '../../../utils/category'
 import '../styles/atlas.css'
 
 const { t } = useI18n()
+const router = useRouter()
 const appStore = useAppStore()
 const cartStore = useCartStore()
 const userAuthStore = useUserAuthStore()
 const { getLocalizedText } = useLocalized()
-const { toggleTheme } = useTheme()
 
 const langOpen = ref(false)
-const moreOpen = ref(false)
 const langEl = ref<HTMLElement | null>(null)
-const moreEl = ref<HTMLElement | null>(null)
+const keyword = ref('')
+
+const NOTICE_KEY = 'dj-atlas-notice-closed'
+const APP_FLOAT_KEY = 'dj-atlas-appfloat-closed'
+
+const noticeOpen = ref(true)
+const appFloatOpen = ref(true)
 
 const year = new Date().getFullYear()
 
 const brandName = computed(() => String(appStore.config?.brand?.site_name || '').trim() || 'Atlas Store')
 const brandInitial = computed(() => brandName.value.slice(0, 1).toUpperCase())
+// 参考站品牌是「主名 + 副名」两行（如 账号星球 / AccountBoy）。
+// 公开配置的 brand 只有 site_name，副名走 i18n，不臆造配置字段。
+const brandSub = computed(() => t('atlas.brand.sub'))
 const brandLogo = computed(() => {
   const raw = String(appStore.config?.brand?.site_logo || '').trim()
   return raw ? getImageUrl(raw) : ''
@@ -250,21 +269,22 @@ const brandDescription = computed(() => {
   return typeof desc === 'string' ? desc.trim() : ''
 })
 
-const { isListMode, blogEnabled, noticeEnabled, aboutEnabled, secondaryNavItems } = useNavConfig()
+const { blogEnabled, noticeEnabled, aboutEnabled } = useNavConfig()
 
 /**
- * 主导航里的热门品类。
- * 参考站把品类直链铺在主导航 —— 但真实站点往往有几十个分类，只取一级分类的前 8 个，
- * 其余走 /products 的侧栏，避免导航被撑爆。
- * 数据来自公开分类接口（与 /products 页同源），不读站点配置里的私有字段。
+ * 导航条里的分类。
+ * 参考站把一级分类直链铺在导航条（末尾另有一个带图标 + HOT 的入口）。
+ * 真实站点分类可能很多，只取一级分类前 9 个，其余走 /products 的侧栏。
  */
 const categories = ref<PublicCategory[]>([])
-const topCategories = computed(() =>
-  categories.value.filter((c) => !c.parent_id || c.parent_id === 0).slice(0, 8),
+const navCategories = computed(() =>
+  categories.value.filter((c) => !c.parent_id || c.parent_id === 0).slice(0, 9),
 )
 
-const affiliateEnabled = computed(() => appStore.config?.affiliate_enabled !== false)
+const affiliateEnabled = computed(() => appStore.config?.affiliate?.enabled === true)
 const currencyLabel = computed(() => String(appStore.config?.currency || 'CNY').toUpperCase())
+const contact = computed(() => appStore.config?.contact as { telegram?: string; whatsapp?: string } | undefined)
+const cartCount = computed(() => cartStore.totalItems)
 
 const languages = [
   { code: 'zh-CN', name: '简体中文' },
@@ -286,22 +306,32 @@ const footerLinks = computed(() => {
     .filter((item) => item.name)
 })
 
-const contact = computed(() => appStore.config?.contact as { telegram?: string; whatsapp?: string } | undefined)
-const cartCount = computed(() => cartStore.totalItems)
-
 const changeLanguage = (code: string) => {
   appStore.setLocale(code)
   langOpen.value = false
-  moreOpen.value = false
+}
+const toggleLang = () => { langOpen.value = !langOpen.value }
+
+const submitSearch = () => {
+  const q = keyword.value.trim()
+  router.push(q ? { path: '/products', query: { search: q } } : { path: '/products' })
 }
 
-const toggleLang = () => { langOpen.value = !langOpen.value; moreOpen.value = false }
-const toggleMore = () => { moreOpen.value = !moreOpen.value; langOpen.value = false }
+const closeNotice = () => {
+  noticeOpen.value = false
+  try { localStorage.setItem(NOTICE_KEY, '1') } catch { /* 忽略 */ }
+}
+const closeAppFloat = () => {
+  appFloatOpen.value = false
+  try { localStorage.setItem(APP_FLOAT_KEY, '1') } catch { /* 忽略 */ }
+}
+const onAppCta = () => toast.info(t('atlas.appfloat.noApp'))
+const openService = () => toast.info(t('atlas.service.offline'))
+const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
 
 const onDocClick = (e: MouseEvent) => {
   const target = e.target as Node
   if (langOpen.value && langEl.value && !langEl.value.contains(target)) langOpen.value = false
-  if (moreOpen.value && moreEl.value && !moreEl.value.contains(target)) moreOpen.value = false
 }
 
 onMounted(async () => {
@@ -310,14 +340,17 @@ onMounted(async () => {
   // .atlas-scope 之外，靠 body 上的这个 class 拿到 atlas 配色，详见 styles/atlas.css
   document.body.classList.add('atlas-tokens')
 
-  // 分类只用于导航，失败时静默降级（导航仍保留「全部商品」入口）
+  try {
+    if (localStorage.getItem(NOTICE_KEY) === '1') noticeOpen.value = false
+    if (localStorage.getItem(APP_FLOAT_KEY) === '1') appFloatOpen.value = false
+  } catch { /* 忽略 */ }
+
+  // 分类只用于导航，失败时静默降级（导航仍保留首页与购物车）
   try {
     const res: any = await categoryAPI.list()
     const list = res?.data?.data
     if (Array.isArray(list)) categories.value = list
-  } catch {
-    /* 忽略：导航降级为仅「全部商品」 */
-  }
+  } catch { /* 忽略 */ }
 })
 
 onUnmounted(() => {
@@ -327,43 +360,9 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* 顶栏工具条：参考站是深色窄条，视觉上把「账户类」操作和商品导航分开 */
-.atlas-utility {
-  background: #1a1a1a;
-}
-
-.atlas-utility__link {
-  color: var(--footer-ink);
-  transition: color var(--dur) var(--ease);
-}
-
-.atlas-utility__link:hover {
-  color: var(--footer-ink-strong);
-}
-
-/* 主导航：白底 + 底部细线，sticky 后靠阴影区分层 */
-.atlas-header {
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-}
-
-.atlas-navlink {
-  padding: 8px 10px;
-  border-radius: var(--r-sm);
-  color: var(--ink-2);
-  font-size: 13.5px;
-  font-weight: 500;
+.atlas-notice__text {
+  overflow: hidden;
   white-space: nowrap;
-  transition: color var(--dur) var(--ease), background-color var(--dur) var(--ease);
-}
-
-.atlas-navlink:hover {
-  background: var(--surface-2);
-  color: var(--ink);
-}
-
-.atlas-navlink--on {
-  color: var(--accent);
-  font-weight: 600;
+  text-overflow: ellipsis;
 }
 </style>
