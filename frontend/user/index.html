@@ -5,10 +5,50 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title></title>
+  <style>
+    /*
+      首屏占位样式内联：站点配置在挂载前拉取，这段时间页面还没有任何内容。
+      放一个与页面底色一致的居中指示，避免白屏。
+      app.mount('#app') 会整体替换 #app 的内容，占位随之消失，无需额外清理逻辑。
+    */
+    html { background: #f5f5f7; }
+    .app-boot {
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+    }
+    .app-boot__spinner {
+      width: 28px;
+      height: 28px;
+      border: 2px solid rgba(0, 0, 0, 0.12);
+      border-top-color: #0071e3;
+      border-radius: 50%;
+      animation: app-boot-spin 0.8s linear infinite;
+    }
+    html.dark { background: #000; }
+    html.dark .app-boot__spinner {
+      border-color: rgba(255, 255, 255, 0.18);
+      border-top-color: #0a84ff;
+    }
+    @media (prefers-color-scheme: dark) {
+      html:not(.light) { background: #000; }
+      html:not(.light) .app-boot__spinner {
+        border-color: rgba(255, 255, 255, 0.18);
+        border-top-color: #0a84ff;
+      }
+    }
+    @keyframes app-boot-spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
 </head>
 
 <body>
-  <div id="app"></div>
+  <div id="app">
+    <div class="app-boot" aria-hidden="true">
+      <span class="app-boot__spinner"></span>
+    </div>
+  </div>
   <script type="module" data-cfasync="false" src="/src/main.ts"></script>
 </body>
 
