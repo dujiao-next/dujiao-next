@@ -100,70 +100,61 @@
             </div>
           </template>
 
-          <!-- 已筛选：把「当前在看什么」讲清楚，并提供清除入口 -->
-          <div v-else class="atlas-filterbar">
-            <div>
-              <h1 class="atlas-filterbar__title">{{ filterTitle }}</h1>
-              <p class="atlas-filterbar__sub">{{ t('atlas.home.resultCount', { count: totalCount }) }}</p>
+          <!-- 已筛选：筛选条 + 商品网格就地渲染在主列内。
+               为什么必须放主列里：商品列表原本在三栏行之外，而 flex 行的高度由
+               最高的子项（侧栏）决定，主列被筛选条压短后就会在它下方留下
+               与侧栏等高的空白（实测 438px），列表看起来「跑到页面下方」。 -->
+          <template v-else>
+            <div class="atlas-filterbar">
+              <div>
+                <h1 class="atlas-filterbar__title">{{ filterTitle }}</h1>
+                <p class="atlas-filterbar__sub">{{ t('atlas.home.resultCount', { count: totalCount }) }}</p>
+              </div>
+              <button class="atlas-filterbar__clear" type="button" @click="clearCategory">
+                <X class="h-3.5 w-3.5" />
+                {{ t('atlas.home.clearFilter') }}
+              </button>
             </div>
-            <RouterLink to="/products" class="atlas-filterbar__clear">
-              <X class="h-3.5 w-3.5" />
-              {{ t('atlas.home.clearFilter') }}
-            </RouterLink>
-          </div>
+
+            <AtlasGoodsModule
+              class="mt-4"
+              compact
+              :title="filterTitle"
+              :desc="t('atlas.home.resultCount', { count: totalCount })"
+              :products="products"
+              :loading="loading"
+              :page="page"
+              :total-pages="totalPages"
+              @select="goToProduct"
+              @change-page="changePage"
+            />
+          </template>
         </div>
       </div>
     </div>
 
-    <!-- ==================== 商品分区（module） ==================== -->
-    <div class="atlas-module mt-10">
-      <div class="atlas-module__content">
-        <div class="atlas-module__descrow">
-          <div>
-            <h2 class="atlas-module__title">{{ isFiltered ? filterTitle : t('atlas.home.hot') }}</h2>
-            <p class="atlas-module__desc">
-              {{ isFiltered ? t('atlas.home.resultCount', { count: totalCount }) : t('atlas.home.hotSub') }}
-            </p>
-          </div>
-          <RouterLink v-if="!isFiltered" to="/products" class="atlas-module__more">
-            {{ t('atlas.section.more') }}
-            <ChevronRight class="h-3 w-3" />
-          </RouterLink>
-        </div>
-
-        <div v-if="loading" class="atlas-module__list">
-          <div v-for="i in 8" :key="i" class="atlas-card overflow-hidden">
-            <div class="atlas-skeleton aspect-[4/3] rounded-none"></div>
-            <div class="space-y-2 p-3">
-              <div class="atlas-skeleton h-3 w-2/3"></div>
-              <div class="atlas-skeleton h-4 w-1/3"></div>
-            </div>
-          </div>
-        </div>
-
-        <div v-else-if="products.length" class="atlas-module__list">
-          <AtlasProductCard
-            v-for="product in products"
-            :key="product.id"
-            :product="product"
-            @click="goToProduct"
-          />
-        </div>
-
-        <EmptyState v-else variant="soft" size="md" icon="package" :title="t('products.empty')" />
-
-        <!-- 分页：参考站是极简数字条 -->
-        <nav v-if="totalPages > 1" class="atlas-pager">
-          <button class="atlas-pager__btn" type="button" :disabled="page <= 1" @click="changePage(page - 1)">
-            {{ t('products.previous') }}
-          </button>
-          <span class="atlas-pager__info">{{ page }} / {{ totalPages }}</span>
-          <button class="atlas-pager__btn" type="button" :disabled="page >= totalPages" @click="changePage(page + 1)">
-            {{ t('products.next') }}
-          </button>
-        </nav>
-      </div>
-    </div>
+    <!-- ==================== 未筛选时的整宽商品分区（参考站版式，4 列） ====================
+         已筛选态不在这里渲染 —— 它收进主列内部（见上方），否则会被侧栏撑开的
+         行高推下去。 -->
+    <AtlasGoodsModule
+      v-if="!isFiltered"
+      class="mt-10"
+      :title="t('atlas.home.hot')"
+      :desc="t('atlas.home.hotSub')"
+      :products="products"
+      :loading="loading"
+      :page="page"
+      :total-pages="totalPages"
+      @select="goToProduct"
+      @change-page="changePage"
+    >
+      <template #more>
+        <RouterLink to="/products" class="atlas-module__more">
+          {{ t('atlas.section.more') }}
+          <ChevronRight class="h-3 w-3" />
+        </RouterLink>
+      </template>
+    </AtlasGoodsModule>
   </div>
 </template>
 
@@ -178,8 +169,7 @@ import { usePageSeo } from '../../composables/usePageSeo'
 import { productAPI, categoryAPI } from '../../api/product'
 import { getImageUrl } from '../../utils/image'
 import type { PublicCategory } from '../../utils/category'
-import AtlasProductCard from './components/AtlasProductCard.vue'
-import EmptyState from '../../components/EmptyState.vue'
+import AtlasGoodsModule from './components/AtlasGoodsModule.vue'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -373,8 +363,10 @@ onMounted(async () => {
   padding: 0 12px;
   border: 1px solid var(--border-strong);
   border-radius: var(--r-sm);
+  background: none;
   color: var(--ink-2);
   font-size: 13px;
+  cursor: pointer;
   transition: all var(--dur) var(--ease);
 }
 
@@ -384,29 +376,7 @@ onMounted(async () => {
   background: var(--accent-soft);
 }
 
-/* 分页 */
-.atlas-pager {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  margin-top: 28px;
-}
-
-.atlas-pager__btn {
-  min-height: 34px;
-  padding: 0 14px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-sm);
-  background: var(--surface);
-  font-size: 13px;
-  transition: border-color var(--dur) var(--ease);
-}
-
-.atlas-pager__btn:hover:not(:disabled) { border-color: var(--ink); }
-.atlas-pager__btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-.atlas-pager__info { color: var(--ink-3); font-size: 13px; }
+/* 分页与商品网格的样式已随 AtlasGoodsModule 组件走（它在两处复用） */
 
 @media (max-width: 1180px) {
   .atlas-trustbar__row {
