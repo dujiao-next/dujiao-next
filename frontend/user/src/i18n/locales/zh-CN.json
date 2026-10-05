@@ -178,6 +178,22 @@
     }
   },
   "atlas": {
+      "detail": {
+        "tips": "请遵守所在国家/地区法律法规及相关平台规则，违规用途后果自负。",
+        "specTitle": "规格",
+        "selectSku": "请先选择规格",
+        "price": "价格",
+        "desc": "商品说明",
+        "noDesc": "该商品暂无说明",
+        "badge": {
+          "official": "官方渠道",
+          "officialSub": "正规来源可查",
+          "instant": "极速发货",
+          "instantSub": "最快即时交付",
+          "after": "售后无忧",
+          "afterSub": "问题及时响应"
+        }
+      },
       "brand": {
         "sub": "官方商店"
       },
@@ -228,6 +244,12 @@
         "recommend": "推荐"
       },
       "home": {
+        "resultCount": "共 {count} 件商品",
+        "clearFilter": "清除筛选",
+        "searchResult": "“{keyword}” 的搜索结果",
+        "resultCount": "共 {count} 件商品",
+        "clearFilter": "清除筛选",
+        "searchResult": "“{keyword}” 的搜索结果",
         "heroTagline": "账号 · 订阅 · 礼品卡，一站备齐",
         "hot": "热门商品",
         "hotSub": "平台最受欢迎产品",

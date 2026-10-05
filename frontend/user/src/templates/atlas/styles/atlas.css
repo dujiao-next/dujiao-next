@@ -1030,6 +1030,332 @@ body.atlas-tokens {
 }
 
 /* =======================================================================
+   商品详情页（参考站 detail__* 组件，逐项取数）
+   -----------------------------------------------------------------------
+     detail__StyledTips        background:#f6f3eb; color:#a75600; font-size:14px;
+                               line-height:20px; padding:13px 0
+     detail__StyledBlurBase    height:178px; position:absolute; left:0; top:214px;
+                               img blur(250px) saturate(3.7) brightness(1.3); opacity:.55
+     detail__StyledTop         height:178px; position:relative; z-index:1
+       .img    168x168; border-radius:16px; border:4px solid rgba(0,0,0,.06);
+               margin-right:17px; backdrop-filter:blur(30px)
+       .info > h1  height:36px; line-height:36px; font-size:24px; font-weight:bold
+       .badges  margin-top:66px; display:flex; justify-content:space-between
+       .item    display:flex; align-items:center; margin-right:80px
+       .item strong  font-weight:normal; font-size:14px; line-height:16px; margin-bottom:2px
+       .item p       color:#767676; font-size:12px; line-height:14px
+       .icon    32x32; margin-right:6px
+     detail__StyledCrumb       height:64px; line-height:64px; color:#1a1a1a;
+                               a:hover color:var(--mainColor)
+     detail__StyledMain        display:flex; align-items:flex-start; justify-content:space-between
+     detail__StyledLeft        width:950px
+     detail__StyledRight       width:375px   （950 + 375 + 15 间隙 = 1340）
+     detail__StyledRightSticky top:114px
+     detail__StyledBox         background:#fff; border-radius:16px; margin-bottom:16px; padding:24px
+     detail__StyledSku         margin-bottom:24px
+     detail__StyledSkuBox      margin-bottom:24px; > h4 {font-size:14px; line-height:18px; margin-bottom:16px}
+       .sku-list   display:flex; flex-wrap:wrap; grid-gap:16px
+       .sku-item   flex center; 选中 background:var(--mainColor); border-color:var(--mainColor); color:#fff
+       卡片式变体  width:164px; height:96px; padding:10px 16px; flex-direction:column; align-items:flex-start
+       .sku-item .tag  height:24px; background:#fce3dd; border:1px solid #e60027;
+                       border-radius:4px; padding:0 7px; color:#e60027
+     detail__StyledTitle       font-size:18px; font-weight:bold; height:21px; display:flex;
+                               align-items:center; margin-bottom:12px
+       :before   4px x 16px 红色竖条; border-radius:2px; margin-right:8px
+     detail__StyledPriceBox    padding-top:13px; .num label{font-size:16px;color:#333}
+       > strong  color:#3d3d3d; font-size:18px; font-weight:bold
+       .amt > del  color:#aaa; font-size:14px; margin-right:14px
+     detail__StyledButton      margin-top:21px; height:48px; font-size:16px;
+                               border-radius:8px; width:100%; color:#fff
+   ======================================================================= */
+
+.atlas-tips {
+  padding: 13px 0;
+  background: #f6f3eb;
+  color: #a75600;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.atlas-tips__row { display: flex; align-items: center; }
+.atlas-tips__row svg { flex: none; margin-right: 6px; }
+
+/* 商品头：178px 高，模糊底 */
+.atlas-dhead {
+  position: relative;
+  height: 178px;
+  z-index: 1;
+}
+
+.atlas-dhead__blur {
+  position: absolute;
+  left: 0;
+  top: 214px;
+  width: 100%;
+  height: 178px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.015);
+}
+
+.atlas-dhead__blur img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  filter: blur(250px) saturate(3.7) brightness(1.3);
+  opacity: 0.55;
+  transform: scale(1.1);
+}
+
+.atlas-dhead__row {
+  display: flex;
+  height: 100%;
+  padding-top: 5px;
+}
+
+.atlas-dhead__img {
+  width: 168px;
+  height: 168px;
+  flex: none;
+  margin-right: 17px;
+  border: 4px solid rgba(0, 0, 0, 0.06);
+  border-radius: 16px;
+  overflow: hidden;
+  box-sizing: content-box;
+  backdrop-filter: blur(30px);
+  background: var(--surface);
+}
+
+.atlas-dhead__img img { width: 100%; height: 100%; object-fit: cover; }
+
+.atlas-dhead__info {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding-bottom: 10px;
+  min-width: 0;
+}
+
+.atlas-dhead__info h1 {
+  height: 36px;
+  line-height: 36px;
+  font-size: 24px;
+  font-weight: bold;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.atlas-dhead__badges {
+  margin-top: 66px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.atlas-dhead__badge {
+  display: flex;
+  align-items: center;
+  margin-right: 80px;
+}
+
+.atlas-dhead__badge:last-child { margin-right: 0; }
+
+.atlas-dhead__badge-icon {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  margin-right: 6px;
+  color: var(--accent);
+}
+
+.atlas-dhead__badge strong {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 14px;
+  font-weight: normal;
+  line-height: 16px;
+}
+
+.atlas-dhead__badge p {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 14px;
+}
+
+/* 主体两栏 */
+.atlas-dmain {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 15px;
+}
+
+.atlas-dleft { width: 950px; min-width: 0; }
+.atlas-dright { width: 375px; flex: none; }
+
+.atlas-dbox {
+  padding: 24px;
+  margin-bottom: 16px;
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+/* 带红竖条的小标题 */
+.atlas-dtitle {
+  display: flex;
+  align-items: center;
+  height: 21px;
+  margin-bottom: 12px;
+  font-size: 18px;
+  font-weight: bold;
+  line-height: 21px;
+}
+
+.atlas-dtitle::before {
+  content: '';
+  display: block;
+  width: 4px;
+  height: 16px;
+  margin-right: 8px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.atlas-dsku { margin-bottom: 24px; }
+.atlas-dsku:last-child { margin-bottom: 0; }
+
+.atlas-dsku__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+/* 规格项：参考站是卡片式（164x96，内容左对齐） */
+.atlas-sku-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 164px;
+  height: 96px;
+  padding: 10px 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  text-align: left;
+  transition: all var(--dur) var(--ease);
+}
+
+.atlas-sku-item:hover { border-color: var(--accent); }
+
+.atlas-sku-item--on {
+  background: linear-gradient(45deg, rgba(230, 0, 39, 0.06) 0%, rgba(230, 0, 39, 0) 100%);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.atlas-sku-item__name {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.atlas-sku-item__stock {
+  margin-top: auto;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.atlas-sku-item--on .atlas-sku-item__stock { color: var(--accent); }
+
+.atlas-sku-item--off {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 价格盒 */
+.atlas-pricebox { padding-top: 13px; }
+
+.atlas-pricebox__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.atlas-pricebox__label { font-size: 16px; color: #333; }
+
+.atlas-pricebox__amt {
+  display: flex;
+  align-items: center;
+}
+
+.atlas-pricebox__amt > strong {
+  color: #3d3d3d;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.atlas-pricebox__amt > del {
+  margin-right: 14px;
+  color: #aaaaaa;
+  font-size: 14px;
+}
+
+/* 主按钮：48px 高，圆角 8 */
+.atlas-buybtn {
+  display: block;
+  width: 100%;
+  height: 48px;
+  margin-top: 21px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  transition: background-color var(--dur) var(--ease);
+}
+
+.atlas-buybtn:hover:not(:disabled) { background: var(--accent-hover); }
+.atlas-buybtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.atlas-buybtn--ghost {
+  margin-top: 10px;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+
+.atlas-buybtn--ghost:hover:not(:disabled) { background: var(--accent-soft); }
+
+/* 详情页响应式：参考站是固定 PC 版式，窄屏降级 */
+@media (max-width: 1360px) {
+  .atlas-dleft { width: auto; flex: 1; }
+}
+
+@media (max-width: 1023px) {
+  .atlas-dmain { flex-direction: column; }
+  .atlas-dright { width: 100%; }
+  .atlas-dhead { height: auto; }
+  .atlas-dhead__row { flex-direction: column; padding-top: 0; }
+  .atlas-dhead__img { width: 120px; height: 120px; margin: 0 0 12px; }
+  .atlas-dhead__info h1 { height: auto; font-size: 20px; white-space: normal; }
+  .atlas-dhead__badges { margin-top: 16px; flex-wrap: wrap; gap: 12px; }
+  .atlas-dhead__badge { margin-right: 0; }
+  .atlas-dhead__blur { display: none; }
+}
+
+@media (max-width: 640px) {
+  .atlas-dbox { padding: 16px; border-radius: 12px; }
+  .atlas-sku-item { width: calc(50% - 8px); }
+}
+
+/* =======================================================================
    响应式：参考站是固定 1340 的 PC 版式，这里按断点降级（移动端参考站走另一套）
    ======================================================================= */
 @media (max-width: 1400px) {

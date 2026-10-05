@@ -178,6 +178,22 @@
     }
   },
   "atlas": {
+      "detail": {
+        "tips": "Please follow the laws and platform rules that apply to you. Misuse is your own responsibility.",
+        "specTitle": "Options",
+        "selectSku": "Select an option first",
+        "price": "Price",
+        "desc": "Description",
+        "noDesc": "No description for this product yet",
+        "badge": {
+          "official": "Official source",
+          "officialSub": "Traceable supply",
+          "instant": "Instant delivery",
+          "instantSub": "Delivered as fast as possible",
+          "after": "After-sales",
+          "afterSub": "We respond promptly"
+        }
+      },
       "brand": {
         "sub": "Official Store"
       },
@@ -228,6 +244,9 @@
         "recommend": "Featured"
       },
       "home": {
+        "resultCount": "{count} products",
+        "clearFilter": "Clear filter",
+        "searchResult": "Results for “{keyword}”",
         "heroTagline": "Accounts, subscriptions and gift cards in one place",
         "hot": "Popular",
         "hotSub": "Most ordered products",

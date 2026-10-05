@@ -32,17 +32,18 @@
     <!-- ==================== 三栏主区：240 侧栏 + 1080 内容 ==================== -->
     <div class="atlas-shell">
       <div class="atlas-home-main">
-        <!-- 左侧：推荐（红底表头 + 分类行） -->
+        <!-- 左侧：推荐（红底表头 + 分类行，选中态跟随地址栏） -->
         <aside class="atlas-sidebar">
-          <div class="atlas-sidebar__head">
+          <RouterLink to="/products" class="atlas-sidebar__head">
             <span class="atlas-sidebar__name">{{ t('atlas.sidebar.recommend') }}</span>
             <ChevronRight class="atlas-sidebar__chev h-4 w-4" />
-          </div>
+          </RouterLink>
           <RouterLink
             v-for="cat in rootCategories"
             :key="cat.id"
             :to="`/categories/${cat.slug}`"
             class="atlas-sidebar__row"
+            :class="{ 'atlas-sidebar__row--on': isActiveCategory(cat) }"
           >
             <img v-if="catIcon(cat)" class="atlas-sidebar__icon" :src="catIcon(cat)" :alt="getLocalizedText(cat.name)" loading="lazy" />
             <span v-else class="atlas-sidebar__icon atlas-thumb"></span>
@@ -51,47 +52,57 @@
           </RouterLink>
         </aside>
 
-        <!-- 右侧：推荐位 700 + 335，下排 3 × 335 -->
+        <!-- 右侧 1080px -->
         <div class="atlas-main-col">
-          <div v-if="promoSlots.length" class="atlas-reco-top">
-            <RouterLink
-              v-for="(slot, i) in promoSlots.slice(0, 1)"
-              :key="`t-${i}`"
-              class="atlas-reco-item"
-              :to="slot.to"
-            >
-              <div class="atlas-reco-item__fallback">
-                <span class="atlas-reco-item__kicker">{{ t('atlas.reco.kicker') }}</span>
-                <span class="atlas-reco-item__title">{{ slot.title }}</span>
-                <span class="atlas-reco-item__cta">{{ t('atlas.reco.cta') }}</span>
-              </div>
-            </RouterLink>
+          <!-- 未筛选：推荐位 700 + 335，下排 3 × 335 -->
+          <template v-if="!isFiltered">
+            <div v-if="firstPromo" class="atlas-reco-top">
+              <RouterLink class="atlas-reco-item" :to="firstPromo.to">
+                <div class="atlas-reco-item__fallback">
+                  <span class="atlas-reco-item__kicker">{{ t('atlas.reco.kicker') }}</span>
+                  <span class="atlas-reco-item__title">{{ firstPromo.title }}</span>
+                  <span class="atlas-reco-item__cta">{{ t('atlas.reco.cta') }}</span>
+                </div>
+              </RouterLink>
 
-            <div class="flex flex-col gap-5">
+              <div class="flex flex-col gap-5">
+                <RouterLink
+                  v-for="(slot, i) in promoSlots.slice(1, 3)"
+                  :key="`r-${i}`"
+                  class="atlas-reco-item"
+                  :to="slot.to"
+                >
+                  <div class="atlas-reco-item__fallback">
+                    <span class="atlas-reco-item__kicker">{{ t('atlas.reco.kicker') }}</span>
+                    <span class="atlas-reco-item__title" style="font-size: 20px">{{ slot.title }}</span>
+                  </div>
+                </RouterLink>
+              </div>
+            </div>
+
+            <div v-if="promoSlots.length > 3" class="atlas-reco-bottom">
               <RouterLink
-                v-for="(slot, i) in promoSlots.slice(1, 3)"
-                :key="`r-${i}`"
+                v-for="(slot, i) in promoSlots.slice(3, 6)"
+                :key="`b-${i}`"
                 class="atlas-reco-item"
                 :to="slot.to"
               >
                 <div class="atlas-reco-item__fallback">
-                  <span class="atlas-reco-item__kicker">{{ t('atlas.reco.kicker') }}</span>
                   <span class="atlas-reco-item__title" style="font-size: 20px">{{ slot.title }}</span>
                 </div>
               </RouterLink>
             </div>
-          </div>
+          </template>
 
-          <div v-if="promoSlots.length > 3" class="atlas-reco-bottom">
-            <RouterLink
-              v-for="(slot, i) in promoSlots.slice(3, 6)"
-              :key="`b-${i}`"
-              class="atlas-reco-item"
-              :to="slot.to"
-            >
-              <div class="atlas-reco-item__fallback">
-                <span class="atlas-reco-item__title" style="font-size: 20px">{{ slot.title }}</span>
-              </div>
+          <!-- 已筛选：把「当前在看什么」讲清楚，并提供清除入口 -->
+          <div v-else class="atlas-filterbar">
+            <div>
+              <h1 class="atlas-filterbar__title">{{ filterTitle }}</h1>
+              <p class="atlas-filterbar__sub">{{ t('atlas.home.resultCount', { count: totalCount }) }}</p>
+            </div>
+            <RouterLink to="/products" class="atlas-filterbar__clear">
+              <X class="h-3.5 w-3.5" />
+              {{ t('atlas.home.clearFilter') }}
             </RouterLink>
           </div>
         </div>
@@ -103,10 +114,12 @@
       <div class="atlas-module__content">
         <div class="atlas-module__descrow">
           <div>
-            <h2 class="atlas-module__title">{{ t('atlas.home.hot') }}</h2>
-            <p class="atlas-module__desc">{{ t('atlas.home.hotSub') }}</p>
+            <h2 class="atlas-module__title">{{ isFiltered ? filterTitle : t('atlas.home.hot') }}</h2>
+            <p class="atlas-module__desc">
+              {{ isFiltered ? t('atlas.home.resultCount', { count: totalCount }) : t('atlas.home.hotSub') }}
+            </p>
           </div>
-          <RouterLink to="/products" class="atlas-module__more">
+          <RouterLink v-if="!isFiltered" to="/products" class="atlas-module__more">
             {{ t('atlas.section.more') }}
             <ChevronRight class="h-3 w-3" />
           </RouterLink>
@@ -132,16 +145,27 @@
         </div>
 
         <EmptyState v-else variant="soft" size="md" icon="package" :title="t('products.empty')" />
+
+        <!-- 分页：参考站是极简数字条 -->
+        <nav v-if="totalPages > 1" class="atlas-pager">
+          <button class="atlas-pager__btn" type="button" :disabled="page <= 1" @click="changePage(page - 1)">
+            {{ t('products.previous') }}
+          </button>
+          <span class="atlas-pager__info">{{ page }} / {{ totalPages }}</span>
+          <button class="atlas-pager__btn" type="button" :disabled="page >= totalPages" @click="changePage(page + 1)">
+            {{ t('products.next') }}
+          </button>
+        </nav>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ChevronRight, Clock4, Headset, ShieldCheck, Truck } from 'lucide-vue-next'
+import { ChevronRight, Clock4, Headset, ShieldCheck, Truck, X } from 'lucide-vue-next'
 import { useAppStore } from '../../stores/app'
 import { useLocalized } from '../../composables/useProduct'
 import { usePageSeo } from '../../composables/usePageSeo'
@@ -152,12 +176,13 @@ import AtlasProductCard from './components/AtlasProductCard.vue'
 import EmptyState from '../../components/EmptyState.vue'
 
 const { t } = useI18n()
+const route = useRoute()
 const router = useRouter()
 const appStore = useAppStore()
 const { getLocalizedText } = useLocalized()
 
 const brandName = computed(() => String(appStore.config?.brand?.site_name || '').trim() || 'Atlas Store')
-usePageSeo({ canonicalPath: () => '/', title: () => brandName.value })
+usePageSeo({ canonicalPath: () => route.path, title: () => filterTitle.value || brandName.value })
 
 /* 信任徽章：参考站是 4 项、40px 图标、左图标右两行文字 */
 const trustItems = [
@@ -167,15 +192,45 @@ const trustItems = [
   { key: 'service', icon: Headset, titleKey: 'atlas.home.trust.service', subKey: 'atlas.home.trust.serviceSub' },
 ]
 
+const PAGE_SIZE = 12
+
 const loading = ref(true)
 const products = ref<any[]>([])
 const categories = ref<PublicCategory[]>([])
+const page = ref(1)
+const totalPages = ref(1)
+const totalCount = ref(0)
 
 const rootCategories = computed(() =>
   categories.value.filter((c) => !c.parent_id || c.parent_id === 0),
 )
 
 const catIcon = (cat: PublicCategory) => (cat.icon ? getImageUrl(cat.icon) : '')
+
+/**
+ * 当前筛选状态 —— 完全由地址栏驱动。
+ * 这一步是「分类点不动」的修复关键：
+ * 站点 template_mode = 'list' 时，/products 与 /categories/:slug 都由本组件渲染，
+ * 因此必须由本组件读取路由参数并据此过滤，否则点击后渲染的还是同一个页面。
+ */
+const activeSlug = computed(() => String(route.params.slug || '').trim())
+const activeSearch = computed(() => String(route.query.search || '').trim())
+
+const activeCategory = computed(() => {
+  if (!activeSlug.value) return null
+  return categories.value.find((c) => c.slug === activeSlug.value) || null
+})
+
+const isFiltered = computed(() => Boolean(activeSlug.value || activeSearch.value))
+
+const filterTitle = computed(() => {
+  if (activeCategory.value) return getLocalizedText(activeCategory.value.name)
+  if (activeSearch.value) return t('atlas.home.searchResult', { keyword: activeSearch.value })
+  return ''
+})
+
+const isActiveCategory = (cat: PublicCategory) =>
+  Boolean(activeSlug.value) && cat.slug === activeSlug.value
 
 /**
  * 推荐位（参考站 .recommend-top / .recommend-bottom）。
@@ -189,21 +244,135 @@ const promoSlots = computed(() =>
   })),
 )
 
+const firstPromo = computed(() => promoSlots.value[0])
+
+const loadProducts = async () => {
+  loading.value = true
+  try {
+    const params: Record<string, unknown> = { page: page.value, page_size: PAGE_SIZE }
+    if (activeCategory.value) params.category_id = activeCategory.value.id
+    if (activeSearch.value) params.search = activeSearch.value
+    const res: any = await productAPI.list(params)
+    products.value = res?.data?.data || []
+    totalPages.value = res?.data?.pagination?.total_page || 1
+    totalCount.value = res?.data?.pagination?.total || products.value.length
+  } catch {
+    products.value = []
+    totalPages.value = 1
+    totalCount.value = 0
+  } finally {
+    loading.value = false
+  }
+}
+
+const changePage = async (next: number) => {
+  if (next < 1 || next > totalPages.value) return
+  page.value = next
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+  await loadProducts()
+}
+
 const goToProduct = (slug: string) => router.push(`/products/${slug}`)
 
+/**
+ * 路由变化 → 重新过滤。
+ * 覆盖三种入口：侧栏分类、顶部分类导航条、顶部搜索框。
+ */
+watch(
+  () => [route.params.slug, route.query.search],
+  async () => {
+    page.value = 1
+    // 分类数据可能还没到（直接打开 /categories/x 时），先等分类加载完再过滤
+    if (activeSlug.value && !categories.value.length) await loadCategories()
+    await loadProducts()
+  },
+)
+
+const loadCategories = async () => {
+  try {
+    const res: any = await categoryAPI.list()
+    categories.value = res?.data?.data || []
+  } catch {
+    categories.value = []
+  }
+}
+
 onMounted(async () => {
-  const [productsRes, categoriesRes] = await Promise.allSettled([
-    productAPI.list({ page: 1, page_size: 8 }),
-    categoryAPI.list(),
-  ])
-  if (productsRes.status === 'fulfilled') products.value = productsRes.value?.data?.data || []
-  if (categoriesRes.status === 'fulfilled') categories.value = categoriesRes.value?.data?.data || []
-  loading.value = false
+  await loadCategories()
+  await loadProducts()
 })
 </script>
 
 <style scoped>
-/* 参考站该行内容为 1340 版心；窄屏时允许换行 */
+/* 筛选态的信息条：明确告诉用户「现在在看什么」并给清除入口 */
+.atlas-filterbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px;
+  border-radius: var(--r-sidebar);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.atlas-filterbar__title {
+  font-family: var(--font-head);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.atlas-filterbar__sub {
+  margin-top: 4px;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+.atlas-filterbar__clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  color: var(--ink-2);
+  font-size: 13px;
+  transition: all var(--dur) var(--ease);
+}
+
+.atlas-filterbar__clear:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* 分页 */
+.atlas-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.atlas-pager__btn {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  font-size: 13px;
+  transition: border-color var(--dur) var(--ease);
+}
+
+.atlas-pager__btn:hover:not(:disabled) { border-color: var(--ink); }
+.atlas-pager__btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.atlas-pager__info { color: var(--ink-3); font-size: 13px; }
+
 @media (max-width: 1180px) {
   .atlas-trustbar__row {
     flex-wrap: wrap;

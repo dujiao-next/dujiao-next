@@ -178,6 +178,22 @@
     }
   },
   "atlas": {
+      "detail": {
+        "tips": "請遵守所在國家／地區法律法規及相關平台規則，違規用途後果自負。",
+        "specTitle": "規格",
+        "selectSku": "請先選擇規格",
+        "price": "價格",
+        "desc": "商品說明",
+        "noDesc": "該商品暫無說明",
+        "badge": {
+          "official": "官方渠道",
+          "officialSub": "正規來源可查",
+          "instant": "極速出貨",
+          "instantSub": "最快即時交付",
+          "after": "售後無憂",
+          "afterSub": "問題及時回應"
+        }
+      },
       "brand": {
         "sub": "官方商店"
       },
@@ -228,6 +244,9 @@
         "recommend": "推薦"
       },
       "home": {
+        "resultCount": "共 {count} 件商品",
+        "clearFilter": "清除篩選",
+        "searchResult": "「{keyword}」的搜尋結果",
         "heroTagline": "帳號 · 訂閱 · 禮品卡，一站備齊",
         "hot": "熱門商品",
         "hotSub": "平台最受歡迎產品",
