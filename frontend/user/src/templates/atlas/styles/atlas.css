@@ -392,12 +392,17 @@ body.atlas-tokens {
   height: 40px;
 }
 
+/* 导航项由 RouterLink(<a>) 改成 <button>：它们是页内锚点定位，不是链接。
+   样式上要补回 <a> 的默认表现 —— 无边框、透明底、可点击指针、字体继承。 */
 .atlas-navbar__item {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   height: 34px;
   padding: 0 20px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
   border-radius: var(--r-nav);
   color: var(--dark-ink-dim);
   font-size: 14px;
@@ -487,13 +492,22 @@ body.atlas-tokens {
   background: var(--strip);
 }
 
+/* 整块 banner 就是「立即选购」按钮（页内滚动到商品区，见 Home.vue 的 goShopNow）。
+   由 <a> 改成 <button> 后要显式补三件事：
+     · width:100%  —— button 的 width:auto 是收缩到内容宽，不像块级 <a> 那样撑满
+     · text-align  —— button 默认居中，<a> 继承的是 left
+     · border/cursor —— 清掉 UA 边框并给出可点击指针 */
 .atlas-banner__slide {
   display: flex;
   align-items: center;
+  width: 100%;
   height: 70px;
   padding: 0 28px;
+  border: 0;
   background: linear-gradient(96deg, #1b1f4b 0%, #3a2a7a 45%, #1f2b6b 100%);
   color: #fff;
+  text-align: left;
+  cursor: pointer;
 }
 
 .atlas-banner__title {

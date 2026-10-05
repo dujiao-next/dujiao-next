@@ -150,13 +150,48 @@ http://localhost:5173/?template=atlas
 
 | 交互 | 实现位置 | 说明 |
 |---|---|---|
-| 分类切换 | `Products.vue` `selectCategory()` | 同步写入地址栏 `/categories/:slug`，可分享可刷新；并重置到第 1 页 |
+| 顶部分类按钮 | `AtlasLayout` `goCategory()` | **页内锚点定位**：原地筛选（只改 `query.category`）+ 平滑滚到 `#atlas-catalog`，不跳 `/categories/:slug` |
+| 「立即选购」banner | `Home.vue` `goShopNow()` | **页内锚点定位**：滚到 `#atlas-products`，不改地址、不动筛选状态 |
+| 顶部「首页」按钮 | `AtlasLayout` `goHome()` | 回到页面顶部 |
+| 顶部「HOT」按钮 | `AtlasLayout` `goHotProducts()` | 滚到 `#atlas-products` |
+| 顶部「购物车」按钮 | `AtlasLayout` | 保持跳转 `/cart` —— 它是独立页面，页内没有对应区块 |
+| 分类切换（列表页侧栏） | `Products.vue` `selectCategory()` | 写入 `/categories/:slug`，可分享可刷新；并重置到第 1 页 |
 | 分页 | `Products.vue` `changePage()` | 切页回到顶部（`behavior: 'smooth'`） |
 | 商品卡 → 详情 | `AtlasProductCard` emit `click` → `router.push('/products/:slug')` | 整卡可点 |
 | 语言切换 | `AtlasLayout` | 走 `appStore.setLocale()`，与 classic 同一状态源 |
 | 购物车角标 | `AtlasLayout` | 读 `cartStore.totalItems`，实时更新 |
 | 浮层点击外部关闭 | `AtlasLayout` `onDocClick` | 语言 / 移动端菜单 |
 | Teleport 浮层配色 | `AtlasLayout` 挂 `body.atlas-tokens` | Toast / ConfirmDialog / Select 下拉会 Teleport 到 body，不挂这个 class 就会退回 classic 调色板 |
+
+### 页内锚点定位（顶部导航 / 立即选购）
+
+锚点 id 定义在 `anchor.ts`，布局层（`AtlasLayout`）与页面层（`Home.vue`）共用同一份，
+避免两边写散、改一处漏一处：
+
+| 锚点 | 挂在哪个元素 | 为什么是它 |
+|---|---|---|
+| `#atlas-catalog` | 三栏主区外层 `.atlas-shell` | 上方（信任徽章 + banner）高度固定，落点稳；侧栏本身会随筛选变高变矮 |
+| `#atlas-products` | 商品模块（未筛选是整宽分区，已筛选是主列里的紧凑网格） | 两处挂同一个 id，但同一时刻只渲染一个，不冲突 |
+
+滚动由 `utils/anchorScroll.ts` 的 `scrollToAnchor()` 负责，不是一句
+`scrollIntoView()`：
+
+- **按帧校正**：目标区块上方常有异步渲染的内容（推荐位、分类列表），接口返回后会把
+  区块整体下推，只滚一次会停在推之前的旧位置。这里用「元素在文档中的绝对 Y」
+  （`rect.top + scrollY`，不随滚动变、只在布局变时变）判断落点是否被推走并重新瞄准。
+- **让开 sticky 公告条**：`atlasStickyOffset()` 实时量 `.atlas-notice` 的高度当偏移，
+  公告条被关掉后自动变 0，不会白留一截。
+- **被推走兜底**：Vue Router 的 `scrollBehavior` 在没有 hash 时返回 `{ top: 0 }`，
+  导航后会补一次 `window.scrollTo({ top: 0 })`。实测它通常早于本函数的第一帧
+  （microtask vs rAF，相差约 7ms），但时序一旦反转就会把落点推回顶部 ——
+  所以额外检测「到目标的距离突然变大」并重新瞄准。
+- **跨页情况**：导航条在每个页面都渲染，但锚点只在首页。当前页面没有该锚点时
+  先 `router.push('/')`，`await` 导航完成后再滚；`scrollToAnchor` 内部还会等
+  元素出现（`waitFrames`）并校正落点。
+
+实测（无头 Chrome + CDP，9 个场景全部命中，落点误差 0px）：未筛选/已筛选 ×
+分类按钮/立即选购/HOT、公告条开与关、详情页跨页返回、购物车跳转。
+
 
 **参考站有、但本站刻意不做的交互**：它的详情页只有「立即购买」、没有购物车
 （直购流程）。本站保留购物车 —— 这是项目既有能力，不能为了像参考站而砍掉。

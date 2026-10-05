@@ -83,26 +83,38 @@
       </div>
     </header>
 
-    <!-- ==================== 分类导航条：40px + 2px 红下边框 ==================== -->
+    <!-- ==================== 分类导航条：40px + 2px 红下边框 ====================
+         这里的项一律是「页内锚点定位」，不再是跳到另一个菜单页的链接。
+         购物车是唯一例外 —— 它是独立页面，页内没有对应区块。 -->
     <nav class="atlas-navbar">
       <div class="atlas-shell atlas-navbar__row">
-        <RouterLink to="/" class="atlas-navbar__item" exact-active-class="atlas-navbar__item--on">
+        <button
+          type="button"
+          class="atlas-navbar__item"
+          :class="{ 'atlas-navbar__item--on': isHomeActive }"
+          @click="goHome"
+        >
           {{ t('nav.home') }}
-        </RouterLink>
-        <RouterLink
+        </button>
+        <button
           v-for="cat in navCategories"
           :key="cat.id"
-          :to="`/categories/${cat.slug}`"
+          type="button"
           class="atlas-navbar__item"
-          active-class="atlas-navbar__item--on"
-        >{{ getLocalizedText(cat.name) }}</RouterLink>
+          :class="{ 'atlas-navbar__item--on': isNavCategoryActive(cat) }"
+          @click="goCategory(cat)"
+        >{{ getLocalizedText(cat.name) }}</button>
 
-        <!-- 参考站末尾有一个带图标 + HOT 的高亮入口 -->
-        <RouterLink to="/products" class="atlas-navbar__item atlas-navbar__item--hot">
+        <!-- 参考站末尾有一个带图标 + HOT 的高亮入口；这里是「热门商品区」的锚点 -->
+        <button
+          type="button"
+          class="atlas-navbar__item atlas-navbar__item--hot"
+          @click="goHotProducts"
+        >
           <Sparkles class="h-[18px] w-[18px]" />
           {{ t('atlas.nav.hot') }}
           <span class="atlas-navbar__hot">HOT</span>
-        </RouterLink>
+        </button>
 
         <RouterLink to="/cart" class="atlas-navbar__item ml-auto">
           <ShoppingCart class="h-[17px] w-[17px]" />
@@ -215,7 +227,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
   ArrowUp, ChevronDown, Headset, Rocket, Search, SearchCheck, ShoppingCart, Sparkles, X,
@@ -228,11 +240,14 @@ import { useLocalized } from '../../../composables/useProduct'
 import { toast } from '../../../composables/useToast'
 import { categoryAPI } from '../../../api/product'
 import { getImageUrl } from '../../../utils/image'
+import { scrollToAnchor } from '../../../utils/anchorScroll'
 import { getLocalizedText as getResellerText } from '../../../utils/resellerSiteConfig'
 import type { PublicCategory } from '../../../utils/category'
+import { ATLAS_ANCHOR, atlasStickyOffset } from '../anchor'
 import '../styles/atlas.css'
 
 const { t } = useI18n()
+const route = useRoute()
 const router = useRouter()
 const appStore = useAppStore()
 const cartStore = useCartStore()
@@ -315,6 +330,63 @@ const toggleLang = () => { langOpen.value = !langOpen.value }
 const submitSearch = () => {
   const q = keyword.value.trim()
   router.push(q ? { path: '/products', query: { search: q } } : { path: '/products' })
+}
+
+/* =====================================================================
+   顶部导航的页内定位
+   ---------------------------------------------------------------------
+   导航条在 atlas 的每个页面都渲染，但锚点区块只存在于首页（Home.vue）。
+   所以这里分两种情况：当前页面已有该区块 → 只滚；没有 → 先把路径导回
+   首页，等 Home 挂载出锚点后再滚。
+   ===================================================================== */
+
+/** 当前页面是否已经渲染了该锚点 */
+const hasAnchor = (id: string) => Boolean(document.getElementById(id))
+
+/** 首页按钮高亮：只在真正的首页路径上（复用 Home 的 /products 不算） */
+const isHomeActive = computed(() => route.path === '/')
+
+/** 导航条分类高亮：与 Home 的 activeSlug 口径一致，路径参数与查询参数都要认 */
+const isNavCategoryActive = (cat: PublicCategory) => {
+  const slug = String(route.params.slug || route.query.category || '').trim()
+  return Boolean(slug) && slug === cat.slug
+}
+
+/**
+ * 分类按钮：原地筛选 + 滚动到分类区，不再跳到别的菜单页。
+ *
+ * 原来写的是 RouterLink → /categories/<slug>：
+ *   · template_mode='card' 时那条路由由 Products.vue 渲染，直接换了一个页面；
+ *   · 即便由 Home 渲染，也是换路由记录而不是原地更新。
+ * 现在只改 query —— Home 的 activeSlug 同时认 params.slug 与 query.category，
+ * 同一路由记录下只改 query 时 Vue Router 复用组件、不卸载不重挂，页面留在原地，
+ * 筛选结果直接反映到分类区下方的商品区，再把视口平滑定位到分类区。
+ */
+const goCategory = async (cat: PublicCategory) => {
+  const query = { ...route.query, category: cat.slug }
+
+  // Home 里 activeSlug = params.slug || query.category，params 优先。
+  // 当前路径带 :slug 时改 query 筛不动，必须把 path 导回 '/'。
+  // 另外当前页面压根没有分类区（商品详情页、购物车等）时也得先回首页。
+  const canFilterInPlace = !route.params.slug && hasAnchor(ATLAS_ANCHOR.catalog)
+  if (canFilterInPlace) await router.replace({ query })
+  else await router.push({ path: '/', query })
+
+  // 导航完成后再滚：Home 是异步组件，首次进入时锚点要等它挂载才出现
+  // （scrollToAnchor 内部还会再等一段时间，并按帧校正被异步内容推走的落点）
+  scrollToAnchor(ATLAS_ANCHOR.catalog, { offset: atlasStickyOffset })
+}
+
+/** 首页按钮：回到页面顶部 —— 它对应的是首页的头部区域，不是另一个菜单页 */
+const goHome = async () => {
+  if (route.path !== '/') await router.push('/')
+  scrollToTop()
+}
+
+/** HOT 按钮：定位到商品区（未筛选是整宽热门分区，已筛选是主列里的商品网格） */
+const goHotProducts = async () => {
+  if (!hasAnchor(ATLAS_ANCHOR.products)) await router.push({ path: '/', query: { ...route.query } })
+  scrollToAnchor(ATLAS_ANCHOR.products, { offset: atlasStickyOffset })
 }
 
 const closeNotice = () => {

@@ -13,12 +13,15 @@
       </div>
     </section>
 
-    <!-- ==================== 轮播 banner：1340x70 圆角 12 ==================== -->
+    <!-- ==================== 轮播 banner：1340x70 圆角 12 ====================
+         整块 banner 就是「立即选购」按钮。
+         原来是 RouterLink → /products（跳到商品列表页），现在改成页内滚动：
+         文案是「全量商品 即刻选购」，对应的就是本页下方的商品区。 -->
     <div class="atlas-banner relative">
-      <RouterLink to="/products" class="atlas-banner__slide">
+      <button type="button" class="atlas-banner__slide" @click="goShopNow">
         <span class="atlas-banner__title">{{ t('atlas.banner.title') }}</span>
         <span class="atlas-banner__cta">{{ t('atlas.banner.cta') }}</span>
-      </RouterLink>
+      </button>
       <div class="atlas-banner__dots">
         <span
           v-for="n in 3"
@@ -29,8 +32,12 @@
       </div>
     </div>
 
-    <!-- ==================== 三栏主区：240 侧栏 + 1080 内容 ==================== -->
-    <div class="atlas-shell">
+    <!-- ==================== 三栏主区：240 侧栏 + 1080 内容 ====================
+         这里是顶部分类按钮的落点（ATLAS_ANCHOR.catalog）。
+         为什么锚在「三栏主区」而不是侧栏本身：筛选会让推荐位消失、主列换成紧凑
+         网格，区块高度变化很大；而三栏主区上方（信任徽章 + banner）高度固定，
+         滚到它的顶部落点才是稳的。 -->
+    <div :id="ATLAS_ANCHOR.catalog" class="atlas-shell">
       <div class="atlas-home-main">
         <!-- 左侧：推荐（红底表头 + 分类行，选中态跟随地址栏） -->
         <aside class="atlas-sidebar">
@@ -110,6 +117,7 @@
             <!-- 筛选态不再渲染标题/计数条：侧栏选中项已经说明「在看哪个分类」，
                  再放一条同样的标题就是重复占位。清除筛选 = 再点一次选中的分类。 -->
             <AtlasGoodsModule
+              :id="ATLAS_ANCHOR.products"
               compact
               :products="products"
               :loading="loading"
@@ -128,6 +136,7 @@
          行高推下去。 -->
     <AtlasGoodsModule
       v-if="!isFiltered"
+      :id="ATLAS_ANCHOR.products"
       :title="t('atlas.home.hot')"
       :desc="t('atlas.home.hotSub')"
       :products="products"
@@ -157,7 +166,9 @@ import { useLocalized } from '../../composables/useProduct'
 import { usePageSeo } from '../../composables/usePageSeo'
 import { productAPI, categoryAPI } from '../../api/product'
 import { getImageUrl } from '../../utils/image'
+import { scrollToAnchor } from '../../utils/anchorScroll'
 import type { PublicCategory } from '../../utils/category'
+import { ATLAS_ANCHOR, atlasStickyOffset } from './anchor'
 import AtlasGoodsModule from './components/AtlasGoodsModule.vue'
 import AtlasPromoCard from './components/AtlasPromoCard.vue'
 
@@ -329,6 +340,16 @@ const changePage = async (next: number) => {
 }
 
 const goToProduct = (slug: string) => router.push(`/products/${slug}`)
+
+/**
+ * banner「立即选购」→ 页内商品区。
+ *
+ * 原来是 RouterLink → /products：那会换路由记录，在 template_mode='card' 下
+ * 直接渲染成 Products.vue，表现就是「点一下跳到另一个菜单页」。
+ * 现在只滚动，不改地址、不改筛选状态 —— banner 文案是「全量商品 即刻选购」，
+ * 对应本页下方的商品区，用户的筛选状态不该被一个浏览动作重置。
+ */
+const goShopNow = () => scrollToAnchor(ATLAS_ANCHOR.products, { offset: atlasStickyOffset })
 
 /**
  * 路由变化 → 重新过滤。
