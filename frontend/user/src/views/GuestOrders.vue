@@ -46,10 +46,10 @@
             <div class="text-lg font-bold text-foreground mt-1">{{ formatMoney(order.total_amount,
               order.currency) }}</div>
             <div v-if="hasDiscount(order)" class="text-xs text-muted-foreground mt-1">
-              <span v-if="hasDiscountAmount(order.discount_amount)" class="text-rose-600 dark:text-rose-300">
+              <span v-if="hasDiscountAmount(order.discount_amount)" class="theme-price-promotion">
                 {{ t('orderDetail.couponDiscountLabel') }}：{{ formatDiscountMoney(order.discount_amount, order.currency) }}
               </span>
-              <span v-if="hasDiscountAmount(order.promotion_discount_amount)" class="ml-2 text-rose-600 dark:text-rose-300">
+              <span v-if="hasDiscountAmount(order.promotion_discount_amount)" class="ml-2 theme-price-promotion">
                 {{ t('orderDetail.promotionDiscountLabel') }}：{{ formatDiscountMoney(order.promotion_discount_amount,
                   order.currency) }}
               </span>

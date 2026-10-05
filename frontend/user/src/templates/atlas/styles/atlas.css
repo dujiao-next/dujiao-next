@@ -152,6 +152,76 @@ body.atlas-tokens {
   --dur: 180ms;
 }
 
+/* =======================================================================
+   经典页面配色对齐：--ui-* → atlas 调色板
+   -------------------------------------------------------------------------
+   atlas 只覆盖了首页 / 商品列表 / 商品详情，其余页面（购物车、登录注册、
+   游客查账、结算、个人中心…）仍由 classic 的 views/*.vue 渲染。它们一律用
+   Tailwind 的语义色类（bg-background / text-muted-foreground / border-border…），
+   而这些类最终都指向 style.css 里的 --ui-* 变量。
+
+   所以只要在 atlas 作用域内把这组变量重指向 atlas 调色板，这些页面就自动
+   换上 atlas 的配色 —— 不新增、不移动、不缩放任何元素，是纯变量重映射。
+
+   两个作用域都要写：
+     · .atlas-scope      —— 页面内容（含 classic 组件）都渲染在 AtlasLayout 里
+     · body.atlas-tokens —— Toast / ConfirmDialog / 公告弹窗 / Select 下拉等
+                            Teleport 到 <body> 的浮层，落在 .atlas-scope 之外
+
+   为什么不加 .dark 分支：atlas 的调色板本身不做暗色适配（--bg / --surface /
+   --ink 都是固定浅色）。这组变量定义在 body 上，按 CSS 变量继承规则会覆盖
+   html.dark 的同名变量，于是系统偏好暗色时这些页面也跟随 atlas 保持浅色，
+   与始终浅色的外壳一致。
+
+   只改颜色：半径 / 阴影 / 间距 / 字号 / 动效时长一律不动。
+   ======================================================================= */
+.atlas-scope,
+body.atlas-tokens {
+  /* 背景 */
+  --ui-bg-page: var(--bg);
+  --ui-bg-elevated: var(--surface);
+  --ui-bg-soft: var(--surface-2);
+  --ui-bg-muted: var(--placeholder);
+  --ui-bg-overlay: rgba(255, 255, 255, 0.8);
+  --ui-bg-overlay-strong: rgba(255, 255, 255, 0.92);
+
+  /* 文字 */
+  --ui-text-primary: var(--ink);
+  --ui-text-secondary: var(--ink-2);
+  --ui-text-muted: var(--ink-3);
+  --ui-text-on-accent: var(--on-accent);
+
+  /* 描边 */
+  --ui-border: var(--border);
+  --ui-border-strong: var(--border-strong);
+
+  /* 主色：atlas 的单一红强调。focus-ring 与 --accent 同色、仅提高不透明度 */
+  --ui-accent: var(--accent);
+  --ui-accent-hover: var(--accent-hover);
+  --ui-accent-soft: var(--accent-soft);
+  --ui-focus-ring: rgba(230, 0, 39, 0.22);
+
+  /* 语义色 */
+  --ui-success: var(--ok);
+  --ui-success-soft: rgba(31, 122, 77, 0.14);
+  --ui-warning: var(--warn);
+  --ui-warning-soft: rgba(168, 98, 10, 0.15);
+  --ui-danger: var(--danger);
+  --ui-danger-soft: rgba(196, 0, 33, 0.15);
+  /* atlas 刻意只留一个强调色，没有独立的 info 蓝；「信息类」提示用中性深灰承接，
+     免得再多一个颜色与主色抢注意力。 */
+  --ui-info: var(--ink-2);
+  --ui-info-soft: rgba(0, 0, 0, 0.06);
+
+  /* 暖色（推广合作）/ 价格 */
+  --ui-accent-warm: var(--gold);
+  --ui-accent-warm-hover: #b8860a;
+  --ui-accent-warm-soft: rgba(212, 156, 10, 0.14);
+  --ui-price-primary: var(--ink);
+  --ui-price-promotion: var(--accent);
+  --ui-price-original: var(--ink-3);
+}
+
 /* ---------- 作用域基础 ---------- */
 .atlas-scope {
   background-color: var(--bg);
