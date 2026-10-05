@@ -69,40 +69,36 @@
           <!-- 未筛选：推荐位 700 + 335，下排 3 × 335 -->
           <template v-if="!isFiltered">
             <div v-if="firstPromo" class="atlas-reco-top">
-              <RouterLink class="atlas-reco-item" :to="firstPromo.to">
-                <div class="atlas-reco-item__fallback">
-                  <span class="atlas-reco-item__kicker">{{ t('atlas.reco.kicker') }}</span>
-                  <span class="atlas-reco-item__title">{{ firstPromo.title }}</span>
-                  <span class="atlas-reco-item__cta">{{ t('atlas.reco.cta') }}</span>
-                </div>
-              </RouterLink>
+              <AtlasPromoCard
+                large
+                :to="firstPromo.to"
+                :title="firstPromo.title"
+                :image="firstPromo.image"
+                :desc="firstPromo.desc"
+                :cta="t('atlas.reco.cta')"
+              />
 
               <div class="flex flex-col gap-5">
-                <RouterLink
+                <AtlasPromoCard
                   v-for="(slot, i) in promoSlots.slice(1, 3)"
                   :key="`r-${i}`"
-                  class="atlas-reco-item"
                   :to="slot.to"
-                >
-                  <div class="atlas-reco-item__fallback">
-                    <span class="atlas-reco-item__kicker">{{ t('atlas.reco.kicker') }}</span>
-                    <span class="atlas-reco-item__title" style="font-size: 20px">{{ slot.title }}</span>
-                  </div>
-                </RouterLink>
+                  :title="slot.title"
+                  :image="slot.image"
+                  :desc="slot.desc"
+                />
               </div>
             </div>
 
             <div v-if="promoSlots.length > 3" class="atlas-reco-bottom">
-              <RouterLink
+              <AtlasPromoCard
                 v-for="(slot, i) in promoSlots.slice(3, 6)"
                 :key="`b-${i}`"
-                class="atlas-reco-item"
                 :to="slot.to"
-              >
-                <div class="atlas-reco-item__fallback">
-                  <span class="atlas-reco-item__title" style="font-size: 20px">{{ slot.title }}</span>
-                </div>
-              </RouterLink>
+                :title="slot.title"
+                :image="slot.image"
+                :desc="slot.desc"
+              />
             </div>
           </template>
 
@@ -164,6 +160,7 @@ import { productAPI, categoryAPI } from '../../api/product'
 import { getImageUrl } from '../../utils/image'
 import type { PublicCategory } from '../../utils/category'
 import AtlasGoodsModule from './components/AtlasGoodsModule.vue'
+import AtlasPromoCard from './components/AtlasPromoCard.vue'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -182,12 +179,10 @@ const trustItems = [
 ]
 
 /**
- * 每页固定 3 行：
- *   未筛选 → 整宽分区 4 列，3 行 = 12 条
- *   已筛选 → 主列紧凑 3 列，3 行 = 9 条
- * 超出部分自动进下一页（后端按 page_size 分页）。
+ * 每页固定 3 行。两种状态的列数都是 4（整宽分区 / 主列紧凑态一致），
+ * 所以 4 列 × 3 行 = 12 条，超出部分由后端分页到下一页。
  */
-const pageSize = computed(() => (isFiltered.value ? 9 : 12))
+const PAGE_SIZE = 12
 
 const loading = ref(true)
 const products = ref<any[]>([])
@@ -262,23 +257,58 @@ const clearCategory = () => {
 }
 
 /**
- * 推荐位（参考站 .recommend-top / .recommend-bottom）。
- * 参考站放的是运营配的促销图；这里用本站的一级分类填充同样数量的卡位 ——
- * 几何与数量完全一致，内容来自本站数据，不引用参考站图片。
+ * 推荐位（参考站 .recommend-top / .recommend-bottom 的 6 个卡位：700 + 335×2 + 335×3）。
+ * 参考站这里放的是运营配图；本站没有配图来源，按需求「直接使用商品图片作为图标」，
+ * 于是取商品来填这 6 个卡位 —— 几何与数量不变，且每张卡都有图。
+ *
+ * 取法：**每个一级分类各取 1 个商品**，而不是取列表前 6 个。
+ * 列表前 6 个常常是同一系列（同一分类的多个规格），那样 6 张推荐位会长得几乎一样。
  */
-const promoSlots = computed(() =>
-  rootCategories.value.slice(0, 6).map((cat) => ({
-    title: getLocalizedText(cat.name),
-    to: `/categories/${cat.slug}`,
-  })),
-)
-
+const promoSlots = ref<Array<{ to: string; title: string; image: string; desc: string }>>([])
 const firstPromo = computed(() => promoSlots.value[0])
+
+const toSlot = (p: any) => {
+  const tags = Array.isArray(p?.tags) ? p.tags : []
+  return {
+    to: `/products/${p?.slug}`,
+    title: getLocalizedText(p?.title),
+    image: p?.images?.[0] ? getImageUrl(p.images[0]) : '',
+    desc: tags
+      .map((tag: any) => (typeof tag === 'string' ? tag : getLocalizedText(tag?.name ?? tag)))
+      .filter((tag: string) => tag)
+      .slice(0, 3)
+      .join(','),
+  }
+}
+
+const buildPromoSlots = async () => {
+  const cats = rootCategories.value.slice(0, 6)
+  const picked: any[] = []
+
+  if (cats.length) {
+    const results = await Promise.allSettled(
+      cats.map((cat) => productAPI.list({ page: 1, page_size: 1, category_id: cat.id })),
+    )
+    for (const r of results) {
+      if (r.status !== 'fulfilled') continue
+      const p = (r.value as any)?.data?.data?.[0]
+      if (p) picked.push(p)
+    }
+  }
+
+  // 某些分类没有商品时，用已加载的列表补齐，保证 6 个卡位不空
+  for (const p of products.value) {
+    if (picked.length >= 6) break
+    if (!picked.some((x) => x.id === p.id)) picked.push(p)
+  }
+
+  promoSlots.value = picked.slice(0, 6).map(toSlot)
+}
 
 const loadProducts = async () => {
   loading.value = true
   try {
-    const params: Record<string, unknown> = { page: page.value, page_size: pageSize.value }
+    const params: Record<string, unknown> = { page: page.value, page_size: PAGE_SIZE }
     if (activeCategory.value) params.category_id = activeCategory.value.id
     if (activeSearch.value) params.search = activeSearch.value
     const res: any = await productAPI.list(params)
@@ -327,6 +357,8 @@ const loadCategories = async () => {
 onMounted(async () => {
   await loadCategories()
   await loadProducts()
+  // 推荐位需要「每个一级分类各取一个」，依赖分类与商品都就绪
+  await buildPromoSlots()
 })
 </script>
 

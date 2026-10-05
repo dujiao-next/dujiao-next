@@ -22,7 +22,7 @@
           .sale              「起」12px #aaa
     悬停时底图放大到 1.5 倍。
   -->
-  <article class="atlas-pcard" @click="$emit('click', product.slug)">
+  <article class="atlas-pcard" :class="compact && 'atlas-pcard--sm'" @click="$emit('click', product.slug)">
     <div class="atlas-pcard__top">
       <div class="atlas-pcard__mask">
         <img v-if="cover" class="atlas-pcard__bg" :src="cover" alt="" aria-hidden="true" />
@@ -63,8 +63,10 @@ const props = withDefaults(
   defineProps<{
     product: any
     maxTags?: number
+    /** 紧凑尺寸：参考站分类页的 .item.long —— 260x159 / 上半部 120 / 图标 64 */
+    compact?: boolean
   }>(),
-  { maxTags: 3 },
+  { maxTags: 3, compact: false },
 )
 
 defineEmits<{ click: [slug: string] }>()
@@ -108,13 +110,36 @@ const amountText = computed(() => {
 </script>
 
 <style scoped>
-/* 卡片本体：302x180 定尺，网格给到 ~303 宽，所以用 width:100% + 固定高 */
+/*
+  尺寸用 CSS 变量切换，避免两套重复规则。
+  参考站有两套：
+    .recommend-item（整宽分区/首页热门）302x180; 上半部 134; 图标 70; 标题 max-w 160
+    .item.long（分类页紧凑）              260x159; 上半部 120; 图标 64; 标题 max-w 140
+*/
+.atlas-pcard {
+  --pc-h: 180px;
+  --pc-top: 134px;
+  --pc-icon: 70px;
+  --pc-titlew: 160px;
+  --pc-titleweight: 700;
+  --pc-bottompad: 10px;
+}
+
+.atlas-pcard--sm {
+  --pc-h: 159px;
+  --pc-top: 120px;
+  --pc-icon: 64px;
+  --pc-titlew: 140px;
+  --pc-titleweight: 600;
+  --pc-bottompad: 8px;
+}
+
 .atlas-pcard {
   position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
-  height: 180px;
+  height: var(--pc-h);
   border-radius: 8px;
   background: #ffffff;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
@@ -139,7 +164,7 @@ const amountText = computed(() => {
   align-items: center;
   justify-content: flex-start;
   gap: 15px;
-  height: 134px;
+  height: var(--pc-top);
   padding: 28px 26px;
   overflow: hidden;
   border-radius: 8px 8px 0 0;
@@ -154,7 +179,7 @@ const amountText = computed(() => {
   display: flex;
   align-items: center;
   width: 100%;
-  height: 134px;
+  height: var(--pc-top);
   overflow: hidden;
   background: #1a1a1a;
 }
@@ -177,8 +202,8 @@ const amountText = computed(() => {
   z-index: 1;
   display: grid;
   place-items: center;
-  width: 70px;
-  height: 70px;
+  width: var(--pc-icon);
+  height: var(--pc-icon);
   flex-shrink: 0;
   border-radius: 12px;
   overflow: hidden;
@@ -211,7 +236,7 @@ const amountText = computed(() => {
 
 .atlas-pcard__title {
   display: -webkit-box;
-  max-width: 160px;
+  max-width: var(--pc-titlew);
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -219,14 +244,14 @@ const amountText = computed(() => {
   margin: 0;
   color: #ffffff;
   font-size: 18px;
-  font-weight: 700;
+  font-weight: var(--pc-titleweight);
   line-height: 20px;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
 }
 
 .atlas-pcard__desc {
   display: inline-block;
-  max-width: 160px;
+  max-width: var(--pc-titlew);
   margin-top: 6px;
   padding: 0 8px;
   border-radius: 4px;
@@ -243,7 +268,7 @@ const amountText = computed(() => {
 .atlas-pcard__bottom {
   position: relative;
   z-index: 1;
-  padding: 10px;
+  padding: var(--pc-bottompad);
 }
 
 .atlas-pcard__info {

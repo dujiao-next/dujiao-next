@@ -658,7 +658,7 @@ body.atlas-tokens {
   flex: none;
 }
 
-/* 推荐位：700 + 335，gap 30；右列两张堆叠 */
+/* 推荐位容器：700 + 335，gap 30；右列两张堆叠（卡片样式见 AtlasPromoCard.vue） */
 .atlas-reco-top {
   display: grid;
   grid-template-columns: 700px 335px;
@@ -672,62 +672,9 @@ body.atlas-tokens {
   gap: 30px;
 }
 
-.atlas-reco-item {
-  position: relative;
-  display: block;
-  border-radius: var(--r-banner);
-  overflow: hidden;
-  box-shadow: var(--shadow-card);
-  background: var(--surface);
-  aspect-ratio: 335 / 178;
-}
-
-.atlas-reco-top .atlas-reco-item:first-child { aspect-ratio: 700 / 386; }
-
-.atlas-reco-item img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.atlas-reco-item__fallback {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  height: 100%;
-  padding: 22px 24px;
-  background: linear-gradient(140deg, #2b2f66 0%, #4b3a8f 55%, #22305f 100%);
-  color: #fff;
-}
-
-.atlas-reco-item__kicker {
-  font-size: 12px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.atlas-reco-item__title {
-  margin-top: 6px;
-  font-family: var(--font-head);
-  font-size: 26px;
-  font-weight: 700;
-  line-height: 1.2;
-}
-
-.atlas-reco-item__cta {
-  margin-top: 12px;
-  display: inline-flex;
-  align-items: center;
-  align-self: flex-start;
-  height: 32px;
-  padding: 0 16px;
-  border-radius: var(--r-pill);
-  background: #fff;
-  color: var(--dark);
-  font-size: 13px;
-  font-weight: 600;
+.atlas-reco-bottom > * {
+  width: 335px;
+  flex: none;
 }
 
 /* =======================================================================

@@ -33,6 +33,7 @@
           v-for="product in products"
           :key="product.id"
           :product="product"
+          :compact="compact"
           @click="$emit('select', $event)"
         />
       </div>
@@ -105,10 +106,9 @@ const skeletonCount = computed(() => (props.compact ? 6 : 8))
 .atlas-pager__info { color: var(--ink-3); font-size: 13px; }
 
 /*
-  紧凑态（收进主列时）：容器不再撑到 1340，改为填满主列宽度，网格降为 3 列。
-  为什么是 3 列而不是 4：卡片内部最窄需要「70px 图标 + 15 gap + 160 标题 +
-  52 内边距 ≈ 297px」，主列 1080 下 4 列只有 ~250px，会把标题挤变形；
-  3 列约 342px，卡片内部结构完整。
+  紧凑态（收进主列时）：容器填满主列宽度，网格按参考站分类页的 .list.long ——
+  repeat(4,1fr) + gap 20px 13px，卡片同步切到 .item.long 的紧凑尺寸（260x159）。
+  主列 1080 下算下来正好 (1080 - 3*13) / 4 = 260px，与参考站一致。
 */
 .atlas-module--compact {
   margin-bottom: 0;
@@ -116,12 +116,14 @@ const skeletonCount = computed(() => (props.compact ? 6 : 8))
 
 .atlas-module--compact .atlas-module__content {
   max-width: none;
-  padding: 24px 20px;
+  /* 左右不留内边距：参考站分类页的网格直接占满 1080，
+     4 列 × gap13 算下来才是 260px。留 20px 会挤成 250px，与参考站差 10px。 */
+  padding: 24px 0;
 }
 
 .atlas-module--compact .atlas-module__list {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px 13px;
 }
 
 .atlas-module--compact .atlas-module__title {
