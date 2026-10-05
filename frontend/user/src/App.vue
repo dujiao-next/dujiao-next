@@ -52,6 +52,7 @@ import MobileBottomNav from './components/MobileBottomNav.vue'
 const VaultLayout = defineAsyncComponent(() => import('./templates/vault/layout/VaultLayout.vue'))
 const EmberLayout = defineAsyncComponent(() => import('./templates/ember/layout/EmberLayout.vue'))
 const NovaLayout = defineAsyncComponent(() => import('./templates/nova/layout/NovaLayout.vue'))
+const AtlasLayout = defineAsyncComponent(() => import('./templates/atlas/layout/AtlasLayout.vue'))
 
 // config 由 router.beforeEach 统一加载，无需在此重复调用
 const appStore = useAppStore()
@@ -66,6 +67,7 @@ const templateShell = computed(() => {
   if (activeTemplate.value === 'ember') return EmberLayout
   if (activeTemplate.value === 'vault') return VaultLayout
   if (activeTemplate.value === 'nova') return NovaLayout
+  if (activeTemplate.value === 'atlas') return AtlasLayout
   return null
 })
 </script>

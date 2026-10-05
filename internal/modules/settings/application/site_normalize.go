@@ -318,6 +318,8 @@ func normalizeStorefrontTemplate(raw interface{}) string {
 		return constants.StorefrontTemplateEmber
 	case constants.StorefrontTemplateNova:
 		return constants.StorefrontTemplateNova
+	case constants.StorefrontTemplateAtlas:
+		return constants.StorefrontTemplateAtlas
 	default:
 		return constants.StorefrontTemplateDefault
 	}

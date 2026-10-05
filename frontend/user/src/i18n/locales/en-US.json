@@ -177,6 +177,41 @@
       "unitPriceTimes": "{price} × {qty}"
     }
   },
+  "atlas": {
+      "nav": {
+        "affiliate": "Affiliate",
+        "loginOrRegister": "Sign in / Register"
+      },
+      "footer": {
+        "tagline": "Accounts and subscriptions for individuals and teams, delivered instantly.",
+        "shop": "Shop",
+        "account": "Account",
+        "support": "Support",
+        "builtOn": "Test environment"
+      },
+      "section": {
+        "more": "View more"
+      },
+      "product": {
+        "from": "from"
+      },
+      "home": {
+        "heroTagline": "Accounts, subscriptions and gift cards in one place",
+        "hot": "Popular",
+        "hotSub": "Most ordered products",
+        "categories": "All categories",
+        "categoriesSub": "Find what you need by use case",
+        "viewAll": "Browse all products",
+        "trust": {
+          "fast": "Instant delivery",
+          "fastSub": "Delivered in under 5 minutes",
+          "global": "Widely trusted",
+          "globalSub": "Serving users worldwide",
+          "secure": "Secure payment",
+          "secureSub": "Official payment channels"
+        }
+      }
+    },
 
   "breadcrumb": {
     "label": "Breadcrumb",

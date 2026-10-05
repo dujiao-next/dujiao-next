@@ -177,6 +177,41 @@
       "unitPriceTimes": "{price} × {qty}"
     }
   },
+  "atlas": {
+      "nav": {
+        "affiliate": "推广合作",
+        "loginOrRegister": "登录 / 注册"
+      },
+      "footer": {
+        "tagline": "面向个人与团队的账号与订阅服务，即时交付。",
+        "shop": "商品",
+        "account": "账户",
+        "support": "支持",
+        "builtOn": "本站为测试环境"
+      },
+      "section": {
+        "more": "发现更多"
+      },
+      "product": {
+        "from": "起"
+      },
+      "home": {
+        "heroTagline": "账号 · 订阅 · 礼品卡，一站备齐",
+        "hot": "热门商品",
+        "hotSub": "平台最受欢迎产品",
+        "categories": "全部分类",
+        "categoriesSub": "按用途快速找到所需",
+        "viewAll": "查看全部商品",
+        "trust": {
+          "fast": "即时交付",
+          "fastSub": "发货时间少于 5 分钟",
+          "global": "被广泛信赖",
+          "globalSub": "服务全球用户",
+          "secure": "支付安全",
+          "secureSub": "官方渠道付款"
+        }
+      }
+    },
 
   "breadcrumb": {
     "label": "面包屑导航",

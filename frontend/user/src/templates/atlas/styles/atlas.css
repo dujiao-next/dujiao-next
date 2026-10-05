@@ -1,0 +1,368 @@
+/* =========================================================================
+   Atlas — 前台模板设计令牌
+   -------------------------------------------------------------------------
+   设计来源：参考站点 https://accboy7flybird.acceboy.com/ 的 :root CSS 变量
+   （直接抽取，非目测）：
+
+       --bodyBgColor      #F1F1F2   页面底色（浅冷灰）
+       --bgColor1         #fff      卡片 / 内容面板底
+       --bgColor2         #D8D8D8   图片占位底
+       --mainTextColor    #1A1A1A   主文字
+       --secondaryTextColor #333    次级文字
+       --mainColor        #E60027   强调红（价格「起」字、HOT 标、选中态）
+       --mainColorLight   #fa1b41   强调红亮色
+       --buttonBgColor    #242424   主按钮底（近黑，不是纯黑）
+       --buttonHoverBgColor #353535
+       --buttonTextColor  #fff
+       页脚底色           #000      纯黑
+       字体               D-DIN-PRO（DIN 系无衬线）
+
+   方向：**浅灰底 + 白卡 + 近黑按钮 + 单一红强调**。
+   这套配色的性格来自「工具感」而非「消费感」——圆角极小、几乎没有阴影、
+   靠底色分层而不是靠描边/投影。复刻时最容易被做错的两点：
+     1) 把 #242424 按钮写成纯黑或品牌红。参考站的主 CTA 是近黑，
+        红色只用于价格/标签/选中态这类「信息强调」，不用于主按钮。
+     2) 给卡片加大圆角和重投影。参考站是 4~8px 小圆角 + 极轻的阴影，
+        底色差（#F1F1F2 vs #fff）才是主要的分层手段。
+
+   字体：D-DIN-PRO 是参考站自托管的字体文件，**不引外部资源**。
+   改用「DIN 观感」的本地字体栈（Bahnschrift 随 Windows 分发、
+   DIN Alternate 随 macOS 分发），缺失时回退 Inter / 系统 UI，
+   不出现无字体状态，也不新增任何依赖。
+
+   作用域：全部选择器限定在 .atlas-scope / body.atlas-tokens 下，
+           不影响 classic / vault / ember / nova。
+   为什么令牌要额外挂一份到 body.atlas-tokens：
+           Toast / ConfirmDialog / 公告弹窗 / reka-ui 的 SelectContent 等浮层
+           都 Teleport 到 <body>，落在 .atlas-scope 之外。只写 .atlas-scope
+           的话这些浮层会退回 classic 的调色板。body 上的 class 由 AtlasLayout
+           挂载时打上、卸载时摘掉。
+   注意：只有「令牌」双挂；背景/字体/布局那几条仍只作用于 .atlas-scope，
+         否则会改掉 body 自身的布局。
+   ========================================================================= */
+
+/* ---------- Tokens ---------- */
+.atlas-scope,
+body.atlas-tokens {
+  /* 字体：DIN 观感优先，逐级回退，最后落到系统 UI */
+  --font-head: 'Bahnschrift', 'DIN Alternate', 'D-DIN-PRO', 'Inter Variable',
+    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Display',
+    'Segoe UI', 'PingFang SC', 'Microsoft YaHei UI', 'Noto Sans SC', sans-serif;
+  --font-body: 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont,
+    'Segoe UI Variable Text', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei UI',
+    'Noto Sans SC', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+
+  /* 底色分层 */
+  --bg: #f1f1f2;
+  --bg-soft: #f7f7f8;
+  --surface: #ffffff;
+  --surface-2: #f1f1f2;
+  --placeholder: #d8d8d8;
+
+  /* 文字 */
+  --ink: #1a1a1a;
+  --ink-2: #333333;
+  --ink-3: #6b6b70;
+  --ink-4: #9a9aa0;
+
+  /* 描边（参考站几乎不用描边，只在输入框/分隔处出现） */
+  --border: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.16);
+
+  /* 强调红：只用于价格、标签、选中态 */
+  --accent: #e60027;
+  --accent-hover: #c40021;
+  --accent-light: #fa1b41;
+  --accent-soft: rgba(230, 0, 39, 0.08);
+
+  /* 主按钮：近黑，不是纯黑也不是红 */
+  --btn: #242424;
+  --btn-hover: #353535;
+  --on-btn: #ffffff;
+
+  /* 页脚：纯黑 */
+  --footer-bg: #000000;
+  --footer-ink: rgba(255, 255, 255, 0.7);
+  --footer-ink-strong: #ffffff;
+  --footer-line: rgba(255, 255, 255, 0.12);
+
+  /* 语义色（沿用项目既有语义，避免与 classic 语义冲突） */
+  --ok: #1f7a4d;
+  --ok-soft: rgba(31, 122, 77, 0.1);
+  --warn: #a8620a;
+  --warn-soft: rgba(168, 98, 10, 0.1);
+  --danger: #c40021;
+  --danger-soft: rgba(196, 0, 33, 0.1);
+
+  /* 圆角：刻意小。参考站不用大圆角 */
+  --r-xs: 2px;
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 8px;
+  --r-pill: 999px;
+
+  /* 阴影：极轻。分层主要靠底色差，不靠投影 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px -6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 16px 32px -20px rgba(0, 0, 0, 0.18);
+
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dur: 180ms;
+
+  /* 版心与节奏 */
+  --shell: 1200px;
+  --gap-block: 56px;
+  --gap-inline: 16px;
+}
+
+/* ---------- 作用域内的基础表现 ---------- */
+.atlas-scope {
+  background-color: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.atlas-scope :where(h1, h2, h3, h4) {
+  font-family: var(--font-head);
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+/* 版心 */
+.atlas-shell {
+  width: 100%;
+  max-width: var(--shell);
+  margin-inline: auto;
+  padding-inline: var(--gap-inline);
+}
+
+/* ---------- 复用件 ---------- */
+
+/* 主按钮：近黑底 */
+.atlas-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 20px;
+  border-radius: var(--r-sm);
+  background: var(--btn);
+  color: var(--on-btn);
+  font-size: 14px;
+  font-weight: 600;
+  transition: background-color var(--dur) var(--ease);
+}
+
+.atlas-btn:hover {
+  background: var(--btn-hover);
+}
+
+.atlas-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 次按钮：白底细描边 */
+.atlas-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 18px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  transition: border-color var(--dur) var(--ease), background-color var(--dur) var(--ease);
+}
+
+.atlas-btn-ghost:hover {
+  border-color: var(--ink);
+  background: var(--bg-soft);
+}
+
+/* 白卡 */
+.atlas-card {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+/* 小标签（参考站的「平台账号,CDK」标签样式） */
+.atlas-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--r-xs);
+  background: var(--surface-2);
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* 强调标签（HOT 之类） */
+.atlas-tag-hot {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+/* 价格：数字用等宽 + DIN 观感，红色只给「起」字与促销价 */
+.atlas-price {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.atlas-price-from {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* 分区标题：左标题 + 右「发现更多」 */
+.atlas-section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.atlas-section-title {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.atlas-section-sub {
+  margin-top: 2px;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.atlas-more {
+  flex: none;
+  color: var(--ink-3);
+  font-size: 13px;
+  transition: color var(--dur) var(--ease);
+}
+
+.atlas-more:hover {
+  color: var(--accent);
+}
+
+/* 面包屑 */
+.atlas-crumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.atlas-crumb a:hover {
+  color: var(--accent);
+}
+
+/* 图片占位：参考站用纯色底而不是骨架屏 */
+.atlas-thumb {
+  background: var(--placeholder);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+.atlas-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* 骨架屏 */
+.atlas-skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--bg-soft) 37%, var(--surface-2) 63%);
+  background-size: 400% 100%;
+  animation: atlas-shimmer 1.4s ease infinite;
+  border-radius: var(--r-sm);
+}
+
+@keyframes atlas-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* 深色页脚里的链接 */
+.atlas-foot-link {
+  display: block;
+  padding: 4px 0;
+  color: var(--footer-ink);
+  font-size: 13px;
+  transition: color var(--dur) var(--ease);
+}
+
+.atlas-foot-link:hover {
+  color: var(--footer-ink-strong);
+}
+
+/* 页脚小标题 */
+.atlas-foot-head {
+  margin-bottom: 12px;
+  color: var(--footer-ink-strong);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* 下拉浮层 */
+.atlas-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 60;
+  display: flex;
+  min-width: 176px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.atlas-menu__item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  color: var(--ink-2);
+  font-size: 13px;
+  transition: background-color var(--dur) var(--ease);
+}
+
+.atlas-menu__item:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.atlas-menu__label {
+  padding: 6px 10px 2px;
+  color: var(--ink-4);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}

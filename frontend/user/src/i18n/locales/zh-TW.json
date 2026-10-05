@@ -177,6 +177,41 @@
       "unitPriceTimes": "{price} × {qty}"
     }
   },
+  "atlas": {
+      "nav": {
+        "affiliate": "推廣合作",
+        "loginOrRegister": "登入 / 註冊"
+      },
+      "footer": {
+        "tagline": "面向個人與團隊的帳號與訂閱服務，即時交付。",
+        "shop": "商品",
+        "account": "帳戶",
+        "support": "支援",
+        "builtOn": "本站為測試環境"
+      },
+      "section": {
+        "more": "發現更多"
+      },
+      "product": {
+        "from": "起"
+      },
+      "home": {
+        "heroTagline": "帳號 · 訂閱 · 禮品卡，一站備齊",
+        "hot": "熱門商品",
+        "hotSub": "平台最受歡迎產品",
+        "categories": "全部分類",
+        "categoriesSub": "按用途快速找到所需",
+        "viewAll": "查看全部商品",
+        "trust": {
+          "fast": "即時交付",
+          "fastSub": "出貨時間少於 5 分鐘",
+          "global": "被廣泛信賴",
+          "globalSub": "服務全球用戶",
+          "secure": "支付安全",
+          "secureSub": "官方渠道付款"
+        }
+      }
+    },
 
   "breadcrumb": {
     "label": "麵包屑導航",

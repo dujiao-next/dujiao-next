@@ -218,7 +218,7 @@ const form = reactive({
   },
   scripts: [] as SiteScriptItem[],
   footer_links: [] as FooterLinkItem[],
-  storefront_template: 'classic' as 'classic' | 'vault' | 'ember' | 'nova',
+  storefront_template: 'classic' as 'classic' | 'vault' | 'ember' | 'nova' | 'atlas',
   template_mode: 'card' as 'card' | 'list',
 })
 
@@ -458,7 +458,7 @@ const fetchSettings = async () => {
 
       const rawStorefrontTemplate = String(data.storefront_template || 'classic').trim()
       form.storefront_template =
-        rawStorefrontTemplate === 'vault' || rawStorefrontTemplate === 'ember' || rawStorefrontTemplate === 'nova'
+        rawStorefrontTemplate === 'vault' || rawStorefrontTemplate === 'ember' || rawStorefrontTemplate === 'nova' || rawStorefrontTemplate === 'atlas'
           ? rawStorefrontTemplate
           : 'classic'
     }

@@ -1,0 +1,206 @@
+# Atlas — 参考站复刻模板
+
+复刻对象：`https://accboy7flybird.acceboy.com/`（下文称「参考站」）。
+用途：个人测试。**只复刻版式与视觉风格，不复刻内容** —— 文案、图片、品牌名、
+字体文件均不取自参考站，模板渲染的是本站自己的商品与分类数据。
+
+---
+
+## 一、视觉风格的来源（可核对，非目测）
+
+令牌直接抽取自参考站 `:root` 的 CSS 变量：
+
+| 参考站变量 | 值 | 映射到 atlas |
+|---|---|---|
+| `--bodyBgColor` | `#F1F1F2` | `--bg` |
+| `--bgColor1` | `#fff` | `--surface` |
+| `--bgColor2` | `#D8D8D8` | `--placeholder` |
+| `--mainTextColor` | `#1A1A1A` | `--ink` |
+| `--secondaryTextColor` | `#333` | `--ink-2` |
+| `--mainColor` | `#E60027` | `--accent` |
+| `--mainColorLight` | `#fa1b41` | `--accent-light` |
+| `--buttonBgColor` | `#242424` | `--btn` |
+| `--buttonHoverBgColor` | `#353535` | `--btn-hover` |
+| 页脚底色 | `#000` | `--footer-bg` |
+| 字体 | D-DIN-PRO | 见下 |
+
+**三个最容易被做错、也最决定观感的点：**
+
+1. **主 CTA 是近黑 `#242424`，不是品牌红。** 红色只用于价格、标签、选中态这类
+   「信息强调」。把主按钮做成红色会立刻失去参考站那股工具感。
+2. **圆角刻意小（2/4/6/8px），阴影极轻。** 分层靠底色差（`#F1F1F2` 底 + `#fff` 卡），
+   不靠描边和投影。加大圆角 + 重投影 = 变成另一个站。
+3. **字体是 DIN 系。** D-DIN-PRO 是参考站自托管文件，**不引外部资源**；
+   改用「DIN 观感」的本地字体栈：`Bahnschrift`（Windows 自带）→ `DIN Alternate`
+   （macOS 自带）→ Inter（项目已有依赖）→ 系统 UI。不新增任何依赖。
+
+## 二、复刻范围：页面与模块清单
+
+参考站的页面形态（从其 SSR HTML 与链接结构归纳）：
+
+| 参考站路径 | 形态 | 对应本项目页面 |
+|---|---|---|
+| `/` | 首页 | `Home.vue` |
+| `/categories/:slug` | 商品列表（左侧分类栏 + 网格） | `Products.vue` |
+| `/products/:slug` | 商品详情（规格选择 + 立即购买） | `ProductDetail.vue` |
+| `/cart`、`/checkout` | 购物车 / 结算 | `Cart.vue`、`Checkout.vue` |
+| `/news`、`/news-detail/:id` | 新闻列表 / 详情 | `Blog.vue`、`BlogDetail.vue` |
+| `/info/*` | 关于、帮助、退换、隐私等 | `About.vue`、`Legal.vue` |
+| `/affiliate` | 推广合作 | `PersonalCenter.vue` 下的分销面板 |
+| `/guest/orders` | 订单查询 | `GuestOrders.vue` |
+
+### 模块级拆解
+
+**首页**（参考站自上而下）
+
+1. 顶栏工具条：语言/币种 · 推广合作 · 订单查询 · 登录/注册
+2. 主导航：品牌 + 一级分类直链（参考站铺了 8 个）+ 购物车
+3. Hero：品牌大字 + 一行副标题 + 三个信任徽章（即时交付 / 被广泛信赖 / 支付安全）
+4. 分类导航：一排带方形图标的入口
+5. 商品分区 ×N：分区头（左标题+副标题，右「发现更多」）+ 商品网格
+6. 新闻&促销：卡片列表 + 查看更多
+7. 用户评价：轮播 + 分页
+8. 页脚：纯黑，多列链接 + 在线客服
+
+**列表页**：面包屑 → 左侧分类栏（一级 + 二级）→ 品类标题 → 商品网格 → 分页
+
+**详情页**：面包屑 → 合规提示条 → 左商品信息（标题 + 三个服务保障徽章）
+→ **类别选择器** → **地区/规格选择器（按钮组带价格）** → 「立即购买」
+
+### 本轮实现状态
+
+| 文件 | 状态 |
+|---|---|
+| `layout/AtlasLayout.vue` | ✅ 已实现（含顶栏工具条 + 主导航 + 纯黑页脚） |
+| `Home.vue` | ✅ 已实现（Hero + 信任徽章 + 分类导航 + 商品分区） |
+| `Products.vue` | ✅ 已实现（面包屑 + 分类栏 + 网格 + 分页） |
+| `components/AtlasProductCard.vue` | ✅ |
+| `components/AtlasSectionHead.vue` | ✅ |
+| `ProductDetail.vue` / `Cart.vue` / `Checkout.vue` | ⏳ 未覆盖 → **自动回退 classic** |
+| 其余页面 | ⏳ 未覆盖 → 自动回退 classic |
+
+未覆盖的页面**不需要任何额外配置**：`templateView()` 在模板目录里找不到同名文件时
+自动用 classic 的 loader（见第三节）。所以本模板当前是一个「首页 + 列表页已复刻、
+其余沿用 classic」的可用状态，而不是半成品。
+
+> 商品详情页未在本轮覆盖，是刻意的：它是交易链路的一环（规格 → 下单 → 支付），
+> 在没有端到端验证支付流程的条件下重写风险高于收益。补的时候只需新建
+> `ProductDetail.vue`，无需改任何注册代码。
+
+## 三、目录结构
+
+```
+src/templates/atlas/
+├── styles/
+│   └── atlas.css                 # 设计令牌 + 复用件，作用域限定 .atlas-scope
+├── layout/
+│   └── AtlasLayout.vue           # 外壳：顶栏工具条 + 主导航 + 纯黑页脚
+├── components/
+│   ├── AtlasProductCard.vue      # 商品卡（首页 / 列表页共用）
+│   └── AtlasSectionHead.vue      # 分区头（左标题 + 右「发现更多」）
+├── Home.vue                      # 首页
+├── Products.vue                  # 商品列表
+└── README.md                     # 本文
+```
+
+命名约定（沿用 vault / ember / nova 的既有惯例）：
+- 模板根目录 = 页面，文件名与 `src/views/` 同名（`Home.vue` ↔ `views/Home.vue`）
+- 私有组件加模板前缀（`Atlas*`），避免与其他模板的组件重名
+- 令牌文件放 `styles/<name>.css`，只导出变量与少量复用类
+
+## 四、接入方式（4 处，缺一不可）
+
+| # | 文件 | 改动 |
+|---|---|---|
+| 1 | `src/templates/registry.ts` | `StorefrontTemplate` 联合类型 + `STOREFRONT_TEMPLATES` 数组各加 `'atlas'`；`templateViews` 加一行 `atlas: import.meta.glob('./atlas/**/*.vue')` |
+| 2 | `src/App.vue` | `defineAsyncComponent` 引入 `AtlasLayout`，并在 `templateShell` 里加一个分支 |
+| 3 | `internal/constants/constants.go` | 新增 `StorefrontTemplateAtlas = "atlas"` |
+| 4 | `internal/modules/settings/application/site_normalize.go` | `normalizeStorefrontTemplate()` 的 switch 放行 `atlas`（否则后台保存会被静默改回 classic） |
+
+> ⚠️ 第 3、4 条是**后端**改动。只改前端的话，`?template=atlas` 本地预览可用，
+> 但后台正式切换会被归一化白名单拦掉。
+>
+> 前端还有两处需要同步：`registry.ts` 的 `import.meta.glob` **参数必须是静态字面量**，
+> 所以每新增一个模板都要手写一行；`App.vue` 的外壳映射同理，无法自动发现。
+
+### 怎么用
+
+```
+# 本地预览（写进 localStorage，?template=reset 清除）
+http://localhost:5173/?template=atlas
+
+# 正式启用
+后台 → 设置 → 站点与主题 → 前台模板 → 选「Atlas」
+```
+
+## 五、核心交互（需要保留的）
+
+| 交互 | 实现位置 | 说明 |
+|---|---|---|
+| 分类切换 | `Products.vue` `selectCategory()` | 同步写入地址栏 `/categories/:slug`，可分享可刷新；并重置到第 1 页 |
+| 分页 | `Products.vue` `changePage()` | 切页回到顶部（`behavior: 'smooth'`） |
+| 商品卡 → 详情 | `AtlasProductCard` emit `click` → `router.push('/products/:slug')` | 整卡可点 |
+| 语言切换 | `AtlasLayout` | 走 `appStore.setLocale()`，与 classic 同一状态源 |
+| 购物车角标 | `AtlasLayout` | 读 `cartStore.totalItems`，实时更新 |
+| 浮层点击外部关闭 | `AtlasLayout` `onDocClick` | 语言 / 移动端菜单 |
+| Teleport 浮层配色 | `AtlasLayout` 挂 `body.atlas-tokens` | Toast / ConfirmDialog / Select 下拉会 Teleport 到 body，不挂这个 class 就会退回 classic 调色板 |
+
+**参考站有、但本站刻意不做的交互**：它的详情页只有「立即购买」、没有购物车
+（直购流程）。本站保留购物车 —— 这是项目既有能力，不能为了像参考站而砍掉。
+版式上仍然照参考站做，只是 CTA 旁多一个「加入购物车」。
+
+## 六、响应式适配要求
+
+| 断点 | 要求 |
+|---|---|
+| `< 640px` | 商品网格 **2 列**；分类导航 3 列；信任徽章改单列堆叠；隐藏顶栏工具条的语言项，收进移动端菜单 |
+| `640–1023px` | 网格 3 列；分类导航 5 列；列表页侧栏改为横向整宽（不吸顶） |
+| `≥ 1024px` | 网格 4 列；分类导航 10 列；列表页侧栏 208px 宽 + `sticky`（`top: 80px`，避开吸顶导航） |
+| `≥ 1024px` | 主导航展开一级分类直链；`< 1024px` 折叠进汉堡菜单 |
+
+其他约束：
+- 版心统一 `max-width: 1200px`，内边距 `16px`（`--gap-inline`）
+- 商品卡图片区固定 `aspect-ratio: 4/3`，用 `object-fit: contain`（商品图比例不统一，
+  用 `cover` 会裁掉主体）
+- 价格用 `font-variant-numeric: tabular-nums`，避免数字宽度跳动
+- 所有图片 `loading="lazy" decoding="async"`
+
+## 七、不影响现有模板的机制
+
+**1. 样式隔离**：`atlas.css` 的所有选择器都限定在 `.atlas-scope` 或
+`body.atlas-tokens` 下。`body.atlas-tokens` 由 `AtlasLayout` 挂载时打上、
+`onUnmounted` 时摘掉，所以只有 atlas 激活期间才生效。
+
+**2. 页面级自动回退**：`templateView(name, classicLoader)` 在当前模板目录里找不到
+`<name>.vue` 时，直接返回 classic 的 loader。因此 atlas 缺哪些页面，那些页面就
+继续用 classic —— 不会白屏，也不需要占位文件。
+
+**3. 按需加载**：`import.meta.glob` 是懒加载，`AtlasLayout` 走
+`defineAsyncComponent`。选 classic 的用户不会下载 atlas 的任何 chunk 或样式。
+
+**4. 后端白名单是「加一项」而不是「改语义」**：`normalizeStorefrontTemplate()`
+的 `default` 分支仍然返回 classic，未知值的行为不变。
+
+### 验证方式
+
+```bash
+# 容器内
+bash .devcontainer/doctor.sh          # 期望：失败 0
+cd frontend/user && pnpm exec vue-tsc -b   # 期望：TSC_EXIT=0
+
+# 逐个模板切换，确认互不影响
+http://localhost:5173/?template=classic
+http://localhost:5173/?template=vault
+http://localhost:5173/?template=ember
+http://localhost:5173/?template=nova
+http://localhost:5173/?template=atlas
+http://localhost:5173/?template=reset
+```
+
+## 八、后续补页面的做法
+
+新建 `src/templates/atlas/<页面名>.vue`（文件名必须与 `views/` 下同名），
+**不需要改任何注册代码** —— `import.meta.glob` 会在下次 dev server 重启后自动收录。
+
+> 注意：`import.meta.glob` 的结果在 transform 阶段求值并被缓存，
+> **新增模板目录后需要重启 dev server**（加页面文件通常不用，但新目录要）。
