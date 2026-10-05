@@ -40,14 +40,16 @@
 
       <EmptyState v-else variant="soft" size="md" icon="package" :title="emptyTitle" />
 
-      <nav v-if="totalPages > 1" class="atlas-pager">
-        <button class="atlas-pager__btn" type="button" :disabled="page <= 1" @click="$emit('change-page', page - 1)">
-          {{ t('products.previous') }}
-        </button>
-        <span class="atlas-pager__info">{{ page }} / {{ totalPages }}</span>
-        <button class="atlas-pager__btn" type="button" :disabled="page >= totalPages" @click="$emit('change-page', page + 1)">
-          {{ t('products.next') }}
-        </button>
+      <nav v-if="loading || products.length" class="atlas-pager">
+        <template v-if="totalPages > 1">
+          <button class="atlas-pager__btn" type="button" :disabled="page <= 1" @click="$emit('change-page', page - 1)">
+            {{ t('products.previous') }}
+          </button>
+          <span class="atlas-pager__info">{{ page }} / {{ totalPages }}</span>
+          <button class="atlas-pager__btn" type="button" :disabled="page >= totalPages" @click="$emit('change-page', page + 1)">
+            {{ t('products.next') }}
+          </button>
+        </template>
       </nav>
     </div>
   </div>
@@ -88,6 +90,12 @@ const skeletonCount = computed(() => (props.compact ? 6 : 8))
   justify-content: center;
   gap: 12px;
   margin-top: 28px;
+  /*
+    恒定占位：只有 1 页时也保留这条 34px 的高度。
+    否则分页整条消失 → 主列变矮 62px（28 边距 + 34 高）→ 侧栏底（stretch 跟随主列）
+    跟着上移，就违反「分类底部位置不随商品数量变化」。
+  */
+  min-height: 34px;
 }
 
 .atlas-pager__btn {
@@ -111,6 +119,9 @@ const skeletonCount = computed(() => (props.compact ? 6 : 8))
   主列 1080 下算下来正好 (1080 - 3*13) / 4 = 260px，与参考站一致。
 */
 .atlas-module--compact {
+  /* 必须为 0：margin 会被算进主列高度，而侧栏是 stretch 跟随主列 ——
+     留 40px 会把侧栏底再推低 40px，破坏「与分页底部线齐平」。
+     分页下方的留白改由 .atlas-home-main 的 padding-bottom 提供（在行外，不参与 stretch）。 */
   margin-bottom: 0;
 }
 
@@ -131,6 +142,14 @@ const skeletonCount = computed(() => (props.compact ? 6 : 8))
   gap: 20px 13px;
   /* 归零：标题区已被 v-if 去掉，这里再留 20px 会让商品顶比分类顶低 44px */
   margin-top: 0;
+  /*
+    恒定占 3 行高度：3 × 159 + 2 × 20 = 517px。
+    商品不足 12 条时也要占满 —— 否则网格变矮 → 分页上移 → 侧栏底（stretch 跟随主列）
+    跟着上移。用户要的是「无论所选分类商品多少，分类底部位置都不变」，
+    所以这里必须预留固定高度，而不是按内容自适应。
+  */
+  min-height: 517px;
+  align-content: start;
 }
 
 .atlas-module--compact .atlas-module__title {

@@ -551,6 +551,9 @@ body.atlas-tokens {
   justify-content: space-between;
   gap: 20px;
   padding-top: 20px;
+  /* 分页与页脚之间的留白。放在行（容器）的 padding 上而不是主列的 margin 上：
+     padding 不参与 stretch，侧栏高度仍等于内容高，底边不会因此下移。 */
+  padding-bottom: 40px;
 }
 
 /* 侧栏：白底 14px 圆角，18/20 内边距，卡片阴影 */

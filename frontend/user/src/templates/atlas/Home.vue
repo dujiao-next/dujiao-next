@@ -128,7 +128,6 @@
          行高推下去。 -->
     <AtlasGoodsModule
       v-if="!isFiltered"
-      class="mt-10"
       :title="t('atlas.home.hot')"
       :desc="t('atlas.home.hotSub')"
       :products="products"
