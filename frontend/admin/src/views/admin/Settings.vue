@@ -1241,6 +1241,33 @@ onMounted(() => {
                 </svg>
               </div>
             </Label>
+
+            <!-- Atlas -->
+            <Label
+              class="relative flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 p-6 transition-all"
+              :class="form.storefront_template === 'atlas'
+                ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
+                : 'border-border hover:border-muted-foreground/30'"
+            >
+              <RadioGroupItem value="atlas" class="sr-only" />
+              <div class="flex h-16 w-16 items-center justify-center rounded-xl" :class="form.storefront_template === 'atlas' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'">
+                <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                  <rect x="3" y="3.5" width="7.5" height="7.5" rx="1.5" />
+                  <rect x="13.5" y="3.5" width="7.5" height="7.5" rx="1.5" />
+                  <rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5" />
+                  <circle cx="17.25" cy="17.25" r="3" />
+                </svg>
+              </div>
+              <div class="text-center">
+                <div class="font-semibold" :class="form.storefront_template === 'atlas' ? 'text-primary' : ''">{{ t('admin.settings.template.atlasMode') }}</div>
+                <div class="mt-1 text-xs text-muted-foreground">{{ t('admin.settings.template.atlasModeDesc') }}</div>
+              </div>
+              <div v-if="form.storefront_template === 'atlas'" class="absolute right-3 top-3">
+                <svg class="h-5 w-5 text-primary" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                </svg>
+              </div>
+            </Label>
           </RadioGroup>
         </div>
       </div>
