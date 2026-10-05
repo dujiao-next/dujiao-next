@@ -116,14 +116,21 @@ const skeletonCount = computed(() => (props.compact ? 6 : 8))
 
 .atlas-module--compact .atlas-module__content {
   max-width: none;
-  /* 左右不留内边距：参考站分类页的网格直接占满 1080，
-     4 列 × gap13 算下来才是 260px。留 20px 会挤成 250px，与参考站差 10px。 */
-  padding: 24px 0;
+  /*
+    紧凑态内边距必须为 0，否则两端各差一截（实测）：
+      padding-top:24 + 列表 margin-top:20 = 商品顶比分类顶低 44px
+      padding-bottom:24              = 分类底比分页底低 24px
+    归零后：商品顶与分类顶齐平，分类底与分页底齐平。
+    左右同理：留 20px 会把卡片挤成 250px，与参考站的 260px 差 10px。
+  */
+  padding: 0;
 }
 
 .atlas-module--compact .atlas-module__list {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 20px 13px;
+  /* 归零：标题区已被 v-if 去掉，这里再留 20px 会让商品顶比分类顶低 44px */
+  margin-top: 0;
 }
 
 .atlas-module--compact .atlas-module__title {
