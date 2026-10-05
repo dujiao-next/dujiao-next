@@ -104,12 +104,14 @@
               <p v-if="purchaseWarning" class="mt-2 text-[12px] text-[color:var(--warn)]">{{ purchaseWarning }}</p>
             </div>
 
+            <!-- 未登录时只给一个入口，文案用 productDetail.loginToBuy（与 classic 一致），
+                 避免按钮写「立即购买」却跳登录页这种误导 -->
             <button
               v-if="requiresLogin"
               class="atlas-buybtn"
               type="button"
               @click="goLogin"
-            >{{ t('productDetail.buyNow') }}</button>
+            >{{ t('productDetail.loginToBuy') }}</button>
             <template v-else>
               <button class="atlas-buybtn" type="button" :disabled="!canPurchase" @click="buyNow">
                 {{ t('productDetail.buyNow') }}

@@ -182,7 +182,6 @@ const appStore = useAppStore()
 const { getLocalizedText } = useLocalized()
 
 const brandName = computed(() => String(appStore.config?.brand?.site_name || '').trim() || 'Atlas Store')
-usePageSeo({ canonicalPath: () => route.path, title: () => filterTitle.value || brandName.value })
 
 /* 信任徽章：参考站是 4 项、40px 图标、左图标右两行文字 */
 const trustItems = [
@@ -228,6 +227,15 @@ const filterTitle = computed(() => {
   if (activeSearch.value) return t('atlas.home.searchResult', { keyword: activeSearch.value })
   return ''
 })
+
+/**
+ * SEO 必须放在所有被引用的 computed 之后。
+ * usePageSeo 内部走 @unhead/vue 的 useHead，它会在 setup 期间同步求值 title 回调；
+ * 若此时闭包引用的 filterTitle 尚未初始化（TDZ），useHead 解析失败、返回的句柄为
+ * undefined，随后作用域清理时调用 .dispose() 就会抛
+ * 「Cannot read properties of undefined (reading 'dispose')」，整页被错误边界兜住。
+ */
+usePageSeo({ canonicalPath: () => route.path, title: () => filterTitle.value || brandName.value })
 
 const isActiveCategory = (cat: PublicCategory) =>
   Boolean(activeSlug.value) && cat.slug === activeSlug.value
