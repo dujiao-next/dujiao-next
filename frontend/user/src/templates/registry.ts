@@ -8,9 +8,9 @@ import { useAppStore } from '../stores/app'
  *   因此可以一页一页地把新设计搬进模板目录，旧站全程可用。
  */
 
-export type StorefrontTemplate = 'classic' | 'vault' | 'ember' | 'nova' | 'atlas'
+export type StorefrontTemplate = 'classic' | 'vault' | 'atlas'
 
-export const STOREFRONT_TEMPLATES: StorefrontTemplate[] = ['classic', 'vault', 'ember', 'nova', 'atlas']
+export const STOREFRONT_TEMPLATES: StorefrontTemplate[] = ['classic', 'vault', 'atlas']
 export const DEFAULT_TEMPLATE: StorefrontTemplate = 'classic'
 
 const OVERRIDE_KEY = 'dj-storefront-template'
@@ -60,15 +60,13 @@ export const getActiveTemplate = (): StorefrontTemplate => {
     return DEFAULT_TEMPLATE
 }
 
-// 各非 classic 模板的页面（按需动态加载）。key 形如 './vault/Home.vue' / './ember/Home.vue'
+// 各非 classic 模板的页面（按需动态加载）。key 形如 './vault/Home.vue' / './atlas/Home.vue'
 // 注意：import.meta.glob 的参数必须是静态字面量，因此每新增一个模板都要在此登记一行。
 const templateViews: Record<
     Exclude<StorefrontTemplate, 'classic'>,
     Record<string, () => Promise<unknown>>
 > = {
     vault: import.meta.glob('./vault/**/*.vue'),
-    ember: import.meta.glob('./ember/**/*.vue'),
-    nova: import.meta.glob('./nova/**/*.vue'),
     atlas: import.meta.glob('./atlas/**/*.vue'),
 }
 

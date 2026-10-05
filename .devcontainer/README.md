@@ -177,9 +177,9 @@ bash .devcontainer/doctor.sh
 curl -s http://localhost:8080/api/v1/public/config | grep -o '"storefront_template":"[^"]*"'
 ```
 
-- 输出 `"classic"` → 模板**没被选中**，与 HMR 无关。用 `?template=ember` 预览，
+- 输出 `"classic"` → 模板**没被选中**，与 HMR 无关。用 `?template=atlas` 预览，
   或到后台「设置 → 站点与主题 → 前台模板」切换
-- 输出 `"ember"` → 模板已选中，问题在渲染侧
+- 输出 `"atlas"` → 模板已选中，问题在渲染侧
 
 ### 5.2 确认 dev server 真的加载了新代码
 
@@ -187,14 +187,14 @@ curl -s http://localhost:8080/api/v1/public/config | grep -o '"storefront_templa
 它返回什么，浏览器就能拿到什么：
 
 ```bash
-# 前台：registry.ts 里应能看到 ember
-curl -s http://localhost:5173/src/templates/registry.ts | grep -o ember | head -3
+# 前台：registry.ts 里应能看到 atlas
+curl -s http://localhost:5173/src/templates/registry.ts | grep -o atlas | head -3
 
 # 前台：新增的模板文件应可被提供
-curl -s -o /dev/null -w '%{http_code}\n' http://localhost:5173/src/templates/ember/Home.vue
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:5173/src/templates/atlas/Home.vue
 
-# 后台：设置页应含 ember 选项
-curl -s http://localhost:5174/src/views/admin/Settings.vue | grep -o emberMode
+# 后台：设置页应含 atlas 选项
+curl -s http://localhost:5174/src/views/admin/Settings.vue | grep -o atlasMode
 ```
 
 返回 200 / 有命中 ⇒ 代码是新的，别再折腾 HMR 了，问题在别处。

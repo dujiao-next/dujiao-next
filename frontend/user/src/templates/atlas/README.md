@@ -116,7 +116,7 @@ src/templates/atlas/
 └── README.md                     # 本文
 ```
 
-命名约定（沿用 vault / ember / nova 的既有惯例）：
+命名约定（沿用 vault 的既有惯例）：
 - 模板根目录 = 页面，文件名与 `src/views/` 同名（`Home.vue` ↔ `views/Home.vue`）
 - 私有组件加模板前缀（`Atlas*`），避免与其他模板的组件重名
 - 令牌文件放 `styles/<name>.css`，只导出变量与少量复用类
@@ -239,8 +239,6 @@ cd frontend/user && pnpm exec vue-tsc -b   # 期望：TSC_EXIT=0
 # 逐个模板切换，确认互不影响
 http://localhost:5173/?template=classic
 http://localhost:5173/?template=vault
-http://localhost:5173/?template=ember
-http://localhost:5173/?template=nova
 http://localhost:5173/?template=atlas
 http://localhost:5173/?template=reset
 ```

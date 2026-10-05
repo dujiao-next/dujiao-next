@@ -1,6 +1,6 @@
 <template>
   <div id="app" class="min-h-screen bg-background text-foreground flex flex-col">
-    <!-- 自带顶栏/页脚的外壳模板（vault / ember）：包裹页面；分销控制台仍走下方分支 -->
+    <!-- 自带顶栏/页脚的外壳模板（vault / atlas）：包裹页面；分销控制台仍走下方分支 -->
     <component :is="templateShell" v-if="templateShell && !isResellerConsole">
       <ErrorBoundary>
         <RouterView v-slot="{ Component }">
@@ -50,8 +50,6 @@ import MobileBottomNav from './components/MobileBottomNav.vue'
 
 // 各模板外壳按需加载，classic 用户不会拉取其 chunk/样式
 const VaultLayout = defineAsyncComponent(() => import('./templates/vault/layout/VaultLayout.vue'))
-const EmberLayout = defineAsyncComponent(() => import('./templates/ember/layout/EmberLayout.vue'))
-const NovaLayout = defineAsyncComponent(() => import('./templates/nova/layout/NovaLayout.vue'))
 const AtlasLayout = defineAsyncComponent(() => import('./templates/atlas/layout/AtlasLayout.vue'))
 
 // config 由 router.beforeEach 统一加载，无需在此重复调用
@@ -64,9 +62,7 @@ const activeTemplate = computed(() => getActiveTemplate())
 
 /** 外壳模板：返回 null 表示该模板不自带外壳（classic），走下方分支。 */
 const templateShell = computed(() => {
-  if (activeTemplate.value === 'ember') return EmberLayout
   if (activeTemplate.value === 'vault') return VaultLayout
-  if (activeTemplate.value === 'nova') return NovaLayout
   if (activeTemplate.value === 'atlas') return AtlasLayout
   return null
 })

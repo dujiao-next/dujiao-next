@@ -90,23 +90,23 @@ head_ "3. dev server 是否已加载最新代码"
 # 直接向 dev server 要源文件：它返回什么，浏览器就能拿到什么。
 registry_js="$(curl -s --max-time 10 "$USER_URL/src/templates/registry.ts" 2>/dev/null)"
 
-if printf '%s' "$registry_js" | grep -q 'ember'; then
-    ok "registry.ts 已包含 ember（dev server 已加载最新代码）"
+if printf '%s' "$registry_js" | grep -q 'atlas'; then
+    ok "registry.ts 已包含 atlas（dev server 已加载最新代码）"
 else
-    bad "registry.ts 里没有 ember —— dev server 还在跑旧代码，请重启它"
+    bad "registry.ts 里没有 atlas —— dev server 还在跑旧代码，请重启它"
 fi
 
-if [ "$(code "$USER_URL/src/templates/ember/Home.vue")" = "200" ]; then
-    ok "ember/Home.vue 可被 dev server 提供（HTTP 200）"
+if [ "$(code "$USER_URL/src/templates/atlas/Home.vue")" = "200" ]; then
+    ok "atlas/Home.vue 可被 dev server 提供（HTTP 200）"
 else
-    bad "ember/Home.vue 取不到 —— 文件缺失，或需重启 dev server 以重建 import.meta.glob"
+    bad "atlas/Home.vue 取不到 —— 文件缺失，或需重启 dev server 以重建 import.meta.glob"
 fi
 
 admin_settings="$(curl -s --max-time 10 "$ADMIN_URL/src/views/admin/Settings.vue" 2>/dev/null)"
-if printf '%s' "$admin_settings" | grep -q "emberMode\|'ember'"; then
-    ok "后台设置页已含 ember 模板选项"
+if printf '%s' "$admin_settings" | grep -q "atlasMode\|'atlas'"; then
+    ok "后台设置页已含 atlas 模板选项"
 else
-    bad "后台设置页没有 ember 选项 —— 后台 dev server 还在跑旧代码"
+    bad "后台设置页没有 atlas 选项 —— 后台 dev server 还在跑旧代码"
 fi
 
 # -----------------------------------------------------------------------------
@@ -117,37 +117,39 @@ active="$(printf '%s' "$config" | grep -o '"storefront_template":"[^"]*"' | head
 
 if [ -z "$active" ]; then
     bad "取不到 storefront_template（后端未就绪？）"
-elif [ "$active" = "ember" ]; then
-    ok "站点配置已激活 ember —— 若页面仍是旧样式，问题在渲染侧"
+elif [ "$active" = "atlas" ]; then
+    ok "站点配置已激活 atlas —— 若页面仍是旧样式，问题在渲染侧"
 else
-    warn "站点配置当前激活的是「$active」，不是 ember"
+    warn "站点配置当前激活的是「$active」，不是 atlas"
     printf '      这不是 bug：页面按配置渲染是正确行为。\n'
-    printf '      要看到 ember，二选一：\n'
-    printf '        · 临时预览  %s/?template=ember\n' "$USER_URL"
-    printf '        · 正式启用  后台 %s → 设置 → 站点与主题 → 前台模板 → 选「极简中性」\n' "$ADMIN_URL"
+    printf '      要看到 atlas，二选一：\n'
+    printf '        · 临时预览  %s/?template=atlas\n' "$USER_URL"
+    printf '        · 正式启用  后台 %s → 设置 → 站点与主题 → 前台模板 → 选「浅灰工具风」\n' "$ADMIN_URL"
 fi
 
 # -----------------------------------------------------------------------------
 head_ "5. 模板文件完整性"
 # -----------------------------------------------------------------------------
-if [ -d "$ROOT/frontend/user/src/templates/ember" ]; then
-    n="$(find "$ROOT/frontend/user/src/templates/ember" -type f 2>/dev/null | wc -l | tr -d ' ')"
-    if [ "$n" -ge 30 ]; then ok "ember 模板 $n 个文件"
-    else warn "ember 模板只有 $n 个文件（预期 30 个），可能有缺失"; fi
+# 逐一核对仍在库中的模板目录（classic 复用 views/，没有独立目录，不在此列）
+for tpl in vault atlas; do
+    if [ -d "$ROOT/frontend/user/src/templates/$tpl" ]; then
+        n="$(find "$ROOT/frontend/user/src/templates/$tpl" -type f 2>/dev/null | wc -l | tr -d ' ')"
+        ok "模板 $tpl：$n 个文件"
+    else
+        bad "找不到 frontend/user/src/templates/$tpl 目录"
+    fi
+done
+
+if grep -q "StorefrontTemplateVault\|StorefrontTemplateAtlas" "$ROOT/internal/constants/constants.go" 2>/dev/null; then
+    ok "后端模板常量已定义（vault / atlas）"
 else
-    bad "找不到 frontend/user/src/templates/ember 目录"
+    bad "后端缺少模板常量"
 fi
 
-if grep -q "StorefrontTemplateEmber" "$ROOT/internal/constants/constants.go" 2>/dev/null; then
-    ok "后端常量 StorefrontTemplateEmber 已定义"
+if grep -q "StorefrontTemplateVault\|StorefrontTemplateAtlas" "$ROOT/internal/modules/settings/application/site_normalize.go" 2>/dev/null; then
+    ok "后端归一化白名单已放行 vault / atlas"
 else
-    bad "后端缺少 StorefrontTemplateEmber 常量"
-fi
-
-if grep -q "StorefrontTemplateEmber" "$ROOT/internal/modules/settings/application/site_normalize.go" 2>/dev/null; then
-    ok "后端归一化白名单已放行 ember"
-else
-    warn "后端归一化未放行 ember —— 后台保存 ember 会被静默改回 classic（需重启后端）"
+    warn "后端归一化未放行模板 —— 后台保存会被静默改回 classic（需重启后端）"
 fi
 
 # -----------------------------------------------------------------------------

@@ -68,7 +68,7 @@
    缺失时回退 Inter / 系统 UI。
 
    作用域：全部选择器限定在 .atlas-scope / body.atlas-tokens 下，
-           不影响 classic / vault / ember / nova。
+           不影响 classic / vault。
    为什么令牌要额外挂一份到 body.atlas-tokens：
            Toast / ConfirmDialog / 公告弹窗 / reka-ui 的 SelectContent 等浮层
            都 Teleport 到 <body>，落在 .atlas-scope 之外。

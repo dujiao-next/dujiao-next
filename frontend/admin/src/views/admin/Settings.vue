@@ -218,7 +218,7 @@ const form = reactive({
   },
   scripts: [] as SiteScriptItem[],
   footer_links: [] as FooterLinkItem[],
-  storefront_template: 'classic' as 'classic' | 'vault' | 'ember' | 'nova' | 'atlas',
+  storefront_template: 'classic' as 'classic' | 'vault' | 'atlas',
   template_mode: 'card' as 'card' | 'list',
 })
 
@@ -458,7 +458,7 @@ const fetchSettings = async () => {
 
       const rawStorefrontTemplate = String(data.storefront_template || 'classic').trim()
       form.storefront_template =
-        rawStorefrontTemplate === 'vault' || rawStorefrontTemplate === 'ember' || rawStorefrontTemplate === 'nova' || rawStorefrontTemplate === 'atlas'
+        rawStorefrontTemplate === 'vault' || rawStorefrontTemplate === 'atlas'
           ? rawStorefrontTemplate
           : 'classic'
     }
@@ -1185,57 +1185,6 @@ onMounted(() => {
                 <div class="mt-1 text-xs text-muted-foreground">{{ t('admin.settings.template.vaultModeDesc') }}</div>
               </div>
               <div v-if="form.storefront_template === 'vault'" class="absolute right-3 top-3">
-                <svg class="h-5 w-5 text-primary" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                </svg>
-              </div>
-            </Label>
-
-            <!-- Ember -->
-            <Label
-              class="relative flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 p-6 transition-all"
-              :class="form.storefront_template === 'ember'
-                ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
-                : 'border-border hover:border-muted-foreground/30'"
-            >
-              <RadioGroupItem value="ember" class="sr-only" />
-              <div class="flex h-16 w-16 items-center justify-center rounded-xl" :class="form.storefront_template === 'ember' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'">
-                <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-                  <rect x="3" y="4" width="18" height="16" rx="2.5" />
-                  <path stroke-linecap="round" d="M7 9.5h6M7 13h10M7 16.5h4" />
-                </svg>
-              </div>
-              <div class="text-center">
-                <div class="font-semibold" :class="form.storefront_template === 'ember' ? 'text-primary' : ''">{{ t('admin.settings.template.emberMode') }}</div>
-                <div class="mt-1 text-xs text-muted-foreground">{{ t('admin.settings.template.emberModeDesc') }}</div>
-              </div>
-              <div v-if="form.storefront_template === 'ember'" class="absolute right-3 top-3">
-                <svg class="h-5 w-5 text-primary" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                </svg>
-              </div>
-            </Label>
-
-            <!-- Nova -->
-            <Label
-              class="relative flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 p-6 transition-all"
-              :class="form.storefront_template === 'nova'
-                ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
-                : 'border-border hover:border-muted-foreground/30'"
-            >
-              <RadioGroupItem value="nova" class="sr-only" />
-              <div class="flex h-16 w-16 items-center justify-center rounded-xl" :class="form.storefront_template === 'nova' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'">
-                <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-                  <rect x="3" y="5" width="18" height="14" rx="2.5" />
-                  <path stroke-linecap="round" d="M3 9.5h18M7.5 13.5h4" />
-                  <circle cx="16.5" cy="13.5" r="1.6" />
-                </svg>
-              </div>
-              <div class="text-center">
-                <div class="font-semibold" :class="form.storefront_template === 'nova' ? 'text-primary' : ''">{{ t('admin.settings.template.novaMode') }}</div>
-                <div class="mt-1 text-xs text-muted-foreground">{{ t('admin.settings.template.novaModeDesc') }}</div>
-              </div>
-              <div v-if="form.storefront_template === 'nova'" class="absolute right-3 top-3">
                 <svg class="h-5 w-5 text-primary" fill="currentColor" viewBox="0 0 20 20">
                   <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
                 </svg>
