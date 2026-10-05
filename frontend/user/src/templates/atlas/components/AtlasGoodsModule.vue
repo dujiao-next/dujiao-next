@@ -18,14 +18,10 @@
         <slot name="more" />
       </div>
 
+      <!-- 骨架卡必须与真实卡等高，否则 loading→加载完成时主列高度跳变（实测 530→517，
+           侧栏底与分割线跟着抖 13px）。所以这里用固定高度块，而不是按比例撑开的占位。 -->
       <div v-if="loading" class="atlas-module__list">
-        <div v-for="i in skeletonCount" :key="i" class="atlas-card overflow-hidden">
-          <div class="atlas-skeleton aspect-[4/3] rounded-none"></div>
-          <div class="space-y-2 p-3">
-            <div class="atlas-skeleton h-3 w-2/3"></div>
-            <div class="atlas-skeleton h-4 w-1/3"></div>
-          </div>
-        </div>
+        <div v-for="i in skeletonCount" :key="i" class="atlas-skeleton atlas-module__ph"></div>
       </div>
 
       <div v-else-if="products.length" class="atlas-module__list">
@@ -80,10 +76,21 @@ defineEmits<{ select: [slug: string]; 'change-page': [page: number] }>()
 
 const { t } = useI18n()
 const emptyTitle = computed(() => props.emptyTitle || t('products.empty'))
-const skeletonCount = computed(() => (props.compact ? 6 : 8))
+const skeletonCount = computed(() => 12)
 </script>
 
 <style scoped>
+/* 骨架块：高度必须等于真实卡（整宽 180 / 紧凑 159），数量等于一页 12 张，
+   这样 loading 期的网格高与加载完成后完全一致（3 行 = 517px），不产生跳动。 */
+.atlas-module__ph {
+  height: 180px;
+  border-radius: 8px;
+}
+
+.atlas-module--compact .atlas-module__ph {
+  height: 159px;
+}
+
 .atlas-pager {
   display: flex;
   align-items: center;
