@@ -79,12 +79,12 @@
             </div>
           </div>
 
-          <!-- 商品描述 -->
+          <!-- 商品说明：内容来源是「商品详情」(content)，见下方 descHtml / descPlain -->
           <div class="atlas-dbox">
             <h2 class="atlas-dtitle">{{ t('atlas.detail.desc') }}</h2>
             <div class="atlas-ddesc theme-prose">
-              <p v-if="getLocalizedText(product.description)">{{ getLocalizedText(product.description) }}</p>
-              <div v-else-if="product.content" v-html="product.content"></div>
+              <div v-if="descHtml" v-html="descHtml"></div>
+              <p v-else-if="descPlain">{{ descPlain }}</p>
               <p v-else class="text-[color:var(--ink-3)]">{{ t('atlas.detail.noDesc') }}</p>
             </div>
           </div>
@@ -151,6 +151,7 @@ import { useProductDetail } from '../../composables/useProductDetail'
 import { useLocalized } from '../../composables/useProduct'
 import { usePageSeo } from '../../composables/usePageSeo'
 import { getImageUrl } from '../../utils/image'
+import { processHtmlForDisplay } from '../../utils/content'
 import EmptyState from '../../components/EmptyState.vue'
 
 const { t } = useI18n()
@@ -198,6 +199,31 @@ const showBasePrice = computed(() => {
   const cur = currentPriceAmount.value
   if (base === null || base === undefined || cur === null || cur === undefined) return false
   return Number(base) > Number(cur)
+})
+
+/**
+ * 「商品说明」区块的内容来源 —— 以「商品详情」(content) 为准。
+ *
+ * 为什么不能直接 v-html="product.content"：接口返回的 content 是**按语言的对象**
+ * （{ 'zh-CN': '<p>…</p>', en: '…' }），必须先过 getLocalizedText 取出当前语言的
+ * 字符串；正文里的 /uploads/xxx 图片路径还要过 processHtmlForDisplay 补成绝对地址。
+ * 原实现这两步都没做，只是因为它排在 description 之后、而线上商品的 description
+ * 恒非空，该分支从未执行才没暴露。
+ */
+const descHtml = computed(() => {
+  const raw = getLocalizedText(product.value?.content)
+  return raw ? processHtmlForDisplay(raw) : ''
+})
+
+/**
+ * 回退用的「商品简介」(description)，仅在商品详情为空时显示。
+ *
+ * 纯占位符（整串只有一个 "." 或 "。"）按空处理：线上商品的 description 普遍就是
+ * 这种占位，直接当说明渲染出来只会是一个孤零零的句号，比留空更糟。
+ */
+const descPlain = computed(() => {
+  const raw = getLocalizedText(product.value?.description).trim()
+  return /^[.。·・]+$/.test(raw) ? '' : raw
 })
 </script>
 
