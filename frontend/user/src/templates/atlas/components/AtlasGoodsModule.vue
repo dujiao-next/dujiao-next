@@ -9,10 +9,11 @@
   -->
   <div class="atlas-module" :class="compact && 'atlas-module--compact'">
     <div class="atlas-module__content">
-      <div class="atlas-module__descrow">
+      <!-- 标题区可选：筛选态下标题与侧栏选中项重复，直接不渲染，让商品内容顶上来 -->
+      <div v-if="title || desc" class="atlas-module__descrow">
         <div>
-          <h2 class="atlas-module__title">{{ title }}</h2>
-          <p class="atlas-module__desc">{{ desc }}</p>
+          <h2 v-if="title" class="atlas-module__title">{{ title }}</h2>
+          <p v-if="desc" class="atlas-module__desc">{{ desc }}</p>
         </div>
         <slot name="more" />
       </div>
@@ -59,16 +60,17 @@ import EmptyState from '../../../components/EmptyState.vue'
 
 const props = withDefaults(
   defineProps<{
-    title: string
-    desc: string
     products: any[]
     loading: boolean
     page: number
     totalPages: number
+    /** 标题/副标题可选：筛选态不传，避免与侧栏选中项重复显示 */
+    title?: string
+    desc?: string
     compact?: boolean
     emptyTitle?: string
   }>(),
-  { compact: false },
+  { compact: false, title: '', desc: '' },
 )
 
 defineEmits<{ select: [slug: string]; 'change-page': [page: number] }>()

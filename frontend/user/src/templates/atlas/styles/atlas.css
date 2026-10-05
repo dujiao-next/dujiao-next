@@ -545,7 +545,9 @@ body.atlas-tokens {
    ======================================================================= */
 .atlas-home-main {
   display: flex;
-  align-items: flex-start;
+  /* stretch（默认值）：侧栏高度跟随主列，两者底部持平。
+     之前是 flex-start —— 侧栏只按自身内容高度，短于商品框时下方会留缺口。 */
+  align-items: stretch;
   justify-content: space-between;
   gap: 20px;
   padding-top: 20px;
@@ -561,6 +563,9 @@ body.atlas-tokens {
   box-shadow: var(--shadow-card);
 }
 
+/* 表头「推荐」：它同时也是「全部/取消筛选」的入口。
+   默认必须是**中性态** —— 之前无条件红底，导致选中任何分类时它也跟着高亮，
+   看起来像「推荐」也被选中了。只有真正处于「未筛选」时才是选中态（红底白字）。 */
 .atlas-sidebar__head {
   display: flex;
   align-items: center;
@@ -569,12 +574,22 @@ body.atlas-tokens {
   margin-bottom: 3px;
   border: 0;
   border-radius: var(--r-item);
-  background: var(--accent);
-  color: #fff;
+  background: var(--surface-2);
+  color: var(--ink);
   font-size: 14px;
   font-weight: 600;
   text-align: left;
   cursor: pointer;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+.atlas-sidebar__head:hover {
+  background: var(--accent-soft);
+}
+
+.atlas-sidebar__head--on {
+  background: var(--accent);
+  color: #fff;
 }
 
 /* 表头图标：参考站 .home__StyledSidebar 的推荐行里也有一个图标，
@@ -584,6 +599,10 @@ body.atlas-tokens {
   height: 20px;
   flex: none;
   margin-right: 8px;
+  color: var(--accent);
+}
+
+.atlas-sidebar__head--on .atlas-sidebar__headicon {
   color: #fff;
 }
 

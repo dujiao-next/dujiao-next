@@ -35,7 +35,13 @@
         <!-- 左侧：推荐（红底表头 + 分类行，选中态跟随地址栏） -->
         <aside class="atlas-sidebar">
           <!-- 表头「推荐」：参考站这里也带图标。点击=清除分类筛选（回到全部/推荐） -->
-          <button class="atlas-sidebar__head" type="button" @click="clearCategory">
+          <button
+            class="atlas-sidebar__head"
+            :class="{ 'atlas-sidebar__head--on': !isFiltered }"
+            type="button"
+            :title="t('atlas.home.clearFilter')"
+            @click="clearCategory"
+          >
             <Flame class="atlas-sidebar__headicon" :stroke-width="2" />
             <span class="atlas-sidebar__name">{{ t('atlas.sidebar.recommend') }}</span>
             <ChevronRight class="atlas-sidebar__chev h-4 w-4" />
@@ -105,22 +111,10 @@
                最高的子项（侧栏）决定，主列被筛选条压短后就会在它下方留下
                与侧栏等高的空白（实测 438px），列表看起来「跑到页面下方」。 -->
           <template v-else>
-            <div class="atlas-filterbar">
-              <div>
-                <h1 class="atlas-filterbar__title">{{ filterTitle }}</h1>
-                <p class="atlas-filterbar__sub">{{ t('atlas.home.resultCount', { count: totalCount }) }}</p>
-              </div>
-              <button class="atlas-filterbar__clear" type="button" @click="clearCategory">
-                <X class="h-3.5 w-3.5" />
-                {{ t('atlas.home.clearFilter') }}
-              </button>
-            </div>
-
+            <!-- 筛选态不再渲染标题/计数条：侧栏选中项已经说明「在看哪个分类」，
+                 再放一条同样的标题就是重复占位。清除筛选 = 再点一次选中的分类。 -->
             <AtlasGoodsModule
-              class="mt-4"
               compact
-              :title="filterTitle"
-              :desc="t('atlas.home.resultCount', { count: totalCount })"
               :products="products"
               :loading="loading"
               :page="page"
@@ -162,7 +156,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ChevronRight, Clock4, Flame, Headset, ShieldCheck, Truck, X } from 'lucide-vue-next'
+import { ChevronRight, Clock4, Flame, Headset, ShieldCheck, Truck } from 'lucide-vue-next'
 import { useAppStore } from '../../stores/app'
 import { useLocalized } from '../../composables/useProduct'
 import { usePageSeo } from '../../composables/usePageSeo'
@@ -187,14 +181,19 @@ const trustItems = [
   { key: 'service', icon: Headset, titleKey: 'atlas.home.trust.service', subKey: 'atlas.home.trust.serviceSub' },
 ]
 
-const PAGE_SIZE = 12
+/**
+ * 每页固定 3 行：
+ *   未筛选 → 整宽分区 4 列，3 行 = 12 条
+ *   已筛选 → 主列紧凑 3 列，3 行 = 9 条
+ * 超出部分自动进下一页（后端按 page_size 分页）。
+ */
+const pageSize = computed(() => (isFiltered.value ? 9 : 12))
 
 const loading = ref(true)
 const products = ref<any[]>([])
 const categories = ref<PublicCategory[]>([])
 const page = ref(1)
 const totalPages = ref(1)
-const totalCount = ref(0)
 
 const rootCategories = computed(() =>
   categories.value.filter((c) => !c.parent_id || c.parent_id === 0),
@@ -247,6 +246,11 @@ const isActiveCategory = (cat: PublicCategory) =>
  * 顺带把状态放进地址栏，刷新/分享都能还原。
  */
 const selectCategory = (cat: PublicCategory) => {
+  // 再点一次已选中的分类 = 取消筛选（筛选态没有单独的「清除」按钮）
+  if (isActiveCategory(cat)) {
+    clearCategory()
+    return
+  }
   router.replace({ query: { ...route.query, category: cat.slug } })
 }
 
@@ -274,17 +278,15 @@ const firstPromo = computed(() => promoSlots.value[0])
 const loadProducts = async () => {
   loading.value = true
   try {
-    const params: Record<string, unknown> = { page: page.value, page_size: PAGE_SIZE }
+    const params: Record<string, unknown> = { page: page.value, page_size: pageSize.value }
     if (activeCategory.value) params.category_id = activeCategory.value.id
     if (activeSearch.value) params.search = activeSearch.value
     const res: any = await productAPI.list(params)
     products.value = res?.data?.data || []
     totalPages.value = res?.data?.pagination?.total_page || 1
-    totalCount.value = res?.data?.pagination?.total || products.value.length
   } catch {
     products.value = []
     totalPages.value = 1
-    totalCount.value = 0
   } finally {
     loading.value = false
   }
@@ -329,54 +331,9 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-/* 筛选态的信息条：明确告诉用户「现在在看什么」并给清除入口 */
-.atlas-filterbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 20px 24px;
-  border-radius: var(--r-sidebar);
-  background: var(--surface);
-  box-shadow: var(--shadow-card);
-}
-
-.atlas-filterbar__title {
-  font-family: var(--font-head);
-  font-size: 22px;
-  font-weight: 700;
-  line-height: 1.2;
-}
-
-.atlas-filterbar__sub {
-  margin-top: 4px;
-  color: var(--ink-3);
-  font-size: 13px;
-}
-
-.atlas-filterbar__clear {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex: none;
-  height: 32px;
-  padding: 0 12px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-sm);
-  background: none;
-  color: var(--ink-2);
-  font-size: 13px;
-  cursor: pointer;
-  transition: all var(--dur) var(--ease);
-}
-
-.atlas-filterbar__clear:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--accent-soft);
-}
-
-/* 分页与商品网格的样式已随 AtlasGoodsModule 组件走（它在两处复用） */
+/* 筛选态已不再显示独立的标题/计数条（与侧栏选中项重复），
+   所以 .atlas-filterbar* 的样式随之下线；
+   商品网格与分页的样式在 AtlasGoodsModule 组件内。 */
 
 @media (max-width: 1180px) {
   .atlas-trustbar__row {
