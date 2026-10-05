@@ -34,22 +34,28 @@
       <div class="atlas-home-main">
         <!-- 左侧：推荐（红底表头 + 分类行，选中态跟随地址栏） -->
         <aside class="atlas-sidebar">
-          <RouterLink to="/products" class="atlas-sidebar__head">
+          <!-- 表头「推荐」：参考站这里也带图标。点击=清除分类筛选（回到全部/推荐） -->
+          <button class="atlas-sidebar__head" type="button" @click="clearCategory">
+            <Flame class="atlas-sidebar__headicon" :stroke-width="2" />
             <span class="atlas-sidebar__name">{{ t('atlas.sidebar.recommend') }}</span>
             <ChevronRight class="atlas-sidebar__chev h-4 w-4" />
-          </RouterLink>
-          <RouterLink
+          </button>
+
+          <!-- 分类行：原地选中（不跳页），筛选结果直接反映到下方商品区 -->
+          <button
             v-for="cat in rootCategories"
             :key="cat.id"
-            :to="`/categories/${cat.slug}`"
             class="atlas-sidebar__row"
             :class="{ 'atlas-sidebar__row--on': isActiveCategory(cat) }"
+            type="button"
+            :aria-pressed="isActiveCategory(cat)"
+            @click="selectCategory(cat)"
           >
             <img v-if="catIcon(cat)" class="atlas-sidebar__icon" :src="catIcon(cat)" :alt="getLocalizedText(cat.name)" loading="lazy" />
             <span v-else class="atlas-sidebar__icon atlas-thumb"></span>
             <span class="atlas-sidebar__name">{{ getLocalizedText(cat.name) }}</span>
             <ChevronRight class="atlas-sidebar__chev h-4 w-4" />
-          </RouterLink>
+          </button>
         </aside>
 
         <!-- 右侧 1080px -->
@@ -165,7 +171,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ChevronRight, Clock4, Headset, ShieldCheck, Truck, X } from 'lucide-vue-next'
+import { ChevronRight, Clock4, Flame, Headset, ShieldCheck, Truck, X } from 'lucide-vue-next'
 import { useAppStore } from '../../stores/app'
 import { useLocalized } from '../../composables/useProduct'
 import { usePageSeo } from '../../composables/usePageSeo'
@@ -208,11 +214,13 @@ const catIcon = (cat: PublicCategory) => (cat.icon ? getImageUrl(cat.icon) : '')
 
 /**
  * 当前筛选状态 —— 完全由地址栏驱动。
- * 这一步是「分类点不动」的修复关键：
- * 站点 template_mode = 'list' 时，/products 与 /categories/:slug 都由本组件渲染，
- * 因此必须由本组件读取路由参数并据此过滤，否则点击后渲染的还是同一个页面。
+ * 分类有两个来源，都要认：
+ *   1) /categories/:slug 的路径参数（template_mode='list' 时由本组件渲染）
+ *   2) /?category=slug 的查询参数（侧栏原地选中的入口，见 selectCategory）
  */
-const activeSlug = computed(() => String(route.params.slug || '').trim())
+const activeSlug = computed(() =>
+  String(route.params.slug || route.query.category || '').trim(),
+)
 const activeSearch = computed(() => String(route.query.search || '').trim())
 
 const activeCategory = computed(() => {
@@ -239,6 +247,25 @@ usePageSeo({ canonicalPath: () => route.path, title: () => filterTitle.value || 
 
 const isActiveCategory = (cat: PublicCategory) =>
   Boolean(activeSlug.value) && cat.slug === activeSlug.value
+
+/**
+ * 原地选中分类 —— 只改查询参数，不换路径。
+ *
+ * 换成路径（/categories/<slug>）会让路由去渲染另一个页面组件（Products.vue），
+ * 表现就是「点一下跳到别的页面」；而同一个路径只改 query 时，Vue Router 会
+ * 复用当前组件、不卸载不重挂，页面留在原地，筛选结果直接反映到下方商品区。
+ * 顺带把状态放进地址栏，刷新/分享都能还原。
+ */
+const selectCategory = (cat: PublicCategory) => {
+  router.replace({ query: { ...route.query, category: cat.slug } })
+}
+
+/** 清除分类筛选（回到全部 / 推荐） */
+const clearCategory = () => {
+  const next = { ...route.query }
+  delete next.category
+  router.replace({ query: next })
+}
 
 /**
  * 推荐位（参考站 .recommend-top / .recommend-bottom）。
@@ -287,7 +314,7 @@ const goToProduct = (slug: string) => router.push(`/products/${slug}`)
  * 覆盖三种入口：侧栏分类、顶部分类导航条、顶部搜索框。
  */
 watch(
-  () => [route.params.slug, route.query.search],
+  () => [route.params.slug, route.query.category, route.query.search],
   async () => {
     page.value = 1
     // 分类数据可能还没到（直接打开 /categories/x 时），先等分类加载完再过滤

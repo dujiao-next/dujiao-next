@@ -564,13 +564,27 @@ body.atlas-tokens {
 .atlas-sidebar__head {
   display: flex;
   align-items: center;
+  width: 100%;
   padding: 12px 16px;
   margin-bottom: 3px;
+  border: 0;
   border-radius: var(--r-item);
   background: var(--accent);
   color: #fff;
   font-size: 14px;
   font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* 表头图标：参考站 .home__StyledSidebar 的推荐行里也有一个图标，
+   用途是标示这一列的性质（推荐/热门入口），位置在文字左侧 */
+.atlas-sidebar__headicon {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  margin-right: 8px;
+  color: #fff;
 }
 
 .atlas-sidebar__row {
@@ -579,10 +593,13 @@ body.atlas-tokens {
   width: 100%;
   padding: 12px 16px;
   margin-bottom: 3px;
+  border: 0;
   border-radius: var(--r-item);
+  background: none;
   font-size: 14px;
   color: var(--ink);
   text-align: left;
+  cursor: pointer;
   transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
 }
 

@@ -1,30 +1,52 @@
 <template>
-  <!-- 参考站的商品卡：白底、小圆角、极轻阴影，图片区用纯色底而非骨架屏。
-       信息层级固定为「标签 → 标题 → 价格」，价格右对齐并带红色「起」字。 -->
+  <!--
+    参考站商品卡（.recommend-item），结构为「上半部实景图 + 下半部价格」：
+      .recommend-item        302x180; radius 8; shadow 0 4px 12px rgba(0,0,0,.05)
+                             transition all .35s cubic-bezier(.25,1,.5,1); bg #fff
+      .recommend-top         高 134; padding 28/26; flex; align-center; gap 15;
+                             relative; overflow hidden; radius 8 8 0 0
+        .btAmVe（遮罩）      absolute inset-0; bg #1a1a1a
+                             img: cover; transform scale(2);
+                                  blur(35px) saturate(3) brightness(.8)
+        .img                 70x70; radius 12; shadow 0 4px 12px rgba(0,0,0,.2); z-index 1
+        .recommend-right     flex column; align-items flex-start; z-index 1
+          .title-box         高 37; flex align-center
+          .title             白 18px/700; line-height 20; max-width 160; 2 行截断;
+                             text-shadow 0 1px 4px rgba(0,0,0,.2)
+          .desc              白 11px; bg rgba(255,255,255,.2); backdrop-blur 5px;
+                             padding 0 8; radius 4; margin-top 6; 单行截断
+      .recommend-bottom      padding 10; z-index 1
+        .info                flex; align-end; gap 10; justify-between
+          span（价格）       color var(--mainColor); font-weight bold; bottom -2px
+                             small 12px（货币符号） + strong 23px（数字）
+          .sale              「起」12px #aaa
+    悬停时底图放大到 1.5 倍。
+  -->
   <article class="atlas-pcard" @click="$emit('click', product.slug)">
-    <div class="atlas-thumb atlas-pcard__media">
-      <img
-        v-if="cover"
-        :src="cover"
-        :alt="getLocalizedText(product.title)"
-        loading="lazy"
-        decoding="async"
-      />
-      <ImageOff v-else class="h-8 w-8 text-[color:var(--ink-4)]" />
-    </div>
-
-    <div class="atlas-pcard__body">
-      <div v-if="tags.length" class="flex flex-wrap gap-1">
-        <span v-for="(tag, i) in tags" :key="i" class="atlas-tag">{{ tag }}</span>
+    <div class="atlas-pcard__top">
+      <div class="atlas-pcard__mask">
+        <img v-if="cover" class="atlas-pcard__bg" :src="cover" alt="" aria-hidden="true" />
       </div>
 
-      <h3 class="atlas-pcard__title">{{ getLocalizedText(product.title) }}</h3>
+      <div class="atlas-pcard__img">
+        <img v-if="cover" :src="cover" :alt="getLocalizedText(product.title)" loading="lazy" decoding="async" />
+        <ImageOff v-else class="h-6 w-6 text-white/50" />
+      </div>
 
-      <div v-if="categoryName" class="atlas-pcard__cat">{{ categoryName }}</div>
+      <div class="atlas-pcard__right">
+        <div class="atlas-pcard__titlebox">
+          <div class="atlas-pcard__title">{{ getLocalizedText(product.title) }}</div>
+        </div>
+        <div v-if="tagsText" class="atlas-pcard__desc">{{ tagsText }}</div>
+      </div>
+    </div>
 
-      <div class="atlas-pcard__foot">
-        <span class="atlas-price atlas-pcard__price">{{ formatPrice(product.price_amount, siteCurrency) }}</span>
-        <span class="atlas-price-from">{{ t('atlas.product.from') }}</span>
+    <div class="atlas-pcard__bottom">
+      <div class="atlas-pcard__info">
+        <span class="atlas-pcard__price">
+          <small>{{ currencySymbol }}</small><strong>{{ amountText }}</strong>
+        </span>
+        <span class="atlas-pcard__sale">{{ t('atlas.product.from') }}</span>
       </div>
     </div>
   </article>
@@ -42,91 +64,220 @@ const props = withDefaults(
     product: any
     maxTags?: number
   }>(),
-  { maxTags: 2 },
+  { maxTags: 3 },
 )
 
 defineEmits<{ click: [slug: string] }>()
 
 const { t } = useI18n()
-const { getLocalizedText, siteCurrency, formatPrice } = useLocalized()
+const { getLocalizedText, siteCurrency } = useLocalized()
 
 const cover = computed(() => {
   const url = getFirstImageUrl(props.product?.images)
   return url ? getImageUrl(url) : ''
 })
 
-const tags = computed(() => {
+/* 参考站的标签是一行纯文本（如「平台账号,CDK,手游账号」），不是多个 pill */
+const tagsText = computed(() => {
   const raw = props.product?.tags
-  if (!Array.isArray(raw)) return []
+  if (!Array.isArray(raw)) return ''
   return raw
     .map((tag: any) => (typeof tag === 'string' ? tag : getLocalizedText(tag?.name ?? tag)))
     .filter((tag: string) => tag)
     .slice(0, props.maxTags)
+    .join(',')
 })
 
-const categoryName = computed(() => {
-  const name = props.product?.category?.name
-  return name ? getLocalizedText(name) : ''
+/* 货币符号：参考站是「小号￥ + 大号数字」，所以不能用 formatPrice（它会把币种码缀在数字后） */
+const currencySymbol = computed(() => {
+  const map: Record<string, string> = {
+    CNY: '¥', TWD: 'NT$', USD: '$', EUR: '€', JPY: '¥', HKD: 'HK$', GBP: '£', KRW: '₩',
+  }
+  const cur = siteCurrency.value
+  return map[cur] || cur
+})
+
+/* 数字：去掉多余的小数尾零（参考站显示 26.8 / 20，而不是 26.80 / 20.00） */
+const amountText = computed(() => {
+  const raw = props.product?.price_amount
+  if (raw === null || raw === undefined || raw === '') return '-'
+  const num = Number(raw)
+  if (!Number.isFinite(num)) return String(raw)
+  return String(Number(num.toFixed(2)))
 })
 </script>
 
 <style scoped>
+/* 卡片本体：302x180 定尺，网格给到 ~303 宽，所以用 width:100% + 固定高 */
 .atlas-pcard {
+  position: relative;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  border-radius: var(--r-lg);
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
+  width: 100%;
+  height: 180px;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  transition: all 0.35s cubic-bezier(0.25, 1, 0.5, 1);
   cursor: pointer;
-  transition: box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease);
+  overflow: hidden;
 }
 
 .atlas-pcard:hover {
-  box-shadow: var(--shadow-md);
   transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
 }
 
-.atlas-pcard__media {
+.atlas-pcard:hover .atlas-pcard__bg {
+  transform: scale(1.5);
+}
+
+/* 上半部：134px，底图 + 70x70 图标 + 右侧文字 */
+.atlas-pcard__top {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 15px;
+  height: 134px;
+  padding: 28px 26px;
+  overflow: hidden;
+  border-radius: 8px 8px 0 0;
+}
+
+/* 底图遮罩：用商品图自身放大模糊做背景，避免依赖运营配图 */
+.atlas-pcard__mask {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 134px;
+  overflow: hidden;
+  background: #1a1a1a;
+}
+
+.atlas-pcard__bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(2);
+  filter: blur(35px) saturate(3) brightness(0.8);
+  transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.atlas-pcard__img {
+  position: relative;
+  z-index: 1;
   display: grid;
   place-items: center;
-  aspect-ratio: 4 / 3;
-  border-radius: 0;
+  width: 70px;
+  height: 70px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
-.atlas-pcard__body {
+.atlas-pcard__img img {
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.atlas-pcard__right {
+  position: relative;
+  z-index: 1;
   display: flex;
-  flex: 1;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px;
+  align-items: flex-start;
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.atlas-pcard__titlebox {
+  display: flex;
+  align-items: center;
+  height: 37px;
 }
 
 .atlas-pcard__title {
   display: -webkit-box;
+  max-width: 160px;
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-clamp: 2;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.35;
+  margin: 0;
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 20px;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
 }
 
-.atlas-pcard__cat {
-  color: var(--ink-4);
+.atlas-pcard__desc {
+  display: inline-block;
+  max-width: 160px;
+  margin-top: 6px;
+  padding: 0 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(5px);
+  color: #ffffff;
   font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.atlas-pcard__foot {
+/* 下半部：价格行 */
+.atlas-pcard__bottom {
+  position: relative;
+  z-index: 1;
+  padding: 10px;
+}
+
+.atlas-pcard__info {
   display: flex;
-  align-items: baseline;
-  gap: 4px;
-  margin-top: auto;
-  padding-top: 8px;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .atlas-pcard__price {
-  font-size: 17px;
+  position: relative;
+  bottom: -2px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  color: var(--accent);
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.atlas-pcard__price small {
+  font-size: 12px;
+}
+
+.atlas-pcard__price strong {
+  font-size: 23px;
+  font-weight: bold;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.atlas-pcard__sale {
+  flex: none;
+  color: #aaaaaa;
+  font-size: 12px;
 }
 </style>

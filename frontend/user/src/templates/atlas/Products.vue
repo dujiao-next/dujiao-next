@@ -25,7 +25,10 @@
             :class="selectedCategoryId === group.id && 'atlas-side__item--on'"
             type="button"
             @click="selectCategory(group.id)"
-          >{{ getLocalizedText(group.name) }}</button>
+          >
+            <img v-if="catIcon(group)" class="atlas-side__icon" :src="catIcon(group)" :alt="getLocalizedText(group.name)" loading="lazy" />
+            <span>{{ getLocalizedText(group.name) }}</span>
+          </button>
 
           <button
             v-for="child in group.children"
@@ -34,7 +37,10 @@
             :class="selectedCategoryId === child.id && 'atlas-side__item--on'"
             type="button"
             @click="selectCategory(child.id)"
-          >{{ getLocalizedText(child.name) }}</button>
+          >
+            <img v-if="catIcon(child)" class="atlas-side__icon" :src="catIcon(child)" :alt="getLocalizedText(child.name)" loading="lazy" />
+            <span>{{ getLocalizedText(child.name) }}</span>
+          </button>
         </template>
       </aside>
 
@@ -99,6 +105,7 @@ import { useI18n } from 'vue-i18n'
 import { useLocalized } from '../../composables/useProduct'
 import { usePageSeo } from '../../composables/usePageSeo'
 import { productAPI, categoryAPI } from '../../api/product'
+import { getImageUrl } from '../../utils/image'
 import { buildCategoryGroups, type PublicCategory, type CategoryGroup } from '../../utils/category'
 import AtlasProductCard from './components/AtlasProductCard.vue'
 import EmptyState from '../../components/EmptyState.vue'
@@ -118,6 +125,9 @@ const currentPage = ref(1)
 const totalPages = ref(1)
 
 const categoryGroups = computed<CategoryGroup[]>(() => buildCategoryGroups(categories.value))
+
+/* 分类图标：参考站侧栏每一行左侧都有一个 24x24 图标 */
+const catIcon = (cat: PublicCategory) => (cat.icon ? getImageUrl(cat.icon) : '')
 
 const activeCategoryName = computed(() => {
   if (!selectedCategoryId.value) return ''
@@ -232,7 +242,8 @@ onMounted(async () => {
 }
 
 .atlas-side__item {
-  display: block;
+  display: flex;
+  align-items: center;
   width: 100%;
   padding: 7px 8px;
   border-radius: var(--r-sm);
@@ -240,6 +251,16 @@ onMounted(async () => {
   font-size: 13px;
   text-align: left;
   transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+/* 行内分类图标：24x24，位于名称左侧（与首页侧栏、参考站一致） */
+.atlas-side__icon {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  margin-right: 8px;
+  border-radius: var(--r-xs);
+  object-fit: contain;
 }
 
 .atlas-side__item:hover {
