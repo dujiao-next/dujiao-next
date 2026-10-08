@@ -110,7 +110,7 @@
                     <div class="flex flex-wrap items-end gap-4">
                       <span
                         class="theme-price-lg"
-                        :class="selectedSkuWholesaleFinalIsMember ? 'text-amber-600 dark:text-amber-300' : 'text-emerald-600 dark:text-emerald-300'"
+                        :class="selectedSkuWholesaleFinalIsMember ? 'text-warm' : 'text-success'"
                       >
                         {{ formatPrice(selectedSkuWholesaleFinalPrice!, siteCurrency) }}
                       </span>
@@ -120,7 +120,7 @@
                     </div>
                     <p
                       class="text-sm font-medium"
-                      :class="selectedSkuWholesaleFinalIsMember ? 'text-amber-600 dark:text-amber-300' : 'text-emerald-600 dark:text-emerald-300'"
+                      :class="selectedSkuWholesaleFinalIsMember ? 'text-warm' : 'text-success'"
                     >
                       {{ selectedSkuWholesaleFinalIsMember ? t('products.memberPriceTag') : t('products.wholesaleTag') }} ·
                       {{ t('products.saveAmount') }} {{ formatPrice(Number(selectedSku.price_amount) - Number(selectedSkuWholesaleFinalPrice), siteCurrency) }}
@@ -129,34 +129,34 @@
                   <!-- 选中 SKU 且有促销价 -->
                   <div v-else-if="selectedSku && hasSkuPromotionPrice(selectedSku)" class="space-y-2">
                     <div class="flex flex-wrap items-end gap-4">
-                      <span v-if="selectedSkuPromotionFinalIsMember" class="theme-price-lg text-amber-600 dark:text-amber-300">
+                      <span v-if="selectedSkuPromotionFinalIsMember" class="theme-price-lg text-warm">
                         {{ formatPrice(selectedSkuPromotionFinalPrice!, siteCurrency) }}
                       </span>
-                      <span v-else class="theme-price-lg text-rose-600 dark:text-rose-300">
+                      <span v-else class="theme-price-lg theme-price-promotion">
                         {{ formatPrice(selectedSkuPromotionPrice!, siteCurrency) }}
                       </span>
                       <span class="theme-price-original">
                         {{ formatPrice(selectedSku.price_amount, siteCurrency) }}
                       </span>
                     </div>
-                    <p v-if="selectedSkuPromotionFinalIsMember" class="text-sm font-medium text-amber-600 dark:text-amber-300">
+                    <p v-if="selectedSkuPromotionFinalIsMember" class="text-sm font-medium text-warm">
                       {{ t('products.memberPriceTag') }} · {{ t('products.saveAmount') }} {{ formatPrice(Number(selectedSku.price_amount) - Number(selectedSkuPromotionFinalPrice), siteCurrency) }}
                     </p>
-                    <p v-else class="text-sm font-medium text-rose-500 dark:text-rose-300">
+                    <p v-else class="text-sm font-medium theme-price-promotion">
                       {{ t('products.saveAmount') }} {{ formatPrice(getSkuPromotionSaveAmount(selectedSku), siteCurrency) }}
                     </p>
                   </div>
                   <!-- 选中 SKU 有会员价但无促销价 -->
                   <div v-else-if="selectedSku && hasMemberPrice" class="space-y-2">
                     <div class="flex flex-wrap items-end gap-4">
-                      <span class="theme-price-lg text-amber-600 dark:text-amber-300">
+                      <span class="theme-price-lg text-warm">
                         {{ formatPrice(selectedSkuMemberPrice!, siteCurrency) }}
                       </span>
                       <span class="theme-price-original">
                         {{ formatPrice(selectedSku.price_amount, siteCurrency) }}
                       </span>
                     </div>
-                    <p class="text-sm font-medium text-amber-600 dark:text-amber-300">
+                    <p class="text-sm font-medium text-warm">
                       {{ t('products.memberPriceTag') }} · {{ t('products.saveAmount') }} {{ formatPrice(Number(selectedSku.price_amount) - selectedSkuMemberPrice!, siteCurrency) }}
                     </p>
                   </div>
@@ -169,14 +169,14 @@
                   <!-- 未选 SKU，产品级有促销价 -->
                   <div v-else-if="hasPromotionPrice(product)" class="space-y-2">
                     <div class="flex flex-wrap items-end gap-4">
-                      <span class="theme-price-lg text-rose-600 dark:text-rose-300">
+                      <span class="theme-price-lg theme-price-promotion">
                         {{ formatPrice(getPromotionPriceAmount(product), siteCurrency) }}
                       </span>
                       <span class="theme-price-original">
                         {{ formatPrice(product.price_amount, siteCurrency) }}
                       </span>
                     </div>
-                    <p class="text-sm font-medium text-rose-500 dark:text-rose-300">
+                    <p class="text-sm font-medium theme-price-promotion">
                       {{ t('products.saveAmount') }} {{ formatPrice(getPromotionSaveAmount(product), siteCurrency) }}
                     </p>
                   </div>
@@ -189,8 +189,8 @@
                 </div>
 
                 <!-- 批发价规则展示 -->
-                <div v-if="selectedSkuWholesaleRules.length" class="mb-8 rounded-xl border border-emerald-200 bg-emerald-50/50 px-4 py-3 dark:border-emerald-800/50 dark:bg-emerald-950/20">
-                  <h2 class="mb-2 flex items-center gap-1.5 text-sm font-bold text-emerald-700 dark:text-emerald-300">
+                <div v-if="selectedSkuWholesaleRules.length" class="mb-8 rounded-xl border border-success/40 bg-success/10 px-4 py-3">
+                  <h2 class="mb-2 flex items-center gap-1.5 text-sm font-bold text-success">
                     {{ t('products.wholesaleRulesTitle') }}
                   </h2>
                   <div class="flex flex-wrap gap-2">
@@ -201,14 +201,14 @@
                 </div>
 
                 <!-- 活动规则展示 -->
-                <div v-if="hasPromotionRules(product)" class="mb-8 rounded-xl border border-orange-200 dark:border-orange-800/50 bg-orange-50/50 dark:bg-orange-950/20 px-4 py-3">
-                  <h2 class="mb-2 text-sm font-bold text-orange-700 dark:text-orange-300 flex items-center gap-1.5">
+                <div v-if="hasPromotionRules(product)" class="mb-8 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3">
+                  <h2 class="mb-2 text-sm font-bold text-warning flex items-center gap-1.5">
                     <Tag class="w-4 h-4" />
                     {{ t('products.promotionRulesTitle') }}
                   </h2>
                   <ul class="space-y-1">
-                    <li v-for="rule in getPromotionRules(product)" :key="rule.id" class="text-sm text-orange-600 dark:text-orange-300/90 flex items-center gap-1.5">
-                      <span class="w-1 h-1 rounded-full bg-orange-400 dark:bg-orange-500 shrink-0"></span>
+                    <li v-for="rule in getPromotionRules(product)" :key="rule.id" class="text-sm text-warning flex items-center gap-1.5">
+                      <span class="w-1 h-1 rounded-full bg-warning shrink-0"></span>
                       <span>{{ formatPromotionRule(rule) }}</span>
                     </li>
                   </ul>
@@ -240,17 +240,17 @@
                       </span>
                     </button>
                   </div>
-                  <p v-if="requiresSKUSelection" class="mt-2 text-xs text-amber-500">
+                  <p v-if="requiresSKUSelection" class="mt-2 text-xs text-warm">
                     {{ t('productDetail.skuRequired') }}
                   </p>
                 </div>
 
-                <div class="mb-8">
+                <div v-if="descriptionText" class="mb-8">
                   <h2 class="mb-3 text-sm font-bold uppercase tracking-widest text-muted-foreground">
                     {{ t('productDetail.description') }}
                   </h2>
                   <p class="text-lg leading-relaxed text-muted-foreground">
-                    {{ getLocalizedText(product.description) }}
+                    {{ descriptionText }}
                   </p>
                 </div>
               </div>
@@ -411,7 +411,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onUnmounted } from 'vue'
+import { computed, ref, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ArrowLeft, Lock, Minus, Pencil, Plus, RotateCw, Tag, UserPlus, Zap } from 'lucide-vue-next'
 import { getImageUrl } from '../utils/image'
@@ -472,6 +472,19 @@ const {
   mobileBarShowSkuPrice, mobileBarSkuPriceDisplay,
   mobileBarShowProductPromotionPrice, mobileBarProductPromotionPriceDisplay, mobileBarProductPriceDisplay,
 } = useProductDetail({ onLoaded: () => setupMobileBarObserver() })
+
+/**
+ * 「商品描述」区块的文案（来源：商品简介 description）。
+ *
+ * 整串只有一个 "." / "。" 的按空处理，区块随之隐藏。
+ * 线上商品的简介普遍就是这种占位（55 个商品无一例外），照原样渲染出来只会是
+ * 一个孤零零的句号 —— 与其留一行废话，不如不显示这个区块。
+ * 商户在后台把简介填成正常文案后，该区块会自动出现。
+ */
+const descriptionText = computed(() => {
+  const raw = getLocalizedText(product.value?.description).trim()
+  return /^[.。·・]+$/.test(raw) ? '' : raw
+})
 
 onUnmounted(() => {
   if (observer) {
