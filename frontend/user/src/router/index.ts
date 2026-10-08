@@ -102,12 +102,19 @@ export const warmupCommonRoutes = () => {
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
-    scrollBehavior(to, _from, savedPosition) {
+    scrollBehavior(to, from, savedPosition) {
         if (savedPosition) {
             return savedPosition
         }
         if (to.hash) {
             return { el: to.hash, top: 80 }
+        }
+        // 同一路径下只改了 query（首页切分类 / 搜索等）不算「换页」，
+        // 不把视口拉回顶部 —— 否则「点一下分类」会顺带把页面滚走。
+        // 需要回顶的场景（分页）都在各自页面里显式 scrollTo，
+        // 见 useProductList.changePage / atlas Home.changePage / atlas Products.changePage。
+        if (to.path === from.path) {
+            return false
         }
         return { top: 0 }
     },

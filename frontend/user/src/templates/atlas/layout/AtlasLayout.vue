@@ -374,7 +374,11 @@ const isNavCategoryActive = (cat: PublicCategory) => {
  *   · 即便由 Home 渲染，也是换路由记录而不是原地更新。
  * 现在只改 query —— Home 的 activeSlug 同时认 params.slug 与 query.category，
  * 同一路由记录下只改 query 时 Vue Router 复用组件、不卸载不重挂，页面留在原地，
- * 筛选结果直接反映到分类区下方的商品区，再把视口平滑定位到分类区。
+ * 筛选结果直接反映到分类区下方的商品区。
+ *
+ * 这里**不做任何滚动**：选分类只是换个筛选条件，视口该留在用户当前看的地方。
+ * （曾经在末尾调 scrollToAnchor(catalog) 把视口拉到分类区，表现就是「一点分类
+ * 页面就自己往下跳」。）
  */
 const goCategory = async (cat: PublicCategory) => {
   const query = { ...route.query, category: cat.slug }
@@ -385,10 +389,6 @@ const goCategory = async (cat: PublicCategory) => {
   const canFilterInPlace = !route.params.slug && hasAnchor(ATLAS_ANCHOR.catalog)
   if (canFilterInPlace) await router.replace({ query })
   else await router.push({ path: '/', query })
-
-  // 导航完成后再滚：Home 是异步组件，首次进入时锚点要等它挂载才出现
-  // （scrollToAnchor 内部还会再等一段时间，并按帧校正被异步内容推走的落点）
-  scrollToAnchor(ATLAS_ANCHOR.catalog, { offset: atlasStickyOffset })
 }
 
 /** 首页按钮：回到页面顶部 —— 它对应的是首页的头部区域，不是另一个菜单页 */
