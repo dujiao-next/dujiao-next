@@ -3,6 +3,7 @@ package categoryapp
 import (
 	"errors"
 	"strconv"
+	"strings"
 
 	categorycontract "github.com/dujiao-next/internal/modules/catalog/category/contract"
 	categorydomain "github.com/dujiao-next/internal/modules/catalog/category/domain"
@@ -64,7 +65,11 @@ func (service *Service) Create(input UpsertInput) (*categorydomain.Category, err
 	if err := service.validateParent(nil, input.ParentID); err != nil {
 		return nil, err
 	}
-	count, err := service.repository.CountBySlug(input.Slug, nil)
+	// slug 是 URL 片段，前后空白没有意义；后台表单没做 trim，这里兜住，
+	// 否则会存出 "xxx " 这种值，前端按 slug 匹配时永远对不上（详见前端
+	// categoryAPI.list 的注释）。
+	slug := strings.TrimSpace(input.Slug)
+	count, err := service.repository.CountBySlug(slug, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +78,7 @@ func (service *Service) Create(input UpsertInput) (*categorydomain.Category, err
 	}
 	category := categorydomain.Category{
 		ParentID:  input.ParentID,
-		Slug:      input.Slug,
+		Slug:      slug,
 		NameJSON:  jsonmap.JSON(input.NameJSON),
 		Icon:      input.Icon,
 		SortOrder: input.SortOrder,
@@ -96,7 +101,9 @@ func (service *Service) Update(id string, input UpsertInput) (*categorydomain.Ca
 	if err := service.validateParent(category, input.ParentID); err != nil {
 		return nil, err
 	}
-	count, err := service.repository.CountBySlug(input.Slug, &id)
+	// 同 Create：slug 前后空白一律去掉
+	slug := strings.TrimSpace(input.Slug)
+	count, err := service.repository.CountBySlug(slug, &id)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +111,7 @@ func (service *Service) Update(id string, input UpsertInput) (*categorydomain.Ca
 		return nil, ErrSlugExists
 	}
 	category.ParentID = input.ParentID
-	category.Slug = input.Slug
+	category.Slug = slug
 	category.NameJSON = jsonmap.JSON(input.NameJSON)
 	category.Icon = input.Icon
 	category.SortOrder = input.SortOrder

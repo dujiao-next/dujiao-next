@@ -131,7 +131,7 @@
 
     <!-- ==================== 页脚 ==================== -->
     <footer class="bg-[color:var(--dark)]">
-      <div class="atlas-shell grid grid-cols-1 gap-8 pb-10 pt-[52px] sm:grid-cols-2 lg:grid-cols-[1.8fr_repeat(3,1fr)]">
+      <div class="atlas-shell grid grid-cols-1 gap-8 pb-6 pt-8 sm:grid-cols-2 lg:grid-cols-[1.8fr_repeat(3,1fr)]">
         <div>
           <RouterLink class="inline-flex items-center gap-2 text-[17px] font-bold text-white" to="/">
             <img v-if="brandLogo" :src="brandLogo" :alt="brandName" class="h-7 max-w-[140px] object-contain" />
@@ -180,7 +180,7 @@
         </div>
       </div>
 
-      <div class="atlas-shell flex flex-wrap items-center justify-between gap-3 border-t border-white/10 py-4 text-[12px] text-[color:var(--footer-ink)]">
+      <div class="atlas-shell flex flex-wrap items-center justify-between gap-3 border-t border-white/10 py-3 text-[12px] text-[color:var(--footer-ink)]">
         <span>© {{ year }} {{ brandName }}</span>
         <span>{{ t('atlas.footer.builtOn') }}</span>
       </div>

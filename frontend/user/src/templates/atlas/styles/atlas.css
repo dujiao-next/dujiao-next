@@ -1045,7 +1045,7 @@ body.atlas-tokens {
 
 .atlas-foot-link {
   display: block;
-  padding: 4px 0;
+  padding: 2px 0;
   color: rgba(255, 255, 255, 0.7);
   font-size: 13px;
   transition: color var(--dur) var(--ease);
@@ -1054,7 +1054,7 @@ body.atlas-tokens {
 .atlas-foot-link:hover { color: #fff; }
 
 .atlas-foot-head {
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   color: #fff;
   font-size: 14px;
   font-weight: 600;
