@@ -34,6 +34,9 @@ const contentAdminJWTSecret = "content-admin-route-contract-secret"
 var contentAdminRouteContract = []adminRoute{
 	{method: http.MethodGet, object: "/admin/posts"},
 	{method: http.MethodPost, object: "/admin/posts"},
+	{method: http.MethodPost, object: "/admin/posts/batch-status"},
+	{method: http.MethodPost, object: "/admin/posts/batch-category"},
+	{method: http.MethodPost, object: "/admin/posts/batch-delete"},
 	{method: http.MethodPut, object: "/admin/posts/:id"},
 	{method: http.MethodDelete, object: "/admin/posts/:id"},
 	{method: http.MethodGet, object: "/admin/posts/:id/products"},

@@ -15,6 +15,10 @@ func RegisterPublicRoutes(public gin.IRoutes, handler *PublicHandler) {
 func RegisterAdminRoutes(admin gin.IRoutes, handler *AdminHandler) {
 	admin.GET("/posts", handler.GetAdminPosts)
 	admin.POST("/posts", handler.CreatePost)
+	// 静态 batch-* 必须先于参数路由注册。
+	admin.POST("/posts/batch-status", handler.BatchUpdatePostStatus)
+	admin.POST("/posts/batch-category", handler.BatchUpdatePostCategory)
+	admin.POST("/posts/batch-delete", handler.BatchDeletePosts)
 	admin.PUT("/posts/:id", handler.UpdatePost)
 	admin.DELETE("/posts/:id", handler.DeletePost)
 	admin.GET("/posts/:id/products", handler.GetAdminPostProductIDs)

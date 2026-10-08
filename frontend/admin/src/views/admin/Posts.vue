@@ -10,6 +10,7 @@ import IdCell from '@/components/IdCell.vue'
 import { getImageUrl } from '@/utils/image'
 import { formatDate, getLocalizedText } from '@/utils/format'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
@@ -19,7 +20,7 @@ import TableSkeleton from '@/components/TableSkeleton.vue'
 import ListPagination from '@/components/ListPagination.vue'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { notifyError } from '@/utils/notify'
+import { notifyError, notifySuccess } from '@/utils/notify'
 import { confirmAction } from '@/utils/confirm'
 import { useFormValidation, rules } from '@/composables/useFormValidation'
 
@@ -44,11 +45,15 @@ const loading = ref(false)
 const showModal = ref(false)
 const isEditing = ref(false)
 const currentTab = ref(route.params.type === 'notice' ? 'notice' : 'blog')
+// 列表筛选：公告没有分类维度，分类筛选仅在博客文章下生效
+const categoryFilter = ref('all')
+const statusFilter = ref('all')
 const currentLang = ref('zh-CN')
 const submitting = ref(false)
 
 watch(currentTab, (tab) => {
   pagination.page = 1
+  if (tab === 'notice') categoryFilter.value = 'all'
   fetchPosts()
   if (route.params.type !== tab) {
     router.replace(`/posts/${tab}`)
@@ -69,6 +74,23 @@ const pagination = reactive({
   total: 0,
   total_page: 0,
 })
+
+// --- Batch ---
+const selectedIds = ref<Set<number>>(new Set())
+const batchOperating = ref(false)
+const batchCategoryId = ref('')
+
+const allSelected = computed(() => posts.value.length > 0 && posts.value.every((p) => selectedIds.value.has(p.id)))
+
+const toggleSelectAll = () => {
+  selectedIds.value = allSelected.value ? new Set() : new Set(posts.value.map((p) => p.id))
+}
+
+const toggleSelect = (id: number) => {
+  const next = new Set(selectedIds.value)
+  next.has(id) ? next.delete(id) : next.add(id)
+  selectedIds.value = next
+}
 const form = reactive({
   id: 0,
   title: { 'zh-CN': '', 'zh-TW': '', 'en-US': '' } as Record<string, string>,
@@ -163,6 +185,8 @@ const fetchPosts = async () => {
       page: pagination.page,
       page_size: pagination.page_size,
       type: currentTab.value,
+      category_id: categoryFilter.value === 'all' ? undefined : categoryFilter.value,
+      is_published: statusQueryValue(),
     })
     posts.value = res.data.data || []
     if (res.data.pagination) {
@@ -229,6 +253,66 @@ const getCategoryName = (categoryId?: number | null) => {
 const getCategoryPath = (categoryId: number) => {
   const cat = categories.value.find(c => c.id === categoryId)
   return cat ? getLocalizedText(cat.name) : ''
+}
+
+// 发布状态三态：'all' 不下发参数，'published' → is_published=1，'draft' → is_published=0
+const statusQueryValue = () => {
+  if (statusFilter.value === 'published') return '1'
+  if (statusFilter.value === 'draft') return '0'
+  return undefined
+}
+
+const handleFilterChange = () => {
+  pagination.page = 1
+  fetchPosts()
+}
+
+const resetFilters = () => {
+  categoryFilter.value = 'all'
+  statusFilter.value = 'all'
+  handleFilterChange()
+}
+
+const handleBatchStatus = async (isPublished: boolean) => {
+  const ids = Array.from(selectedIds.value)
+  if (!ids.length) return
+  batchOperating.value = true
+  try {
+    const res = await adminAPI.batchUpdatePostStatus(ids, isPublished)
+    const data = res.data.data as { success_count?: number } | null
+    notifySuccess(t('admin.posts.batch.statusResult', { success: data?.success_count || 0, total: ids.length }))
+    selectedIds.value = new Set()
+    fetchPosts()
+  } catch (err: any) { notifyError(err?.response?.data?.message || err?.message) } finally { batchOperating.value = false }
+}
+
+const handleBatchCategory = async () => {
+  const ids = Array.from(selectedIds.value)
+  if (!ids.length || !batchCategoryId.value) return
+  batchOperating.value = true
+  try {
+    const res = await adminAPI.batchUpdatePostCategory(ids, Number(batchCategoryId.value))
+    const data = res.data.data as { success_count?: number } | null
+    notifySuccess(t('admin.posts.batch.categoryResult', { success: data?.success_count || 0, total: ids.length }))
+    selectedIds.value = new Set()
+    batchCategoryId.value = ''
+    fetchPosts()
+  } catch (err: any) { notifyError(err?.response?.data?.message || err?.message) } finally { batchOperating.value = false }
+}
+
+const handleBatchDelete = async () => {
+  const ids = Array.from(selectedIds.value)
+  if (!ids.length) return
+  const confirmed = await confirmAction({ description: t('admin.posts.batch.deleteConfirm', { count: ids.length }), confirmText: t('admin.common.delete'), variant: 'destructive' })
+  if (!confirmed) return
+  batchOperating.value = true
+  try {
+    const res = await adminAPI.batchDeletePosts(ids)
+    const data = res.data.data as { success_count?: number } | null
+    notifySuccess(t('admin.posts.batch.deleteResult', { success: data?.success_count || 0, total: ids.length }))
+    selectedIds.value = new Set()
+    fetchPosts()
+  } catch (err: any) { notifyError(err?.response?.data?.message || err?.message) } finally { batchOperating.value = false }
 }
 
 const changePage = (page: number) => {
@@ -382,10 +466,82 @@ watch(
       </TabsList>
     </Tabs>
 
+    <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
+      <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <!-- 公告没有分类维度，分类筛选仅在博客文章下提供 -->
+        <div v-if="currentTab === 'blog'" class="w-full md:w-56">
+          <Select v-model="categoryFilter" @update:modelValue="handleFilterChange">
+            <SelectTrigger class="h-9 w-full">
+              <SelectValue :placeholder="t('admin.posts.filters.categoryPlaceholder')" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{{ t('admin.posts.filters.categoryAll') }}</SelectItem>
+              <SelectItem
+                v-for="cat in categories"
+                :key="cat.id"
+                :value="String(cat.id)"
+                :disabled="!cat.selectable"
+                :class="cat.depth > 0 ? 'pl-6' : ''"
+              >
+                {{ cat.depth > 0 ? getLocalizedText(cat.name) : getCategoryPath(cat.id) }}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div class="w-full md:w-48">
+          <Select v-model="statusFilter" @update:modelValue="handleFilterChange">
+            <SelectTrigger class="h-9 w-full">
+              <SelectValue :placeholder="t('admin.posts.filters.statusPlaceholder')" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{{ t('admin.posts.filters.statusAll') }}</SelectItem>
+              <SelectItem value="published">{{ t('admin.posts.filters.statusPublished') }}</SelectItem>
+              <SelectItem value="draft">{{ t('admin.posts.filters.statusDraft') }}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <Button variant="outline" size="sm" class="h-9 w-full sm:w-auto" @click="resetFilters">
+          {{ t('admin.common.reset') }}
+        </Button>
+      </div>
+    </div>
+
+    <!-- Batch action bar -->
+    <div v-if="selectedIds.size > 0" class="flex flex-wrap items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+      <span class="text-sm font-medium">{{ t('admin.posts.batch.selected', { count: selectedIds.size }) }}</span>
+      <div class="flex flex-wrap items-center gap-2">
+        <Button size="sm" variant="outline" :disabled="batchOperating" @click="handleBatchStatus(true)">{{ t('admin.posts.batch.publish') }}</Button>
+        <Button size="sm" variant="outline" :disabled="batchOperating" @click="handleBatchStatus(false)">{{ t('admin.posts.batch.draft') }}</Button>
+        <!-- 公告没有分类维度，移动分类仅在博客文章下提供 -->
+        <div v-if="currentTab === 'blog'" class="flex items-center gap-1">
+          <Select v-model="batchCategoryId">
+            <SelectTrigger class="h-8 w-[160px] text-xs"><SelectValue :placeholder="t('admin.posts.batch.categoryPlaceholder')" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem
+                v-for="cat in categories"
+                :key="cat.id"
+                :value="String(cat.id)"
+                :disabled="!cat.selectable"
+                :class="cat.depth > 0 ? 'pl-6' : ''"
+              >
+                {{ cat.depth > 0 ? getLocalizedText(cat.name) : getCategoryPath(cat.id) }}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" :disabled="batchOperating || !batchCategoryId" @click="handleBatchCategory">{{ t('admin.posts.batch.moveCategory') }}</Button>
+        </div>
+        <Button size="sm" variant="destructive" :disabled="batchOperating" @click="handleBatchDelete">{{ t('admin.posts.batch.delete') }}</Button>
+      </div>
+      <button class="ml-auto text-xs text-muted-foreground hover:text-foreground" @click="selectedIds = new Set()">{{ t('admin.posts.batch.clearSelection') }}</button>
+    </div>
+
     <div class="rounded-xl border border-border bg-card overflow-x-auto">
-      <Table class="min-w-[980px]">
+      <Table class="min-w-[1020px]">
         <TableHeader class="border-b border-border bg-muted/40 text-xs uppercase text-muted-foreground">
           <TableRow>
+            <TableHead class="w-10 px-3 py-3">
+              <Checkbox :model-value="allSelected ? true : (selectedIds.size > 0 ? 'indeterminate' : false)" @update:model-value="toggleSelectAll" />
+            </TableHead>
             <TableHead class="px-6 py-3">{{ t('admin.posts.table.id') }}</TableHead>
             <TableHead v-if="currentTab === 'blog'" class="w-32 px-6 py-3">{{ t('admin.posts.table.category') }}</TableHead>
             <TableHead class="min-w-[280px] px-6 py-3">{{ t('admin.posts.table.title') }}</TableHead>
@@ -397,14 +553,17 @@ watch(
         </TableHeader>
         <TableBody class="divide-y divide-border">
           <TableRow v-if="loading">
-            <TableCell :colspan="currentTab === 'blog' ? 7 : 6" class="p-0">
-              <TableSkeleton :columns="currentTab === 'blog' ? 7 : 6" :rows="5" />
+            <TableCell :colspan="currentTab === 'blog' ? 8 : 7" class="p-0">
+              <TableSkeleton :columns="currentTab === 'blog' ? 8 : 7" :rows="5" />
             </TableCell>
           </TableRow>
           <TableRow v-else-if="posts.length === 0">
-            <TableCell :colspan="currentTab === 'blog' ? 7 : 6" class="px-6 py-8 text-center text-muted-foreground">{{ t('admin.posts.empty') }}</TableCell>
+            <TableCell :colspan="currentTab === 'blog' ? 8 : 7" class="px-6 py-8 text-center text-muted-foreground">{{ t('admin.posts.empty') }}</TableCell>
           </TableRow>
           <TableRow v-for="post in posts" :key="post.id" class="hover:bg-muted/30">
+            <TableCell class="w-10 px-3 py-4">
+              <Checkbox :model-value="selectedIds.has(post.id)" @update:model-value="() => toggleSelect(post.id)" />
+            </TableCell>
             <TableCell class="px-6 py-4">
               <IdCell :value="post.id" />
             </TableCell>

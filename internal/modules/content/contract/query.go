@@ -9,11 +9,16 @@ const (
 )
 
 // PostQuery 描述文章列表查询。
+//
+// IsPublished 与 OnlyPublished 都是发布状态条件，分工不同：OnlyPublished 是公开侧强制的
+// 「必须已发布」开关；IsPublished 是后台可选的三态筛选，nil 不限、true 仅已发布、false 仅草稿。
 type PostQuery struct {
 	Page          int
 	PageSize      int
 	Type          string
 	Search        string
+	CategoryID    string
+	IsPublished   *bool
 	OnlyPublished bool
 	Order         PostOrder
 }

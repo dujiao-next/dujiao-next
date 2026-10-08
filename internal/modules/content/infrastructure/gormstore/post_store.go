@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 
 	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
 
@@ -49,6 +50,13 @@ func (s *PostStore) List(ctx context.Context, query contract.PostQuery) ([]domai
 	}
 	if query.Type != "" {
 		statement = statement.Where("type = ?", query.Type)
+	}
+	if query.CategoryID != "" {
+		statement = statement.Where("posts.category_id = ?", query.CategoryID)
+	}
+	// 三态发布状态筛选：OnlyPublished 已强制 is_published = true，此时不再叠加
+	if query.IsPublished != nil && !query.OnlyPublished {
+		statement = statement.Where("posts.is_published = ?", *query.IsPublished)
 	}
 	if search := strings.TrimSpace(query.Search); search != "" {
 		like := "%" + search + "%"
@@ -109,6 +117,25 @@ func (s *PostStore) Create(ctx context.Context, post *domain.Post) error {
 
 func (s *PostStore) Update(ctx context.Context, post *domain.Post) error {
 	return withContext(s.db, ctx).Save(post).Error
+}
+
+// UpdatePublished 只写发布状态，publishedAt 非空时一并回填发布时间。
+// 文章的多语言字段按 JSON 存储，读回后可能为空值，因此局部更新不做整行回写。
+func (s *PostStore) UpdatePublished(ctx context.Context, id string, published bool, publishedAt *time.Time) error {
+	updates := map[string]interface{}{"is_published": published}
+	if publishedAt != nil {
+		updates["published_at"] = *publishedAt
+	}
+	return withContext(s.db, ctx).Model(&domain.Post{}).
+		Where("id = ? AND deleted_at IS NULL", id).
+		Updates(updates).Error
+}
+
+// UpdateCategory 只写分类列，categoryID 为 nil 表示移出分类。
+func (s *PostStore) UpdateCategory(ctx context.Context, id string, categoryID *uint) error {
+	return withContext(s.db, ctx).Model(&domain.Post{}).
+		Where("id = ? AND deleted_at IS NULL", id).
+		Update("category_id", categoryID).Error
 }
 
 func (s *PostStore) Delete(ctx context.Context, id string) error {

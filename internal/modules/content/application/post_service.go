@@ -32,10 +32,12 @@ type PublicPostQuery struct {
 
 // AdminPostQuery 描述后台文章列表查询。
 type AdminPostQuery struct {
-	Type     string
-	Search   string
-	Page     int
-	PageSize int
+	Type        string
+	Search      string
+	CategoryID  string
+	IsPublished *bool
+	Page        int
+	PageSize    int
 }
 
 // PostService 实现文章用例。
@@ -86,11 +88,13 @@ func (s *PostService) GetPublicBySlug(ctx context.Context, slug string) (*domain
 // ListAdmin 获取后台文章列表。
 func (s *PostService) ListAdmin(ctx context.Context, query AdminPostQuery) ([]domain.Post, int64, error) {
 	return s.posts.List(ctx, contract.PostQuery{
-		Page:     query.Page,
-		PageSize: query.PageSize,
-		Type:     query.Type,
-		Search:   query.Search,
-		Order:    contract.PostOrderCreatedDesc,
+		Page:        query.Page,
+		PageSize:    query.PageSize,
+		Type:        query.Type,
+		Search:      query.Search,
+		CategoryID:  query.CategoryID,
+		IsPublished: query.IsPublished,
+		Order:       contract.PostOrderCreatedDesc,
 	})
 }
 
@@ -214,6 +218,43 @@ func (s *PostService) ListRelatedProducts(ctx context.Context, postID uint) ([]c
 // ListPostsForProduct 获取与商品关联的已发布博客列表。
 func (s *PostService) ListPostsForProduct(ctx context.Context, productID uint, limit int) ([]contract.RelatedPost, error) {
 	return s.relations.ListPostsForProduct(ctx, productID, constants.PostTypeBlog, true, limit)
+}
+
+// SetPublished 切换文章发布状态，供后台批量操作使用。
+// 发布时间的处理与 Update 保持一致：仅在由草稿转为发布且尚无发布时间时回填。
+// 只更新发布相关的两列，不整行回写，避免影响多语言字段。
+func (s *PostService) SetPublished(ctx context.Context, id string, published bool) error {
+	post, err := s.posts.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if post == nil {
+		return contract.ErrNotFound
+	}
+
+	if published && !post.IsPublished && post.PublishedAt == nil {
+		now := s.clock.Now()
+		return s.posts.UpdatePublished(ctx, id, true, &now)
+	}
+	return s.posts.UpdatePublished(ctx, id, published, nil)
+}
+
+// MoveCategory 调整文章分类，供后台批量操作使用。
+// 分类校验与单篇编辑共用 validateCategoryAssignment：公告不支持分类，且只能挂到启用中的叶子分类。
+func (s *PostService) MoveCategory(ctx context.Context, id string, categoryID uint) error {
+	post, err := s.posts.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if post == nil {
+		return contract.ErrNotFound
+	}
+
+	target := normalizePostCategoryID(&categoryID)
+	if err := s.validateCategoryAssignment(ctx, post.Type, target, post.CategoryID); err != nil {
+		return err
+	}
+	return s.posts.UpdateCategory(ctx, id, target)
 }
 
 // Delete 删除文章。

@@ -66,6 +66,23 @@ type PatchPostCategoryStatusRequest struct {
 	IsActive *bool `json:"is_active" binding:"required"`
 }
 
+// BatchPostStatusRequest 批量设置文章发布状态的 HTTP 请求。
+type BatchPostStatusRequest struct {
+	IDs         []uint `json:"ids" binding:"required,min=1"`
+	IsPublished bool   `json:"is_published"`
+}
+
+// BatchPostCategoryRequest 批量调整文章分类的 HTTP 请求。
+type BatchPostCategoryRequest struct {
+	IDs        []uint `json:"ids" binding:"required,min=1"`
+	CategoryID uint   `json:"category_id"`
+}
+
+// BatchDeletePostsRequest 批量删除文章的 HTTP 请求。
+type BatchDeletePostsRequest struct {
+	IDs []uint `json:"ids" binding:"required,min=1"`
+}
+
 // BannerUpsertRequest 创建或更新 Banner 的 HTTP 请求。
 type BannerUpsertRequest struct {
 	Name         string                 `json:"name" binding:"required"`

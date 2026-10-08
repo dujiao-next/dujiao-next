@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"strings"
 
 	contentapp "github.com/dujiao-next/internal/modules/content/application"
 	contentcontract "github.com/dujiao-next/internal/modules/content/contract"
@@ -19,6 +20,8 @@ type AdminPostUseCases interface {
 	Create(ctx context.Context, input contentapp.CreatePostInput) (*contentdomain.Post, error)
 	Update(ctx context.Context, id string, input contentapp.CreatePostInput) (*contentdomain.Post, error)
 	Delete(ctx context.Context, id string) error
+	SetPublished(ctx context.Context, id string, published bool) error
+	MoveCategory(ctx context.Context, id string, categoryID uint) error
 	ListRelatedProducts(ctx context.Context, postID uint) ([]contentcontract.RelatedProduct, error)
 }
 
@@ -65,17 +68,47 @@ func NewAdminHandler(posts AdminPostUseCases, categories AdminPostCategoryUseCas
 // GetAdminPosts 获取后台文章列表。
 func (h *AdminHandler) GetAdminPosts(c *gin.Context) {
 	page, pageSize := ginutil.ParsePagination(c)
+	// 三态发布状态筛选：?is_published=1 仅已发布，?is_published=0 仅草稿，缺省/ all 不限。
+	isPublished, err := parseTriStateBoolFilter(c.Query("is_published"))
+	if err != nil {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", err)
+		return
+	}
 	posts, total, err := h.posts.ListAdmin(c.Request.Context(), contentapp.AdminPostQuery{
-		Type:     c.Query("type"),
-		Search:   c.Query("search"),
-		Page:     page,
-		PageSize: pageSize,
+		Type:        c.Query("type"),
+		Search:      c.Query("search"),
+		CategoryID:  c.Query("category_id"),
+		IsPublished: isPublished,
+		Page:        page,
+		PageSize:    pageSize,
 	})
 	if err != nil {
 		ginutil.RespondError(c, response.CodeInternal, "error.post_fetch_failed", err)
 		return
 	}
 	response.SuccessWithPage(c, posts, response.BuildPagination(page, pageSize, total))
+}
+
+// parseTriStateBoolFilter 把三态布尔查询参数解析为 *bool：""/"all" 返回 nil（不筛选），
+// 其余真值与假值词表对齐商品侧的同名函数。
+func parseTriStateBoolFilter(raw string) (*bool, error) {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	switch value {
+	case "", "all":
+		return nil, nil
+	case "1", "true", "yes", "on", "enabled", "has":
+		parsed := true
+		return &parsed, nil
+	case "0", "false", "no", "off", "disabled", "none":
+		parsed := false
+		return &parsed, nil
+	default:
+		parsed, err := strconv.ParseBool(value)
+		if err != nil {
+			return nil, err
+		}
+		return &parsed, nil
+	}
 }
 
 // CreatePost 创建文章。
@@ -160,6 +193,69 @@ func (h *AdminHandler) DeletePost(c *gin.Context) {
 		return
 	}
 	response.Success(c, nil)
+}
+
+// BatchUpdatePostStatus 批量发布文章或转为草稿。
+func (h *AdminHandler) BatchUpdatePostStatus(c *gin.Context) {
+	var request BatchPostStatusRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		ginutil.RespondBindError(c, err)
+		return
+	}
+
+	failedIDs := make([]uint, 0)
+	for _, id := range request.IDs {
+		if err := h.posts.SetPublished(c.Request.Context(), strconv.FormatUint(uint64(id), 10), request.IsPublished); err != nil {
+			failedIDs = append(failedIDs, id)
+		}
+	}
+	response.Success(c, gin.H{
+		"total":         len(request.IDs),
+		"success_count": len(request.IDs) - len(failedIDs),
+		"failed_ids":    failedIDs,
+	})
+}
+
+// BatchUpdatePostCategory 批量调整文章分类。
+func (h *AdminHandler) BatchUpdatePostCategory(c *gin.Context) {
+	var request BatchPostCategoryRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		ginutil.RespondBindError(c, err)
+		return
+	}
+
+	failedIDs := make([]uint, 0)
+	for _, id := range request.IDs {
+		if err := h.posts.MoveCategory(c.Request.Context(), strconv.FormatUint(uint64(id), 10), request.CategoryID); err != nil {
+			failedIDs = append(failedIDs, id)
+		}
+	}
+	response.Success(c, gin.H{
+		"total":         len(request.IDs),
+		"success_count": len(request.IDs) - len(failedIDs),
+		"failed_ids":    failedIDs,
+	})
+}
+
+// BatchDeletePosts 批量软删除文章。
+func (h *AdminHandler) BatchDeletePosts(c *gin.Context) {
+	var request BatchDeletePostsRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		ginutil.RespondBindError(c, err)
+		return
+	}
+
+	failedIDs := make([]uint, 0)
+	for _, id := range request.IDs {
+		if err := h.posts.Delete(c.Request.Context(), strconv.FormatUint(uint64(id), 10)); err != nil {
+			failedIDs = append(failedIDs, id)
+		}
+	}
+	response.Success(c, gin.H{
+		"total":         len(request.IDs),
+		"success_count": len(request.IDs) - len(failedIDs),
+		"failed_ids":    failedIDs,
+	})
 }
 
 // GetPostCategories 获取后台文章分类列表或树。

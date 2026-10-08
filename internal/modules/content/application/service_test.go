@@ -117,7 +117,11 @@ func (s *postStoreStub) Create(_ context.Context, post *domain.Post) error {
 	return nil
 }
 func (s *postStoreStub) Update(context.Context, *domain.Post) error { return nil }
-func (s *postStoreStub) Delete(context.Context, string) error       { return nil }
+func (s *postStoreStub) UpdatePublished(context.Context, string, bool, *time.Time) error {
+	return nil
+}
+func (s *postStoreStub) UpdateCategory(context.Context, string, *uint) error { return nil }
+func (s *postStoreStub) Delete(context.Context, string) error                { return nil }
 func (s *postStoreStub) CountBySlug(context.Context, string, *string) (int64, error) {
 	return 0, nil
 }

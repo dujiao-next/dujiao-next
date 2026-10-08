@@ -48,6 +48,8 @@ type PostStore interface {
 	GetByID(ctx context.Context, id string) (*domain.Post, error)
 	Create(ctx context.Context, post *domain.Post) error
 	Update(ctx context.Context, post *domain.Post) error
+	UpdatePublished(ctx context.Context, id string, published bool, publishedAt *time.Time) error
+	UpdateCategory(ctx context.Context, id string, categoryID *uint) error
 	Delete(ctx context.Context, id string) error
 	CountBySlug(ctx context.Context, slug string, excludeID *string) (int64, error)
 }

@@ -320,3 +320,96 @@ func TestLocalizedSearchDialectExpressions(t *testing.T) {
 		t.Fatalf("sqlite localized search expression mismatch args=%d sql=%s", sqliteArgs, sqliteCondition)
 	}
 }
+
+// 后台文章列表的分类与发布状态筛选：category_id 等值匹配，is_published 为三态
+// （nil 不限 / true 仅已发布 / false 仅草稿），二者与 type、search 按 AND 组合。
+func TestPostStoreListAppliesAdminListingFilters(t *testing.T) {
+	db := setupContentStoreTest(t)
+	store := NewPostStore(db)
+	ctx := context.Background()
+
+	guides := contentdomain.PostCategory{Slug: "guides", NameJSON: jsonmap.JSON{"zh-CN": "指南"}, IsActive: true}
+	news := contentdomain.PostCategory{Slug: "news", NameJSON: jsonmap.JSON{"zh-CN": "资讯"}, IsActive: true}
+	if err := db.Create(&guides).Error; err != nil {
+		t.Fatalf("create guides category: %v", err)
+	}
+	if err := db.Create(&news).Error; err != nil {
+		t.Fatalf("create news category: %v", err)
+	}
+
+	posts := []contentdomain.Post{
+		{Slug: "guides-published", Type: constants.PostTypeBlog, TitleJSON: jsonmap.JSON{"zh-CN": "指南一"}, CategoryID: &guides.ID, IsPublished: true},
+		{Slug: "guides-draft", Type: constants.PostTypeBlog, TitleJSON: jsonmap.JSON{"zh-CN": "指南二"}, CategoryID: &guides.ID, IsPublished: false},
+		{Slug: "news-published", Type: constants.PostTypeBlog, TitleJSON: jsonmap.JSON{"zh-CN": "资讯一"}, CategoryID: &news.ID, IsPublished: true},
+		{Slug: "categoryless", Type: constants.PostTypeBlog, TitleJSON: jsonmap.JSON{"zh-CN": "未分类"}, IsPublished: true},
+		{Slug: "guides-notice", Type: constants.PostTypeNotice, TitleJSON: jsonmap.JSON{"zh-CN": "公告"}, IsPublished: true},
+	}
+	for index := range posts {
+		if err := store.Create(ctx, &posts[index]); err != nil {
+			t.Fatalf("create post %q: %v", posts[index].Slug, err)
+		}
+	}
+
+	slugs := func(query contentcontract.PostQuery) map[string]bool {
+		t.Helper()
+		query.Page = 1
+		query.PageSize = 20
+		rows, _, err := store.List(ctx, query)
+		if err != nil {
+			t.Fatalf("list posts: %v", err)
+		}
+		got := make(map[string]bool, len(rows))
+		for _, row := range rows {
+			got[row.Slug] = true
+		}
+		return got
+	}
+
+	got := slugs(contentcontract.PostQuery{CategoryID: fmt.Sprintf("%d", guides.ID)})
+	if !got["guides-published"] || !got["guides-draft"] || got["news-published"] || got["categoryless"] || got["guides-notice"] || len(got) != 2 {
+		t.Fatalf("category filter mismatch: %+v", got)
+	}
+
+	published := true
+	got = slugs(contentcontract.PostQuery{IsPublished: &published})
+	if !got["guides-published"] || !got["news-published"] || !got["categoryless"] || !got["guides-notice"] || got["guides-draft"] || len(got) != 4 {
+		t.Fatalf("IsPublished=true mismatch: %+v", got)
+	}
+
+	draft := false
+	got = slugs(contentcontract.PostQuery{IsPublished: &draft})
+	if !got["guides-draft"] || len(got) != 1 {
+		t.Fatalf("IsPublished=false mismatch: %+v", got)
+	}
+
+	got = slugs(contentcontract.PostQuery{})
+	if len(got) != 5 {
+		t.Fatalf("nil IsPublished should not filter: %+v", got)
+	}
+
+	got = slugs(contentcontract.PostQuery{CategoryID: fmt.Sprintf("%d", guides.ID), IsPublished: &draft})
+	if !got["guides-draft"] || len(got) != 1 {
+		t.Fatalf("category + IsPublished mismatch: %+v", got)
+	}
+
+	got = slugs(contentcontract.PostQuery{CategoryID: fmt.Sprintf("%d", guides.ID), Type: constants.PostTypeBlog})
+	if !got["guides-published"] || !got["guides-draft"] || len(got) != 2 {
+		t.Fatalf("category + type mismatch: %+v", got)
+	}
+
+	got = slugs(contentcontract.PostQuery{CategoryID: fmt.Sprintf("%d", guides.ID), Search: "资讯"})
+	if len(got) != 0 {
+		t.Fatalf("category + non-matching search should be empty: %+v", got)
+	}
+
+	got = slugs(contentcontract.PostQuery{CategoryID: "999999"})
+	if len(got) != 0 {
+		t.Fatalf("unknown category should be empty: %+v", got)
+	}
+
+	// OnlyPublished 已强制 is_published = true，此时不再叠加 IsPublished
+	got = slugs(contentcontract.PostQuery{OnlyPublished: true, IsPublished: &draft})
+	if !got["guides-published"] || got["guides-draft"] || len(got) != 4 {
+		t.Fatalf("OnlyPublished should win over IsPublished: %+v", got)
+	}
+}
