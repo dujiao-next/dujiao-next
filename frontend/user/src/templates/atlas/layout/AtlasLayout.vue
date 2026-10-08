@@ -148,9 +148,15 @@
         <div>
           <h4 class="atlas-foot-head">{{ t('atlas.footer.shop') }}</h4>
           <RouterLink to="/products" class="atlas-foot-link">{{ t('products.allCategories') }}</RouterLink>
-          <RouterLink v-for="cat in navCategories" :key="`f-${cat.id}`" :to="`/categories/${cat.slug}`" class="atlas-foot-link">
-            {{ getLocalizedText(cat.name) }}
-          </RouterLink>
+          <!-- 分类改为「回首页 + 原地筛选」，与页头分类按钮同一套逻辑（goCategory）；
+               原来跳 /categories/<slug> 会换到另一个页面（Products.vue） -->
+          <button
+            v-for="cat in navCategories"
+            :key="`f-${cat.id}`"
+            type="button"
+            class="atlas-foot-link atlas-foot-link--btn"
+            @click="goCategory(cat)"
+          >{{ getLocalizedText(cat.name) }}</button>
         </div>
 
         <div>
@@ -343,8 +349,16 @@ const submitSearch = () => {
 /** 当前页面是否已经渲染了该锚点 */
 const hasAnchor = (id: string) => Boolean(document.getElementById(id))
 
-/** 首页按钮高亮：只在真正的首页路径上（复用 Home 的 /products 不算） */
-const isHomeActive = computed(() => route.path === '/')
+/**
+ * 首页按钮高亮：只在「首页 + 未选任何分类」时。
+ *
+ * 原来只判断 route.path === '/'，于是选了分类之后「首页」仍是红底 ——
+ * 实测会出现「首页」和刚点的分类按钮**同时 --on**，看不出当前在看哪个。
+ */
+const isHomeActive = computed(() => {
+  if (route.path !== '/') return false
+  return !String(route.params.slug || route.query.category || '').trim()
+})
 
 /** 导航条分类高亮：与 Home 的 activeSlug 口径一致，路径参数与查询参数都要认 */
 const isNavCategoryActive = (cat: PublicCategory) => {

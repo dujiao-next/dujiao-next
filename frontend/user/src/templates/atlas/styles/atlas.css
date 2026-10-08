@@ -712,6 +712,17 @@ body.atlas-tokens {
   color: #fff;
 }
 
+/* 未选中「推荐」时（即已选了某个分类），它与普通分类行同色：去掉浅灰底、
+   图标改中性色。否则浅灰底 + 红图标会让人以为「推荐」仍是当前选中项，
+   和真正选中的那一行抢注意力。 */
+.atlas-sidebar__head:not(.atlas-sidebar__head--on) {
+  background: none;
+}
+
+.atlas-sidebar__head:not(.atlas-sidebar__head--on) .atlas-sidebar__headicon {
+  color: var(--ink);
+}
+
 .atlas-sidebar__row {
   display: flex;
   align-items: center;
@@ -1071,6 +1082,18 @@ body.atlas-tokens {
 }
 
 .atlas-foot-link:hover { color: #fff; }
+
+/* 页脚里由 <a> 换成 <button> 的项（分类改成「回首页 + 原地筛选」，不再跳页）。
+   button 默认带边框/底色/居中/系统字体，这里复位成与其它 .atlas-foot-link 一致。 */
+.atlas-foot-link--btn {
+  width: 100%;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  line-height: inherit;
+}
 
 .atlas-foot-head {
   margin-bottom: 8px;
