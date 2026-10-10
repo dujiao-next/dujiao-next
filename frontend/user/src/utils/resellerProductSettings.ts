@@ -10,14 +10,23 @@ type ResellerProductSettingDataLike = {
   pricing_mode?: string
 }
 
+type ResellerProductSettingProductLike = {
+  id?: number
+  price_amount?: string
+  agency_price_amount?: string
+}
+
 type ResellerProductSettingSKULike = {
   id?: number
   is_active?: boolean
+  base_price_amount?: string
+  master_price_amount?: string
   effective_price_amount?: string
   setting?: ResellerProductSettingDataLike | null
 }
 
 type ResellerProductSettingDetailLike = {
+  product?: ResellerProductSettingProductLike | null
   product_setting?: ResellerProductSettingDataLike | null
   skus?: ResellerProductSettingSKULike[]
 }
@@ -185,6 +194,32 @@ export const summarizeProductEffectivePrice = (
   }
   const productPrice = normalizeMoneyText(detail?.product_setting?.effective_price_amount)
   return productPrice || fallback
+}
+
+/**
+ * 汇总商品主站基准价展示文本。
+ * 1. 存在 SKU 时，取在售（或活跃）SKU 的基准价区间（如 250.00 - 500.00），单价相同则显示单一价格；
+ * 2. 无 SKU 时，取商品本身的代理价或售价；
+ * 3. 均无有效价格时回退至 fallback。
+ */
+export const summarizeProductBasePrice = (
+  detail?: ResellerProductSettingDetailLike | null,
+  fallback = '-',
+) => {
+  const skus = detail?.skus || []
+  const listedSkus = skus.filter(isSkuListed)
+  const targetSkus = listedSkus.length > 0 ? listedSkus : skus.filter((sku) => sku.is_active !== false)
+  const skuPrices = uniqueMoneyValues(
+    targetSkus.map((sku) => sku.base_price_amount || sku.master_price_amount || ''),
+  )
+  if (skuPrices.length > 0) {
+    const sorted = sortMoneyValues(skuPrices)
+    return sorted.length === 1 ? sorted[0] : `${sorted[0]} - ${sorted[sorted.length - 1]}`
+  }
+  const productBasePrice = normalizeMoneyText(
+    detail?.product?.agency_price_amount || detail?.product?.price_amount,
+  )
+  return productBasePrice || fallback
 }
 
 export const getResellerRuleSourceLabelKey = (source?: string) => {

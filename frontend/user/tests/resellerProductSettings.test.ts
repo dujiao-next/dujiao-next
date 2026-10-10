@@ -7,6 +7,7 @@ import {
   normalizeResellerProductSettingsPagination,
   normalizeResellerProductSettingForm,
   summarizeEffectivePrice,
+  summarizeProductBasePrice,
 } from '../src/utils/resellerProductSettings.ts'
 
 test('pricing mode label keys are stable', () => {
@@ -65,4 +66,49 @@ test('product settings pagination normalizes API pagination payloads', () => {
     normalizeResellerProductSettingsPagination(null, { page: 4, page_size: 20, total: 80, total_page: 4 }),
     { page: 4, page_size: 20, total: 80, total_page: 4 },
   )
+})
+
+test('summarizeProductBasePrice resolves ranges, single prices, and agency price fallbacks', () => {
+  // 多 SKU 不同基准价应展示为区间
+  assert.equal(
+    summarizeProductBasePrice({
+      skus: [
+        { id: 1, base_price_amount: '250.00', is_active: true },
+        { id: 2, base_price_amount: '500.00', is_active: true },
+      ],
+    }),
+    '250.00 - 500.00',
+  )
+
+  // 多 SKU 基准价相同应去重展示单值
+  assert.equal(
+    summarizeProductBasePrice({
+      skus: [
+        { id: 1, base_price_amount: '250.00', is_active: true },
+        { id: 2, base_price_amount: '250.00', is_active: true },
+      ],
+    }),
+    '250.00',
+  )
+
+  // 无 SKU 时优先使用商品代理价
+  assert.equal(
+    summarizeProductBasePrice({
+      product: { price_amount: '300.00', agency_price_amount: '250.00' },
+      skus: [],
+    }),
+    '250.00',
+  )
+
+  // 无 SKU 且无代理价时回退到主站售价
+  assert.equal(
+    summarizeProductBasePrice({
+      product: { price_amount: '300.00' },
+      skus: [],
+    }),
+    '300.00',
+  )
+
+  // 空值或无有效数据回退为 '-'
+  assert.equal(summarizeProductBasePrice(null), '-')
 })
