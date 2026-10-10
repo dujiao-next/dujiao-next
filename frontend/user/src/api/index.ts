@@ -53,7 +53,7 @@ export type {
 } from './types'
 
 // Re-export domain APIs
-export { productAPI, postAPI, bannerAPI, categoryAPI, memberLevelAPI } from './product'
+export { productAPI, postAPI, postCategoryAPI, bannerAPI, categoryAPI, memberLevelAPI } from './product'
 export { userAuthAPI, captchaAPI, configAPI } from './auth'
 export { userProfileAPI } from './user'
 export { userOrderAPI, guestOrderAPI, paymentAPI } from './order'

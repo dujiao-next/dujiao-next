@@ -264,6 +264,13 @@ const router = createRouter({
             component: templateView('Blog', blogViewLoader),
         },
         {
+            // 分类页与 /blog/:slug 不冲突：这里是三段，详情是两段；
+            // 且静态段 category 的匹配优先级高于动态段。
+            path: '/blog/category/:slug',
+            name: 'blog-category',
+            component: templateView('Blog', blogViewLoader),
+        },
+        {
             path: '/blog/:slug',
             name: 'blog-detail',
             component: templateView('BlogDetail', () => import('../views/BlogDetail.vue')),

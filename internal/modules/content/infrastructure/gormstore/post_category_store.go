@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/modules/content/contract"
 	"github.com/dujiao-next/internal/modules/content/domain"
 	"gorm.io/gorm"
@@ -110,14 +111,32 @@ func (s *PostCategoryStore) CountBySlug(ctx context.Context, slug string, exclud
 	return count, nil
 }
 
+func (s *PostCategoryStore) GetBySlug(ctx context.Context, slug string) (*domain.PostCategory, error) {
+	var category domain.PostCategory
+	if err := withContext(s.db, ctx).Where("slug = ? AND deleted_at IS NULL", slug).First(&category).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &category, nil
+}
+
 func (s *PostCategoryStore) CountChildren(ctx context.Context, parentID uint) (int64, error) {
 	var count int64
 	err := withContext(s.db, ctx).Model(&domain.PostCategory{}).Where("parent_id = ? AND deleted_at IS NULL", parentID).Count(&count).Error
 	return count, err
 }
 
+// CountPostsByCategory 统计该分类下仍然有效的博客文章数。
+//
+// 只统计 type=blog：公告（notice）没有分类功能，但历史数据/导入数据里可能残留
+// 非空的 category_id。若把它们计入，后台会出现「分类下明明看不到文章，却提示
+// 下面有文章不能删除」的僵局，因此这里按类型收口。
 func (s *PostCategoryStore) CountPostsByCategory(ctx context.Context, categoryID uint) (int64, error) {
 	var count int64
-	err := withContext(s.db, ctx).Model(&domain.Post{}).Where("category_id = ? AND deleted_at IS NULL", categoryID).Count(&count).Error
+	err := withContext(s.db, ctx).Model(&domain.Post{}).
+		Where("category_id = ? AND deleted_at IS NULL AND type = ?", categoryID, constants.PostTypeBlog).
+		Count(&count).Error
 	return count, err
 }

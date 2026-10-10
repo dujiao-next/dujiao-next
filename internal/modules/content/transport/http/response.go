@@ -2,7 +2,6 @@ package contenthttp
 
 import (
 	contentcontract "github.com/dujiao-next/internal/modules/content/contract"
-	contentdomain "github.com/dujiao-next/internal/modules/content/domain"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 )
 
@@ -29,36 +28,4 @@ func newAdminPostProductRefs(products []contentcontract.RelatedProduct) []AdminP
 		refs = append(refs, ref)
 	}
 	return refs
-}
-
-// PostCategoryDTO 是公开接口返回的文章分类，对齐商品分类响应形状。
-type PostCategoryDTO struct {
-	ID        uint                   `json:"id"`
-	ParentID  uint                   `json:"parent_id"`
-	Slug      string                 `json:"slug"`
-	Name      map[string]interface{} `json:"name"`
-	Icon      string                 `json:"icon"`
-	SortOrder int                    `json:"sort_order"`
-}
-
-func newPostCategoryDTOs(categories []contentdomain.PostCategory) []PostCategoryDTO {
-	result := make([]PostCategoryDTO, 0, len(categories))
-	for _, category := range categories {
-		result = append(result, PostCategoryDTO{
-			ID:        category.ID,
-			ParentID:  optionalUintOrZero(category.ParentID),
-			Slug:      category.Slug,
-			Name:      category.NameJSON,
-			Icon:      category.Icon,
-			SortOrder: category.SortOrder,
-		})
-	}
-	return result
-}
-
-func optionalUintOrZero(value *uint) uint {
-	if value == nil {
-		return 0
-	}
-	return *value
 }

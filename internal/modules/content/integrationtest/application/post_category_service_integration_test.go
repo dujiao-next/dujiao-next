@@ -134,6 +134,28 @@ func TestPostCategoryServiceDeleteRejectsCategoriesInUse(t *testing.T) {
 	}
 }
 
+// 公告没有分类功能，但历史数据里可能残留非空 category_id。
+// 这种脏数据不能让分类删除被拦下 —— 否则后台会提示「下面有文章」，
+// 而运营在文章列表里根本看不到任何文章。
+func TestPostCategoryServiceDeleteIgnoresCategorizedNotices(t *testing.T) {
+	svc, db := newPostCategoryServiceForTest(t)
+	category := createCategoryThroughService(t, svc, "notice-dirty", nil, 0)
+
+	notice := contentdomain.Post{
+		Slug:       "dirty-notice",
+		Type:       constants.PostTypeNotice,
+		TitleJSON:  jsonmap.JSON{"zh-CN": "公告"},
+		CategoryID: &category.ID,
+	}
+	if err := db.Create(&notice).Error; err != nil {
+		t.Fatalf("create categorized notice: %v", err)
+	}
+
+	if err := svc.Delete(context.Background(), category.ID); err != nil {
+		t.Fatalf("category with only a categorized notice must be deletable, got %v", err)
+	}
+}
+
 func TestPostCategoryServiceListActiveFiltersAndSorts(t *testing.T) {
 	svc, _ := newPostCategoryServiceForTest(t)
 	higherSort := createCategoryThroughService(t, svc, "higher-sort", nil, 2)

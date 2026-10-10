@@ -243,7 +243,9 @@
     "searchPlaceholder": "Search article title...",
     "searchClear": "Clear",
     "noResults": "No articles match your search",
-    "relatedProducts": "Related Products"
+    "relatedProducts": "Related Products",
+    "allCategories": "All categories",
+    "noCategoryResults": "No articles in this category"
   },
   "blogDetail": {
     "backToBlog": "Back to Blog",

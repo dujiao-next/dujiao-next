@@ -14,15 +14,25 @@
 
       <!-- Post Content -->
       <article v-else-if="post">
-        <!-- Breadcrumb -->
-        <nav class="mb-8 flex items-center space-x-2 text-sm text-muted-foreground font-medium">
+        <!-- Breadcrumb：窄屏下标题独占一行（w-full 触发换行），宽屏才与层级同行截断，
+             避免长标题与面包屑挤在一行时溢出。分隔用 gap 而非 space-x —— 换行后
+             space-x 会给行首元素也留 margin，导致缩进错位。 -->
+        <nav class="mb-8 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground font-medium">
           <router-link to="/" class="text-muted-foreground transition-colors hover:text-foreground">{{ t('nav.home')
           }}</router-link>
           <span>/</span>
-          <router-link :to="backLink" class="text-muted-foreground transition-colors hover:text-foreground">{{ backText
+          <router-link :to="backLink" class="text-muted-foreground transition-colors hover:text-foreground">{{ backLabel
           }}</router-link>
-          <span>/</span>
-          <span class="text-foreground truncate max-w-[200px]">{{ getLocalizedText(post.title) }}</span>
+          <template v-if="categoryLink">
+            <span>/</span>
+            <router-link :to="categoryLink"
+              class="text-muted-foreground transition-colors hover:text-foreground md:max-w-[160px] md:truncate">
+              {{ categoryName }}
+            </router-link>
+          </template>
+          <span class="hidden md:inline">/</span>
+          <span class="w-full text-foreground md:w-auto md:max-w-[200px] md:truncate">{{ getLocalizedText(post.title)
+          }}</span>
         </nav>
 
         <Card
@@ -129,5 +139,6 @@ const { t } = useI18n()
 
 const {
   loading, post, relatedProducts, getLocalizedText, formatDate, formatPrice, backLink, backText,
+  backLabel, categoryName, categoryLink,
 } = useBlogDetail()
 </script>

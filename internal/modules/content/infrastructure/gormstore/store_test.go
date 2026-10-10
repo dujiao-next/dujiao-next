@@ -3,6 +3,7 @@ package gormstore
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -192,6 +193,17 @@ func TestPostCategoryStoreTreeFiltersAndUsageCounts(t *testing.T) {
 		t.Fatalf("category post count want 1, count=%d err=%v", postCount, err)
 	}
 
+	// 公告带分类属于历史脏数据：不得计入分类文章数，否则后台会卡在
+	// 「分类下看不到文章、却提示有文章不能删除」的僵局。
+	notice := contentdomain.Post{Slug: "category-notice", Type: constants.PostTypeNotice, TitleJSON: jsonmap.JSON{"zh-CN": "notice"}, CategoryID: &child.ID}
+	if err := db.Create(&notice).Error; err != nil {
+		t.Fatalf("create categorized notice: %v", err)
+	}
+	postCount, err = store.CountPostsByCategory(ctx, child.ID)
+	if err != nil || postCount != 1 {
+		t.Fatalf("notice must not count into category posts, count=%d err=%v", postCount, err)
+	}
+
 	if err := store.Delete(ctx, disabled.ID); err != nil {
 		t.Fatalf("delete category: %v", err)
 	}
@@ -296,6 +308,68 @@ func TestMediaStoreFiltersUpdatesAndSoftDeletes(t *testing.T) {
 	deleted, err := store.GetByID(ctx, byPath.ID)
 	if err != nil || deleted != nil {
 		t.Fatalf("soft-deleted media should be hidden, media=%#v err=%v", deleted, err)
+	}
+}
+
+// TestPostStoreCategoryScopeFilter 覆盖公开列表分类筛选的三种范围语义。
+// 重点是空范围：它表示目标分类不可用，必须返回空结果，不能退化成「不筛选」。
+func TestPostStoreCategoryScopeFilter(t *testing.T) {
+	db := setupContentStoreTest(t)
+	store := NewPostStore(db)
+	ctx := context.Background()
+	now := time.Now()
+
+	parent := contentdomain.PostCategory{Slug: "guide", NameJSON: jsonmap.JSON{"zh-CN": "指南"}, IsActive: true}
+	if err := db.Create(&parent).Error; err != nil {
+		t.Fatalf("create parent category: %v", err)
+	}
+	child := contentdomain.PostCategory{Slug: "guide-start", NameJSON: jsonmap.JSON{"zh-CN": "入门"}, ParentID: &parent.ID, IsActive: true}
+	if err := db.Create(&child).Error; err != nil {
+		t.Fatalf("create child category: %v", err)
+	}
+
+	posts := []contentdomain.Post{
+		{Slug: "on-parent", Type: constants.PostTypeBlog, TitleJSON: jsonmap.JSON{"zh-CN": "Parent"}, CategoryID: &parent.ID, IsPublished: true, PublishedAt: &now},
+		{Slug: "on-child", Type: constants.PostTypeBlog, TitleJSON: jsonmap.JSON{"zh-CN": "Child"}, CategoryID: &child.ID, IsPublished: true, PublishedAt: &now},
+		{Slug: "uncategorized", Type: constants.PostTypeBlog, TitleJSON: jsonmap.JSON{"zh-CN": "None"}, IsPublished: true, PublishedAt: &now},
+		{Slug: "notice", Type: constants.PostTypeNotice, TitleJSON: jsonmap.JSON{"zh-CN": "Notice"}, IsPublished: true, PublishedAt: &now},
+	}
+	for index := range posts {
+		if err := store.Create(ctx, &posts[index]); err != nil {
+			t.Fatalf("create post %q: %v", posts[index].Slug, err)
+		}
+	}
+
+	listSlugs := func(categoryIDs []uint) []string {
+		t.Helper()
+		listed, _, err := store.List(ctx, contentcontract.PostQuery{
+			Page:          1,
+			PageSize:      20,
+			OnlyPublished: true,
+			CategoryIDs:   categoryIDs,
+		})
+		if err != nil {
+			t.Fatalf("list with category scope %v: %v", categoryIDs, err)
+		}
+		slugs := make([]string, 0, len(listed))
+		for index := range listed {
+			slugs = append(slugs, listed[index].Slug)
+		}
+		sort.Strings(slugs)
+		return slugs
+	}
+
+	if got := listSlugs(nil); strings.Join(got, ",") != "notice,on-child,on-parent,uncategorized" {
+		t.Fatalf("nil category scope must not filter, got %v", got)
+	}
+	if got := listSlugs([]uint{child.ID}); strings.Join(got, ",") != "on-child" {
+		t.Fatalf("leaf category scope mismatch, got %v", got)
+	}
+	if got := listSlugs([]uint{parent.ID, child.ID}); strings.Join(got, ",") != "on-child,on-parent" {
+		t.Fatalf("expanded parent category scope mismatch, got %v", got)
+	}
+	if got := listSlugs([]uint{}); len(got) != 0 {
+		t.Fatalf("empty category scope must return nothing, got %v", got)
 	}
 }
 

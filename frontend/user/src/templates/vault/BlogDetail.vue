@@ -9,12 +9,17 @@
 
     <!-- Post -->
     <article v-else-if="post">
-      <nav class="flex flex-wrap items-center gap-1.5 py-[18px] text-sm font-semibold text-muted-foreground">
+      <!-- 窄屏下标题独占一行（w-full 触发换行），宽屏才与层级同行截断 -->
+      <nav class="flex flex-wrap items-center gap-x-1.5 gap-y-1 py-[18px] text-sm font-semibold text-muted-foreground">
         <RouterLink to="/" class="hover:text-primary">{{ t('nav.home') }}</RouterLink>
         <ChevronRight class="h-4 w-4 flex-none" />
-        <RouterLink :to="backLink" class="hover:text-primary">{{ backText }}</RouterLink>
-        <ChevronRight class="h-4 w-4 flex-none" />
-        <span class="max-w-[240px] truncate text-foreground">{{ getLocalizedText(post.title) }}</span>
+        <RouterLink :to="backLink" class="hover:text-primary">{{ backLabel }}</RouterLink>
+        <template v-if="categoryLink">
+          <ChevronRight class="h-4 w-4 flex-none" />
+          <RouterLink :to="categoryLink" class="hover:text-primary md:max-w-[200px] md:truncate">{{ categoryName }}</RouterLink>
+        </template>
+        <ChevronRight class="hidden h-4 w-4 flex-none md:block" />
+        <span class="w-full text-foreground md:w-auto md:max-w-[240px] md:truncate">{{ getLocalizedText(post.title) }}</span>
       </nav>
 
       <Card class="p-[30px]">
@@ -92,5 +97,6 @@ const { t } = useI18n()
 
 const {
   loading, post, relatedProducts, getLocalizedText, formatDate, formatPrice, backLink, backText,
+  backLabel, categoryName, categoryLink,
 } = useBlogDetail()
 </script>

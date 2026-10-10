@@ -24,6 +24,20 @@
         </div>
       </div>
 
+      <!-- Category Filter -->
+      <div v-if="categoryFilterEnabled && categories.length"
+        class="mb-12 flex flex-wrap items-center justify-center gap-2">
+        <Button size="sm" class="rounded-full" :variant="hasCategoryFilter ? 'outline' : 'default'"
+          @click="clearCategory()">
+          {{ t('blog.allCategories') }}
+        </Button>
+        <Button v-for="category in categories" :key="category.id" size="sm" class="rounded-full"
+          :variant="selectedCategory === category.slug ? 'default' : 'outline'"
+          @click="selectCategory(category.slug)">
+          {{ getLocalizedText(category.name) }}
+        </Button>
+      </div>
+
       <!-- Loading State -->
       <div v-if="loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         <div v-for="i in 6" :key="i"
@@ -81,7 +95,7 @@
       </div>
 
       <!-- Empty State -->
-      <EmptyState v-else variant="soft" size="lg" :title="searchKeyword.trim() ? t('blog.noResults') : t('blog.empty')">
+      <EmptyState v-else variant="soft" size="lg" :title="emptyStateTitle">
         <template #icon>
           <BookOpen class="w-20 h-20 text-muted-foreground opacity-70" :stroke-width="1.5" />
         </template>
@@ -91,6 +105,8 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ArrowRight, BookOpen, Search } from 'lucide-vue-next'
 import { getImageUrl } from '../utils/image'
@@ -101,11 +117,25 @@ import PaginationNav from '../components/PaginationNav.vue'
 import { usePostList } from '../composables/usePostList'
 
 const { t } = useI18n()
+const route = useRoute()
 
 const {
   loading, posts, currentPage, totalPages, searchKeyword,
+  categories, selectedCategory, categoryFilterEnabled, hasCategoryFilter,
+  selectCategory, clearCategory,
   getLocalizedText, formatDate, goToPost, changePage,
-} = usePostList('blog', { title: () => t('nav.blog'), canonicalPath: '/blog' })
+} = usePostList(
+  'blog',
+  // 分类页与主页共用同一组件，canonical 跟随实际路径，避免分类页指向列表页。
+  { title: () => t('nav.blog'), canonicalPath: () => route.path },
+  { categoryFilter: true },
+)
+
+const emptyStateTitle = computed(() => {
+  if (searchKeyword.value.trim()) return t('blog.noResults')
+  if (hasCategoryFilter.value) return t('blog.noCategoryResults')
+  return t('blog.empty')
+})
 </script>
 
 <style scoped>

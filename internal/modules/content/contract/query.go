@@ -9,11 +9,16 @@ const (
 )
 
 // PostQuery 描述文章列表查询。
+//
+// CategoryIDs 是已展开的分类筛选范围，用指针以外的 nil / 空切片区分两种语义：
+// nil 表示不按分类筛选；非 nil 时按 IN 匹配，空切片表示目标分类不可用
+// （不存在或已停用），此时应返回空结果而不是退化成不筛选。
 type PostQuery struct {
 	Page          int
 	PageSize      int
 	Type          string
 	Search        string
+	CategoryIDs   []uint
 	OnlyPublished bool
 	Order         PostOrder
 }

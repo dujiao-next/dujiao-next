@@ -89,7 +89,7 @@ const { t } = useI18n()
 const {
   loading, posts: notices, currentPage, totalPages,
   getLocalizedText, formatDate, goToPost: goToNotice, changePage,
-} = usePostList('notice', { title: () => t('nav.notice'), canonicalPath: '/notice' })
+} = usePostList('notice', { title: () => t('nav.notice'), canonicalPath: () => '/notice' })
 </script>
 
 <style scoped>

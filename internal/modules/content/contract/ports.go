@@ -71,6 +71,7 @@ type PostCategoryStore interface {
 	UpdateActive(ctx context.Context, id uint, active bool) error
 	Delete(ctx context.Context, id uint) error
 	CountBySlug(ctx context.Context, slug string, excludeID *uint) (int64, error)
+	GetBySlug(ctx context.Context, slug string) (*domain.PostCategory, error)
 	CountChildren(ctx context.Context, parentID uint) (int64, error)
 	CountPostsByCategory(ctx context.Context, categoryID uint) (int64, error)
 }

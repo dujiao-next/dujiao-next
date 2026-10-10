@@ -20,6 +20,11 @@ type PostResp struct {
 	Thumbnail       string               `json:"thumbnail,omitempty"`
 	PublishedAt     *time.Time           `json:"published_at"`
 	RelatedProducts []RelatedProductCard `json:"related_products,omitempty"`
+	// CategorySlug / CategoryName 是文章所属分类的标识与名称，由调用方按需填充；
+	// 分类已被删除或文章未挂分类时为空。名称随详情一起返回，前端无需再拉一次分类列表；
+	// 对外以 slug 标识分类，因此不返回分类自增 id。
+	CategorySlug string       `json:"category_slug,omitempty"`
+	CategoryName jsonmap.JSON `json:"category_name,omitempty"`
 }
 
 // RelatedProductCard 文章详情底部展示的关联商品轻量卡片

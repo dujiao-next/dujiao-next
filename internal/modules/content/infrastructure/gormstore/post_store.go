@@ -50,6 +50,14 @@ func (s *PostStore) List(ctx context.Context, query contract.PostQuery) ([]domai
 	if query.Type != "" {
 		statement = statement.Where("type = ?", query.Type)
 	}
+	// 分类筛选：nil 表示不限；非 nil 时按展开范围匹配，空范围说明目标分类不可用，
+	// 直接返回空结果，避免退化成「不筛选」而把全部文章暴露出去。
+	if query.CategoryIDs != nil {
+		if len(query.CategoryIDs) == 0 {
+			return posts, 0, nil
+		}
+		statement = statement.Where("posts.category_id IN ?", query.CategoryIDs)
+	}
 	if search := strings.TrimSpace(query.Search); search != "" {
 		like := "%" + search + "%"
 		condition, argCount := buildLocalizedLikeCondition(db, []string{"slug"}, []string{"title_json"})

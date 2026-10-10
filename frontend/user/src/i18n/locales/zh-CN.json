@@ -196,7 +196,9 @@
     "searchPlaceholder": "搜索文章标题...",
     "searchClear": "清除",
     "noResults": "没有找到匹配的文章",
-    "relatedProducts": "相关商品"
+    "relatedProducts": "相关商品",
+    "allCategories": "全部分类",
+    "noCategoryResults": "该分类下暂无文章"
   },
   "blogDetail": {
     "backToBlog": "返回博客列表",

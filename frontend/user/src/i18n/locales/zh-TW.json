@@ -243,7 +243,9 @@
     "searchPlaceholder": "搜尋文章標題...",
     "searchClear": "清除",
     "noResults": "沒有找到符合的文章",
-    "relatedProducts": "相關商品"
+    "relatedProducts": "相關商品",
+    "allCategories": "全部分類",
+    "noCategoryResults": "該分類下暫無文章"
   },
   "blogDetail": {
     "backToBlog": "返回部落格列表",

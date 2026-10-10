@@ -11,6 +11,18 @@
       <Button v-if="searchKeyword" type="button" variant="ghost" size="sm" class="absolute right-1.5 top-1/2 h-8 -translate-y-1/2 rounded-full" @click="searchKeyword = ''">{{ t('blog.searchClear') }}</Button>
     </div>
 
+    <!-- Category filter -->
+    <div v-if="categoryFilterEnabled && categories.length" class="mb-7 flex flex-wrap items-center gap-2">
+      <Button size="sm" class="rounded-full" :variant="hasCategoryFilter ? 'outline' : 'default'" @click="clearCategory()">
+        {{ t('blog.allCategories') }}
+      </Button>
+      <Button v-for="category in categories" :key="category.id" size="sm" class="rounded-full"
+        :variant="selectedCategory === category.slug ? 'default' : 'outline'"
+        @click="selectCategory(category.slug)">
+        {{ getLocalizedText(category.name) }}
+      </Button>
+    </div>
+
     <!-- Loading -->
     <div v-if="loading" class="grid gap-5 grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
       <div v-for="i in 6" :key="i" class="h-[280px] rounded-xl border bg-card opacity-50"></div>
@@ -50,12 +62,14 @@
     <!-- Empty -->
     <div v-else class="flex flex-col items-center gap-3 rounded-xl border border-dashed py-16 text-center text-muted-foreground">
       <BookOpen class="h-10 w-10 opacity-60" />
-      <p>{{ searchKeyword.trim() ? t('blog.noResults') : t('blog.empty') }}</p>
+      <p>{{ emptyStateTitle }}</p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ArrowRight, BookOpen, ChevronLeft, ChevronRight, Search } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
@@ -65,9 +79,22 @@ import { getImageUrl } from '../../utils/image'
 import { usePostList } from '../../composables/usePostList'
 
 const { t } = useI18n()
+const route = useRoute()
 
 const {
   loading, posts, currentPage, totalPages, searchKeyword,
+  categories, selectedCategory, categoryFilterEnabled, hasCategoryFilter,
+  selectCategory, clearCategory,
   getLocalizedText, formatDate, changePage,
-} = usePostList('blog', { title: () => t('nav.blog'), canonicalPath: '/blog' })
+} = usePostList(
+  'blog',
+  { title: () => t('nav.blog'), canonicalPath: () => route.path },
+  { categoryFilter: true },
+)
+
+const emptyStateTitle = computed(() => {
+  if (searchKeyword.value.trim()) return t('blog.noResults')
+  if (hasCategoryFilter.value) return t('blog.noCategoryResults')
+  return t('blog.empty')
+})
 </script>

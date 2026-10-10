@@ -90,8 +90,9 @@ func TestMediaServiceDeletesMetadataBeforeBestEffortFileRemoval(t *testing.T) {
 }
 
 type postStoreStub struct {
-	created *domain.Post
-	post    *domain.Post
+	created   *domain.Post
+	post      *domain.Post
+	lastQuery contract.PostQuery
 }
 
 var (
@@ -99,7 +100,8 @@ var (
 	_ contract.PostProductRelationStore = (*postStoreStub)(nil)
 )
 
-func (s *postStoreStub) List(context.Context, contract.PostQuery) ([]domain.Post, int64, error) {
+func (s *postStoreStub) List(_ context.Context, query contract.PostQuery) ([]domain.Post, int64, error) {
+	s.lastQuery = query
 	return nil, 0, nil
 }
 func (s *postStoreStub) WithinPostWriteTransaction(_ context.Context, operation func(contract.PostStore, contract.PostProductRelationStore) error) error {
@@ -211,4 +213,129 @@ var _ contract.WarningLogger = (*warningLoggerStub)(nil)
 
 func (l *warningLoggerStub) Warnw(message string, _ ...interface{}) {
 	l.message = message
+}
+
+// postCategoryStoreStub 只实现分类展开用到的读取能力，其余方法保持最小实现。
+type postCategoryStoreStub struct {
+	byID     map[uint]*domain.PostCategory
+	children map[uint][]domain.PostCategory
+}
+
+var _ contract.PostCategoryStore = (*postCategoryStoreStub)(nil)
+
+func (s *postCategoryStoreStub) ListAll(_ context.Context, parentID *uint) ([]domain.PostCategory, error) {
+	if parentID == nil {
+		return nil, nil
+	}
+	return s.children[*parentID], nil
+}
+func (s *postCategoryStoreStub) ListActive(context.Context) ([]domain.PostCategory, error) {
+	return nil, nil
+}
+func (s *postCategoryStoreStub) ListTree(context.Context) ([]domain.PostCategory, error) {
+	return nil, nil
+}
+func (s *postCategoryStoreStub) GetByID(_ context.Context, id uint) (*domain.PostCategory, error) {
+	return s.byID[id], nil
+}
+
+// GetBySlug 按 slug 反查分类，与公开列表的分类筛选入口保持一致。
+// slug 在分类表内唯一，因此遍历匹配不会出现歧义。
+func (s *postCategoryStoreStub) GetBySlug(_ context.Context, slug string) (*domain.PostCategory, error) {
+	for _, category := range s.byID {
+		if category.Slug == slug {
+			return category, nil
+		}
+	}
+	return nil, nil
+}
+func (s *postCategoryStoreStub) Create(context.Context, *domain.PostCategory) error { return nil }
+func (s *postCategoryStoreStub) Update(context.Context, *domain.PostCategory) error { return nil }
+func (s *postCategoryStoreStub) UpdateActive(context.Context, uint, bool) error     { return nil }
+func (s *postCategoryStoreStub) Delete(context.Context, uint) error                 { return nil }
+func (s *postCategoryStoreStub) CountBySlug(context.Context, string, *uint) (int64, error) {
+	return 0, nil
+}
+func (s *postCategoryStoreStub) CountChildren(context.Context, uint) (int64, error) {
+	return 0, nil
+}
+func (s *postCategoryStoreStub) CountPostsByCategory(context.Context, uint) (int64, error) {
+	return 0, nil
+}
+
+// TestListPublicExpandsCategoryFilterScope 锁定公开列表分类筛选的范围语义。
+// nil 与空切片的区别是这里最容易被改坏的地方：空切片必须传递「目标分类不可用」，
+// 仓储层据此返回空结果，一旦写成「空切片不筛选」就会把全部文章暴露出去。
+//
+// 分类标识统一用 slug（对外参数里不再出现自增 id），因此「slug 无匹配」与
+// 「分类已停用」是仅有的两种不可用情形，原先按 id 解析才有的「参数非法」分支已随之消失。
+func TestListPublicExpandsCategoryFilterScope(t *testing.T) {
+	t.Parallel()
+
+	parentID := uint(1)
+	childID := uint(2)
+	leafID := uint(3)
+	inactiveID := uint(4)
+	inactiveChildID := uint(5)
+
+	categories := &postCategoryStoreStub{
+		byID: map[uint]*domain.PostCategory{
+			parentID:        {ID: parentID, Slug: "parent", IsActive: true},
+			childID:         {ID: childID, Slug: "child", ParentID: &parentID, IsActive: true},
+			inactiveChildID: {ID: inactiveChildID, Slug: "child-off", ParentID: &parentID, IsActive: false},
+			leafID:          {ID: leafID, Slug: "leaf", IsActive: true},
+			inactiveID:      {ID: inactiveID, Slug: "inactive", IsActive: false},
+		},
+		children: map[uint][]domain.PostCategory{
+			parentID: {
+				{ID: childID, Slug: "child", ParentID: &parentID, IsActive: true},
+				{ID: inactiveChildID, Slug: "child-off", ParentID: &parentID, IsActive: false},
+			},
+		},
+	}
+
+	cases := []struct {
+		name         string
+		categorySlug string
+		wantNil      bool
+		want         []uint
+	}{
+		{name: "未传参数时不筛选", categorySlug: "", wantNil: true},
+		{name: "slug 无匹配时结果为空", categorySlug: "does-not-exist", want: []uint{}},
+		{name: "纯数字 slug 不再被当成 id", categorySlug: "99", want: []uint{}},
+		{name: "分类已停用时结果为空", categorySlug: "inactive", want: []uint{}},
+		{name: "叶子分类只匹配自身", categorySlug: "leaf", want: []uint{leafID}},
+		{name: "父分类展开启用子分类", categorySlug: "parent", want: []uint{parentID, childID}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &postStoreStub{}
+			service := NewPostService(store, store, categories, fixedClock{now: time.Now()})
+
+			if _, _, err := service.ListPublic(context.Background(), PublicPostQuery{
+				CategorySlug: tc.categorySlug,
+				Page:         1,
+				PageSize:     20,
+			}); err != nil {
+				t.Fatalf("ListPublic() error = %v", err)
+			}
+
+			got := store.lastQuery.CategoryIDs
+			if tc.wantNil {
+				if got != nil {
+					t.Fatalf("CategoryIDs = %v, want nil（不筛选）", got)
+				}
+				return
+			}
+			if len(got) != len(tc.want) {
+				t.Fatalf("CategoryIDs = %v, want %v", got, tc.want)
+			}
+			for index := range got {
+				if got[index] != tc.want[index] {
+					t.Fatalf("CategoryIDs = %v, want %v", got, tc.want)
+				}
+			}
+		})
+	}
 }

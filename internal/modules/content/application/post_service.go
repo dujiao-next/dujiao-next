@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"strings"
 
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/modules/content/contract"
@@ -23,11 +24,13 @@ type CreatePostInput struct {
 }
 
 // PublicPostQuery 描述公开文章列表查询。
+// CategorySlug 是分类筛选的原始查询参数，为空表示不按分类筛选。
 type PublicPostQuery struct {
-	Type     string
-	Search   string
-	Page     int
-	PageSize int
+	Type         string
+	Search       string
+	CategorySlug string
+	Page         int
+	PageSize     int
 }
 
 // AdminPostQuery 描述后台文章列表查询。
@@ -60,12 +63,18 @@ func NewPostService(posts contract.PostStore, relations contract.PostProductRela
 }
 
 // ListPublic 获取公开文章列表。
+// category_slug 传入父分类时按「含其启用子分类」展开，与商品公开列表的归类语义一致。
 func (s *PostService) ListPublic(ctx context.Context, query PublicPostQuery) ([]domain.Post, int64, error) {
+	categoryIDs, err := s.expandPublicCategoryIDs(ctx, query.CategorySlug)
+	if err != nil {
+		return nil, 0, err
+	}
 	return s.posts.List(ctx, contract.PostQuery{
 		Page:          query.Page,
 		PageSize:      query.PageSize,
 		Type:          query.Type,
 		Search:        query.Search,
+		CategoryIDs:   categoryIDs,
 		OnlyPublished: true,
 		Order:         contract.PostOrderPublishedDesc,
 	})
@@ -279,4 +288,43 @@ func sameOptionalUint(left, right *uint) bool {
 		return left == nil && right == nil
 	}
 	return *left == *right
+}
+
+// expandPublicCategoryIDs 把公开列表的 category_slug 参数展开成可匹配的分类 ID 范围。
+// nil 表示不按分类筛选；空切片表示目标分类不可用（分类不存在或已停用），
+// 调用方据此得到空结果而不是退化成「展示全部」。
+// 分类只有两级且文章只能挂叶子分类，因此选中父分类时把启用子分类一并纳入。
+//
+// 对外统一用 slug 作为分类标识（URL 与查询参数都不出现自增 id），
+// 内部再展开成 id 范围交给持久化层匹配，与商品公开列表保持同一套写法。
+func (s *PostService) expandPublicCategoryIDs(ctx context.Context, rawCategorySlug string) ([]uint, error) {
+	slug := strings.TrimSpace(rawCategorySlug)
+	if slug == "" {
+		return nil, nil
+	}
+	if s.categories == nil {
+		return []uint{}, nil
+	}
+
+	category, err := s.categories.GetBySlug(ctx, slug)
+	if err != nil {
+		return nil, err
+	}
+	if category == nil || !category.IsActive {
+		return []uint{}, nil
+	}
+
+	categoryIDs := []uint{category.ID}
+	if category.ParentID == nil || *category.ParentID == 0 {
+		children, err := s.categories.ListAll(ctx, &category.ID)
+		if err != nil {
+			return nil, err
+		}
+		for index := range children {
+			if children[index].IsActive {
+				categoryIDs = append(categoryIDs, children[index].ID)
+			}
+		}
+	}
+	return categoryIDs, nil
 }

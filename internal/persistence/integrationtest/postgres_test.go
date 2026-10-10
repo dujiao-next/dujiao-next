@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -58,6 +59,7 @@ func setupPostgresIntegrationDB(t *testing.T) *gorm.DB {
 		&categorydomain.Category{},
 		&contentdomain.Banner{},
 		&contentdomain.Post{},
+		&contentdomain.PostCategory{},
 	}
 	_ = db.Migrator().DropTable(cleanupModels...)
 
@@ -72,6 +74,7 @@ func setupPostgresIntegrationDB(t *testing.T) *gorm.DB {
 		&orderdomain.Order{},
 		&orderdomain.OrderItem{},
 		&paymentdomain.Payment{},
+		&contentdomain.PostCategory{},
 	); err != nil {
 		t.Fatalf("migrate postgres models failed: %v", err)
 	}
@@ -284,6 +287,69 @@ func TestPostgresContentGormStoresPreserveQuerySemantics(t *testing.T) {
 	}
 	if inactiveBanner.IsActive || reloadedInactiveBanner.IsActive {
 		t.Fatalf("explicit inactive postgres banner should stay inactive, returned=%t stored=%t", inactiveBanner.IsActive, reloadedInactiveBanner.IsActive)
+	}
+}
+
+// 文章列表按分类筛选（posts.category_id IN ?）在 PostgreSQL 上需与 SQLite 语义一致：
+// nil 表示不筛选、非 nil 空切片表示命中空集合、多元素切片需正确展开。
+func TestPostgresPostStoreCategoryScopeFilter(t *testing.T) {
+	db := setupPostgresIntegrationDB(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	parent := contentdomain.PostCategory{Slug: "pg-cat-parent", NameJSON: jsonmap.JSON{"zh-CN": "指南"}, IsActive: true}
+	if err := db.Create(&parent).Error; err != nil {
+		t.Fatalf("create postgres parent category: %v", err)
+	}
+	child := contentdomain.PostCategory{Slug: "pg-cat-child", NameJSON: jsonmap.JSON{"zh-CN": "入门"}, ParentID: &parent.ID, IsActive: true}
+	if err := db.Create(&child).Error; err != nil {
+		t.Fatalf("create postgres child category: %v", err)
+	}
+
+	posts := []contentdomain.Post{
+		{Slug: "pg-cat-on-parent", Type: constants.PostTypeBlog, TitleJSON: jsonmap.JSON{"zh-CN": "父分类文章"}, CategoryID: &parent.ID, IsPublished: true, PublishedAt: &now},
+		{Slug: "pg-cat-on-child", Type: constants.PostTypeBlog, TitleJSON: jsonmap.JSON{"zh-CN": "子分类文章"}, CategoryID: &child.ID, IsPublished: true, PublishedAt: &now},
+		{Slug: "pg-cat-uncategorized", Type: constants.PostTypeBlog, TitleJSON: jsonmap.JSON{"zh-CN": "无分类文章"}, IsPublished: true, PublishedAt: &now},
+	}
+	for index := range posts {
+		if err := db.Create(&posts[index]).Error; err != nil {
+			t.Fatalf("create postgres scoped post %q: %v", posts[index].Slug, err)
+		}
+	}
+
+	postStore := contentgormstore.NewPostStore(db)
+	summarize := func(categoryIDs []uint) (string, int64) {
+		t.Helper()
+		listed, total, err := postStore.List(ctx, contentcontract.PostQuery{
+			Page:          1,
+			PageSize:      20,
+			Type:          constants.PostTypeBlog,
+			OnlyPublished: true,
+			CategoryIDs:   categoryIDs,
+			Order:         contentcontract.PostOrderPublishedDesc,
+		})
+		if err != nil {
+			t.Fatalf("postgres list with category scope %v: %v", categoryIDs, err)
+		}
+		slugs := make([]string, 0, len(listed))
+		for index := range listed {
+			slugs = append(slugs, listed[index].Slug)
+		}
+		sort.Strings(slugs)
+		return strings.Join(slugs, ","), total
+	}
+
+	if got, total := summarize(nil); got != "pg-cat-on-child,pg-cat-on-parent,pg-cat-uncategorized" || total != 3 {
+		t.Fatalf("nil category scope must not filter on postgres, got=%q total=%d", got, total)
+	}
+	if got, total := summarize([]uint{child.ID}); got != "pg-cat-on-child" || total != 1 {
+		t.Fatalf("leaf category scope mismatch on postgres, got=%q total=%d", got, total)
+	}
+	if got, total := summarize([]uint{parent.ID, child.ID}); got != "pg-cat-on-child,pg-cat-on-parent" || total != 2 {
+		t.Fatalf("expanded parent category scope mismatch on postgres, got=%q total=%d", got, total)
+	}
+	if got, total := summarize([]uint{}); got != "" || total != 0 {
+		t.Fatalf("empty category scope must return nothing on postgres, got=%q total=%d", got, total)
 	}
 }
 
