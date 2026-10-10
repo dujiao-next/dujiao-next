@@ -27,6 +27,7 @@ func (s *WriteService) syncSingleProductSKU(
 	fulfillmentType string,
 	priceAmount decimal.Decimal,
 	costPriceAmount decimal.Decimal,
+	agencyPriceAmount decimal.Decimal,
 	manualStockTotal int,
 ) error {
 	if skuRepo == nil || productID == 0 {
@@ -43,6 +44,7 @@ func (s *WriteService) syncSingleProductSKU(
 			SpecValuesJSON:    jsonmap.JSON{},
 			PriceAmount:       money.FromDecimal(priceAmount),
 			CostPriceAmount:   money.FromDecimal(costPriceAmount),
+			AgencyPriceAmount: money.FromDecimal(agencyPriceAmount),
 			ManualStockTotal:  manualStockTotal,
 			ManualStockLocked: 0,
 			ManualStockSold:   0,
@@ -68,6 +70,7 @@ func (s *WriteService) syncSingleProductSKU(
 	target := skus[targetIndex]
 	target.PriceAmount = money.FromDecimal(priceAmount)
 	target.CostPriceAmount = money.FromDecimal(costPriceAmount)
+	target.AgencyPriceAmount = money.FromDecimal(agencyPriceAmount)
 	target.ManualStockTotal = manualStockTotal
 	target.IsActive = true
 	target.SpecValuesJSON = jsonmap.JSON{}
@@ -132,14 +135,15 @@ func pickSingleModeTargetSKUIndex(skus []productdomain.ProductSKU) int {
 }
 
 type normalizedProductSKU struct {
-	ID               uint
-	SKUCode          string
-	SpecValuesJSON   jsonmap.JSON
-	PriceAmount      money.Amount
-	CostPriceAmount  money.Amount
-	ManualStockTotal int
-	IsActive         bool
-	SortOrder        int
+	ID                uint
+	SKUCode           string
+	SpecValuesJSON    jsonmap.JSON
+	PriceAmount       money.Amount
+	CostPriceAmount   money.Amount
+	AgencyPriceAmount money.Amount
+	ManualStockTotal  int
+	IsActive          bool
+	SortOrder         int
 }
 
 func (s *WriteService) normalizeProductSKUInputs(inputs []ProductSKUInput, fulfillmentType string, existingSKUMap map[uint]productdomain.ProductSKU) ([]normalizedProductSKU, decimal.Decimal, int, error) {
@@ -172,6 +176,10 @@ func (s *WriteService) normalizeProductSKUInputs(inputs []ProductSKUInput, fulfi
 		if costPriceAmount.LessThan(decimal.Zero) {
 			return nil, decimal.Zero, 0, productcontract.ErrProductPriceInvalid
 		}
+		agencyPriceAmount := input.AgencyPriceAmount.Round(2)
+		if agencyPriceAmount.LessThan(decimal.Zero) {
+			return nil, decimal.Zero, 0, productcontract.ErrProductPriceInvalid
+		}
 
 		manualTotal := input.ManualStockTotal
 		if manualTotal < constants.ManualStockUnlimited {
@@ -197,14 +205,15 @@ func (s *WriteService) normalizeProductSKUInputs(inputs []ProductSKUInput, fulfi
 		}
 
 		normalized = append(normalized, normalizedProductSKU{
-			ID:               input.ID,
-			SKUCode:          skuCode,
-			SpecValuesJSON:   specValues,
-			PriceAmount:      money.FromDecimal(priceAmount),
-			CostPriceAmount:  money.FromDecimal(costPriceAmount),
-			ManualStockTotal: manualTotal,
-			IsActive:         isActive,
-			SortOrder:        input.SortOrder,
+			ID:                input.ID,
+			SKUCode:           skuCode,
+			SpecValuesJSON:    specValues,
+			PriceAmount:       money.FromDecimal(priceAmount),
+			CostPriceAmount:   money.FromDecimal(costPriceAmount),
+			AgencyPriceAmount: money.FromDecimal(agencyPriceAmount),
+			ManualStockTotal:  manualTotal,
+			IsActive:          isActive,
+			SortOrder:         input.SortOrder,
 		})
 
 		if isActive {
@@ -250,6 +259,23 @@ func minActiveCostPrice(skus []normalizedProductSKU) decimal.Decimal {
 	return min
 }
 
+// minActiveAgencyPrice 从已标准化的 SKU 列表中取最低活跃 SKU 的代理价
+func minActiveAgencyPrice(skus []normalizedProductSKU) decimal.Decimal {
+	first := true
+	min := decimal.Zero
+	for _, s := range skus {
+		if !s.IsActive {
+			continue
+		}
+		d := s.AgencyPriceAmount.Decimal
+		if first || d.LessThan(min) {
+			min = d
+			first = false
+		}
+	}
+	return min
+}
+
 func (s *WriteService) applyProductSKUsWithStockGuard(
 	skuRepo SKURepository,
 	cardSecretRepo CardSecretStockRepository,
@@ -285,6 +311,7 @@ func (s *WriteService) applyProductSKUsWithStockGuard(
 			existing.SpecValuesJSON = row.SpecValuesJSON
 			existing.PriceAmount = row.PriceAmount
 			existing.CostPriceAmount = row.CostPriceAmount
+			existing.AgencyPriceAmount = row.AgencyPriceAmount
 			existing.ManualStockTotal = row.ManualStockTotal
 			existing.IsActive = row.IsActive
 			existing.SortOrder = row.SortOrder
@@ -301,6 +328,7 @@ func (s *WriteService) applyProductSKUsWithStockGuard(
 			existing.SpecValuesJSON = row.SpecValuesJSON
 			existing.PriceAmount = row.PriceAmount
 			existing.CostPriceAmount = row.CostPriceAmount
+			existing.AgencyPriceAmount = row.AgencyPriceAmount
 			existing.ManualStockTotal = row.ManualStockTotal
 			existing.IsActive = row.IsActive
 			existing.SortOrder = row.SortOrder
@@ -321,6 +349,7 @@ func (s *WriteService) applyProductSKUsWithStockGuard(
 			SpecValuesJSON:    row.SpecValuesJSON,
 			PriceAmount:       row.PriceAmount,
 			CostPriceAmount:   row.CostPriceAmount,
+			AgencyPriceAmount: row.AgencyPriceAmount,
 			ManualStockTotal:  row.ManualStockTotal,
 			ManualStockLocked: 0,
 			ManualStockSold:   0,

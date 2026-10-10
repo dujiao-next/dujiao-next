@@ -74,6 +74,10 @@ func (s *WriteService) Create(input CreateProductInput) (*productdomain.Product,
 	}
 
 	costPriceAmount := input.CostPriceAmount.Round(2)
+	agencyPriceAmount := input.AgencyPriceAmount.Round(2)
+	if agencyPriceAmount.LessThan(decimal.Zero) {
+		return nil, productcontract.ErrProductPriceInvalid
+	}
 	var wholesaleInputs []productdomain.WholesalePriceInput
 	if input.WholesalePrices != nil {
 		wholesaleInputs = *input.WholesalePrices
@@ -90,6 +94,7 @@ func (s *WriteService) Create(input CreateProductInput) (*productdomain.Product,
 			return nil, normalizeErr
 		}
 		costPriceAmount = minActiveCostPrice(normalizedSKUs)
+		agencyPriceAmount = minActiveAgencyPrice(normalizedSKUs)
 	}
 	paymentChannelIDs, err := s.filterAvailablePaymentChannelIDs(input.PaymentChannelIDs)
 	if err != nil {
@@ -107,6 +112,7 @@ func (s *WriteService) Create(input CreateProductInput) (*productdomain.Product,
 		ManualFormSchemaJSON: jsonmap.JSON{},
 		PriceAmount:          money.FromDecimal(priceAmount),
 		CostPriceAmount:      money.FromDecimal(costPriceAmount),
+		AgencyPriceAmount:    money.FromDecimal(agencyPriceAmount),
 		WholesalePrices:      productdomain.WholesalePriceTiers{},
 		Images:               jsonslice.Strings(input.Images),
 		Tags:                 jsonslice.Strings(input.Tags),
@@ -142,7 +148,7 @@ func (s *WriteService) Create(input CreateProductInput) (*productdomain.Product,
 			if err := s.applyProductSKUsWithStockGuard(skuRepo, cardSecretRepo, product.ID, fulfillmentType, normalizedSKUs); err != nil {
 				return err
 			}
-		} else if err := s.syncSingleProductSKU(skuRepo, cardSecretRepo, product.ID, fulfillmentType, priceAmount, costPriceAmount, manualStockTotal); err != nil {
+		} else if err := s.syncSingleProductSKU(skuRepo, cardSecretRepo, product.ID, fulfillmentType, priceAmount, costPriceAmount, agencyPriceAmount, manualStockTotal); err != nil {
 			return err
 		}
 		if input.WholesalePrices != nil {

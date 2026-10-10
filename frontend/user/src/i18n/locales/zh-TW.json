@@ -809,6 +809,7 @@
         "searchPlaceholder": "搜尋商品名稱、Slug 或商品 ID",
         "empty": "暫無可配置商品",
         "basePrice": "主站基準價",
+        "masterPrice": "主站售價",
         "edit": "編輯售價",
         "editorTitle": "售價規則",
         "productLevelRule": "商品級規則",
@@ -835,6 +836,7 @@
         "resetFailed": "重置規則失敗",
         "loadFailed": "商品售價配置載入失敗，請稍後重試",
         "priceInvalidHint": "售價需不低於基準價與成本價",
+        "priceBelowMasterHint": "分銷售價不能低於主站銷售價格",
         "markupExceededHint": "超出最高加價比例"
       },
       "settlementStatusMap": {

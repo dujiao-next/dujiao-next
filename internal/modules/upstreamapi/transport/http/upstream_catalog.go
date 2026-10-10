@@ -16,6 +16,7 @@ import (
 	"github.com/dujiao-next/internal/shared/money"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 )
 
 // upstreamCategory 上游分类响应格式
@@ -41,6 +42,7 @@ type upstreamProduct struct {
 	PriceAmount      string                            `json:"price_amount"`
 	OriginalPrice    string                            `json:"original_price,omitempty"`
 	MemberPrice      string                            `json:"member_price,omitempty"`
+	AgencyPrice      string                            `json:"agency_price,omitempty"`
 	WholesalePrices  productdomain.WholesalePriceTiers `json:"wholesale_prices,omitempty"`
 	FulfillmentType  string                            `json:"fulfillment_type"`
 	ManualFormSchema jsonmap.JSON                      `json:"manual_form_schema"`
@@ -58,6 +60,7 @@ type upstreamSKU struct {
 	PriceAmount   string       `json:"price_amount"`
 	OriginalPrice string       `json:"original_price,omitempty"`
 	MemberPrice   string       `json:"member_price,omitempty"`
+	AgencyPrice   string       `json:"agency_price,omitempty"`
 	StockStatus   string       `json:"stock_status"`
 	StockQuantity int          `json:"stock_quantity"`
 	IsActive      bool         `json:"is_active"`
@@ -263,7 +266,11 @@ func (h *Handler) toUpstreamProductWithMemberPrice(p productdomain.Product, memb
 			StockQuantity: stockQuantity,
 			IsActive:      s.IsActive,
 		}
-		if memberLevelID > 0 && h.MemberLevels != nil {
+		if s.AgencyPriceAmount.Decimal.GreaterThan(decimal.Zero) {
+			si.AgencyPrice = s.AgencyPriceAmount.StringFixed(2)
+			si.OriginalPrice = s.PriceAmount.StringFixed(2)
+			si.PriceAmount = s.AgencyPriceAmount.StringFixed(2) // API 对接成本价格使用代理价
+		} else if memberLevelID > 0 && h.MemberLevels != nil {
 			mp, _ := h.MemberLevels.ResolveMemberPrice(memberLevelID, p.ID, s.ID, s.PriceAmount.Decimal)
 			if mp.LessThan(s.PriceAmount.Decimal) {
 				si.OriginalPrice = si.PriceAmount
@@ -300,7 +307,11 @@ func (h *Handler) toUpstreamProductWithMemberPrice(p productdomain.Product, memb
 		UpdatedAt:        p.UpdatedAt,
 	}
 
-	if memberLevelID > 0 && h.MemberLevels != nil {
+	if p.AgencyPriceAmount.Decimal.GreaterThan(decimal.Zero) {
+		result.AgencyPrice = p.AgencyPriceAmount.StringFixed(2)
+		result.OriginalPrice = p.PriceAmount.StringFixed(2)
+		result.PriceAmount = p.AgencyPriceAmount.StringFixed(2)
+	} else if memberLevelID > 0 && h.MemberLevels != nil {
 		mp, _ := h.MemberLevels.ResolveMemberPrice(memberLevelID, p.ID, 0, p.PriceAmount.Decimal)
 		if mp.LessThan(p.PriceAmount.Decimal) {
 			result.OriginalPrice = result.PriceAmount

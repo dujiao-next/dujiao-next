@@ -16,9 +16,11 @@ import (
 	procurementcontract "github.com/dujiao-next/internal/modules/procurement/contract"
 	procurementdomain "github.com/dujiao-next/internal/modules/procurement/domain"
 	siteconnectiondomain "github.com/dujiao-next/internal/modules/siteconnection/domain"
+	"github.com/dujiao-next/internal/shared/money"
 	upstreamadapter "github.com/dujiao-next/internal/upstream"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 )
 
 func TestMapCallbackStatus(t *testing.T) {
@@ -197,6 +199,56 @@ func TestCreateOrderPassesManualFormDataForAllFulfillmentTypes(t *testing.T) {
 			if got := orders.received.ManualFormData["18"]["x_handle"]; got != "fixture_user" {
 				t.Fatalf("manual form data dropped for %s: %#v", kind, orders.received.ManualFormData)
 			}
+			if !orders.received.IsApiOrder {
+				t.Fatalf("expected IsApiOrder to be true for upstream order")
+			}
 		})
+	}
+}
+
+func TestToUpstreamProductWithAgencyPrice(t *testing.T) {
+	handler := &Handler{Dependencies: Dependencies{}}
+	product := productdomain.Product{
+		ID:                1,
+		Slug:              "test-product",
+		PriceAmount:       productdomain.Product{}.PriceAmount,
+		AgencyPriceAmount: productdomain.Product{}.AgencyPriceAmount,
+		FulfillmentType:   constants.FulfillmentTypeManual,
+		SKUs: []productdomain.ProductSKU{
+			{
+				ID:                10,
+				SKUCode:           "SKU-1",
+				PriceAmount:       productdomain.Product{}.PriceAmount,
+				AgencyPriceAmount: productdomain.Product{}.AgencyPriceAmount,
+				IsActive:          true,
+			},
+		},
+	}
+	product.PriceAmount = money.FromDecimal(decimal.RequireFromString("100.00"))
+	product.AgencyPriceAmount = money.FromDecimal(decimal.RequireFromString("60.00"))
+	product.SKUs[0].PriceAmount = money.FromDecimal(decimal.RequireFromString("100.00"))
+	product.SKUs[0].AgencyPriceAmount = money.FromDecimal(decimal.RequireFromString("60.00"))
+
+	res := handler.toUpstreamProductWithMemberPrice(product, 0, nil)
+	if res.PriceAmount != "60.00" {
+		t.Fatalf("expected product price_amount to be 60.00, got %s", res.PriceAmount)
+	}
+	if res.OriginalPrice != "100.00" {
+		t.Fatalf("expected product original_price to be 100.00, got %s", res.OriginalPrice)
+	}
+	if res.AgencyPrice != "60.00" {
+		t.Fatalf("expected product agency_price to be 60.00, got %s", res.AgencyPrice)
+	}
+	if len(res.SKUs) != 1 {
+		t.Fatalf("expected 1 sku, got %d", len(res.SKUs))
+	}
+	if res.SKUs[0].PriceAmount != "60.00" {
+		t.Fatalf("expected sku price_amount to be 60.00, got %s", res.SKUs[0].PriceAmount)
+	}
+	if res.SKUs[0].OriginalPrice != "100.00" {
+		t.Fatalf("expected sku original_price to be 100.00, got %s", res.SKUs[0].OriginalPrice)
+	}
+	if res.SKUs[0].AgencyPrice != "60.00" {
+		t.Fatalf("expected sku agency_price to be 60.00, got %s", res.SKUs[0].AgencyPrice)
 	}
 }

@@ -61,7 +61,7 @@ func TestSyncSingleProductSKUMultipleRowsKeepsSingleActive(t *testing.T) {
 	}
 
 	targetPrice := decimal.RequireFromString("88.88")
-	if err := service.syncSingleProductSKU(repo, nil, productID, "", targetPrice, decimal.Zero, 5); err != nil {
+	if err := service.syncSingleProductSKU(repo, nil, productID, "", targetPrice, decimal.Zero, decimal.Zero, 5); err != nil {
 		t.Fatalf("sync single sku failed: %v", err)
 	}
 
@@ -117,7 +117,7 @@ func TestSyncSingleProductSKURenamesSurvivorToDefault(t *testing.T) {
 	}
 
 	targetPrice := decimal.RequireFromString("12.34")
-	if err := service.syncSingleProductSKU(repo, nil, productID, "", targetPrice, decimal.Zero, 7); err != nil {
+	if err := service.syncSingleProductSKU(repo, nil, productID, "", targetPrice, decimal.Zero, decimal.Zero, 7); err != nil {
 		t.Fatalf("sync single sku failed: %v", err)
 	}
 
@@ -166,7 +166,7 @@ func TestSyncSingleProductSKURejectsRemovingSKUWithCardSecretStock(t *testing.T)
 	}
 
 	cardSecrets := &memoryCardSecretRepo{available: map[uint]int64{withStock.ID: 3}}
-	err := service.syncSingleProductSKU(repo, cardSecrets, productID, constants.FulfillmentTypeAuto, decimal.NewFromInt(10), decimal.Zero, 0)
+	err := service.syncSingleProductSKU(repo, cardSecrets, productID, constants.FulfillmentTypeAuto, decimal.NewFromInt(10), decimal.Zero, decimal.Zero, 0)
 	if !errors.Is(err, productcontract.ErrProductSKUHasCardSecretStock) {
 		t.Fatalf("expected ErrProductSKUHasCardSecretStock, got %v", err)
 	}
@@ -227,7 +227,7 @@ func TestSyncSingleProductSKUNoActivePrefersDefaultCode(t *testing.T) {
 	}
 
 	targetPrice := decimal.RequireFromString("19.90")
-	if err := service.syncSingleProductSKU(repo, nil, productID, "", targetPrice, decimal.Zero, 6); err != nil {
+	if err := service.syncSingleProductSKU(repo, nil, productID, "", targetPrice, decimal.Zero, decimal.Zero, 6); err != nil {
 		t.Fatalf("sync single sku failed: %v", err)
 	}
 
@@ -360,5 +360,64 @@ func TestUpdateMappedProductPreservesUpstreamManualForm(t *testing.T) {
 				t.Fatalf("unexpected fulfillment type or price: %#v", product)
 			}
 		}
+	}
+}
+
+func TestSyncSingleProductSKUAgencyPrice(t *testing.T) {
+	service := NewWriteService(Options{})
+	repo := newSyncSingleSKURepo(t)
+	productID := uint(3001)
+
+	targetPrice := decimal.RequireFromString("100.00")
+	costPrice := decimal.RequireFromString("50.00")
+	agencyPrice := decimal.RequireFromString("70.00")
+	if err := service.syncSingleProductSKU(repo, nil, productID, "", targetPrice, costPrice, agencyPrice, 10); err != nil {
+		t.Fatalf("sync single sku failed: %v", err)
+	}
+
+	skus, err := repo.ListByProduct(productID, false)
+	if err != nil {
+		t.Fatalf("list sku failed: %v", err)
+	}
+	if len(skus) != 1 {
+		t.Fatalf("expected 1 sku, got %d", len(skus))
+	}
+	if !skus[0].AgencyPriceAmount.Equal(agencyPrice) {
+		t.Fatalf("expected agency price %s, got %s", agencyPrice, skus[0].AgencyPriceAmount)
+	}
+}
+
+func TestNormalizeProductSKUInputsAgencyPrice(t *testing.T) {
+	service := NewWriteService(Options{})
+	inputs := []ProductSKUInput{
+		{
+			SKUCode:           "SKU-A",
+			PriceAmount:       decimal.RequireFromString("100.00"),
+			CostPriceAmount:   decimal.RequireFromString("50.00"),
+			AgencyPriceAmount: decimal.RequireFromString("70.00"),
+			ManualStockTotal:  10,
+		},
+		{
+			SKUCode:           "SKU-B",
+			PriceAmount:       decimal.RequireFromString("120.00"),
+			CostPriceAmount:   decimal.RequireFromString("60.00"),
+			AgencyPriceAmount: decimal.RequireFromString("80.00"),
+			ManualStockTotal:  10,
+		},
+	}
+	normalized, minPrice, _, err := service.normalizeProductSKUInputs(inputs, constants.FulfillmentTypeManual, nil)
+	if err != nil {
+		t.Fatalf("normalize failed: %v", err)
+	}
+	if !minPrice.Equal(decimal.RequireFromString("100.00")) {
+		t.Fatalf("expected min price 100.00, got %s", minPrice)
+	}
+	minCost := minActiveCostPrice(normalized)
+	if !minCost.Equal(decimal.RequireFromString("50.00")) {
+		t.Fatalf("expected min cost 50.00, got %s", minCost)
+	}
+	minAgency := minActiveAgencyPrice(normalized)
+	if !minAgency.Equal(decimal.RequireFromString("70.00")) {
+		t.Fatalf("expected min agency price 70.00, got %s", minAgency)
 	}
 }
