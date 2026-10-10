@@ -137,11 +137,18 @@ func (s *WriteService) Update(id string, input CreateProductInput) (*productdoma
 		}
 	}
 
+	agencyPriceAmount := input.AgencyPriceAmount.Round(2)
+	if agencyPriceAmount.LessThan(decimal.Zero) {
+		return nil, productcontract.ErrProductPriceInvalid
+	}
+
 	product.PriceAmount = money.FromDecimal(priceAmount)
 	if len(normalizedSKUs) > 0 {
 		product.CostPriceAmount = money.FromDecimal(minActiveCostPrice(normalizedSKUs))
+		product.AgencyPriceAmount = money.FromDecimal(minActiveAgencyPrice(normalizedSKUs))
 	} else {
 		product.CostPriceAmount = money.FromDecimal(input.CostPriceAmount.Round(2))
+		product.AgencyPriceAmount = money.FromDecimal(agencyPriceAmount)
 	}
 	product.ManualStockTotal = manualStockTotal
 
@@ -153,7 +160,7 @@ func (s *WriteService) Update(id string, input CreateProductInput) (*productdoma
 			if err := s.applyProductSKUsWithStockGuard(skuRepo, cardSecretRepo, product.ID, fulfillmentType, normalizedSKUs); err != nil {
 				return err
 			}
-		} else if err := s.syncSingleProductSKU(skuRepo, cardSecretRepo, product.ID, fulfillmentType, priceAmount, product.CostPriceAmount.Decimal, product.ManualStockTotal); err != nil {
+		} else if err := s.syncSingleProductSKU(skuRepo, cardSecretRepo, product.ID, fulfillmentType, priceAmount, product.CostPriceAmount.Decimal, product.AgencyPriceAmount.Decimal, product.ManualStockTotal); err != nil {
 			return err
 		}
 		// SKU 落库之后才处理批发价：此时的规格集合才是最终形态。

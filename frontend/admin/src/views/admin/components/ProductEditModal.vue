@@ -93,6 +93,7 @@ type SKUFormItem = {
   sku_code: string
   spec_values: Record<string, string>
   price_amount: number
+  agency_price_amount: number
   cost_price_amount: number
   manual_stock_total: number
   is_active: boolean
@@ -145,6 +146,7 @@ const createSKUFormItem = (raw?: Partial<AdminProductSKU>): SKUFormItem => ({
     }, {}),
   },
   price_amount: Number(raw?.price_amount || 0),
+  agency_price_amount: Number(raw?.agency_price_amount || 0),
   cost_price_amount: Number(raw?.cost_price_amount || 0),
   manual_stock_total: toSafeStockTotal(raw?.manual_stock_total),
   is_active: raw?.is_active ?? true,
@@ -160,6 +162,7 @@ const form = reactive({
   content: { 'zh-CN': '', 'zh-TW': '', 'en-US': '' } as LocalizedText,
   instructions: { 'zh-CN': '', 'zh-TW': '', 'en-US': '' } as LocalizedText,
   price_amount: 0,
+  agency_price_amount: 0,
   cost_price_amount: 0,
   images: [] as string[],
   tags: [] as string[],
@@ -432,6 +435,7 @@ const addSKU = () => {
     createSKUFormItem({
       sku_code: `SKU-${form.skus.length + 1}`,
       price_amount: Number(form.price_amount || 0),
+      agency_price_amount: Number(form.agency_price_amount || 0),
       manual_stock_total: toSafeStockTotal(form.manual_stock_total),
       is_active: true,
       sort_order: form.skus.length,
@@ -474,6 +478,7 @@ const normalizeSKUsForSubmit = () => {
       sku_code: skuCode,
       spec_values: specValues,
       price_amount: priceAmount,
+      agency_price_amount: Number(item.agency_price_amount) || 0,
       cost_price_amount: Number(item.cost_price_amount) || 0,
       manual_stock_total: manualStockTotal,
       is_active: isActive,
@@ -502,6 +507,7 @@ const resetForm = () => {
     content: { 'zh-CN': '', 'zh-TW': '', 'en-US': '' },
     instructions: { 'zh-CN': '', 'zh-TW': '', 'en-US': '' },
     price_amount: 0,
+    agency_price_amount: 0,
     cost_price_amount: 0,
     images: [],
     tags: [],
@@ -550,6 +556,7 @@ const populateForm = (product: AdminProduct) => {
     content: product.content || { 'zh-CN': '', 'zh-TW': '', 'en-US': '' },
     instructions: (product as AdminProduct & { instructions?: LocalizedText }).instructions || { 'zh-CN': '', 'zh-TW': '', 'en-US': '' },
     price_amount: Number(product.price_amount || 0),
+    agency_price_amount: Number(product.agency_price_amount || 0),
     cost_price_amount: Number(product.cost_price_amount || 0),
     images: imagesList,
     tags: tagsList,
@@ -587,10 +594,12 @@ const handleSubmit = async () => {
     const normalizedSKUs = normalizeSKUsForSubmit()
     const activeSKU = normalizedSKUs.find((item) => item.is_active)
     let effectivePrice = Number(form.price_amount)
+    let effectiveAgencyPrice = Number(form.agency_price_amount || 0)
     let effectiveCostPrice = Number(form.cost_price_amount)
     if (normalizedSKUs.length > 0) {
       const priceSource = activeSKU || normalizedSKUs[0]!
       effectivePrice = Number(priceSource.price_amount)
+      effectiveAgencyPrice = Number(priceSource.agency_price_amount || 0)
       effectiveCostPrice = Number(priceSource.cost_price_amount || 0)
     }
     const normalizedMinPurchaseQuantity = Number(form.min_purchase_quantity)
@@ -623,6 +632,7 @@ const handleSubmit = async () => {
       content: form.content,
       instructions: form.instructions,
       price_amount: effectivePrice,
+      agency_price_amount: effectiveAgencyPrice,
       cost_price_amount: effectiveCostPrice,
       images: form.images,
       tags: form.tags,
@@ -986,7 +996,7 @@ watch(
                 </Button>
               </div>
 
-              <div class="grid grid-cols-1 md:grid-cols-6 gap-3">
+              <div class="grid grid-cols-1 md:grid-cols-7 gap-3">
                 <div class="md:col-span-1">
                   <label class="block text-xs font-medium text-muted-foreground mb-1.5">{{ t('admin.products.form.skuCode') }}</label>
                   <Input v-model="sku.sku_code" :placeholder="t('admin.products.form.skuCodePlaceholder')" :disabled="editingIsMapped" />
@@ -998,6 +1008,10 @@ watch(
                 <div class="md:col-span-1">
                   <label class="block text-xs font-medium text-muted-foreground mb-1.5">{{ t('admin.products.form.skuPrice') }}</label>
                   <Input v-model.number="sku.price_amount" type="number" step="0.01" min="0" :placeholder="t('admin.products.form.skuPricePlaceholder')" />
+                </div>
+                <div class="md:col-span-1">
+                  <label class="block text-xs font-medium text-muted-foreground mb-1.5">{{ t('admin.products.form.skuAgencyPrice') }}</label>
+                  <Input v-model.number="sku.agency_price_amount" type="number" step="0.01" min="0" :placeholder="t('admin.products.form.skuAgencyPricePlaceholder')" />
                 </div>
                 <div class="md:col-span-1">
                   <label class="block text-xs font-medium text-muted-foreground mb-1.5">{{ t('admin.products.form.skuCostPrice') }}</label>
@@ -1040,6 +1054,22 @@ watch(
               {{ t('admin.products.form.priceAmountSkuTip') }}
             </p>
             <p v-else class="mt-1 text-xs text-muted-foreground">{{ t('admin.products.form.priceAmountTip') }}</p>
+          </div>
+
+          <div class="col-span-1">
+            <label class="block text-xs font-medium text-muted-foreground mb-1.5">{{ t('admin.products.form.agencyPriceAmount') }}</label>
+            <Input
+              v-model.number="form.agency_price_amount"
+              type="number"
+              step="0.01"
+              min="0"
+              :placeholder="t('admin.products.form.agencyPriceAmountPlaceholder')"
+              :disabled="form.skus.length > 0"
+            />
+            <p v-if="form.skus.length > 0" class="mt-1 text-xs text-muted-foreground">
+              {{ t('admin.products.form.agencyPriceAmountSkuTip') }}
+            </p>
+            <p v-else class="mt-1 text-xs text-muted-foreground">{{ t('admin.products.form.agencyPriceAmountTip') }}</p>
           </div>
 
           <div class="col-span-1">

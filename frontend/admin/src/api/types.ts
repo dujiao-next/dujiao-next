@@ -32,6 +32,7 @@ export interface AdminProductSKU {
   sku_code: string
   spec_values: Record<string, string>
   price_amount: number
+  agency_price_amount?: number
   cost_price_amount: number
   manual_stock_total: number
   manual_stock_locked: number
@@ -60,6 +61,7 @@ export interface AdminProduct {
   description: LocalizedText
   content: LocalizedText
   price_amount: number
+  agency_price_amount?: number
   cost_price_amount: number
   wholesale_prices?: AdminWholesalePrice[]
   images: string[]
@@ -916,6 +918,7 @@ export interface AdminResellerProductSettingProduct {
   slug: string
   title: LocalizedText
   price_amount: string | number
+  agency_price_amount?: string | number
   is_active: boolean
 }
 
@@ -956,6 +959,7 @@ export interface AdminResellerProductSettingSKU {
   sku_code: string
   spec_values: Record<string, string>
   base_price_amount: string | number
+  master_price_amount?: string | number
   is_active: boolean
   setting?: AdminResellerProductSettingRule
   effective_price_amount?: string | number

@@ -103,7 +103,8 @@
             <ResellerProductRuleEditor
               v-model="productForm"
               :label="t('personalCenter.reseller.productSettings.productLevelRule')"
-              :base-price="editing.product.price_amount"
+              :base-price="editing.product.agency_price_amount || editing.product.price_amount"
+              :master-price="editing.product.agency_price_amount ? editing.product.price_amount : undefined"
               :effective-price="previewEffectiveFor(0, summarizeEffectivePrice(editing.product_setting))"
               :invalid="previewInvalidFor(0)"
               :error-code="previewErrorFor(0)"
@@ -113,6 +114,7 @@
                 :model-value="skuFormFor(sku.id)"
                 :label="buildSkuLabel(sku)"
                 :base-price="sku.base_price_amount"
+                :master-price="sku.master_price_amount"
                 :effective-price="previewEffectiveFor(sku.id, summarizeSkuEffectivePrice(sku))"
                 :invalid="previewInvalidFor(sku.id)"
                 :error-code="previewErrorFor(sku.id)"

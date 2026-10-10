@@ -193,14 +193,15 @@ func (h *AdminProductHandler) GetAdminProduct(c *gin.Context) {
 // ====================  商品管理  ====================
 
 type ProductSKURequest struct {
-	ID               uint                   `json:"id"`
-	SKUCode          string                 `json:"sku_code" binding:"required"`
-	SpecValuesJSON   map[string]interface{} `json:"spec_values"`
-	PriceAmount      float64                `json:"price_amount" binding:"required"`
-	CostPriceAmount  float64                `json:"cost_price_amount"`
-	ManualStockTotal int                    `json:"manual_stock_total"`
-	IsActive         *bool                  `json:"is_active"`
-	SortOrder        int                    `json:"sort_order"`
+	ID                uint                   `json:"id"`
+	SKUCode           string                 `json:"sku_code" binding:"required"`
+	SpecValuesJSON    map[string]interface{} `json:"spec_values"`
+	PriceAmount       float64                `json:"price_amount" binding:"required"`
+	CostPriceAmount   float64                `json:"cost_price_amount"`
+	AgencyPriceAmount float64                `json:"agency_price_amount"`
+	ManualStockTotal  int                    `json:"manual_stock_total"`
+	IsActive          *bool                  `json:"is_active"`
+	SortOrder         int                    `json:"sort_order"`
 }
 
 type WholesalePriceRequest struct {
@@ -222,6 +223,7 @@ type CreateProductRequest struct {
 	ManualFormSchema    map[string]interface{}   `json:"manual_form_schema"`
 	PriceAmount         float64                  `json:"price_amount" binding:"required"`
 	CostPriceAmount     float64                  `json:"cost_price_amount"`
+	AgencyPriceAmount   float64                  `json:"agency_price_amount"`
 	WholesalePrices     *[]WholesalePriceRequest `json:"wholesale_prices"`
 	Images              []string                 `json:"images"`
 	Tags                []string                 `json:"tags"`
@@ -263,14 +265,15 @@ func toProductSKUInputs(items []ProductSKURequest) []productwrite.ProductSKUInpu
 	result := make([]productwrite.ProductSKUInput, 0, len(items))
 	for _, item := range items {
 		result = append(result, productwrite.ProductSKUInput{
-			ID:               item.ID,
-			SKUCode:          item.SKUCode,
-			SpecValuesJSON:   item.SpecValuesJSON,
-			PriceAmount:      decimal.NewFromFloat(item.PriceAmount),
-			CostPriceAmount:  decimal.NewFromFloat(item.CostPriceAmount),
-			ManualStockTotal: item.ManualStockTotal,
-			IsActive:         item.IsActive,
-			SortOrder:        item.SortOrder,
+			ID:                item.ID,
+			SKUCode:           item.SKUCode,
+			SpecValuesJSON:    item.SpecValuesJSON,
+			PriceAmount:       decimal.NewFromFloat(item.PriceAmount),
+			CostPriceAmount:   decimal.NewFromFloat(item.CostPriceAmount),
+			AgencyPriceAmount: decimal.NewFromFloat(item.AgencyPriceAmount),
+			ManualStockTotal:  item.ManualStockTotal,
+			IsActive:          item.IsActive,
+			SortOrder:         item.SortOrder,
 		})
 	}
 	return result
@@ -295,6 +298,7 @@ func (h *AdminProductHandler) CreateProduct(c *gin.Context) {
 		ManualFormSchemaJSON: req.ManualFormSchema,
 		PriceAmount:          decimal.NewFromFloat(req.PriceAmount),
 		CostPriceAmount:      decimal.NewFromFloat(req.CostPriceAmount),
+		AgencyPriceAmount:    decimal.NewFromFloat(req.AgencyPriceAmount),
 		WholesalePrices:      toWholesalePriceInputs(req.WholesalePrices),
 		Images:               req.Images,
 		Tags:                 req.Tags,
@@ -387,6 +391,7 @@ func (h *AdminProductHandler) UpdateProduct(c *gin.Context) {
 		ManualFormSchemaJSON: req.ManualFormSchema,
 		PriceAmount:          decimal.NewFromFloat(req.PriceAmount),
 		CostPriceAmount:      decimal.NewFromFloat(req.CostPriceAmount),
+		AgencyPriceAmount:    decimal.NewFromFloat(req.AgencyPriceAmount),
 		WholesalePrices:      toWholesalePriceInputs(req.WholesalePrices),
 		Images:               req.Images,
 		Tags:                 req.Tags,

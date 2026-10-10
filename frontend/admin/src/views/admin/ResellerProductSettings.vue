@@ -201,6 +201,7 @@ const previewHintFor = (key: number) => {
   const code = previewByKey[key]?.errorCode
   if (!code) return ''
   if (code === 'markup_exceeded') return t('admin.resellerProductSettings.preview.markupExceeded')
+  if (code === 'price_below_master') return t('admin.resellerProductSettings.preview.priceBelowMaster')
   return t('admin.resellerProductSettings.preview.priceInvalid')
 }
 
@@ -530,6 +531,10 @@ onMounted(() => {
                 <div class="mt-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-foreground">
                   {{ productDetailTitle() }}
                 </div>
+                <div class="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                  <span>{{ t('admin.resellerProductSettings.basePrice') }}: {{ detail.product.agency_price_amount || detail.product.price_amount }}</span>
+                  <span v-if="detail.product.agency_price_amount">{{ t('admin.resellerProductSettings.masterPrice') }}: {{ detail.product.price_amount }}</span>
+                </div>
               </div>
               <div>
                 <Label>{{ t('admin.resellerProductSettings.columns.listed') }}</Label>
@@ -585,6 +590,10 @@ onMounted(() => {
                   <Label>{{ t('admin.resellerProductSettings.columns.sku') }}</Label>
                   <div class="mt-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-foreground">
                     {{ skuLabel(sku) }}
+                  </div>
+                  <div class="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                    <span>{{ t('admin.resellerProductSettings.basePrice') }}: {{ sku.base_price_amount }}</span>
+                    <span v-if="sku.master_price_amount">{{ t('admin.resellerProductSettings.masterPrice') }}: {{ sku.master_price_amount }}</span>
                   </div>
                 </div>
                 <div>

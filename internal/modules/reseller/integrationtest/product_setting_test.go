@@ -285,3 +285,80 @@ func TestResellerProductSettingServiceRequiresActiveProfile(t *testing.T) {
 		t.Fatalf("expected inactive profile, got %v product=%d", err, product.ID)
 	}
 }
+
+func TestResellerProductSettingServiceAgencyPriceAndMasterPriceLimit(t *testing.T) {
+	db := openResellerProductSettingServiceTestDB(t)
+	user, _, _, _ := seedResellerProductSettingServiceData(t, db)
+	svc := newResellerProductSettingServiceForTest(db)
+
+	now := time.Now()
+	category := categorydomain.Category{Slug: "agency-cat", NameJSON: jsonmap.JSON{"zh-CN": "代理测试"}, IsActive: true}
+	if err := db.Create(&category).Error; err != nil {
+		t.Fatalf("create category failed: %v", err)
+	}
+	// 商品主站售价 100.00，代理价 60.00
+	product := productdomain.Product{
+		CategoryID:        category.ID,
+		Slug:              "agency-product",
+		TitleJSON:         jsonmap.JSON{"zh-CN": "代理测试商品"},
+		PriceAmount:       money.FromDecimal(decimal.RequireFromString("100.00")),
+		AgencyPriceAmount: money.FromDecimal(decimal.RequireFromString("60.00")),
+		IsActive:          true,
+	}
+	if err := db.Create(&product).Error; err != nil {
+		t.Fatalf("create product failed: %v", err)
+	}
+	sku := productdomain.ProductSKU{
+		ProductID:         product.ID,
+		SKUCode:           "AGENCY-SKU",
+		PriceAmount:       money.FromDecimal(decimal.RequireFromString("100.00")),
+		AgencyPriceAmount: money.FromDecimal(decimal.RequireFromString("60.00")),
+		IsActive:          true,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}
+	if err := db.Create(&sku).Error; err != nil {
+		t.Fatalf("create sku failed: %v", err)
+	}
+
+	// 1. 预览：售价低于主站原售价 100.00（例如设置 80.00），标记为 price_below_master
+	preview, err := svc.PreviewUserProductSettings(user.ID, product.ID, ResellerProductSettingSaveInput{
+		Settings: []ResellerProductSettingInput{
+			{SKUID: sku.ID, IsListed: true, PricingMode: resellerdomain.PricingModeFixedPrice, FixedPriceAmount: decimal.RequireFromString("80.00")},
+		},
+	})
+	if err != nil {
+		t.Fatalf("preview failed: %v", err)
+	}
+	item := findPreviewItem(preview, sku.ID)
+	if item == nil || item.Valid || item.ErrorCode != "price_below_master" {
+		t.Fatalf("expected price_below_master for price below master, got: %+v", item)
+	}
+	// 底价必须为代理价 60.00
+	if !item.BasePrice.Equal(decimal.RequireFromString("60.00")) {
+		t.Fatalf("expected base price 60.00, got: %s", item.BasePrice)
+	}
+
+	// 2. 保存：设置 80.00 < 100.00 保存时应直接拒绝报错 ErrResellerPriceBelowMasterPrice
+	_, err = svc.SaveUserProductSettings(user.ID, product.ID, ResellerProductSettingSaveInput{
+		Settings: []ResellerProductSettingInput{
+			{SKUID: sku.ID, IsListed: true, PricingMode: resellerdomain.PricingModeFixedPrice, FixedPriceAmount: decimal.RequireFromString("80.00")},
+		},
+	})
+	if err == nil {
+		t.Fatalf("expected error when saving price below master price, got nil")
+	}
+
+	// 3. 继承模式：底价为 60.00，生效价继承主站售价 100.00
+	detail, err := svc.SaveUserProductSettings(user.ID, product.ID, ResellerProductSettingSaveInput{
+		Settings: []ResellerProductSettingInput{
+			{SKUID: sku.ID, IsListed: true, PricingMode: resellerdomain.PricingModeInherit},
+		},
+	})
+	if err != nil {
+		t.Fatalf("save inherit mode failed: %v", err)
+	}
+	if effective := detail.EffectiveBySKUID[sku.ID]; !effective.Equal(decimal.RequireFromString("100.00")) {
+		t.Fatalf("expected effective price 100.00, got %s", effective)
+	}
+}

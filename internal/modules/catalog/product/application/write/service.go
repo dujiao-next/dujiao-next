@@ -94,6 +94,7 @@ type CreateProductInput struct {
 	ManualFormSchemaJSON map[string]interface{}
 	PriceAmount          decimal.Decimal
 	CostPriceAmount      decimal.Decimal
+	AgencyPriceAmount    decimal.Decimal
 	// WholesalePrices 为可选字段：nil 表示更新时保留，非 nil 表示整体覆盖。
 	WholesalePrices     *[]productdomain.WholesalePriceInput
 	Images              []string
@@ -113,14 +114,15 @@ type CreateProductInput struct {
 
 // ProductSKUInput 描述商品 SKU 的完整写入值。
 type ProductSKUInput struct {
-	ID               uint
-	SKUCode          string
-	SpecValuesJSON   map[string]interface{}
-	PriceAmount      decimal.Decimal
-	CostPriceAmount  decimal.Decimal
-	ManualStockTotal int
-	IsActive         *bool
-	SortOrder        int
+	ID                uint
+	SKUCode           string
+	SpecValuesJSON    map[string]interface{}
+	PriceAmount       decimal.Decimal
+	CostPriceAmount   decimal.Decimal
+	AgencyPriceAmount decimal.Decimal
+	ManualStockTotal  int
+	IsActive          *bool
+	SortOrder         int
 }
 
 func (s *WriteService) filterAvailablePaymentChannelIDs(ids []uint) ([]uint, error) {

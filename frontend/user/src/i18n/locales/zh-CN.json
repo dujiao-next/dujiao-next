@@ -762,6 +762,7 @@
         "searchPlaceholder": "搜索商品名称、Slug 或商品 ID",
         "empty": "暂无可配置商品",
         "basePrice": "主站基准价",
+        "masterPrice": "主站售价",
         "edit": "编辑售价",
         "editorTitle": "售价规则",
         "productLevelRule": "商品级规则",
@@ -788,6 +789,7 @@
         "resetFailed": "重置规则失败",
         "loadFailed": "商品售价配置加载失败，请稍后重试",
         "priceInvalidHint": "售价需不低于基准价与成本价",
+        "priceBelowMasterHint": "分销售价不能低于主站销售价格",
         "markupExceededHint": "超出最高加价比例"
       },
       "settlementStatusMap": {

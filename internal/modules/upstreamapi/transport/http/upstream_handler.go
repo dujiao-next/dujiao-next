@@ -60,6 +60,7 @@ type CreateOrderInput struct {
 	ClientIP        string
 	ManualFormData  map[string]jsonmap.JSON
 	SkipRiskControl bool
+	IsApiOrder      bool
 }
 
 type CreatePaymentInput struct {

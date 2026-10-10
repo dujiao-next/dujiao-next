@@ -809,6 +809,7 @@
         "searchPlaceholder": "Search product name, slug, or product ID",
         "empty": "No configurable products",
         "basePrice": "Base price",
+        "masterPrice": "Master Price",
         "edit": "Edit pricing",
         "editorTitle": "Pricing rules",
         "productLevelRule": "Product-level rule",
@@ -835,6 +836,7 @@
         "resetFailed": "Failed to reset rule",
         "loadFailed": "Failed to load product pricing, please try again later",
         "priceInvalidHint": "Price must be at least the base and cost price",
+        "priceBelowMasterHint": "Reseller price cannot be lower than master retail price",
         "markupExceededHint": "Exceeds the maximum markup"
       },
       "settlementStatusMap": {

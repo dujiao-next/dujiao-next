@@ -109,6 +109,7 @@ func (h *Handler) CreateOrder(c *gin.Context) {
 		ClientIP:        c.ClientIP(),
 		ManualFormData:  manualFormData,
 		SkipRiskControl: true,
+		IsApiOrder:      true,
 	}
 
 	order, err := h.Orders.CreateOrder(input)
