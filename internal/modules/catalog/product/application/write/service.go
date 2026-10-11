@@ -94,6 +94,7 @@ type CreateProductInput struct {
 	ManualFormSchemaJSON map[string]interface{}
 	PriceAmount          decimal.Decimal
 	CostPriceAmount      decimal.Decimal
+	AgencyPriceAmount    decimal.Decimal
 	// WholesalePrices 为可选字段：nil 表示更新时保留，非 nil 表示整体覆盖。
 	WholesalePrices     *[]productdomain.WholesalePriceInput
 	Images              []string
@@ -113,11 +114,12 @@ type CreateProductInput struct {
 
 // ProductSKUInput 描述商品 SKU 的完整写入值。
 type ProductSKUInput struct {
-	ID              uint
-	SKUCode         string
-	SpecValuesJSON  map[string]interface{}
-	PriceAmount     decimal.Decimal
-	CostPriceAmount decimal.Decimal
+	ID                uint
+	SKUCode           string
+	SpecValuesJSON    map[string]interface{}
+	PriceAmount       decimal.Decimal
+	CostPriceAmount   decimal.Decimal
+	AgencyPriceAmount decimal.Decimal
 	// ManualStockTotal 为 nil 表示保持该 SKU 现有的实时库存（新建 SKU 视为 0），
 	// 避免后台用打开表单时的旧值覆盖期间被下单预占后的库存。
 	ManualStockTotal *int
