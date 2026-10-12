@@ -328,7 +328,7 @@
 
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '../stores/app'
@@ -702,6 +702,23 @@ const handleQuantityInput = (event: Event) => {
 const close = () => {
   emit('update:visible', false)
 }
+
+const onKeydown = (e: KeyboardEvent) => {
+  if (e.key === 'Escape') close()
+}
+
+watch(
+  () => props.visible,
+  (isVisible) => {
+    if (isVisible) document.addEventListener('keydown', onKeydown)
+    else document.removeEventListener('keydown', onKeydown)
+  },
+  { immediate: true },
+)
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onKeydown)
+})
 
 const handleAddToCart = () => {
   if (!props.product || !canPurchase.value) return
