@@ -1,20 +1,9 @@
 <template>
   <div id="app" class="min-h-screen bg-background text-foreground flex flex-col">
-    <!-- vault 模板：自带顶栏/页脚的外壳包裹页面（控制台仍走下方分支） -->
-    <VaultLayout v-if="isVault && !isResellerConsole">
-      <ErrorBoundary>
-        <RouterView v-slot="{ Component }">
-          <Transition name="page-fade" mode="out-in">
-            <component :is="Component" />
-          </Transition>
-        </RouterView>
-      </ErrorBoundary>
-    </VaultLayout>
-
-    <!-- classic 模板 / 分销控制台（保持原有结构不变） -->
-    <template v-else>
-      <Navbar v-if="!isResellerConsole" />
-      <main class="flex-1" :class="isResellerConsole ? '' : 'pb-14 lg:pb-0'">
+    <!-- 首次访问还不知道站点用哪套模板时先不渲染外壳，等配置返回（见 shellReady） -->
+    <template v-if="shellReady">
+      <!-- vault 模板：自带顶栏/页脚的外壳包裹页面（控制台仍走下方分支） -->
+      <VaultLayout v-if="isVault && !isResellerConsole">
         <ErrorBoundary>
           <RouterView v-slot="{ Component }">
             <Transition name="page-fade" mode="out-in">
@@ -22,10 +11,24 @@
             </Transition>
           </RouterView>
         </ErrorBoundary>
-      </main>
-      <Footer v-if="!isResellerConsole" />
-      <BackToTop v-if="!isResellerConsole" />
-      <MobileBottomNav v-if="!isResellerConsole" />
+      </VaultLayout>
+
+      <!-- classic 模板 / 分销控制台（保持原有结构不变） -->
+      <template v-else>
+        <Navbar v-if="!isResellerConsole" />
+        <main class="flex-1" :class="isResellerConsole ? '' : 'pb-14 lg:pb-0'">
+          <ErrorBoundary>
+            <RouterView v-slot="{ Component }">
+              <Transition name="page-fade" mode="out-in">
+                <component :is="Component" />
+              </Transition>
+            </RouterView>
+          </ErrorBoundary>
+        </main>
+        <Footer v-if="!isResellerConsole" />
+        <BackToTop v-if="!isResellerConsole" />
+        <MobileBottomNav v-if="!isResellerConsole" />
+      </template>
     </template>
 
     <Loading :loading="appStore.loading" />
@@ -35,10 +38,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineAsyncComponent } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, defineAsyncComponent, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from './stores/app'
-import { getActiveTemplate } from './templates/registry'
+import { getActiveTemplate, hasTemplateHint, rememberTemplate } from './templates/registry'
 import Navbar from './components/Navbar.vue'
 import Footer from './components/Footer.vue'
 import Loading from './components/Loading.vue'
@@ -57,6 +60,16 @@ const route = useRoute()
 const isResellerConsole = computed(() => route.meta.resellerConsole === true)
 // getActiveTemplate 读取 appStore.config（响应式），config 加载后会重新计算
 const isVault = computed(() => getActiveTemplate() === 'vault')
+
+// 模板来自异步的站点配置。已有线索（预览覆盖 / 上次访问记住的模板）时立即渲染外壳；
+// 首次访问则等配置返回再渲染，避免先闪一下 classic 外壳。配置加载失败时由首个路由就绪兜底
+// （守卫里的加载无论成败都会结束），不会一直停在空白。
+const shellReady = ref(hasTemplateHint())
+if (!shellReady.value) {
+  watch(() => appStore.config, (config) => { if (config) shellReady.value = true }, { immediate: true })
+  void useRouter().isReady().catch(() => {}).finally(() => { shellReady.value = true })
+}
+watch(() => appStore.config?.storefront_template, (value) => rememberTemplate(value), { immediate: true })
 </script>
 
 <style>
