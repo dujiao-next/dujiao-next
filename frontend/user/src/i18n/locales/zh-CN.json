@@ -75,6 +75,10 @@
       "payWechat": "微信"
     }
   },
+  "luna": {
+    "chooseCategory": "选择分类",
+    "chooseProduct": "选择商品"
+  },
   "breadcrumb": {
     "label": "面包屑导航",
     "back": "返回{name}"

@@ -532,6 +532,7 @@ const (
 const (
 	StorefrontTemplateClassic = "classic"
 	StorefrontTemplateVault   = "vault"
+	StorefrontTemplateLuna    = "luna"
 	StorefrontTemplateDefault = StorefrontTemplateClassic
 )
 

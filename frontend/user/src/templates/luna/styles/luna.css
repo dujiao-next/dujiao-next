@@ -1,0 +1,179 @@
+/* =========================================================================
+   luna 模板设计令牌
+   方向: 清爽浅蓝背景 · 白色圆角卡片 · 蓝→青渐变强调色（参考旧版独角数卡的 Luna 模板）
+   作用域: 全部选择器限定在 .luna-scope / body.luna-tokens 下，不影响其它模板。
+           暗色跟随全局 .dark（document.documentElement）。
+
+   令牌双挂到 body.luna-tokens 的原因与 vault 相同：Toast / ConfirmDialog /
+   公告弹窗 / Select 下拉等浮层 Teleport 到 <body>，落在 .luna-scope 之外。
+   body 上的 class 由 LunaLayout 挂载时打上、卸载时摘掉。
+
+   页面只用标准 utility（bg-card / text-foreground / bg-primary …）与
+   components/ui/*，靠下面的 --ui-* 覆盖自动穿上 luna 配色；以后 classic 新增而
+   luna 还没有的页面回退过来时同样生效。
+   ========================================================================= */
+
+/* ---------- Tokens: 亮色（默认） ---------- */
+.luna-scope,
+body.luna-tokens {
+  --luna-bg: #e3f1fc;
+  --luna-surface: #ffffff;
+  --luna-surface-2: #f1f5fa;
+  --luna-surface-3: #e6edf5;
+  --luna-ink: #39424e;
+  --luna-ink-2: #4a5564;
+  --luna-ink-3: #5a6675;
+  --luna-border: #e6edf6;
+  --luna-border-strong: #cfdbea;
+
+  --luna-accent: #1a60bb;
+  --luna-accent-strong: #164f9b;
+  --luna-accent-soft: #e2eefc;
+  /* 两端与白字的对比度都不低于 4.5:1，改色时请保持 */
+  --luna-gradient: linear-gradient(135deg, #256ad0 10%, #0b7ea6 100%);
+  --luna-glow: 0 7px 14px -4px rgba(26, 96, 187, 0.42);
+  --luna-on-accent: #ffffff;
+
+  --luna-success: #06683a;
+  --luna-success-soft: #dff7ea;
+  --luna-warning: #855409;
+  --luna-warning-soft: #fbf3d6;
+  --luna-danger: #c82428;
+  --luna-danger-soft: #ffebe8;
+
+  --luna-shadow-sm: 0 4px 10px 0 rgba(135, 142, 154, 0.14);
+  --luna-shadow: 0 7px 29px 0 rgba(18, 52, 91, 0.11);
+  --luna-shadow-lg: 0 18px 44px -12px rgba(18, 52, 91, 0.22);
+
+  --luna-backdrop:
+    radial-gradient(58% 52% at 80% 20%, rgba(150, 226, 247, 0.6), transparent 72%),
+    radial-gradient(44% 48% at 96% 82%, rgba(170, 205, 255, 0.5), transparent 72%),
+    linear-gradient(160deg, #d2f5f6 0%, #d9effc 46%, #dde6fb 100%);
+
+  /* shadcn --ui-* 覆盖：作用域内的标准 utility 与 components/ui/* 自动换成 luna 配色。
+     值引用上面的 luna 令牌，暗色块只需翻转 luna 令牌。 */
+  --ui-bg-page: var(--luna-bg);
+  --ui-bg-elevated: var(--luna-surface);
+  --ui-bg-soft: var(--luna-surface-2);
+  --ui-bg-muted: var(--luna-surface-3);
+  --ui-bg-overlay: color-mix(in srgb, var(--luna-surface) 80%, transparent);
+  --ui-bg-overlay-strong: color-mix(in srgb, var(--luna-surface) 92%, transparent);
+  --ui-text-primary: var(--luna-ink);
+  --ui-text-secondary: var(--luna-ink-2);
+  --ui-text-muted: var(--luna-ink-3);
+  --ui-text-on-accent: var(--luna-on-accent);
+  --ui-border: var(--luna-border);
+  --ui-border-strong: var(--luna-border-strong);
+  --ui-accent: var(--luna-accent);
+  --ui-accent-hover: var(--luna-accent-strong);
+  --ui-accent-soft: var(--luna-accent-soft);
+  --ui-success: var(--luna-success);
+  --ui-success-soft: var(--luna-success-soft);
+  --ui-warning: var(--luna-warning);
+  --ui-warning-soft: var(--luna-warning-soft);
+  --ui-danger: var(--luna-danger);
+  --ui-danger-soft: var(--luna-danger-soft);
+  --ui-info: var(--luna-accent);
+  --ui-info-soft: var(--luna-accent-soft);
+  --ui-focus-ring: rgba(26, 96, 187, 0.26);
+  --ui-radius-sm: 6px;
+  --ui-radius-md: 10px;
+  --ui-radius-lg: 14px;
+  --ui-radius-xl: 20px;
+  --ui-shadow-soft: var(--luna-shadow-sm);
+  --ui-shadow-card: var(--luna-shadow);
+  --ui-price-primary: var(--luna-accent);
+  --ui-price-promotion: var(--luna-danger);
+  --ui-price-original: var(--luna-ink-3);
+}
+
+/* ---------- Tokens: 暗色（跟随全局 .dark） ---------- */
+.dark .luna-scope,
+.dark body.luna-tokens {
+  --luna-bg: #0f1826;
+  --luna-surface: #172334;
+  --luna-surface-2: #1e2c40;
+  --luna-surface-3: #25354c;
+  --luna-ink: #e6edf7;
+  --luna-ink-2: #b3c0d2;
+  --luna-ink-3: #96a4b8;
+  --luna-border: #26364d;
+  --luna-border-strong: #364a66;
+
+  --luna-accent: #5aa7f5;
+  --luna-accent-strong: #7cbaf8;
+  --luna-accent-soft: #1b3554;
+  --luna-gradient: linear-gradient(135deg, #256ad0 10%, #0b7ea6 100%);
+  --luna-glow: 0 7px 16px -4px rgba(30, 120, 220, 0.5);
+  /* 暗色下强调色是浅蓝/浅绿/浅红，压在上面的文字用深色 */
+  --luna-on-accent: #0b1422;
+
+  --luna-success: #34d399;
+  --luna-success-soft: #12372b;
+  --luna-warning: #f0b94a;
+  --luna-warning-soft: #3a3013;
+  --luna-danger: #f87171;
+  --luna-danger-soft: #45201f;
+
+  --luna-shadow-sm: 0 4px 10px 0 rgba(0, 0, 0, 0.3);
+  --luna-shadow: 0 10px 30px 0 rgba(0, 0, 0, 0.36);
+  --luna-shadow-lg: 0 20px 46px -12px rgba(0, 0, 0, 0.6);
+
+  --luna-backdrop:
+    radial-gradient(58% 52% at 80% 20%, rgba(30, 110, 170, 0.34), transparent 72%),
+    radial-gradient(44% 48% at 96% 82%, rgba(50, 80, 170, 0.3), transparent 72%),
+    linear-gradient(160deg, #0e1c2a 0%, #0f1826 46%, #121a30 100%);
+}
+
+/* ---------- 外壳自身的布局（不能挂到 body，否则改掉 body 布局） ---------- */
+.luna-scope {
+  /* 商品名、订单号等可能是一长串不带空格的字符，允许在任意位置折行，避免把版面撑破 */
+  overflow-wrap: break-word;
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+  color: var(--luna-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 固定铺满视口的渐变背景。回退到 classic 的页面自带 bg-background，会盖住它，
+   两者基色一致（--luna-bg），不会跳色。 */
+.luna-scope::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--luna-backdrop);
+}
+
+/* 回退到 classic 的页面用 .container 铺到断点宽度；在 luna 外壳里收窄到与顶栏、首页面板同宽 */
+.luna-scope main .container {
+  max-width: 1100px;
+}
+
+/* ---------- luna 自己的组件类 ---------- */
+/* 蓝→青渐变胶囊：查单按钮、选中的分类、购买按钮。
+   不放进 @layer：渐变两种主题下都是深色，文字必须恒为白色，
+   不能被按钮自带的 text-primary-foreground（暗色下是深色字）盖掉。 */
+.luna-gradient {
+  background-image: var(--luna-gradient);
+  color: #ffffff;
+  box-shadow: var(--luna-glow);
+}
+
+@layer components {
+  /* 主体白色面板 */
+  .luna-panel {
+    background: var(--luna-surface);
+    border-radius: 14px;
+    box-shadow: var(--luna-shadow);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .luna-scope *,
+  .luna-scope *::before,
+  .luna-scope *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}

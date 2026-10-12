@@ -447,6 +447,26 @@ func TestUpdateSiteSettingNormalizedCurrency(t *testing.T) {
 	}
 }
 
+func TestNormalizeStorefrontTemplate(t *testing.T) {
+	cases := []struct {
+		raw  interface{}
+		want string
+	}{
+		{constants.StorefrontTemplateClassic, constants.StorefrontTemplateClassic},
+		{constants.StorefrontTemplateVault, constants.StorefrontTemplateVault},
+		{constants.StorefrontTemplateLuna, constants.StorefrontTemplateLuna},
+		{" luna ", constants.StorefrontTemplateLuna},
+		{"unknown", constants.StorefrontTemplateDefault},
+		{"", constants.StorefrontTemplateDefault},
+		{nil, constants.StorefrontTemplateDefault},
+	}
+	for _, tc := range cases {
+		if got := normalizeStorefrontTemplate(tc.raw); got != tc.want {
+			t.Fatalf("normalizeStorefrontTemplate(%v) = %q, want %q", tc.raw, got, tc.want)
+		}
+	}
+}
+
 func TestUpdateOrderRefundSettingNormalized(t *testing.T) {
 	repo := newMockSettingRepo()
 	svc := NewService(repo)
