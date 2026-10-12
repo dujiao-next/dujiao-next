@@ -75,6 +75,10 @@
       "payWechat": "WeChat"
     }
   },
+  "luna": {
+    "chooseCategory": "Choose a category",
+    "chooseProduct": "Choose a product"
+  },
   "breadcrumb": {
     "label": "Breadcrumb",
     "back": "Back to {name}"

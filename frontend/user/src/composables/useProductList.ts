@@ -8,6 +8,11 @@ export interface UseProductListOptions {
   pageSize?: number
   homeRouteName?: string
   categoryRouteName?: string
+  /**
+   * 没有「全部商品」入口的模板用：不在分类路由时默认选中第一个顶级分类，
+   * 而不是 null（全部）。站点没有任何分类时仍回退为全部商品。
+   */
+  defaultToFirstCategory?: boolean
 }
 
 export function useProductList(options: UseProductListOptions = {}) {
@@ -15,6 +20,7 @@ export function useProductList(options: UseProductListOptions = {}) {
     pageSize: defaultPageSize = 20,
     homeRouteName = 'home',
     categoryRouteName = 'category-products',
+    defaultToFirstCategory = false,
   } = options
 
   const router = useRouter()
@@ -33,6 +39,12 @@ export function useProductList(options: UseProductListOptions = {}) {
 
   const categoryGroups = computed(() => buildCategoryGroups(categories.value))
   const categoryMap = computed(() => createCategoryMap(categories.value))
+
+  /** 不在分类路由时应选中的分类：默认 null（全部），defaultToFirstCategory 下为第一个顶级分类 */
+  const getDefaultCategoryId = (): number | null => {
+    if (!defaultToFirstCategory) return null
+    return categoryGroups.value[0]?.id ?? null
+  }
 
   let initializing = true
 
@@ -142,17 +154,27 @@ export function useProductList(options: UseProductListOptions = {}) {
 
   const syncSelectedCategoryFromRoute = () => {
     if (route.name !== categoryRouteName) {
-      if (selectedCategory.value !== null) {
-        selectedCategory.value = null
+      const defaultCategoryId = getDefaultCategoryId()
+      if (selectedCategory.value !== defaultCategoryId) {
+        selectedCategory.value = defaultCategoryId
       }
-      return false
+      return defaultCategoryId !== null
     }
 
     const slugParam = route.params.slug as string | undefined
     if (!slugParam || categories.value.length === 0) return false
 
     const matched = categories.value.find((category) => category.slug === slugParam)
-    if (!matched) return false
+    if (!matched) {
+      // 分类不存在（改名、下架后的旧链接）：有默认分类的模板回到默认分类并纠正地址，其余模板保持原样（显示全部）
+      const fallback = categories.value.find((category) => category.id === getDefaultCategoryId())
+      if (!fallback) return false
+      selectedCategory.value = fallback.id
+      if (fallback.slug) {
+        router.replace({ name: categoryRouteName, params: { slug: fallback.slug } })
+      }
+      return true
+    }
 
     if (selectedCategory.value !== matched.id) {
       selectedCategory.value = matched.id
@@ -168,8 +190,10 @@ export function useProductList(options: UseProductListOptions = {}) {
     debouncedLoadProducts()
 
     if (selectedCategory.value) {
+      // 首页默认选中的分类不改写地址，否则回到首页会被立刻带去分类页
+      const isHomeDefault = route.name !== categoryRouteName && selectedCategory.value === getDefaultCategoryId()
       const matched = categories.value.find((category) => category.id === selectedCategory.value)
-      if (matched?.slug && route.params.slug !== matched.slug) {
+      if (!isHomeDefault && matched?.slug && route.params.slug !== matched.slug) {
         router.replace({ name: categoryRouteName, params: { slug: matched.slug } })
       }
     } else if (route.name === categoryRouteName) {

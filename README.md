@@ -157,7 +157,7 @@ placeholder, which the server rewrites on startup. Consequences for admin code:
   and prefixing again yields `/admin/admin/...`
 
 **Storefront templates.** The customer frontend ships more than one look, selected by the
-`storefront_template` site setting (`classic`, `vault`). Template pages live in
+`storefront_template` site setting (`classic`, `vault`, `luna`). Template pages live in
 `src/templates/<name>/` and fall back to `src/views/` when a page has no template-specific
 version; see `src/templates/registry.ts`. Append `?template=vault` to preview one locally.
 

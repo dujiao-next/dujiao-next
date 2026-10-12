@@ -75,6 +75,10 @@
       "payWechat": "微信"
     }
   },
+  "luna": {
+    "chooseCategory": "選擇分類",
+    "chooseProduct": "選擇商品"
+  },
   "breadcrumb": {
     "label": "麵包屑導航",
     "back": "返回{name}"
