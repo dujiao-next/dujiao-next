@@ -1,1 +1,0 @@
-{"version":3,"file":"useForwardRef.js","names":["ref: Element | ComponentPublicInstance | null","ref"],"sources":["../../src/shared/useForwardRef.ts"],"sourcesContent":[],"mappings":";;;AAIA,SAAgB,gBAAgB;CAC9B,MAAM,WAAW,oBAAoB;CACrC,SAAS,gBAAgBA,OAA+C;AACtE,aAAWC,UAAQ,UAAU;AAC3B,YAAS,UAAUA;AACnB,YAAS,cAAcA;EACxB;CACF;AACD,QAAO;AACR"}

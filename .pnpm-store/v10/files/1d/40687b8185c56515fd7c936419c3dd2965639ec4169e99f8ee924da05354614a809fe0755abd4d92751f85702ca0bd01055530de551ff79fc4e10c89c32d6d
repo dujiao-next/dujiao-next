@@ -1,1 +1,0 @@
-{"version":3,"file":"deleteCurrentNode.d.ts","sourceRoot":"","sources":["../../src/commands/deleteCurrentNode.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,WAAW,EAAE,MAAM,aAAa,CAAA;AAEzC,OAAO,QAAQ,cAAc,CAAC;IAC5B,UAAU,QAAQ,CAAC,UAAU;QAC3B,iBAAiB,EAAE;YACjB;;;eAGG;YACH,iBAAiB,EAAE,MAAM,UAAU,CAAC;SACrC,CAAA;KACF;CACF;AAED,eAAO,MAAM,iBAAiB,EAAE,WAAW,CAAC,mBAAmB,CA2B9D,CAAA"}

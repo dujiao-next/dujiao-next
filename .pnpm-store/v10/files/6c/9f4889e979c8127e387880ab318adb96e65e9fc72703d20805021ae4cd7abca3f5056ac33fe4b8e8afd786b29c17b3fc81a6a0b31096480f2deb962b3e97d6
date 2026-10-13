@@ -1,1 +1,0 @@
-{"version":3,"file":"deleteSelection.d.ts","sourceRoot":"","sources":["../../src/commands/deleteSelection.ts"],"names":[],"mappings":"AAEA,OAAO,EAAE,WAAW,EAAE,MAAM,aAAa,CAAA;AAEzC,OAAO,QAAQ,cAAc,CAAC;IAC5B,UAAU,QAAQ,CAAC,UAAU;QAC3B,eAAe,EAAE;YACf;;;eAGG;YACH,eAAe,EAAE,MAAM,UAAU,CAAA;SAClC,CAAA;KACF;CACF;AAED,eAAO,MAAM,eAAe,EAAE,WAAW,CAAC,iBAAiB,CAE1D,CAAA"}

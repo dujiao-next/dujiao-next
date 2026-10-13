@@ -1,1 +1,0 @@
-{"version":3,"file":"deleteRange.d.ts","sourceRoot":"","sources":["../../src/commands/deleteRange.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,KAAK,EAAE,WAAW,EAAE,MAAM,aAAa,CAAA;AAEhD,OAAO,QAAQ,cAAc,CAAC;IAC5B,UAAU,QAAQ,CAAC,UAAU;QAC3B,WAAW,EAAE;YACX;;;;eAIG;YACH,WAAW,EAAE,CAAC,KAAK,EAAE,KAAK,KAAK,UAAU,CAAC;SAC3C,CAAA;KACF;CACF;AAED,eAAO,MAAM,WAAW,EAAE,WAAW,CAAC,aAAa,CAQlD,CAAA"}

@@ -1,1 +1,0 @@
-{"version":3,"file":"getSchema.d.ts","sourceRoot":"","sources":["../../src/helpers/getSchema.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,MAAM,EAAE,MAAM,kBAAkB,CAAA;AAEzC,OAAO,EAAE,MAAM,EAAE,MAAM,cAAc,CAAA;AAErC,OAAO,EAAE,UAAU,EAAE,MAAM,aAAa,CAAA;AAGxC,wBAAgB,SAAS,CAAC,UAAU,EAAE,UAAU,EAAE,MAAM,CAAC,EAAE,MAAM,GAAG,MAAM,CAIzE"}

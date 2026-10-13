@@ -1,1 +1,0 @@
-{"version":3,"file":"selectTextblockEnd.d.ts","sourceRoot":"","sources":["../../src/commands/selectTextblockEnd.ts"],"names":[],"mappings":"AAIA,OAAO,EAAE,WAAW,EAAE,MAAM,aAAa,CAAA;AAEzC,OAAO,QAAQ,cAAc,CAAC;IAC5B,UAAU,QAAQ,CAAC,UAAU;QAC3B,kBAAkB,EAAE;YAClB;;;eAGG;YACH,kBAAkB,EAAE,MAAM,UAAU,CAAA;SACrC,CAAA;KACF;CACF;AAED,eAAO,MAAM,kBAAkB,EAAE,WAAW,CAAC,oBAAoB,CAEhE,CAAA"}

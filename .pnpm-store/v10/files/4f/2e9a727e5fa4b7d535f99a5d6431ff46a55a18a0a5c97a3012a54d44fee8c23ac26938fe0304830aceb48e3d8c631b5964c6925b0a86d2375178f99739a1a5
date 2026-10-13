@@ -1,1 +1,0 @@
-{"version":3,"file":"isNodeEmpty.d.ts","sourceRoot":"","sources":["../../src/helpers/isNodeEmpty.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,IAAI,IAAI,eAAe,EAAE,MAAM,kBAAkB,CAAA;AAE1D;;GAEG;AACH,wBAAgB,WAAW,CACzB,IAAI,EAAE,eAAe,EACrB,EACE,aAAoB,EACpB,gBAAwB,GACzB,GAAE;IACD;;OAEG;IACH,aAAa,CAAC,EAAE,OAAO,CAAC;IACxB;;OAEG;IACH,gBAAgB,CAAC,EAAE,OAAO,CAAC;CACvB,GACL,OAAO,CAyCT"}

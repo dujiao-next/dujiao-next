@@ -1,1 +1,0 @@
-{"version":3,"file":"createChainableState.d.ts","sourceRoot":"","sources":["../../src/helpers/createChainableState.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,WAAW,EAAE,WAAW,EAAE,MAAM,kBAAkB,CAAA;AAE3D;;;;GAIG;AACH,wBAAgB,oBAAoB,CAAC,MAAM,EAAE;IAC3C,WAAW,EAAE,WAAW,CAAA;IACxB,KAAK,EAAE,WAAW,CAAA;CACnB,GAAG,WAAW,CA+Bd"}

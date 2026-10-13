@@ -1,1 +1,0 @@
-{"version":3,"file":"getNodeAtPosition.d.ts","sourceRoot":"","sources":["../../src/helpers/getNodeAtPosition.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,IAAI,EAAE,QAAQ,EAAE,MAAM,kBAAkB,CAAA;AACjD,OAAO,EAAE,WAAW,EAAE,MAAM,kBAAkB,CAAA;AAE9C;;;;;;;GAOG;AACH,eAAO,MAAM,iBAAiB,UAAW,WAAW,cAAc,MAAM,GAAG,QAAQ,OAAO,MAAM,wBAgB/D,CAAC,IAAI,GAAG,IAAI,EAAE,MAAM,CACpD,CAAA"}

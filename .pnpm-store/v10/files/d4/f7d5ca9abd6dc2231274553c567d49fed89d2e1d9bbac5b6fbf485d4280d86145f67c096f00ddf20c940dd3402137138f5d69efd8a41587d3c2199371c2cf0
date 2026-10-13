@@ -1,1 +1,0 @@
-{"version":3,"file":"textInputRule.d.ts","sourceRoot":"","sources":["../../src/inputRules/textInputRule.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,SAAS,EAAE,eAAe,EAAE,MAAM,iBAAiB,CAAA;AAE5D;;;;GAIG;AACH,wBAAgB,aAAa,CAAC,MAAM,EAAE;IACpC,IAAI,EAAE,eAAe,CAAC;IACtB,OAAO,EAAE,MAAM,CAAC;CACjB,aAyBA"}

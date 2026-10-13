@@ -1,1 +1,0 @@
-{"version":3,"file":"findChildrenInRange.d.ts","sourceRoot":"","sources":["../../src/helpers/findChildrenInRange.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,IAAI,IAAI,eAAe,EAAE,MAAM,kBAAkB,CAAA;AAE1D,OAAO,EAAE,WAAW,EAAE,SAAS,EAAE,KAAK,EAAE,MAAM,aAAa,CAAA;AAE3D;;;;;;GAMG;AACH,wBAAgB,mBAAmB,CACjC,IAAI,EAAE,eAAe,EACrB,KAAK,EAAE,KAAK,EACZ,SAAS,EAAE,SAAS,GACnB,WAAW,EAAE,CAwBf"}

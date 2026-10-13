@@ -1,1 +1,0 @@
-{"version":3,"file":"createParagraphNear.d.ts","sourceRoot":"","sources":["../../src/commands/createParagraphNear.ts"],"names":[],"mappings":"AAEA,OAAO,EAAE,WAAW,EAAE,MAAM,aAAa,CAAA;AAEzC,OAAO,QAAQ,cAAc,CAAC;IAC5B,UAAU,QAAQ,CAAC,UAAU;QAC3B,mBAAmB,EAAE;YACnB;;;eAGG;YACH,mBAAmB,EAAE,MAAM,UAAU,CAAA;SACtC,CAAA;KACF;CACF;AAED,eAAO,MAAM,mBAAmB,EAAE,WAAW,CAAC,qBAAqB,CAElE,CAAA"}

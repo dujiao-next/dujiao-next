@@ -8,6 +8,8 @@ uploads
 .env
 .DS_Store
 node_modules/
+# pnpm 全局内容寻址存储缓存（构建缓存，随依赖安装变化，不入库）
+.pnpm-store/
 # Added by goreleaser init:
 dist/
 

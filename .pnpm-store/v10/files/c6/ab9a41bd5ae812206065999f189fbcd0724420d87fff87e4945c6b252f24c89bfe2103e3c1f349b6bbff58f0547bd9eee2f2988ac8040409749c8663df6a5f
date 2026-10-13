@@ -1,1 +1,0 @@
-{"version":3,"file":"selectTextblockStart.d.ts","sourceRoot":"","sources":["../../src/commands/selectTextblockStart.ts"],"names":[],"mappings":"AAIA,OAAO,EAAE,WAAW,EAAE,MAAM,aAAa,CAAA;AAEzC,OAAO,QAAQ,cAAc,CAAC;IAC5B,UAAU,QAAQ,CAAC,UAAU;QAC3B,oBAAoB,EAAE;YACpB;;;eAGG;YACH,oBAAoB,EAAE,MAAM,UAAU,CAAA;SACvC,CAAA;KACF;CACF;AAED,eAAO,MAAM,oBAAoB,EAAE,WAAW,CAAC,sBAAsB,CAEpE,CAAA"}

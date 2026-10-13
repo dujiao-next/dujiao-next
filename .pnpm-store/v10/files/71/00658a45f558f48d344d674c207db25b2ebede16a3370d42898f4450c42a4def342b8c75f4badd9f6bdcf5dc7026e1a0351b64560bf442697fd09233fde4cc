@@ -1,1 +1,0 @@
-{"version":3,"file":"clipboardTextSerializer.d.ts","sourceRoot":"","sources":["../../src/extensions/clipboardTextSerializer.ts"],"names":[],"mappings":"AAEA,OAAO,EAAE,SAAS,EAAE,MAAM,iBAAiB,CAAA;AAI3C,MAAM,MAAM,8BAA8B,GAAG;IAC3C,cAAc,CAAC,EAAE,MAAM,CAAC;CACzB,CAAA;AAED,eAAO,MAAM,uBAAuB,gDAmClC,CAAA"}

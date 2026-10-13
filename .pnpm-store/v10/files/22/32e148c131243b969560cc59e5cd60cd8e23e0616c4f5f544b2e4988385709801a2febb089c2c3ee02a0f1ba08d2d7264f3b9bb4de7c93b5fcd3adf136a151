@@ -1,1 +1,0 @@
-{"version":3,"file":"canInsertNode.d.ts","sourceRoot":"","sources":["../../src/utilities/canInsertNode.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,QAAQ,EAAE,MAAM,kBAAkB,CAAA;AAChD,OAAO,EAAE,KAAK,WAAW,EAAiB,MAAM,kBAAkB,CAAA;AAElE,wBAAgB,aAAa,CAAC,KAAK,EAAE,WAAW,EAAE,QAAQ,EAAE,QAAQ,GAAG,OAAO,CA2B7E"}

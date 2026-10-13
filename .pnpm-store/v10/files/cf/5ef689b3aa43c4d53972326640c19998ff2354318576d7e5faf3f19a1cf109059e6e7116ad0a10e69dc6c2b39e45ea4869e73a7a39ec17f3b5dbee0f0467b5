@@ -1,1 +1,0 @@
-{"version":3,"file":"list-item.d.ts","sourceRoot":"","sources":["../src/list-item.ts"],"names":[],"mappings":"AAAA,OAAO,EAAmB,IAAI,EAAE,MAAM,cAAc,CAAA;AAEpD,MAAM,WAAW,eAAe;IAC9B;;;;OAIG;IACH,cAAc,EAAE,MAAM,CAAC,MAAM,EAAE,GAAG,CAAC,CAAC;IAEpC;;;;OAIG;IACH,kBAAkB,EAAE,MAAM,CAAA;IAE1B;;;;OAIG;IACH,mBAAmB,EAAE,MAAM,CAAA;CAC5B;AAED;;;GAGG;AACH,eAAO,MAAM,QAAQ,4BAkCnB,CAAA"}

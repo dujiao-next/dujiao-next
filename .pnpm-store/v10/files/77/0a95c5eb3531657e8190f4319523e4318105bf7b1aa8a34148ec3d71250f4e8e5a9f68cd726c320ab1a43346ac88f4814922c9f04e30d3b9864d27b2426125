@@ -1,1 +1,0 @@
-{"version":3,"file":"clearContent.d.ts","sourceRoot":"","sources":["../../src/commands/clearContent.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,WAAW,EAAE,MAAM,aAAa,CAAA;AAEzC,OAAO,QAAQ,cAAc,CAAC;IAC5B,UAAU,QAAQ,CAAC,UAAU;QAC3B,YAAY,EAAE;YACZ;;;;eAIG;YACH,YAAY,EAAE,CAAC,UAAU,CAAC,EAAE,OAAO,KAAK,UAAU,CAAC;SACpD,CAAA;KACF;CACF;AAED,eAAO,MAAM,YAAY,EAAE,WAAW,CAAC,cAAc,CAEpD,CAAA"}

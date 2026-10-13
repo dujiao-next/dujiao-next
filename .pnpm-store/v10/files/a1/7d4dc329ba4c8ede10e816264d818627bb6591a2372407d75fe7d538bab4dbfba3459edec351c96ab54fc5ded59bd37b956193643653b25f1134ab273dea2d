@@ -1,1 +1,0 @@
-{"version":3,"file":"scrollIntoView.d.ts","sourceRoot":"","sources":["../../src/commands/scrollIntoView.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,WAAW,EAAE,MAAM,aAAa,CAAA;AAEzC,OAAO,QAAQ,cAAc,CAAC;IAC5B,UAAU,QAAQ,CAAC,UAAU;QAC3B,cAAc,EAAE;YACd;;;eAGG;YACH,cAAc,EAAE,MAAM,UAAU,CAAC;SAClC,CAAA;KACF;CACF;AAED,eAAO,MAAM,cAAc,EAAE,WAAW,CAAC,gBAAgB,CAMxD,CAAA"}

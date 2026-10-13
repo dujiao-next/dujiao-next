@@ -1,1 +1,0 @@
-{"version":3,"file":"getAttributes.d.ts","sourceRoot":"","sources":["../../src/helpers/getAttributes.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,QAAQ,EAAE,QAAQ,EAAE,MAAM,kBAAkB,CAAA;AACrD,OAAO,EAAE,WAAW,EAAE,MAAM,kBAAkB,CAAA;AAM9C;;;;;GAKG;AACH,wBAAgB,aAAa,CAC3B,KAAK,EAAE,WAAW,EAClB,UAAU,EAAE,MAAM,GAAG,QAAQ,GAAG,QAAQ,GACvC,MAAM,CAAC,MAAM,EAAE,GAAG,CAAC,CAerB"}

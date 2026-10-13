@@ -1,1 +1,0 @@
-{"version":3,"file":"injectExtensionAttributesToParseRule.d.ts","sourceRoot":"","sources":["../../src/helpers/injectExtensionAttributesToParseRule.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,SAAS,EAAE,MAAM,kBAAkB,CAAA;AAE5C,OAAO,EAAE,kBAAkB,EAAE,MAAM,aAAa,CAAA;AAGhD;;;;;GAKG;AACH,wBAAgB,oCAAoC,CAClD,SAAS,EAAE,SAAS,EACpB,mBAAmB,EAAE,kBAAkB,EAAE,GACxC,SAAS,CAgCX"}

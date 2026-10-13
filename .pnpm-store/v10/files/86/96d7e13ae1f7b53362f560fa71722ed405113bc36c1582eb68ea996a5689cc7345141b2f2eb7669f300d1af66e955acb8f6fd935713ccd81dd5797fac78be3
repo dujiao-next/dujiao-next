@@ -1,1 +1,0 @@
-{"version":3,"file":"getChangedRanges.d.ts","sourceRoot":"","sources":["../../src/helpers/getChangedRanges.ts"],"names":[],"mappings":"AAAA,OAAO,EAAQ,SAAS,EAAE,MAAM,sBAAsB,CAAA;AAEtD,OAAO,EAAE,KAAK,EAAE,MAAM,aAAa,CAAA;AAGnC,MAAM,MAAM,YAAY,GAAG;IACzB,QAAQ,EAAE,KAAK,CAAC;IAChB,QAAQ,EAAE,KAAK,CAAC;CACjB,CAAA;AAuBD;;;GAGG;AACH,wBAAgB,gBAAgB,CAAC,SAAS,EAAE,SAAS,GAAG,YAAY,EAAE,CA+CrE"}

@@ -1,1 +1,0 @@
-{"version":3,"file":"createTable.d.ts","sourceRoot":"","sources":["../../src/utilities/createTable.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,QAAQ,EAAE,IAAI,IAAI,eAAe,EAAE,MAAM,EAAE,MAAM,kBAAkB,CAAA;AAK5E,wBAAgB,WAAW,CACzB,MAAM,EAAE,MAAM,EACd,SAAS,EAAE,MAAM,EACjB,SAAS,EAAE,MAAM,EACjB,aAAa,EAAE,OAAO,EACtB,WAAW,CAAC,EAAE,QAAQ,GAAG,eAAe,GAAG,KAAK,CAAC,eAAe,CAAC,GAChE,eAAe,CA4BjB"}
