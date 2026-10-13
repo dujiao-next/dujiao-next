@@ -24,3 +24,6 @@ internal/web/dist/
 # Agents 配置
 .agents/
 skills-lock.json
+
+# AI 工具运行数据（本地缓存/截图，不入库）
+.workbuddy-ai/

@@ -9,4 +9,24 @@
 # 因此所有 shell 脚本强制 LF —— 它们在 Linux 容器里执行，不能用 CRLF。
 # =============================================================================
 
+# 全仓库统一以 LF 入库并在检出时保持 LF：Git 比较/检出时自动规范化行尾，
+# Windows 宿主侧即使把工作副本保存成 CRLF，也不会再产生整文件假差异。
+* text=auto eol=lf
+
+# shell 脚本必须 LF（在 Linux 容器内执行，CRLF 会导致 bad interpreter）。
 *.sh text eol=lf
+
+# 二进制文件不做行尾转换，避免损坏。
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pdf binary
+*.zip binary
+*.gz binary
