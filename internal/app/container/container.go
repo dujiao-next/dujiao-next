@@ -73,6 +73,7 @@ import (
 	siteconnectionapp "github.com/dujiao-next/internal/modules/siteconnection/application"
 	siteconnectioncontract "github.com/dujiao-next/internal/modules/siteconnection/contract"
 	sitemapapp "github.com/dujiao-next/internal/modules/sitemap/application"
+	supportapp "github.com/dujiao-next/internal/modules/support/application"
 	broadcastapp "github.com/dujiao-next/internal/modules/telegram/broadcast/application"
 	broadcastcontract "github.com/dujiao-next/internal/modules/telegram/broadcast/contract"
 	uploadapp "github.com/dujiao-next/internal/modules/upload/application"
@@ -190,6 +191,7 @@ type Container struct {
 	AdProxyService                *adproxyapp.Service
 	OrderRiskControlService       *orderriskapp.Service
 	ComplianceService             *complianceapp.Service
+	SupportService                *supportapp.Service
 
 	PaymentProviderRegistry *paymentprovider.Registry
 }

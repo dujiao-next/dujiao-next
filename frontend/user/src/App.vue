@@ -31,6 +31,7 @@
     <Loading :loading="appStore.loading" />
     <Toast />
     <ConfirmDialog />
+    <SupportWidget v-if="!isResellerConsole" />
   </div>
 </template>
 
@@ -47,6 +48,7 @@ import ConfirmDialog from './components/ConfirmDialog.vue'
 import ErrorBoundary from './components/ErrorBoundary.vue'
 import BackToTop from './components/BackToTop.vue'
 import MobileBottomNav from './components/MobileBottomNav.vue'
+import SupportWidget from './components/SupportWidget.vue'
 
 // 各模板外壳按需加载，classic 用户不会拉取其 chunk/样式
 const VaultLayout = defineAsyncComponent(() => import('./templates/vault/layout/VaultLayout.vue'))

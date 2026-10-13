@@ -5,6 +5,7 @@ import (
 	"github.com/dujiao-next/internal/app/httpserver/middleware"
 	affiliatebootstrap "github.com/dujiao-next/internal/bootstrap/affiliate"
 	settingsbootstrap "github.com/dujiao-next/internal/bootstrap/settingshttp"
+	supportbootstrap "github.com/dujiao-next/internal/bootstrap/support"
 	"github.com/dujiao-next/internal/config"
 	adproxytransport "github.com/dujiao-next/internal/modules/adproxy/transport/http"
 	affiliatetransport "github.com/dujiao-next/internal/modules/affiliate/transport/http"
@@ -34,6 +35,7 @@ import (
 	resellertransport "github.com/dujiao-next/internal/modules/reseller/transport/http/admin"
 	settingstransport "github.com/dujiao-next/internal/modules/settings/transport/http"
 	siteconnectiontransport "github.com/dujiao-next/internal/modules/siteconnection/transport/http"
+	supporthttp "github.com/dujiao-next/internal/modules/support/transport/http"
 	broadcasthttp "github.com/dujiao-next/internal/modules/telegram/broadcast/transport/http"
 	uploadtransport "github.com/dujiao-next/internal/modules/upload/transport/http"
 	wallettransport "github.com/dujiao-next/internal/modules/wallet/transport/http"
@@ -97,6 +99,11 @@ func registerAdminRoutes(
 	paymentProtected := admin.Group("", middleware.PaymentComplianceRequired(c.ComplianceService))
 
 	// 合规声明
+	supporthttp.RegisterNotificationRoutes(authorized, supporthttp.NewNotificationHandler(supportbootstrap.NewNotifications(c.SupportService, c.Config.App.SecretKey)))
+	supporthttp.RegisterAdminRoutes(authorized, supporthttp.New(c.SupportService, "admin", func(id uint) bool {
+		ok, err := c.AuthzService.EnforceAdmin(id, "/admin/support/supervise", "GET")
+		return err == nil && ok
+	}))
 	compliancetransport.RegisterAdminRoutes(authorized, compliancetransport.NewAdminHandler(c.ComplianceService))
 
 	// 仪表盘

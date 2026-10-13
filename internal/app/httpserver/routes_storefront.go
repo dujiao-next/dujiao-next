@@ -21,6 +21,7 @@ import (
 	paymentcallbacktransport "github.com/dujiao-next/internal/modules/payment/transport/http/callback"
 	resellertransport "github.com/dujiao-next/internal/modules/reseller/transport/http/user"
 	publicconfigtransport "github.com/dujiao-next/internal/modules/settings/transport/http/public"
+	supporthttp "github.com/dujiao-next/internal/modules/support/transport/http"
 	wallettransport "github.com/dujiao-next/internal/modules/wallet/transport/http"
 
 	"github.com/gin-gonic/gin"
@@ -93,6 +94,9 @@ func registerStorefrontRoutes(
 	}
 	guestWrite := guest.Group("")
 	guestWrite.Use(middleware.RateLimitMiddleware(redisClient, guestWriteRule, middleware.KeyByIP))
+	supportReadRule := middleware.RateLimitRule{Prefix: "support_read", WindowSeconds: 60, MaxRequests: 180, BlockSeconds: 60, MessageKey: "error.rate_limited"}
+	supportRead := guest.Group("", middleware.RateLimitMiddleware(redisClient, supportReadRule, middleware.KeyByIP))
+	supporthttp.RegisterGuestSplitRoutes(supportRead, guestWrite, supporthttp.New(c.SupportService, "guest", nil))
 	{
 		ordertransport.RegisterGuestCreateRoute(guestWrite, orderCreateHandler)
 		ordertransport.RegisterGuestCreateAndPayRoute(guestWrite, orderCreateHandler)
@@ -115,6 +119,8 @@ func registerStorefrontRoutes(
 	// 用户接口（需鉴权）
 	user := storefront.Group("")
 	user.Use(middleware.UserJWTAuthMiddleware(cfg.UserJWT.SecretKey, c.UserStore))
+	supportUser := user.Group("", middleware.RateLimitMiddleware(redisClient, supportReadRule, middleware.KeyByUserIDAndIP))
+	supporthttp.RegisterUserRoutes(supportUser, supporthttp.New(c.SupportService, "user", nil))
 	{
 		userauthtransport.RegisterUserProfileRoutes(user, userProfileHandler)
 		auditlogtransport.RegisterUserRoutes(user, userAuditLogHandler)

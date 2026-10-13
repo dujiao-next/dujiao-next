@@ -218,6 +218,12 @@ const navGroups = computed<NavGroup[]>(() => {
       icon: Users,
       items: [
         {
+          label: t('supportDesk'),
+          to: '/support',
+          icon: Users,
+          permission: 'GET:/admin/support/conversations',
+        },
+        {
           label: t('admin.navItems.userList'),
           to: '/users',
           icon: UserRound,

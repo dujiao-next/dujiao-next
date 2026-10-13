@@ -2,6 +2,7 @@ package container
 
 import (
 	catalogmappingbootstrap "github.com/dujiao-next/internal/bootstrap/catalogmapping"
+	supportbootstrap "github.com/dujiao-next/internal/bootstrap/support"
 	telegrambroadcast "github.com/dujiao-next/internal/bootstrap/telegrambroadcast"
 	"github.com/dujiao-next/internal/logger"
 	apicredentialapp "github.com/dujiao-next/internal/modules/apicredential/application"
@@ -34,6 +35,7 @@ import (
 	reconciliationqueue "github.com/dujiao-next/internal/modules/reconciliation/infrastructure/queueadapter"
 	reconciliationupstream "github.com/dujiao-next/internal/modules/reconciliation/infrastructure/upstreamreader"
 	siteconnectionapp "github.com/dujiao-next/internal/modules/siteconnection/application"
+	supportstore "github.com/dujiao-next/internal/modules/support/infrastructure/gormstore"
 	broadcastapp "github.com/dujiao-next/internal/modules/telegram/broadcast/application"
 	notifyapp "github.com/dujiao-next/internal/modules/telegram/notify/application"
 	notifybotapi "github.com/dujiao-next/internal/modules/telegram/notify/infrastructure/botapi"
@@ -58,6 +60,7 @@ func (c *Container) initIntegrationServices() {
 		notificationfeishu.New(),
 	)
 	c.ApiCredentialService = apicredentialapp.NewService(c.ApiCredentialRepo)
+	c.SupportService = supportbootstrap.New(supportstore.New(gormdb.DB), c.OrderService, c.AdminStore, c.AuthzService)
 	c.SiteConnectionService = siteconnectionapp.NewService(c.SiteConnectionRepo, c.Config.App.SecretKey, "uploads")
 	mediaCore := contentapp.NewMediaService(
 		contentgormstore.NewMediaStore(gormdb.DB),

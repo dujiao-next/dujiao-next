@@ -13375,4 +13375,8 @@ const i18n = createI18n({
   messages: sanitizeLinkedMessage(messages),
 })
 
+i18n.global.mergeLocaleMessage('zh-CN', { supportDesk: '在线客服' })
+i18n.global.mergeLocaleMessage('zh-TW', { supportDesk: '線上客服' })
+i18n.global.mergeLocaleMessage('en-US', { supportDesk: 'Support desk' })
+
 export default i18n

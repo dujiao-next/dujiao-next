@@ -14,6 +14,34 @@ type RoleSeed struct {
 func BuiltinRoleSeeds() []RoleSeed {
 	return []RoleSeed{
 		{
+			Role:     "customer_service",
+			Inherits: []string{"readonly_auditor"},
+			Policies: []Policy{
+				{Object: "/admin/support/conversations", Action: "GET"},
+				{Object: "/admin/support/agents", Action: "GET"},
+				{Object: "/admin/support/notification/binding", Action: "GET"},
+				{Object: "/admin/support/notification/binding", Action: "POST"},
+				{Object: "/admin/support/notification/binding", Action: "DELETE"},
+				{Object: "/admin/support/notification/binding/confirm", Action: "POST"},
+				{Object: "/admin/support/notification/scans", Action: "POST"},
+				{Object: "/admin/support/notification/scans/:scanID", Action: "GET"},
+				{Object: "/admin/support/notification/scans/:scanID", Action: "DELETE"},
+				{Object: "/admin/support/notification/scans/:scanID/confirm", Action: "POST"},
+				{Object: "/admin/support/notification/test", Action: "POST"},
+				{Object: "/admin/support/conversations/:id", Action: "GET"},
+				{Object: "/admin/support/conversations/:id/messages", Action: "GET"},
+				{Object: "/admin/support/conversations/:id/messages", Action: "POST"},
+				{Object: "/admin/support/conversations/:id/read", Action: "POST"},
+				{Object: "/admin/support/conversations/:id/claim", Action: "POST"},
+				{Object: "/admin/support/conversations/:id/assignee", Action: "PUT"},
+				{Object: "/admin/support/conversations/:id/status", Action: "PUT"},
+				{Object: "/admin/support/conversations/:id/attachments", Action: "POST"},
+				{Object: "/admin/support/conversations/:id/attachments/:attachmentID", Action: "GET"},
+			},
+			Immutable: true,
+		},
+		{Role: "customer_service_supervisor", Inherits: []string{"customer_service"}, Policies: []Policy{{Object: "/admin/support/supervise", Action: "GET"}, {Object: "/admin/support/notification/settings", Action: "GET"}, {Object: "/admin/support/notification/settings", Action: "PUT"}}, Immutable: true},
+		{
 			Role: "readonly_auditor",
 			Policies: []Policy{
 				// 只读审计员只获得明确列出的非敏感概览能力。禁止使用

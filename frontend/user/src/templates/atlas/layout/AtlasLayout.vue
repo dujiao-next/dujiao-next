@@ -210,17 +210,7 @@
 
     <!-- ==================== 右侧客服浮层 ==================== -->
     <div class="atlas-custfloat">
-      <a
-        v-if="contact?.telegram"
-        class="atlas-custfloat__box"
-        :href="contact.telegram"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        <Headset class="h-5 w-5" />
-        {{ t('atlas.service.online') }}
-      </a>
-      <button v-else class="atlas-custfloat__box" type="button" @click="openService">
+      <button class="atlas-custfloat__box" type="button" @click="openService">
         <Headset class="h-5 w-5" />
         {{ t('atlas.service.online') }}
       </button>
@@ -412,7 +402,7 @@ const closeAppFloat = () => {
   try { localStorage.setItem(APP_FLOAT_KEY, '1') } catch { /* 忽略 */ }
 }
 const onAppCta = () => toast.info(t('atlas.appfloat.noApp'))
-const openService = () => toast.info(t('atlas.service.offline'))
+const openService = () => window.dispatchEvent(new Event('support:open'))
 const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
 
 const onDocClick = (e: MouseEvent) => {
