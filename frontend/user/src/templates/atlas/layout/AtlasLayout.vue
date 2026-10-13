@@ -208,12 +208,10 @@
       </button>
     </div>
 
-    <!-- ==================== 右侧客服浮层 ==================== -->
+    <!-- ==================== 右侧浮层：回到顶部 ====================
+         在线客服入口由全局客服挂件（SupportWidget）统一提供，
+         这里不再重复放置，避免右下角出现两个客服按钮。 -->
     <div class="atlas-custfloat">
-      <button class="atlas-custfloat__box" type="button" @click="openService">
-        <Headset class="h-5 w-5" />
-        {{ t('atlas.service.online') }}
-      </button>
       <button class="atlas-custfloat__box atlas-custfloat__box--alt" type="button" @click="scrollToTop">
         <ArrowUp class="h-5 w-5" />
       </button>
@@ -226,7 +224,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
-  ArrowUp, ChevronDown, Headset, Rocket, Search, SearchCheck, ShoppingCart, Sparkles, X,
+  ArrowUp, ChevronDown, Rocket, Search, SearchCheck, ShoppingCart, Sparkles, X,
 } from 'lucide-vue-next'
 import { useAppStore } from '../../../stores/app'
 import { useCartStore } from '../../../stores/cart'
@@ -381,9 +379,21 @@ const goCategory = async (cat: PublicCategory) => {
   else await router.push({ path: '/', query })
 }
 
-/** 首页按钮：回到页面顶部 —— 它对应的是首页的头部区域，不是另一个菜单页 */
+/** 首页按钮：清除分类/搜索筛选并回到页面顶部。
+ *
+ * 原来只在 route.path !== '/' 时才 push，且不清 query —— 于是「先点分类、再点首页」
+ * 时路径已经是 '/'，什么也不做，表现为「点首页没反应」。现在无论当前在哪，都清掉
+ * 分类与搜索查询参数并回到顶部，等价于「回到未筛选的首页」。 */
 const goHome = async () => {
-  if (route.path !== '/') await router.push('/')
+  const query = { ...route.query }
+  delete query.category
+  delete query.search
+  const hasFilter = Boolean(route.query.category || route.query.search)
+  if (route.path !== '/' || route.params.slug) {
+    await router.push({ path: '/', query })
+  } else if (hasFilter) {
+    await router.replace({ query })
+  }
   scrollToTop()
 }
 
@@ -402,7 +412,6 @@ const closeAppFloat = () => {
   try { localStorage.setItem(APP_FLOAT_KEY, '1') } catch { /* 忽略 */ }
 }
 const onAppCta = () => toast.info(t('atlas.appfloat.noApp'))
-const openService = () => window.dispatchEvent(new Event('support:open'))
 const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
 
 const onDocClick = (e: MouseEvent) => {
