@@ -8,17 +8,60 @@
 | **5174** | **管理后台**（Vite dev server） | `pnpm run dev` in `frontend/admin` |
 | **8080** | **Go 后端 API** | `go run ./cmd/server` |
 | 6379 | Redis | docker-compose |
+| 6789 | Magpie 中转（容器内 → 宿主） | `socat`，见 1.1 |
 
 > ⚠️ 常见误解：`:5174` **不是后端**，它是管理后台的 Vite dev server。
 > 真正的后端在 `:8080`，而它默认**不挂载任何前端**（`go run ./cmd/server` 不带 `fullstack` 构建标签）。
 
-三个进程由 `start-dev.sh` 在容器启动时拉起，日志在 `/tmp/dujiao-next-dev/`：
+四个进程由 `start-dev.sh` 在容器启动时拉起，日志在 `/tmp/dujiao-next-dev/`：
 
 ```bash
-tail -f /tmp/dujiao-next-dev/backend.log   # Go 后端
-tail -f /tmp/dujiao-next-dev/user.log      # 用户前台
-tail -f /tmp/dujiao-next-dev/admin.log     # 管理后台
+tail -f /tmp/dujiao-next-dev/backend.log       # Go 后端
+tail -f /tmp/dujiao-next-dev/user.log          # 用户前台
+tail -f /tmp/dujiao-next-dev/admin.log         # 管理后台
+tail -f /tmp/dujiao-next-dev/magpie-relay.log  # Magpie 中转
 ```
+
+### 1.1 容器内的 Magpie 中转（127.0.0.1:6789）
+
+容器有独立的网络命名空间：里面的 `127.0.0.1` 指向容器自身，**到不了 Windows 上的
+Magpie**。两类客户端的处理方式不同：
+
+| 客户端 | 地址来源 | 走哪条路 |
+|---|---|---|
+| Claude Code | 环境变量 `ANTHROPIC_BASE_URL` | `devcontainer.json` 的 `remoteEnv` 直接给 `host.docker.internal:6789` |
+| Copilot 的 BYOK 自定义模型 | Windows 侧 profile 里的设置项 | **读不到 `remoteEnv`**，只会打 `127.0.0.1:6789` → 需要中转 |
+
+于是 `start-dev.sh` 在容器内起一层 `socat`，把 `127.0.0.1:6789` 转发到
+`host.docker.internal:6789`，让「配置在 Windows、地址写回环」的客户端也能用。
+
+典型症状（Copilot 侧）：
+
+```
+TypeError: fetch failed
+  Error: connect ECONNREFUSED 127.0.0.1:6789
+```
+
+VS Code 里显示为「请检查防火墙规则和网络连接」—— **与防火墙无关**，
+是地址指向了容器自己。中转起来后即恢复。
+
+排查：
+
+```bash
+ss -ltn | grep 6789                      # 应有 127.0.0.1:6789 在监听
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:6789/v1/models   # 期望 200
+tail -f /tmp/dujiao-next-dev/magpie-relay.log
+```
+
+- 无监听 → 容器内 `bash .devcontainer/start-dev.sh` 可拉起；仍失败则重建容器
+  （`socat` 由 Dockerfile 显式安装，旧镜像里可能没有）
+- 有监听但 `curl` 不通 → 宿主上的 Magpie 没在运行，去 Windows 上启动它，**容器内无需操作**
+
+> 曾考虑的两条替代路线，都不如中转：
+> ① 把 BYOK 地址改成 `host.docker.internal` —— 那是 profile 级设置、全局共享，
+> 会弄坏「不套容器直接开发」的场景；② 让 Magpie 改绑 `0.0.0.0` —— 要把网关
+> 暴露到局域网并放开 Windows 防火墙入站，而 `host.docker.internal` 走 Docker
+> Desktop 自己的通道，既到得了宿主回环，也不受入站规则约束。
 
 ---
 

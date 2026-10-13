@@ -15,6 +15,46 @@
     5174
   ],
 
+  // Magpie 网关（主机上的 magpie-windows-amd64.exe）只监听 Windows 的回环地址
+  // —— netstat 显示 `TCP 127.0.0.1:6789 LISTENING`，连主机自己的局域网 IP
+  // （192.168.1.2:6789）都连不上。而容器有独立的网络命名空间：容器里的
+  // 127.0.0.1 指向容器自身，永远到不了主机上的 Magpie。
+  //
+  // 反面教材：把主机 ~/.claude/settings.json 里的
+  //   "ANTHROPIC_BASE_URL": "http://127.0.0.1:6789"
+  // 原样带进容器。Claude Code 扩展与集成终端都跑在容器内，请求会打到容器
+  // 自己的 6789 端口，那里什么都没有，表现为连接被拒绝 / 无限重试。
+  //
+  // host.docker.internal 由 Docker Desktop 的网关转发回 Windows 主机，并且
+  // 能到达主机的回环地址。实测（容器内）：
+  //   curl http://127.0.0.1:6789/v1/models          -> HTTP 000
+  //   curl http://host.docker.internal:6789/v1/models -> HTTP 200
+  // 它走 Docker Desktop 自己的通道，不受 Windows 防火墙入站规则约束，因此
+  // 既不必让 Magpie 改绑 0.0.0.0，也不必额外放行 6789 端口。
+  //
+  // 用 remoteEnv 而不是 containerEnv：remoteEnv 注入到 VS Code Server 派生的
+  // 进程（扩展宿主、集成终端），改完 Reopen in Container 即生效，无需重建；
+  // containerEnv 是容器创建期的，改了必须 rebuild。
+  //
+  // ANTHROPIC_DEFAULT_*_MODEL 与主机 settings.json 保持一致：Magpie 正是靠
+  // 这些变量把 Claude Code 的各档模型都指向网关上的 workbuddy-ai 模型。缺了
+  // 它们，容器里的 Claude Code 会去请求 claude-* 这些原生模型名。
+  //
+  // 上面的 remoteEnv 只解决「读环境变量」的客户端。Copilot 的自定义模型（BYOK）
+  // 把 base URL 存在 Windows 侧 profile 里、不读 env，于是照旧打容器自己的
+  // 127.0.0.1:6789 —— 报错是 connect ECONNREFUSED 127.0.0.1:6789。
+  // 这一路改由 start-dev.sh 在容器内起 socat 中转（127.0.0.1:6789 → 宿主）兜底，
+  // 客户端配置一行都不用改。
+  "remoteEnv": {
+    "ANTHROPIC_BASE_URL": "http://host.docker.internal:6789",
+    "ANTHROPIC_AUTH_TOKEN": "magpie",
+    "ANTHROPIC_DEFAULT_FABLE_MODEL": "workbuddy-ai/deepseek-v4.1-flash[1m]",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "workbuddy-ai/deepseek-v4.1-flash[1m]",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "workbuddy-ai/deepseek-v4.1-flash[1m]",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "workbuddy-ai/deepseek-v4.1-flash[1m]",
+    "ANTHROPIC_SMALL_FAST_MODEL": "workbuddy-ai/deepseek-v4.1-flash[1m]"
+  },
+
   "features": {
     "ghcr.io/devcontainers/features/node:1": {
       "version": "24"

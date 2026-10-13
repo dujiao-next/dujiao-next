@@ -139,6 +139,84 @@ start_process() {
 
 
 # --------------------------------------------------
+# 1.5 Magpie 中转（127.0.0.1:6789 → 宿主）
+# --------------------------------------------------
+# 位置说明：本段必须留在 start_process 定义之后。若为了「按序号排列」把它挪到
+# 前面的 Redis 等待段后面，函数尚未定义，报的是
+#     start-dev.sh: line N: start_process: command not found
+# 而本脚本刻意不因失败中止，于是只在结尾表现为「Magpie relay 未存活」——
+# 报错位置离真因很远，故在此标注。
+#
+# 本段只服务「在 Windows 侧配置、地址却写成 127.0.0.1」的客户端。最典型的是
+# VS Code Copilot 的 BYOK 自定义模型：base URL 存在 Windows 的 profile 里，
+# remoteEnv 注入不进去，于是请求打到容器自己的 6789，报
+#   connect ECONNREFUSED 127.0.0.1:6789
+# （VS Code 显示为「check your firewall rules and network connection」）。
+#
+# 环境变量驱动的客户端（Claude Code 的 ANTHROPIC_BASE_URL）本来就走
+# host.docker.internal，不经过这里；中转对它们无影响。
+#
+# 为什么不是「把 BYOK 的地址改成 host.docker.internal」：那是 profile 级设置、
+# 全局共享，会顺手弄坏「不套容器直接开发」的场景。这里兜底，客户端零改动。
+#
+# 为什么不是「让 Magpie 改绑 0.0.0.0」：那要把网关暴露到局域网并放开
+# Windows 防火墙入站；host.docker.internal 走 Docker Desktop 自己的通道，
+# 既到得了宿主回环，也不受入站规则约束。
+
+echo "[1.5/4] Starting Magpie relay (127.0.0.1:6789 -> host)..."
+
+# 端口写死，不做成可调项：Copilot 那侧的地址是 127.0.0.1:6789，换端口只会
+# 让中转监听在没人访问的地方。真要改，得两边一起改，那属于另一件事。
+MAGPIE_PORT=6789
+
+# 端口被占时不抢不覆盖：可能是上一次没退干净的 socat，也可能是别人在 6789
+# 上有意放的服务 —— 两者都不该被本脚本悄悄接管。
+#
+# 注意：start_process 必须留在 else 分支里，不能挪到整个 if 外面。挪出去的话，
+# 「已在监听，跳过中转」会照样执行到它，socat 以
+#     E bind(5, {AF=2 127.0.0.1:6789}, 16): Address already in use
+# 立刻退出，并把 PID 文件覆盖成一个死进程的 PID —— 结尾的存活自检于是误报
+# 「Magpie relay 未存活」，而中转其实好好的。
+if (echo > "/dev/tcp/127.0.0.1/$MAGPIE_PORT") >/dev/null 2>&1; then
+    echo "127.0.0.1:$MAGPIE_PORT 已在监听，跳过中转。"
+    echo "  若非预期，先查占用： ss -ltnp | grep $MAGPIE_PORT"
+    # PID 文件指向的进程已不在（例如中转是手工起的、或文件是上一次残留），
+    # 清掉它，免得结尾的存活自检把「好好的中转」报成未存活。
+    if [ -f "$LOG_DIR/magpie-relay.pid" ] \
+        && ! kill -0 "$(cat "$LOG_DIR/magpie-relay.pid" 2>/dev/null)" 2>/dev/null; then
+        rm -f "$LOG_DIR/magpie-relay.pid"
+    fi
+elif ! command -v socat >/dev/null 2>&1; then
+    echo "WARNING: 未安装 socat，无法建立 Magpie 中转。"
+    echo "         它是本仓库 Dockerfile 显式安装的依赖；若刚更新过该文件，"
+    echo "         请执行 Dev Containers: Rebuild Container 让镜像生效。"
+else
+    if ! (echo > /dev/tcp/host.docker.internal/$MAGPIE_PORT) >/dev/null 2>&1; then
+        # 宿主上的 Magpie 没开。中转仍照常启动（见下方 socat 说明），这里是
+        # 提示而不是中止：先把中转架好，之后在 Windows 上启动 Magpie 即可用，
+        # 不必再进容器操作一次。
+        echo "WARNING: 宿主 $MAGPIE_PORT 端口不可达（Magpie 没在运行？）。"
+        echo "         中转仍会启动；在 Windows 上启动 Magpie 后即可用。"
+    fi
+
+    # fork    —— 每个连接一个子进程。Magpie 侧是长连接，缺了它同时只能有一个
+    #            客户端，第二个请求会排队。
+    # nodelay —— 关掉 Nagle：代理转发的是小块 JSON/SSE，攒包只会平白加延迟。
+    #
+    # 目标主机名解析失败时 socat 不会退出，而是保持监听、在每条连接上打印
+    # getaddrinfo 错误 —— 所以「host.docker.internal 不可解析」的表现是
+    # 连接被接受后立刻断开，而不是这个中转进程死掉。
+    #
+    # 只绑 127.0.0.1，不绑 0.0.0.0：容器里除本机进程外没人需要它。
+    start_process \
+        "Magpie relay" \
+        "$LOG_DIR/magpie-relay.pid" \
+        "$LOG_DIR/magpie-relay.log" \
+        "exec socat TCP-LISTEN:$MAGPIE_PORT,bind=127.0.0.1,reuseaddr,fork,nodelay TCP:host.docker.internal:$MAGPIE_PORT"
+fi
+
+
+# --------------------------------------------------
 # 2. 启动 Go 后端（带热重载）
 # --------------------------------------------------
 # 走 watch-backend.sh 而不是直接 go run：
@@ -238,6 +316,13 @@ for item in "Go backend:$LOG_DIR/backend.pid" \
     fi
 done
 
+# Magpie 中转单独判：看端口在不在，不看 PID 文件。
+# 「端口在监听、但 PID 文件不属于本脚本」是合法状态 —— 中转可能是上一次
+# 会话残留的、或手工起的。按 PID 文件判会把这种好好的中转报成未存活。
+if ! (echo > /dev/tcp/127.0.0.1/6789) >/dev/null 2>&1; then
+    DEAD="$DEAD Magpie relay"
+fi
+
 
 echo ""
 echo "======================================"
@@ -252,6 +337,9 @@ echo "http://localhost:5174"
 echo ""
 echo "Backend:"
 echo "http://localhost:8080"
+echo ""
+echo "Magpie relay:"
+echo "127.0.0.1:6789 -> host.docker.internal:6789"
 echo ""
 echo "Logs:"
 echo "$LOG_DIR"

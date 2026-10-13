@@ -53,6 +53,26 @@ check_service "用户前台" "$USER_URL/"
 check_service "管理后台" "$ADMIN_URL/"
 check_service "后端 API" "$API_URL/api/v1/public/config"
 
+# Magpie 网关：容器内由 start-dev.sh 起一层 socat 中转（127.0.0.1:6789 → 宿主）。
+# VS Code Copilot 的 BYOK 自定义模型把 base URL 存成 127.0.0.1:6789，而这份配置
+# 在 Windows 侧、注入不了 remoteEnv —— 缺了中转就是 connect ECONNREFUSED
+# 127.0.0.1:6789（VS Code 显示为「检查防火墙和网络连接」）。
+#
+# 分两级报：中转不在（无监听）与「中转在、宿主 Magpie 没开」是两回事，
+# 前者要重启容器，后者只需在 Windows 上启动 Magpie。
+if (echo > /dev/tcp/127.0.0.1/6789) >/dev/null 2>&1; then
+    c="$(code "http://127.0.0.1:6789/v1/models")"
+    if [ "$c" = "200" ]; then
+        ok "Magpie 网关  127.0.0.1:6789 → $c"
+    else
+        warn "Magpie 网关 127.0.0.1:6789 在监听，但上游未就绪（→ $c）"
+        printf '      宿主上的 Magpie 没在运行？在 Windows 上启动它即可，容器内无需操作。\n'
+    fi
+else
+    warn "Magpie 网关 127.0.0.1:6789 无监听 —— 中转未运行"
+    printf '      容器内跑 bash .devcontainer/start-dev.sh 可拉起；仍失败则重建容器。\n'
+fi
+
 # 后端根路径 404 是正常的：go run 不带 fullstack 标签时不挂载 SPA
 c="$(code "$API_URL/")"
 if [ "$c" = "404" ]; then
