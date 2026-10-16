@@ -179,8 +179,8 @@
           </div>
 
           <div class="mt-4 flex items-center gap-3 rounded-md bg-[color:var(--teal-soft)] px-[18px] py-3.5 text-[color:var(--teal-strong)]">
-            <TicketCheck class="h-[22px] w-[22px] flex-none" />
-            <span class="text-sm font-semibold">{{ t('productDetail.deliveryReassurance') }}</span>
+            <component :is="product.fulfillment_type === 'manual' ? Pencil : TicketCheck" class="h-[22px] w-[22px] flex-none" />
+            <span class="text-sm font-semibold">{{ product.fulfillment_type === 'manual' ? t('productDetail.deliveryReassuranceManual') : t('productDetail.deliveryReassurance') }}</span>
           </div>
         </div>
       </section>
