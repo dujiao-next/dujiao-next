@@ -55,6 +55,27 @@ func paymentExchangeRate(payment *paymentdomain.Payment) (decimal.Decimal, bool)
 	return rate, true
 }
 
+// paymentOriginalAmount 读取创建支付时存下的换汇前原始金额快照
+// （ProviderPayload["original_amount"]，订单币种，含用户承担的手续费）。
+func paymentOriginalAmount(payment *paymentdomain.Payment) (decimal.Decimal, bool) {
+	if payment == nil || payment.ProviderPayload == nil {
+		return decimal.Zero, false
+	}
+	raw, ok := payment.ProviderPayload["original_amount"]
+	if !ok {
+		return decimal.Zero, false
+	}
+	s := strings.TrimSpace(fmt.Sprint(raw))
+	if s == "" {
+		return decimal.Zero, false
+	}
+	original, err := decimal.NewFromString(s)
+	if err != nil || !original.IsPositive() {
+		return decimal.Zero, false
+	}
+	return original, true
+}
+
 // paymentCoveredOrderAmount 推算一笔支付回调实际覆盖的订单在线应付额（订单币种口径）。
 //
 // callbackAmount 是本次回调携带的实际到账金额，仅在发生换汇的场景下使用（见下）。
@@ -81,7 +102,15 @@ func paymentCoveredOrderAmount(payment *paymentdomain.Payment, callbackAmount de
 		if source.IsZero() {
 			source = payment.Amount.Decimal
 		}
-		covered = source.Div(rate)
+		if original, hasOriginal := paymentOriginalAmount(payment); hasOriginal && source.Equal(payment.Amount.Decimal) {
+			// 回调金额与创建时快照一致（validateCallbackPaymentFacts 已强制），
+			// 直接使用换汇前的精确原价。若用 source/rate 反推，结算币种按 2 位舍入
+			// 引入的误差（最大 0.005/rate）会让用户承担手续费场景下的足额支付
+			// 被误判为差几分钱的少付。
+			covered = original
+		} else {
+			covered = source.Div(rate)
+		}
 	} else if payment.ProviderPayload != nil {
 		if raw, ok := payment.ProviderPayload["original_amount"]; ok {
 			// 缺少汇率快照（历史数据遗漏字段）时退回订单原价，保底不误判欠付，

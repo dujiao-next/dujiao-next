@@ -87,6 +87,73 @@ func TestVerifyWebhookSignaturePreservesRawEvent(t *testing.T) {
 	}
 }
 
+func newCaptureTestConfig(baseURL string) *Config {
+	return &Config{
+		ClientID: "client-id", ClientSecret: "client-secret", BaseURL: baseURL,
+		ReturnURL: "https://example.com/pay", CancelURL: "https://example.com/cancel",
+	}
+}
+
+const capturedOrderBody = `{"id":"ORDER-1","status":"COMPLETED","purchase_units":[{"payments":{"captures":[{"id":"CAP-1","status":"COMPLETED","amount":{"currency_code":"USD","value":"1.00"},"create_time":"2026-10-16T07:24:21Z"}]}}]}`
+
+// 订单已被捕获时再次 capture，PayPal 返回 422 ORDER_ALREADY_CAPTURED，
+// 应回退到 GET 订单并返回已完成的捕获结果，而不是报错。
+func TestCaptureOrderAlreadyCapturedFallsBackToGetOrder(t *testing.T) {
+	getCalls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/v1/oauth2/token":
+			_, _ = w.Write([]byte(`{"access_token":"test-token"}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/v2/checkout/orders/ORDER-1/capture":
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			_, _ = w.Write([]byte(`{"name":"UNPROCESSABLE_ENTITY","details":[{"issue":"ORDER_ALREADY_CAPTURED","description":"Order already captured."}]}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/v2/checkout/orders/ORDER-1":
+			getCalls++
+			_, _ = w.Write([]byte(capturedOrderBody))
+		default:
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	result, err := CaptureOrder(context.Background(), newCaptureTestConfig(server.URL), "ORDER-1")
+	if err != nil {
+		t.Fatalf("CaptureOrder should recover from ORDER_ALREADY_CAPTURED, got: %v", err)
+	}
+	if getCalls != 1 {
+		t.Fatalf("expected 1 GET order call, got %d", getCalls)
+	}
+	if result.Status != "COMPLETED" || result.CaptureID != "CAP-1" || result.Amount != "1.00" || result.Currency != "USD" || result.PaidAt == nil {
+		t.Fatalf("unexpected capture result: %+v", result)
+	}
+}
+
+// 其它 capture 失败（如买家尚未批准）仍然报错，且错误里要带上 PayPal 返回的 issue/description。
+func TestCaptureOrderErrorIncludesPayPalDetail(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/oauth2/token":
+			_, _ = w.Write([]byte(`{"access_token":"test-token"}`))
+		case "/v2/checkout/orders/ORDER-2/capture":
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			_, _ = w.Write([]byte(`{"name":"UNPROCESSABLE_ENTITY","details":[{"issue":"ORDER_NOT_APPROVED","description":"Payer has not yet approved the Order."}]}`))
+		default:
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	_, err := CaptureOrder(context.Background(), newCaptureTestConfig(server.URL), "ORDER-2")
+	if !errors.Is(err, ErrResponseInvalid) {
+		t.Fatalf("expected ErrResponseInvalid, got: %v", err)
+	}
+	for _, want := range []string{"422", "ORDER_NOT_APPROVED", "Payer has not yet approved"} {
+		if !bytes.Contains([]byte(err.Error()), []byte(want)) {
+			t.Fatalf("error %q should contain %q", err.Error(), want)
+		}
+	}
+}
+
 func TestParseConfigAndNormalize(t *testing.T) {
 	raw := map[string]interface{}{
 		"client_id":     " cid ",
