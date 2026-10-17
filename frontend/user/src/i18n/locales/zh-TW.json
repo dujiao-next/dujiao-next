@@ -316,6 +316,14 @@
       "viewAllOrders": "查看全部訂單",
       "emptyOrders": "暫無最近訂單"
     },
+    "exclusivePrice": {
+      "title": "我的專屬價",
+      "hint": "以下商品為你單獨設定了一口價，下單時直接按此價格結算",
+      "unavailable": "商品已下架或不可用",
+      "total": "共 {n} 筆",
+      "showAll": "查看全部（{n}）",
+      "collapse": "收起"
+    },
     "memberLevel": {
       "currentLevel": "當前等級",
       "discountRate": "會員折扣",

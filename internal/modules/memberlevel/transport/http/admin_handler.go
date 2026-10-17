@@ -23,6 +23,9 @@ type AdminService interface {
 	GetLevelPricesByProduct(productID uint) ([]memberleveldomain.MemberLevelPrice, error)
 	BatchUpsertLevelPrices(prices []memberleveldomain.MemberLevelPrice) error
 	DeleteLevelPrice(id uint) error
+	ListUserPrices(userID uint, page, pageSize int) ([]memberleveldomain.UserProductPrice, int64, error)
+	BatchUpsertUserPrices(prices []memberleveldomain.UserProductPrice) error
+	DeleteUserPrice(id uint) error
 	SetUserLevel(userID, levelID uint) error
 	BackfillDefaultLevel() (int64, error)
 }

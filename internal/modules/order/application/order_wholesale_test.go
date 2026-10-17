@@ -66,6 +66,7 @@ func setupWholesaleOrderFixture(t *testing.T, name string, wholesalePrices produ
 		&userdomain.User{},
 		&memberleveldomain.MemberLevel{},
 		&memberleveldomain.MemberLevelPrice{},
+		&memberleveldomain.UserProductPrice{},
 	); err != nil {
 		t.Fatalf("auto migrate failed: %v", err)
 	}
@@ -161,7 +162,7 @@ func setupWholesaleOrderFixture(t *testing.T, name string, wholesalePrices produ
 		PromotionRepo:      promotiongormstore.New(db),
 		CouponStore:        coupongormstore.New(db),
 		CouponUsageStore:   coupongormstore.NewUsageStore(db),
-		MemberLevelService: memberlevelapp.NewService(levelRepo, priceRepo, memberlevelgormstore.NewUserStore(db)),
+		MemberLevelService: memberlevelapp.NewService(levelRepo, priceRepo, memberlevelgormstore.NewUserStore(db)).WithUserPriceRepository(memberlevelgormstore.NewUserPriceStore(db)),
 		ExpireMinutes:      15,
 	})
 
@@ -711,5 +712,67 @@ func TestBuildOrderResultValidatesManualFormRestoredByUpstreamSync(t *testing.T)
 	}
 	if got := result.Plans[0].Item.ManualFormSubmissionJSON["x_handle"]; got != "fixture_user" {
 		t.Fatalf("expected submission snapshot, got %#v", result.Plans[0].Item.ManualFormSubmissionJSON)
+	}
+}
+
+func TestBuildOrderResultUserPriceOverridesWholesalePromotionAndMemberDiscount(t *testing.T) {
+	wholesalePrices := productdomain.WholesalePriceTiers{
+		{MinQuantity: 5, UnitPrice: money.FromDecimal(decimal.NewFromInt(80))},
+	}
+	promotionPercent := decimal.NewFromInt(10)
+	memberRate := decimal.NewFromInt(80)
+	fixture := setupWholesaleOrderFixture(t, "user_price_override", wholesalePrices, &promotionPercent, &memberRate)
+	if err := fixture.db.Create(&memberleveldomain.UserProductPrice{
+		UserID:      fixture.user.ID,
+		ProductID:   fixture.product.ID,
+		SKUID:       0,
+		PriceAmount: money.FromDecimal(decimal.NewFromInt(95)),
+	}).Error; err != nil {
+		t.Fatalf("create user price failed: %v", err)
+	}
+
+	result, err := fixture.svc.buildOrderResult(orderCreateParams{
+		UserID: fixture.user.ID,
+		Items:  []CreateOrderItem{{ProductID: fixture.product.ID, SKUID: fixture.sku.ID, Quantity: 5}},
+	})
+	if err != nil {
+		t.Fatalf("buildOrderResult failed: %v", err)
+	}
+	if !result.TotalAmount.Equal(decimal.NewFromInt(475)) {
+		t.Fatalf("expected total 475 (5 x 95 fixed price), got %s", result.TotalAmount.String())
+	}
+	if !result.WholesaleDiscountAmount.IsZero() || !result.PromotionDiscountAmount.IsZero() {
+		t.Fatalf("user price must not stack wholesale/promotion: wholesale=%s promotion=%s",
+			result.WholesaleDiscountAmount.String(), result.PromotionDiscountAmount.String())
+	}
+	if !result.MemberDiscountAmount.Equal(decimal.NewFromInt(25)) {
+		t.Fatalf("expected discount 25 recorded against base price, got %s", result.MemberDiscountAmount.String())
+	}
+	item := result.Plans[0].Item
+	if item.UnitPrice.String() != "95.00" || item.PromotionID != nil {
+		t.Fatalf("unexpected item: unit=%s promotion=%v", item.UnitPrice.String(), item.PromotionID)
+	}
+}
+
+func TestBuildOrderResultIgnoresUserPriceNotBelowBasePrice(t *testing.T) {
+	memberRate := decimal.NewFromInt(80)
+	fixture := setupWholesaleOrderFixture(t, "user_price_not_lower", nil, nil, &memberRate)
+	if err := fixture.db.Create(&memberleveldomain.UserProductPrice{
+		UserID:      fixture.user.ID,
+		ProductID:   fixture.product.ID,
+		PriceAmount: money.FromDecimal(decimal.NewFromInt(120)),
+	}).Error; err != nil {
+		t.Fatalf("create user price failed: %v", err)
+	}
+
+	result, err := fixture.svc.buildOrderResult(orderCreateParams{
+		UserID: fixture.user.ID,
+		Items:  []CreateOrderItem{{ProductID: fixture.product.ID, SKUID: fixture.sku.ID, Quantity: 1}},
+	})
+	if err != nil {
+		t.Fatalf("buildOrderResult failed: %v", err)
+	}
+	if !result.TotalAmount.Equal(decimal.NewFromInt(80)) {
+		t.Fatalf("expected normal member price 80, got %s", result.TotalAmount.String())
 	}
 }

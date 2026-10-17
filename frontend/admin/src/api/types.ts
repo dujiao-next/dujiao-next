@@ -311,6 +311,16 @@ export interface AdminMemberLevel {
   updated_at: string
 }
 
+export interface AdminUserProductPrice {
+  id: number
+  user_id: number
+  product_id: number
+  sku_id: number
+  price_amount: number | string
+  created_at: string
+  updated_at: string
+}
+
 export interface AdminMemberLevelPrice {
   id: number
   member_level_id: number

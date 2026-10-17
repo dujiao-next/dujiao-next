@@ -12,6 +12,7 @@ import { GOOGLE_REDIRECT_API_PATHS } from '../utils/googleRedirect'
 
 export const userProfileAPI = {
     current: () => userApi.get('/me'),
+    productPrices: () => userApi.get('/me/product-prices'),
     loginLogs: (params?: any) => userApi.get('/me/login-logs', { params }),
     updateProfile: (data: UpdateUserProfilePayload) => userApi.put('/me/profile', data),
     sendChangeEmailCode: (data: SendChangeEmailCodePayload) => userApi.post('/me/email/send-verify-code', data),

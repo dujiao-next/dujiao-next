@@ -91,13 +91,17 @@ export function useProductDetail(options: { onLoaded?: () => void } = {}) {
   })
 
   const ensureMemberLevels = () => {
+    void userProfileStore.loadMyProductPrices()
     if (userMemberLevelId.value > 0 && userProfileStore.memberLevels.length === 0) {
       void userProfileStore.loadMemberLevels()
     }
   }
 
   const getMemberPriceForSku = (skuId: number, basePrice: any): number | null => {
-    const price = resolveMemberPriceAmount(product.value, skuId, basePrice, userMemberLevelId.value, currentMemberDiscountRate.value)
+    const price = resolveMemberPriceAmount(
+      product.value, skuId, basePrice, userMemberLevelId.value, currentMemberDiscountRate.value,
+      userAuthStore.isAuthenticated ? userProfileStore.myProductPrices : [],
+    )
     return price === null ? null : Number(price)
   }
 
@@ -638,6 +642,10 @@ export function useProductDetail(options: { onLoaded?: () => void } = {}) {
   })
 
   watch(userMemberLevelId, () => {
+    ensureMemberLevels()
+  })
+
+  watch(() => userAuthStore.user?.id, () => {
     ensureMemberLevels()
   })
 

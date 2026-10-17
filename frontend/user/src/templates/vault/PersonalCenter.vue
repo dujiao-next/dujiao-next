@@ -139,6 +139,42 @@
             </div>
           </div>
 
+          <!-- 我的专属价：独立于会员等级，没有专属价时不渲染 -->
+          <div v-if="exclusivePriceItems.length > 0" class="rounded-xl border bg-card p-[22px]">
+            <div class="mb-1 flex items-center gap-2">
+              <BadgePercent class="h-5 w-5 text-[color:var(--gold-strong)]" />
+              <h3 class="text-lg font-bold">{{ t('personalCenter.exclusivePrice.title') }}</h3>
+              <span v-if="hasMoreExclusivePrices" class="text-[12.5px] text-muted-foreground">{{ t('personalCenter.exclusivePrice.total', { n: exclusivePriceItems.length }) }}</span>
+            </div>
+            <p class="mb-4 text-[12.5px] text-muted-foreground">{{ t('personalCenter.exclusivePrice.hint') }}</p>
+            <div class="grid gap-2.5">
+              <div
+                v-for="item in visibleExclusivePriceItems"
+                :key="item.key"
+                class="flex flex-wrap items-center justify-between gap-3.5 rounded-lg border p-4"
+              >
+                <div class="min-w-0">
+                  <RouterLink
+                    v-if="item.to"
+                    :to="item.to"
+                    class="block truncate text-sm font-bold hover:text-primary"
+                  >{{ item.title }}</RouterLink>
+                  <span v-else class="block truncate text-sm font-bold text-muted-foreground">{{ item.title }}</span>
+                  <div v-if="item.skuText" class="mt-0.5 truncate text-[12.5px] text-muted-foreground">{{ item.skuText }}</div>
+                  <div v-if="item.unavailable" class="mt-0.5 text-[12.5px] text-muted-foreground">{{ t('personalCenter.exclusivePrice.unavailable') }}</div>
+                </div>
+                <div class="flex-none text-base font-extrabold tabular-nums text-[color:var(--gold-strong)]">{{ item.priceText }}</div>
+              </div>
+            </div>
+            <div v-if="hasMoreExclusivePrices" class="mt-3 text-center">
+              <Button variant="ghost" size="sm" class="rounded-full" @click="toggleExclusivePrices">
+                {{ exclusivePriceExpanded
+                  ? t('personalCenter.exclusivePrice.collapse')
+                  : t('personalCenter.exclusivePrice.showAll', { n: exclusivePriceItems.length }) }}
+              </Button>
+            </div>
+          </div>
+
           <!-- 最近订单 -->
           <div class="rounded-xl border bg-card p-[22px]">
             <div class="mb-4 flex items-center justify-between gap-3.5">
@@ -189,7 +225,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { Crown, ShoppingBag, ShieldCheck, Percent } from 'lucide-vue-next'
+import { Crown, ShoppingBag, ShieldCheck, Percent, BadgePercent } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { getImageUrl } from '../../utils/image'
@@ -211,6 +247,7 @@ const props = withDefaults(defineProps<{ section?: PersonalSection }>(), {
 const {
   userProfileStore, canAccessResellerConsole, visibleSectionItems, currentSection, globalAlert,
   displayInitial, switchSection, statusLabel, statusVariant, formatMoney, formatDate,
-  emailVerifiedLabel, emailVerifiedVariant, discountText, isImagePath, levelName,
+  emailVerifiedLabel, emailVerifiedVariant, discountText, isImagePath, levelName, exclusivePriceItems,
+  visibleExclusivePriceItems, hasMoreExclusivePrices, exclusivePriceExpanded, toggleExclusivePrices,
 } = usePersonalCenter(() => props.section)
 </script>
