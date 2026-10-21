@@ -2,10 +2,12 @@ package application
 
 import (
 	"strconv"
+	"sync"
 
 	"github.com/dujiao-next/internal/constants"
 	mappingcontract "github.com/dujiao-next/internal/modules/catalog/mapping/contract"
 	mappingdomain "github.com/dujiao-next/internal/modules/catalog/mapping/domain"
+	"github.com/dujiao-next/internal/platform/translation"
 )
 
 // 文件组织约定:
@@ -25,6 +27,7 @@ type Options struct {
 	Connections  mappingcontract.ConnectionProvider
 	Media        mappingcontract.MediaRecorder
 	Transactions mappingcontract.UnitOfWork
+	Translator   translation.Translator
 }
 
 // Service 承载本地商品与上游站点之间的映射用例。
@@ -37,8 +40,10 @@ type Service struct {
 	connections     mappingcontract.ConnectionProvider
 	media           mappingcontract.MediaRecorder
 	transactions    mappingcontract.UnitOfWork
+	translator      translation.Translator
 	categoryCreator mappingcontract.CategoryCreator
 	settings        mappingcontract.SettingsProvider
+	categoryMu      sync.Mutex
 }
 
 func NewService(options Options) (*Service, error) {
@@ -54,6 +59,7 @@ func NewService(options Options) (*Service, error) {
 		connections:  options.Connections,
 		media:        options.Media,
 		transactions: options.Transactions,
+		translator:   options.Translator,
 	}, nil
 }
 
@@ -129,4 +135,9 @@ func (s *Service) GetSKUMappings(mappingID uint) ([]mappingdomain.SKUMapping, er
 // GetMappedUpstreamIDs 获取指定连接下所有已映射的上游商品 ID
 func (s *Service) GetMappedUpstreamIDs(connectionID uint) ([]uint, error) {
 	return s.mappings.ListUpstreamIDsByConnection(connectionID)
+}
+
+// GetMappedUpstreamExternalIDs 获取指定连接下已映射的完整字符串商品 ID。
+func (s *Service) GetMappedUpstreamExternalIDs(connectionID uint) ([]string, error) {
+	return s.mappings.ListUpstreamExternalIDsByConnection(connectionID)
 }

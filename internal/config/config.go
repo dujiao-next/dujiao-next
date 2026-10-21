@@ -25,6 +25,7 @@ type Config struct {
 	GoogleAuth   GoogleAuthConfig   `mapstructure:"google_auth"`
 	Redis        RedisConfig        `mapstructure:"redis"`
 	Queue        QueueConfig        `mapstructure:"queue"`
+	Translation  TranslationConfig  `mapstructure:"translation"`
 	Upload       UploadConfig       `mapstructure:"upload"`
 	CORS         CORSConfig         `mapstructure:"cors"`
 	Security     SecurityConfig     `mapstructure:"security"`
@@ -138,6 +139,19 @@ type QueueConfig struct {
 	Queues               map[string]int `mapstructure:"queues"`
 	UpstreamSyncInterval string         `mapstructure:"upstream_sync_interval"` // 上游库存同步间隔，如 "5m"、"10m"，默认 "5m"
 }
+
+// TranslationConfig 配置商品内容的服务端翻译。
+// API Key 不属于配置结构，只能通过 SILICONFLOW_API_KEY 环境变量提供。
+type TranslationConfig struct {
+	Enabled        bool   `mapstructure:"enabled"`
+	BaseURL        string `mapstructure:"base_url"`
+	Model          string `mapstructure:"model"`
+	TimeoutSeconds int    `mapstructure:"timeout_seconds"`
+	MaxChars       int    `mapstructure:"max_chars"`
+}
+
+const DefaultTranslationBaseURL = "https://api.siliconflow.cn/v1"
+const DefaultTranslationModel = "Qwen/Qwen3-8B"
 
 // OrderConfig 订单配置
 type OrderConfig struct {
@@ -360,6 +374,11 @@ func Load() *Config {
 		"default":  10,
 		"critical": 5,
 	})
+	viper.SetDefault("translation.enabled", true)
+	viper.SetDefault("translation.base_url", DefaultTranslationBaseURL)
+	viper.SetDefault("translation.model", DefaultTranslationModel)
+	viper.SetDefault("translation.timeout_seconds", 30)
+	viper.SetDefault("translation.max_chars", 12000)
 	viper.SetDefault("upload.max_size", 10485760)
 	viper.SetDefault("upload.allowed_types", []string{
 		"image/jpeg",

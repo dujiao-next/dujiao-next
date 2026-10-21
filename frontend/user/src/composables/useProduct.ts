@@ -14,7 +14,7 @@ export function useLocalized() {
 
   const siteCurrency = computed(() => {
     const raw = String(appStore.config?.currency || '').trim().toUpperCase()
-    return /^[A-Z]{3}$/.test(raw) ? raw : 'CNY'
+    return /^(?:[A-Z]{3}|USDT)$/.test(raw) ? raw : 'CNY'
   })
 
   const formatPrice = (amount: any, currency?: any): string => {

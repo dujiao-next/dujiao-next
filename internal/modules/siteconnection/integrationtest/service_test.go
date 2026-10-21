@@ -49,6 +49,32 @@ func TestSiteConnectionServicePingReturnsAdapterCreationError(t *testing.T) {
 	}
 }
 
+func TestSiteConnectionServiceProdSellerStoresOnlySecretReference(t *testing.T) {
+	repo := &siteConnectionRepoStub{}
+	svc := siteconnectionapp.NewService(repo, "test-secret-key", t.TempDir())
+
+	conn, err := svc.Create(siteconnectionapp.CreateInput{
+		Name:      "ProdSeller",
+		Protocol:  constants.ConnectionProtocolProdSeller,
+		SecretRef: "PRODSELLER_API_KEY",
+	})
+	if err != nil {
+		t.Fatalf("create ProdSeller connection failed: %v", err)
+	}
+	if conn.ApiKey != "" || conn.ApiSecret != "" {
+		t.Fatalf("ProdSeller connection must not persist API credentials: %#v", conn)
+	}
+	if conn.SecretRef != "PRODSELLER_API_KEY" {
+		t.Fatalf("secret ref = %q", conn.SecretRef)
+	}
+	if conn.BaseURL != "https://prodseller.com/v1" {
+		t.Fatalf("default base URL = %q", conn.BaseURL)
+	}
+	if !conn.PriceMarkupPercent.Equal(decimal.NewFromInt(400)) || conn.PriceRoundingMode != "ceil_cent" || !conn.AutoSyncPrice {
+		t.Fatalf("ProdSeller price defaults = markup %s rounding %q auto_sync=%v", conn.PriceMarkupPercent, conn.PriceRoundingMode, conn.AutoSyncPrice)
+	}
+}
+
 type fakeMarkupReapplier struct {
 	calls []uint
 }
@@ -101,6 +127,52 @@ func TestSiteConnectionServiceUpdateSkipsReapplyWhenPriceConfigUnchanged(t *test
 	}
 	if len(reapplier.calls) != 0 {
 		t.Fatalf("expected no reapply when price config unchanged, got %#v", reapplier.calls)
+	}
+}
+
+func TestSiteConnectionServiceNormalizesLegacyProdSellerPricing(t *testing.T) {
+	repo := &siteConnectionRepoStub{conn: &siteconnectiondomain.Connection{
+		ID:                 9,
+		Protocol:           constants.ConnectionProtocolProdSeller,
+		PriceMarkupPercent: decimal.Zero,
+		PriceRoundingMode:  "none",
+		AutoSyncPrice:      false,
+	}}
+	svc := siteconnectionapp.NewService(repo, "test-secret-key", t.TempDir())
+	reapplier := &fakeMarkupReapplier{}
+	svc.SetMarkupReapplier(reapplier)
+
+	if err := svc.NormalizeProdSellerDefaults(); err != nil {
+		t.Fatalf("normalize failed: %v", err)
+	}
+	if !repo.conn.PriceMarkupPercent.Equal(decimal.NewFromInt(400)) || repo.conn.PriceRoundingMode != "ceil_cent" || !repo.conn.AutoSyncPrice {
+		t.Fatalf("legacy defaults were not normalized: %#v", repo.conn)
+	}
+	if len(reapplier.calls) != 1 || reapplier.calls[0] != 9 {
+		t.Fatalf("expected one markup reapply, got %#v", reapplier.calls)
+	}
+}
+
+func TestSiteConnectionServiceNormalizesConfiguredProdSellerPricingToFivefold(t *testing.T) {
+	repo := &siteConnectionRepoStub{conn: &siteconnectiondomain.Connection{
+		ID:                 10,
+		Protocol:           constants.ConnectionProtocolProdSeller,
+		PriceMarkupPercent: decimal.NewFromInt(100),
+		PriceRoundingMode:  "ceil_cent",
+		AutoSyncPrice:      true,
+	}}
+	svc := siteconnectionapp.NewService(repo, "test-secret-key", t.TempDir())
+	reapplier := &fakeMarkupReapplier{}
+	svc.SetMarkupReapplier(reapplier)
+
+	if err := svc.NormalizeProdSellerDefaults(); err != nil {
+		t.Fatalf("normalize failed: %v", err)
+	}
+	if !repo.conn.PriceMarkupPercent.Equal(decimal.NewFromInt(400)) || repo.conn.PriceRoundingMode != "ceil_cent" || !repo.conn.AutoSyncPrice {
+		t.Fatalf("configured pricing was not normalized: %#v", repo.conn)
+	}
+	if len(reapplier.calls) != 1 || reapplier.calls[0] != 10 {
+		t.Fatalf("expected one markup reapply, got %#v", reapplier.calls)
 	}
 }
 

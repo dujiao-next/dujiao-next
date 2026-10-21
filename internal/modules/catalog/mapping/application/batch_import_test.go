@@ -113,3 +113,25 @@ func TestFindOrCreateLocalCategoryRequiresCreatorForNewSlug(t *testing.T) {
 		t.Fatalf("expected category service not available error, got %v", err)
 	}
 }
+
+func TestClassifyAutoCategory(t *testing.T) {
+	tests := []struct {
+		name     string
+		values   []interface{}
+		expected string
+	}{
+		{name: "ai product", values: []interface{}{jsonmap.JSON{"en-US": "OpenAI API credits"}}, expected: "ai-api"},
+		{name: "streaming product", values: []interface{}{jsonmap.JSON{"zh-CN": "Netflix 会员"}}, expected: "streaming"},
+		{name: "title wins over activation instructions", values: []interface{}{jsonmap.JSON{"en-US": "Apple TV 12 Months Link"}, jsonmap.JSON{"en-US": "Use Gemini during activation"}}, expected: "streaming"},
+		{name: "vpn title wins over account wording", values: []interface{}{jsonmap.JSON{"en-US": "Nord VPN account"}, jsonmap.JSON{"en-US": "account delivery"}}, expected: "vpn-proxy"},
+		{name: "unknown product", values: []interface{}{jsonmap.JSON{"en-US": "A niche digital product"}}, expected: "other"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := classifyAutoCategory(tt.values...).Slug; got != tt.expected {
+				t.Fatalf("classifyAutoCategory() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}

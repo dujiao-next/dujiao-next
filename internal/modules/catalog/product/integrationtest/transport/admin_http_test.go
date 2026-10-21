@@ -196,8 +196,8 @@ func TestBatchUpdateProductStatusReturnsFailureReasons(t *testing.T) {
 		Slug:            "batch-uncategorized-product",
 		TitleJSON:       jsonmap.JSON{"zh-CN": "batch-uncategorized-product"},
 		PriceAmount:     money.FromDecimal(decimal.NewFromInt(10)),
-		FulfillmentType: constants.FulfillmentTypeUpstream,
-		IsMapped:        true,
+		FulfillmentType: constants.FulfillmentTypeManual,
+		IsMapped:        false,
 		IsActive:        false,
 	}
 	if err := db.Create(&product).Error; err != nil {

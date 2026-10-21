@@ -33,7 +33,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestProductServiceQuickUpdateRejectsActivationWithoutCategory(t *testing.T) {
+func TestProductServiceQuickUpdateAllowsMappedActivationWithoutCategory(t *testing.T) {
 	svc, db := newProductServiceForTest(t)
 
 	product := productdomain.Product{
@@ -50,16 +50,37 @@ func TestProductServiceQuickUpdateRejectsActivationWithoutCategory(t *testing.T)
 	}
 
 	_, err := svc.Admin.QuickUpdate(strconv.FormatUint(uint64(product.ID), 10), map[string]interface{}{"is_active": true})
-	if err != productcontract.ErrProductCategoryInvalid {
-		t.Fatalf("expected productcontract.ErrProductCategoryInvalid, got %v", err)
+	if err != nil {
+		t.Fatalf("expected mapped product activation to succeed, got %v", err)
 	}
 
 	var got productdomain.Product
 	if err := db.First(&got, product.ID).Error; err != nil {
 		t.Fatalf("reload product failed: %v", err)
 	}
-	if got.IsActive {
-		t.Fatalf("expected product to remain inactive")
+	if !got.IsActive {
+		t.Fatalf("expected mapped product to become active")
+	}
+}
+
+func TestProductServiceQuickUpdateRejectsManualActivationWithoutCategory(t *testing.T) {
+	svc, db := newProductServiceForTest(t)
+
+	product := productdomain.Product{
+		CategoryID:      0,
+		Slug:            "uncategorized-manual-product",
+		TitleJSON:       jsonmap.JSON{"zh-CN": "uncategorized-manual-product"},
+		PriceAmount:     money.FromDecimal(decimal.NewFromInt(10)),
+		FulfillmentType: constants.FulfillmentTypeManual,
+		IsActive:        false,
+	}
+	if err := db.Create(&product).Error; err != nil {
+		t.Fatalf("create uncategorized manual product failed: %v", err)
+	}
+
+	_, err := svc.Admin.QuickUpdate(strconv.FormatUint(uint64(product.ID), 10), map[string]interface{}{"is_active": true})
+	if err != productcontract.ErrProductCategoryInvalid {
+		t.Fatalf("expected productcontract.ErrProductCategoryInvalid, got %v", err)
 	}
 }
 

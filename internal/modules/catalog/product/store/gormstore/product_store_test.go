@@ -710,6 +710,39 @@ func TestProductRepositoryListOnlyActiveTakesPrecedenceOverIsActive(t *testing.T
 	}
 }
 
+func TestProductRepositoryListOnlyActiveIncludesUncategorizedProduct(t *testing.T) {
+	repo, _ := setupProductStoreTest(t)
+	product := &productdomain.Product{
+		CategoryID:      0,
+		Slug:            "uncategorized-upstream-product",
+		TitleJSON:       jsonmap.JSON{"zh-CN": "未分类上游商品"},
+		PriceAmount:     money.FromDecimal(decimal.NewFromInt(2)),
+		PurchaseType:    constants.ProductPurchaseMember,
+		FulfillmentType: constants.FulfillmentTypeUpstream,
+		IsMapped:        true,
+		IsActive:        true,
+	}
+	if err := repo.Create(product); err != nil {
+		t.Fatalf("create uncategorized product failed: %v", err)
+	}
+
+	rows, total, err := repo.List(productcontract.ListFilter{Page: 1, PageSize: 20, OnlyActive: true})
+	if err != nil {
+		t.Fatalf("list active products failed: %v", err)
+	}
+	if total != 1 || len(rows) != 1 || rows[0].Slug != product.Slug {
+		t.Fatalf("active uncategorized product should be public, total=%d rows=%+v", total, rows)
+	}
+
+	bySlug, err := repo.GetBySlug(product.Slug, true)
+	if err != nil {
+		t.Fatalf("get active uncategorized product failed: %v", err)
+	}
+	if bySlug == nil || bySlug.Slug != product.Slug {
+		t.Fatalf("active uncategorized product should be reachable by slug, product=%+v", bySlug)
+	}
+}
+
 // 增量同步的 updated_after 必须能看到 SKU 库存与卡密变化，它们不会改动商品行本身。
 func TestProductRepositoryListUpdatedAfterIncludesStockChanges(t *testing.T) {
 	repo, db := setupProductStoreTest(t)

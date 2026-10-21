@@ -273,15 +273,17 @@ const showAnnouncementIfNeeded = () => {
   }
 }
 
-const loadProducts = async () => {
-  productsLoading.value = true
+let featuredRefreshTimer: number | null = null
+
+const loadProducts = async (_silent = false) => {
+	if (!_silent) productsLoading.value = true
   try {
     const res = await productAPI.list({ page: 1, page_size: 15 })
     products.value = res.data.data || []
   } catch (err) {
     console.error('Failed to load products:', err)
   } finally {
-    productsLoading.value = false
+		if (!_silent) productsLoading.value = false
   }
 }
 
@@ -328,9 +330,20 @@ onMounted(async () => {
     await listInitialize()
   } else {
     await Promise.all([loadProducts(), loadCategories(), loadPosts()])
+		if (typeof window !== 'undefined' && !featuredRefreshTimer) {
+			featuredRefreshTimer = window.setInterval(() => {
+				void loadProducts(true)
+			}, 60_000)
+		}
   }
   showAnnouncementIfNeeded()
 })
 
-onUnmounted(() => listCleanup())
+onUnmounted(() => {
+	listCleanup()
+	if (featuredRefreshTimer) {
+		clearInterval(featuredRefreshTimer)
+		featuredRefreshTimer = null
+	}
+})
 </script>

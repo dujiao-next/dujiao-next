@@ -208,3 +208,46 @@ func TestMappingStoreDeleteHidesMappingFromEveryReadPath(t *testing.T) {
 		t.Fatalf("ListUpstreamIDsByConnection after delete = ids %v err %v; want empty", ids, err)
 	}
 }
+
+func TestMappingStoreExternalIDIsFullAndUniquePerConnection(t *testing.T) {
+	store, _, db := setupMappingStoreTest(t)
+	firstProduct := createMappedProduct(t, db, "external-one", "外部一")
+	secondProduct := createMappedProduct(t, db, "external-two", "外部二")
+	longID := "6a2ff705dbe65bbecc0d3d9d"
+	first := &mappingdomain.Mapping{
+		ConnectionID:              1,
+		LocalProductID:            firstProduct.ID,
+		UpstreamProductExternalID: longID,
+		UpstreamStatus:            mappingdomain.UpstreamStatusActive,
+		IsActive:                  true,
+	}
+	if err := store.Create(first); err != nil {
+		t.Fatalf("create external mapping failed: %v", err)
+	}
+	if got, err := store.GetByConnectionAndExternalID(1, longID); err != nil || got == nil || got.UpstreamProductExternalID != longID {
+		t.Fatalf("external lookup = %#v err=%v", got, err)
+	}
+	if err := store.Create(&mappingdomain.Mapping{
+		ConnectionID:              1,
+		LocalProductID:            secondProduct.ID,
+		UpstreamProductExternalID: longID,
+		UpstreamStatus:            mappingdomain.UpstreamStatusActive,
+		IsActive:                  true,
+	}); err == nil {
+		t.Fatal("duplicate external ID on one connection must be rejected")
+	}
+	otherConnection := createMappedProduct(t, db, "external-three", "外部三")
+	if err := store.Create(&mappingdomain.Mapping{
+		ConnectionID:              2,
+		LocalProductID:            otherConnection.ID,
+		UpstreamProductExternalID: longID,
+		UpstreamStatus:            mappingdomain.UpstreamStatusActive,
+		IsActive:                  true,
+	}); err != nil {
+		t.Fatalf("same external ID on another connection should be allowed: %v", err)
+	}
+	ids, err := store.ListUpstreamExternalIDsByConnection(1)
+	if err != nil || len(ids) != 1 || ids[0] != longID {
+		t.Fatalf("external IDs = %#v err=%v", ids, err)
+	}
+}

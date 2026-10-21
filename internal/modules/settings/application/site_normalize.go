@@ -11,7 +11,10 @@ import (
 )
 
 var settingSupportedLanguages = append([]string(nil), constants.SupportedLocales...)
-var settingCurrencyCodePattern = regexp.MustCompile(`^[A-Z]{3}$`)
+
+// Site settlement supports ISO-4217-style three-letter codes plus USDT,
+// which is the four-letter settlement asset used by ProdSeller.
+var settingCurrencyCodePattern = regexp.MustCompile(`^(?:[A-Z]{3}|USDT)$`)
 
 const (
 	settingSiteScriptsMaxCount       = 20

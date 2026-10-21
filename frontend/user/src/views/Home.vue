@@ -476,7 +476,9 @@ const goToPost = (slug: string) => {
   router.push(`/blog/${slug}`)
 }
 
-const loadFeaturedProducts = async () => {
+let featuredRefreshTimer: number | null = null
+
+const loadFeaturedProducts = async (_silent = false) => {
   try {
     const response = await productAPI.list({ page: 1, page_size: 15 })
     products.value = response.data.data || []
@@ -513,6 +515,11 @@ onMounted(async () => {
     await Promise.all([loadBanners(), listInitialize()])
   } else {
     await Promise.all([loadBanners(), loadFeaturedProducts(), loadLatestPosts()])
+		if (typeof window !== 'undefined' && !featuredRefreshTimer) {
+			featuredRefreshTimer = window.setInterval(() => {
+				void loadFeaturedProducts(true)
+			}, 60_000)
+		}
   }
   showAnnouncementIfNeeded()
 })
@@ -520,6 +527,10 @@ onMounted(async () => {
 onUnmounted(() => {
   stopHeroAutoPlay()
   listCleanup()
+	if (featuredRefreshTimer) {
+		clearInterval(featuredRefreshTimer)
+		featuredRefreshTimer = null
+	}
 })
 </script>
 

@@ -5,6 +5,7 @@ import "github.com/shopspring/decimal"
 var (
 	hundred    = decimal.NewFromInt(100)
 	pointOne   = decimal.NewFromFloat(0.1)
+	pointCents = decimal.NewFromFloat(0.01)
 	roundScale = int32(2)
 )
 
@@ -46,6 +47,10 @@ func CalculateMarkedUpPrice(upstreamPrice, markupPercent decimal.Decimal, roundi
 	}
 
 	switch roundingMode {
+	case "ceil_cent":
+		// 以 0.01 为最小单位向上取整，适用于 USDT 两位小数售价。
+		scaled := result.Div(pointCents)
+		return scaled.Ceil().Mul(pointCents)
 	case "ceil_int":
 		// 向上取整到整数：12.01 → 13
 		if result.Equal(result.Floor()) {

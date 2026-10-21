@@ -42,6 +42,7 @@ const detailLoading = ref(false)
 interface SkuMapping {
   local_sku_id: number
   upstream_sku_id: number
+  upstream_sku_external_id?: string
   upstream_price: number
   upstream_stock: number
   upstream_is_active: boolean
@@ -53,7 +54,8 @@ interface MappingDetail {
 }
 
 interface UpstreamSku {
-  id: number
+  id?: number
+  external_id?: string
   sku_code?: string
   spec_values?: Record<string, string>
   price_amount: number | string
@@ -62,7 +64,8 @@ interface UpstreamSku {
 }
 
 interface UpstreamProduct {
-  id: number
+  id?: number
+  external_id?: string
   title: Record<string, string>
   price_amount: number | string
   currency?: string
@@ -87,14 +90,14 @@ const showImportModal = ref(false)
 const importConnectionId = ref('')
 const importCategoryId = ref('__none__')
 const upstreamProducts = ref<UpstreamProduct[]>([])
-const mappedUpstreamIds = ref<Set<number>>(new Set())
+const mappedUpstreamIds = ref<Set<string>>(new Set())
 const loadingUpstream = ref(false)
 const loadingMoreUpstream = ref(false)
 const upstreamPage = ref(1)
 const upstreamTotal = ref(0)
 const upstreamPageSize = 50
-const selectedProductIds = ref<Set<number>>(new Set())
-const importExpandedIds = ref<Set<number>>(new Set())
+const selectedProductIds = ref<Set<string>>(new Set())
+const importExpandedIds = ref<Set<string>>(new Set())
 const importing = ref(false)
 const importProgress = ref({ done: 0, total: 0, success: 0 })
 
@@ -113,6 +116,10 @@ const autoCreateCategory = ref(false)
 const categoryImporting = ref(false)
 
 const normalizeFilterValue = (value: string) => (value === '__all__' ? '' : value)
+
+const upstreamProductKey = (product: UpstreamProduct) => String(product.external_id || product.id || '')
+
+const upstreamProductDisplayId = (product: UpstreamProduct) => product.external_id || product.id || '-'
 
 // --- List helpers ---
 
@@ -367,27 +374,27 @@ const handleDelete = async (mapping: AdminProductMapping) => {
 
 // --- Import dialog ---
 
-const selectableProducts = computed(() => upstreamProducts.value.filter((p) => !mappedUpstreamIds.value.has(p.id)))
+const selectableProducts = computed(() => upstreamProducts.value.filter((p) => !mappedUpstreamIds.value.has(upstreamProductKey(p))))
 
 const allSelected = computed(() => {
   if (selectableProducts.value.length === 0) return false
-  return selectableProducts.value.every((p) => selectedProductIds.value.has(p.id))
+  return selectableProducts.value.every((p) => selectedProductIds.value.has(upstreamProductKey(p)))
 })
 
 const toggleSelectAll = () => {
   selectedProductIds.value = allSelected.value
     ? new Set()
-    : new Set(selectableProducts.value.map((p) => p.id))
+    : new Set(selectableProducts.value.map((p) => upstreamProductKey(p)))
 }
 
-const toggleProduct = (id: number) => {
+const toggleProduct = (id: string) => {
   if (mappedUpstreamIds.value.has(id)) return
   const next = new Set(selectedProductIds.value)
   next.has(id) ? next.delete(id) : next.add(id)
   selectedProductIds.value = next
 }
 
-const toggleImportExpand = (id: number) => {
+const toggleImportExpand = (id: string) => {
   const next = new Set(importExpandedIds.value)
   next.has(id) ? next.delete(id) : next.add(id)
   importExpandedIds.value = next
@@ -441,10 +448,10 @@ const closeImportModal = () => { showImportModal.value = false }
 
 const hasMoreUpstream = computed(() => upstreamProducts.value.length < upstreamTotal.value)
 
-const parseUpstreamResult = (res: any): { items: UpstreamProduct[]; total: number; mappedIds?: number[] } => {
+const parseUpstreamResult = (res: any): { items: UpstreamProduct[]; total: number; mappedIds?: number[]; mappedExternalIds?: string[] } => {
   const data = res.data.data
   if (Array.isArray(data)) return { items: data, total: data.length }
-  return { items: data?.items || [], total: data?.total || 0, mappedIds: data?.mapped_ids }
+	return { items: data?.items || [], total: data?.total || 0, mappedIds: data?.mapped_ids, mappedExternalIds: data?.mapped_external_ids }
 }
 
 const fetchUpstreamProducts = async (connectionId: string) => {
@@ -453,10 +460,13 @@ const fetchUpstreamProducts = async (connectionId: string) => {
   upstreamPage.value = 1
   try {
     const res = await adminAPI.getUpstreamProducts({ connection_id: connectionId, page: 1, page_size: upstreamPageSize })
-    const { items, total, mappedIds } = parseUpstreamResult(res)
+    const { items, total, mappedIds, mappedExternalIds } = parseUpstreamResult(res)
     upstreamProducts.value = items
     upstreamTotal.value = total
-    if (mappedIds) mappedUpstreamIds.value = new Set(mappedIds)
+    mappedUpstreamIds.value = new Set([
+      ...(mappedIds || []).map((id) => String(id)),
+      ...(mappedExternalIds || []).map((id) => String(id)),
+    ])
   } catch { upstreamProducts.value = []; upstreamTotal.value = 0; mappedUpstreamIds.value = new Set() } finally { loadingUpstream.value = false }
 }
 
@@ -546,7 +556,7 @@ const categoryDisplayList = computed(() => {
       : getLocalizedText(cat.name)
     // 未映射数量只能基于已加载商品估算；未全部加载时不能当作准确值展示/用于禁用按钮
     const fullyLoaded = loadedProducts.length >= productCount
-    const loadedNonMapped = loadedProducts.filter(p => !mappedUpstreamIds.value.has(p.id)).length
+    const loadedNonMapped = loadedProducts.filter(p => !mappedUpstreamIds.value.has(upstreamProductKey(p))).length
     // 未全部加载时，未映射数至少等于“已加载且未映射”的数量，避免因分页未加载全就误判为 0 导致按钮被禁用
     const nonMappedCount = fullyLoaded ? loadedNonMapped : Math.max(loadedNonMapped, 1)
 
@@ -558,7 +568,7 @@ const categoryDisplayList = computed(() => {
   if (uncategorizedCount > 0) {
     const loadedUncategorized = productsByCategory.value.get(0) || []
     const fullyLoaded = loadedUncategorized.length >= uncategorizedCount
-    const loadedNonMapped = loadedUncategorized.filter(p => !mappedUpstreamIds.value.has(p.id)).length
+    const loadedNonMapped = loadedUncategorized.filter(p => !mappedUpstreamIds.value.has(upstreamProductKey(p))).length
     const nonMappedCount = fullyLoaded ? loadedNonMapped : Math.max(loadedNonMapped, 1)
     result.push({
       category: { id: 0, parent_id: 0, slug: '', name: {}, icon: '', sort_order: -1 },
@@ -581,19 +591,19 @@ const toggleCategoryExpand = (catId: number) => {
 const selectAllInCategory = (catId: number, v: boolean | 'indeterminate') => {
   const products = productsByCategory.value.get(catId) || []
   const s = new Set(selectedProductIds.value)
-  const nonMapped = products.filter(p => !mappedUpstreamIds.value.has(p.id))
+  const nonMapped = products.filter(p => !mappedUpstreamIds.value.has(upstreamProductKey(p)))
   if (v === true) {
-    for (const p of nonMapped) s.add(p.id)
+    for (const p of nonMapped) s.add(upstreamProductKey(p))
   } else {
-    for (const p of nonMapped) s.delete(p.id)
+    for (const p of nonMapped) s.delete(upstreamProductKey(p))
   }
   selectedProductIds.value = s
 }
 
 const isCategoryAllSelected = (catId: number) => {
   const products = productsByCategory.value.get(catId) || []
-  const nonMapped = products.filter(p => !mappedUpstreamIds.value.has(p.id))
-  return nonMapped.length > 0 && nonMapped.every(p => selectedProductIds.value.has(p.id))
+  const nonMapped = products.filter(p => !mappedUpstreamIds.value.has(upstreamProductKey(p)))
+  return nonMapped.length > 0 && nonMapped.every(p => selectedProductIds.value.has(upstreamProductKey(p)))
 }
 
 const handleImportCategory = async (catId: number) => {
@@ -651,7 +661,9 @@ const handleBatchImport = async () => {
   importing.value = true
   importProgress.value = { done: 0, total: ids.length, success: 0 }
   const categoryId = importCategoryId.value !== '__none__' ? Number(importCategoryId.value) : 0
-  const allResults: { upstream_product_id: number; success: boolean; error?: string }[] = []
+	const importConnection = connections.value.find((connection) => connection.id === Number(importConnectionId.value))
+	const usesExternalIDs = importConnection?.protocol === 'prodseller'
+  const allResults: { upstream_product_id?: number; upstream_product_external_id?: string; success: boolean; error?: string }[] = []
   let successCount = 0
 
   try {
@@ -659,11 +671,13 @@ const handleBatchImport = async () => {
     for (let i = 0; i < ids.length; i += BATCH_SIZE) {
       const batchIds = ids.slice(i, i + BATCH_SIZE)
       try {
-        const res = await adminAPI.batchImportUpstreamProducts({
+		const payload: Record<string, unknown> = {
           connection_id: Number(importConnectionId.value),
-          upstream_product_ids: batchIds,
           category_id: categoryId || undefined,
-        })
+		}
+		if (usesExternalIDs) payload.upstream_product_external_ids = batchIds
+		else payload.upstream_product_ids = batchIds.map((id) => Number(id))
+		const res = await adminAPI.batchImportUpstreamProducts(payload)
         const result = res.data.data as { results?: typeof allResults; success_count?: number } | null
         const batchResults = result?.results || []
         allResults.push(...batchResults)
@@ -673,16 +687,23 @@ const handleBatchImport = async () => {
           // 后端不支持批量接口，逐条导入
           for (const id of batchIds) {
             try {
-              await adminAPI.importUpstreamProduct({ connection_id: Number(importConnectionId.value), upstream_product_id: id, category_id: categoryId || undefined })
-              allResults.push({ upstream_product_id: id, success: true }); successCount++
+					const payload: Record<string, unknown> = { connection_id: Number(importConnectionId.value), category_id: categoryId || undefined }
+					if (usesExternalIDs) payload.upstream_product_external_id = id
+					else payload.upstream_product_id = Number(id)
+					await adminAPI.importUpstreamProduct(payload)
+					if (usesExternalIDs) allResults.push({ upstream_product_external_id: id, success: true })
+					else allResults.push({ upstream_product_id: Number(id), success: true })
+					successCount++
             } catch (singleErr: any) {
-              allResults.push({ upstream_product_id: id, success: false, error: singleErr?.response?.data?.message || singleErr?.message })
+					if (usesExternalIDs) allResults.push({ upstream_product_external_id: id, success: false, error: singleErr?.response?.data?.message || singleErr?.message })
+					else allResults.push({ upstream_product_id: Number(id), success: false, error: singleErr?.response?.data?.message || singleErr?.message })
             }
           }
         } else {
           // 整批失败
-          for (const id of batchIds) {
-            allResults.push({ upstream_product_id: id, success: false, error: batchErr?.response?.data?.message || batchErr?.message })
+			for (const id of batchIds) {
+				if (usesExternalIDs) allResults.push({ upstream_product_external_id: id, success: false, error: batchErr?.response?.data?.message || batchErr?.message })
+				else allResults.push({ upstream_product_id: Number(id), success: false, error: batchErr?.response?.data?.message || batchErr?.message })
           }
         }
       }
@@ -695,18 +716,19 @@ const handleBatchImport = async () => {
     } else {
       const failed = allResults.filter((r) => !r.success)
       const failedDetails = failed.map((r) => {
-        const prod = upstreamProducts.value.find((p) => p.id === r.upstream_product_id)
-        const name = prod ? getLocalizedText(prod.title) : `#${r.upstream_product_id}`
+        const key = r.upstream_product_external_id || String(r.upstream_product_id || '')
+        const prod = upstreamProducts.value.find((p) => upstreamProductKey(p) === key)
+        const name = prod ? getLocalizedText(prod.title) : `#${key || '-'}`
         return `${name}: ${r.error || t('productMappings.import.unknownError')}`
       }).join('\n')
       if (successCount > 0) notifySuccess(t('productMappings.import.batchPartial', { success: successCount, total: ids.length }))
       notifyError(failedDetails)
-      const successIds = new Set(allResults.filter((r) => r.success).map((r) => r.upstream_product_id))
+      const successIds = new Set(allResults.filter((r) => r.success).map((r) => r.upstream_product_external_id || String(r.upstream_product_id || '')))
       selectedProductIds.value = new Set([...selectedProductIds.value].filter(id => !successIds.has(id)))
     }
     // 更新已映射标识
     const newMapped = new Set(mappedUpstreamIds.value)
-    for (const r of allResults) { if (r.success) newMapped.add(r.upstream_product_id) }
+    for (const r of allResults) { if (r.success) newMapped.add(r.upstream_product_external_id || String(r.upstream_product_id || '')) }
     mappedUpstreamIds.value = newMapped
     fetchMappings(1)
   } catch (err: any) { notifyError(err?.response?.data?.message || err?.message) } finally { importing.value = false }
@@ -848,7 +870,7 @@ onMounted(() => { fetchConnections(); fetchCategories(); fetchMappings() })
             </div>
             <div class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
               <span>{{ t('productMappings.columns.connection') }}: <span class="text-foreground">{{ getConnectionName(mapping.connection_id) }}</span></span>
-              <span>{{ t('productMappings.detail.upstreamId') }}: <span class="font-mono text-foreground">{{ mapping.upstream_product_id }}</span></span>
+              <span>{{ t('productMappings.detail.upstreamId') }}: <span class="font-mono text-foreground">{{ mapping.upstream_product_external_id || mapping.upstream_product_id }}</span></span>
               <span>{{ t('productMappings.detail.localPrice') }}: <span class="font-mono text-foreground">{{ getLocalPriceRange(mapping) }}</span></span>
               <span>SKU: <span class="text-foreground">{{ getLocalSkuCount(mapping) }}</span></span>
               <span>{{ t('productMappings.columns.lastSynced') }}: {{ formatTime((mapping.last_synced_at ?? mapping.last_sync_at) as string | undefined) }}</span>
@@ -1083,19 +1105,19 @@ onMounted(() => { fetchConnections(); fetchCategories(); fetchMappings() })
                 <div v-if="expandedCategoryIds.has(catItem.category.id)">
                   <div
                     v-for="product in (productsByCategory.get(catItem.category.id) || [])"
-                    :key="product.id"
+                    :key="upstreamProductKey(product)"
                     class="transition-colors border-t border-border/30"
-                    :class="[selectedProductIds.has(product.id) ? 'bg-primary/5' : '', mappedUpstreamIds.has(product.id) ? 'opacity-50' : '']"
+                    :class="[selectedProductIds.has(upstreamProductKey(product)) ? 'bg-primary/5' : '', mappedUpstreamIds.has(upstreamProductKey(product)) ? 'opacity-50' : '']"
                   >
-                    <div class="flex items-center gap-3 px-4 pl-11 py-2.5" :class="mappedUpstreamIds.has(product.id) ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-muted/20'" @click="toggleProduct(product.id)">
+                    <div class="flex items-center gap-3 px-4 pl-11 py-2.5" :class="mappedUpstreamIds.has(upstreamProductKey(product)) ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-muted/20'" @click="toggleProduct(upstreamProductKey(product))">
                       <div @click.stop>
-                        <Checkbox :model-value="selectedProductIds.has(product.id)" :disabled="mappedUpstreamIds.has(product.id)" @update:model-value="() => toggleProduct(product.id)" />
+                        <Checkbox :model-value="selectedProductIds.has(upstreamProductKey(product))" :disabled="mappedUpstreamIds.has(upstreamProductKey(product))" @update:model-value="() => toggleProduct(upstreamProductKey(product))" />
                       </div>
                       <div class="min-w-0 flex-1">
                         <div class="flex flex-wrap items-center gap-2">
                           <span class="break-words text-sm text-foreground sm:truncate">{{ getLocalizedText(product.title) }}</span>
-                          <span class="shrink-0 text-[10px] font-mono text-muted-foreground">#{{ product.id }}</span>
-                          <span v-if="mappedUpstreamIds.has(product.id)" class="shrink-0 inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] text-amber-700">
+                          <span class="shrink-0 text-[10px] font-mono text-muted-foreground">#{{ upstreamProductDisplayId(product) }}</span>
+                          <span v-if="mappedUpstreamIds.has(upstreamProductKey(product))" class="shrink-0 inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] text-amber-700">
                             {{ t('productMappings.import.alreadyMapped') }}
                           </span>
                         </div>
@@ -1137,19 +1159,19 @@ onMounted(() => { fetchConnections(); fetchCategories(); fetchMappings() })
                 <span class="text-xs font-medium text-muted-foreground">{{ t('productMappings.import.selectAll') }} ({{ upstreamProducts.length }}/{{ upstreamTotal }})</span>
               </div>
               <div class="divide-y divide-border max-h-[50vh] overflow-y-auto">
-                <div v-for="product in upstreamProducts" :key="product.id" class="transition-colors" :class="[selectedProductIds.has(product.id) ? 'bg-primary/5' : '', mappedUpstreamIds.has(product.id) ? 'opacity-50' : '']">
-                  <div class="flex items-center gap-3 px-4 py-3" :class="mappedUpstreamIds.has(product.id) ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-muted/20'" @click="toggleProduct(product.id)">
+                <div v-for="product in upstreamProducts" :key="upstreamProductKey(product)" class="transition-colors" :class="[selectedProductIds.has(upstreamProductKey(product)) ? 'bg-primary/5' : '', mappedUpstreamIds.has(upstreamProductKey(product)) ? 'opacity-50' : '']">
+                  <div class="flex items-center gap-3 px-4 py-3" :class="mappedUpstreamIds.has(upstreamProductKey(product)) ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-muted/20'" @click="toggleProduct(upstreamProductKey(product))">
                     <div @click.stop>
-                      <Checkbox :model-value="selectedProductIds.has(product.id)" :disabled="mappedUpstreamIds.has(product.id)" @update:model-value="() => toggleProduct(product.id)" />
+                      <Checkbox :model-value="selectedProductIds.has(upstreamProductKey(product))" :disabled="mappedUpstreamIds.has(upstreamProductKey(product))" @update:model-value="() => toggleProduct(upstreamProductKey(product))" />
                     </div>
                     <div class="min-w-0 flex-1">
                       <div class="flex flex-wrap items-center gap-2">
                         <span class="break-words text-sm font-medium text-foreground sm:truncate">{{ getLocalizedText(product.title) }}</span>
-                        <span class="shrink-0 text-[10px] font-mono text-muted-foreground">#{{ product.id }}</span>
+                        <span class="shrink-0 text-[10px] font-mono text-muted-foreground">#{{ upstreamProductDisplayId(product) }}</span>
                         <span class="shrink-0 inline-flex rounded-full border px-2 py-0.5 text-[10px]" :class="product.is_active ? 'text-emerald-700 border-emerald-200 bg-emerald-50' : 'text-muted-foreground border-border bg-muted/30'">
                           {{ product.is_active ? t('productMappings.status.active') : t('productMappings.status.inactive') }}
                         </span>
-                        <span v-if="mappedUpstreamIds.has(product.id)" class="shrink-0 inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] text-amber-700">
+                        <span v-if="mappedUpstreamIds.has(upstreamProductKey(product))" class="shrink-0 inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] text-amber-700">
                           {{ t('productMappings.import.alreadyMapped') }}
                         </span>
                       </div>
@@ -1159,13 +1181,13 @@ onMounted(() => { fetchConnections(); fetchCategories(); fetchMappings() })
                         <span :class="getSkuStockClass(product)">{{ getSkuStockSummary(product) }}</span>
                       </div>
                     </div>
-                    <button v-if="product.skus && product.skus.length > 0" class="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" @click.stop="toggleImportExpand(product.id)" :title="t('productMappings.import.toggleSkuDetails')">
-                      <svg class="h-4 w-4 transition-transform duration-200" :class="importExpandedIds.has(product.id) ? 'rotate-180' : ''" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <button v-if="product.skus && product.skus.length > 0" class="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" @click.stop="toggleImportExpand(upstreamProductKey(product))" :title="t('productMappings.import.toggleSkuDetails')">
+                      <svg class="h-4 w-4 transition-transform duration-200" :class="importExpandedIds.has(upstreamProductKey(product)) ? 'rotate-180' : ''" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
                       </svg>
                     </button>
                   </div>
-                  <div v-if="importExpandedIds.has(product.id) && product.skus && product.skus.length > 0" class="border-t border-border/50 bg-muted/20 px-4 py-2">
+                  <div v-if="importExpandedIds.has(upstreamProductKey(product)) && product.skus && product.skus.length > 0" class="border-t border-border/50 bg-muted/20 px-4 py-2">
                     <div class="ml-7 overflow-x-auto">
                       <div class="grid min-w-[640px] grid-cols-[1fr_auto_auto_auto] gap-x-4 text-xs">
                         <div class="font-medium text-muted-foreground py-1.5 border-b border-border/30">{{ t('productMappings.import.skuSpec') }}</div>

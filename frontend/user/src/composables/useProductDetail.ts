@@ -524,8 +524,8 @@ export function useProductDetail(options: { onLoaded?: () => void } = {}) {
     router.push(`/auth/login?redirect=${encodeURIComponent(route.fullPath)}`)
   }
 
-  const loadProduct = async () => {
-    loading.value = true
+	const loadProduct = async (silent = false) => {
+		if (!silent) loading.value = true
     try {
       const slug = route.params.slug as string
       const response = await productAPI.detail(slug)
@@ -538,14 +538,17 @@ export function useProductDetail(options: { onLoaded?: () => void } = {}) {
       options.onLoaded?.()
     } catch (error) {
       console.error('Failed to load product:', error)
-      product.value = null
-      selectedSkuId.value = 0
+			if (!silent) {
+				product.value = null
+				selectedSkuId.value = 0
+			}
     } finally {
-      loading.value = false
+			if (!silent) loading.value = false
     }
   }
 
   const debouncedLoadProduct = debounceAsync(loadProduct, 300)
+	let refreshTimer: number | null = null
 
   const canonicalUrl = computed(() => {
     if (!product.value?.slug) return ''
@@ -633,7 +636,12 @@ export function useProductDetail(options: { onLoaded?: () => void } = {}) {
   })
 
   onMounted(() => {
-    loadProduct()
+		void loadProduct()
+		if (typeof window !== 'undefined') {
+			refreshTimer = window.setInterval(() => {
+				void loadProduct(true)
+			}, 60_000)
+		}
     ensureMemberLevels()
   })
 
@@ -663,6 +671,10 @@ export function useProductDetail(options: { onLoaded?: () => void } = {}) {
 
   onUnmounted(() => {
     debouncedLoadProduct.cancel()
+		if (refreshTimer) {
+			clearInterval(refreshTimer)
+			refreshTimer = null
+		}
   })
 
   return {

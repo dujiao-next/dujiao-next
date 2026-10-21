@@ -10,6 +10,7 @@ import (
 	mappingapp "github.com/dujiao-next/internal/modules/catalog/mapping/application"
 	mappingcontract "github.com/dujiao-next/internal/modules/catalog/mapping/contract"
 	siteconnectionapp "github.com/dujiao-next/internal/modules/siteconnection/application"
+	"github.com/dujiao-next/internal/platform/translation"
 
 	"gorm.io/gorm"
 )
@@ -48,6 +49,7 @@ type Dependencies struct {
 	Categories  categorycontract.Repository
 	Connections *siteconnectionapp.Service
 	Media       mappingcontract.MediaRecorder
+	Translator  translation.Translator
 }
 
 // New 创建可直接注入调用方的 Catalog Mapping 应用服务。
@@ -61,6 +63,7 @@ func New(dependencies Dependencies) (*mappingapp.Service, error) {
 		Connections:  dependencies.Connections,
 		Media:        dependencies.Media,
 		Transactions: newUnitOfWork(dependencies.Products, dependencies.SKUs, dependencies.Mappings, dependencies.SKUMappings),
+		Translator:   dependencies.Translator,
 	})
 	if err != nil {
 		return nil, err

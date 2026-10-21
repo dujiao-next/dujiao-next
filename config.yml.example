@@ -92,6 +92,14 @@ queue:
     critical: 5
   upstream_sync_interval: "5m"  # 上游库存同步间隔（如 1m、5m、10m）
 
+# 商品英文内容翻译（API Key 只从服务端环境变量 SILICONFLOW_API_KEY 读取）
+translation:
+  enabled: true
+  base_url: "https://api.siliconflow.cn/v1"
+  model: "Qwen/Qwen3-8B"
+  timeout_seconds: 30
+  max_chars: 12000
+
 upload:
   max_size: 10485760  # 最大上传文件大小（字节，默认 10MB）
   allowed_types:

@@ -55,25 +55,32 @@ type ProductListResult struct {
 
 // UpstreamProduct 上游商品信息
 type UpstreamProduct struct {
-	ID               uint                              `json:"id"`
-	Slug             string                            `json:"slug"`
-	SeoMeta          jsonmap.JSON                      `json:"seo_meta"`
-	Title            jsonmap.JSON                      `json:"title"`
-	Description      jsonmap.JSON                      `json:"description"`
-	Content          jsonmap.JSON                      `json:"content"`
-	Images           []string                          `json:"images"`
-	Tags             []string                          `json:"tags"`
-	PriceAmount      string                            `json:"price_amount"`
-	OriginalPrice    string                            `json:"original_price,omitempty"`
-	MemberPrice      string                            `json:"member_price,omitempty"`
-	WholesalePrices  productdomain.WholesalePriceTiers `json:"wholesale_prices,omitempty"`
-	Currency         string                            `json:"currency"`
-	FulfillmentType  string                            `json:"fulfillment_type"`
-	ManualFormSchema jsonmap.JSON                      `json:"manual_form_schema"`
-	IsActive         bool                              `json:"is_active"`
-	CategoryID       uint                              `json:"category_id"`
-	SKUs             []UpstreamSKU                     `json:"skus"`
-	UpdatedAt        time.Time                         `json:"updated_at"`
+	ID uint `json:"id"`
+	// ExternalID 保存非数字协议（如 ProdSeller）的原始商品 ID。
+	// 当 ExternalID 非空时，ID 必须保持为 0，禁止截断或哈希映射到 uint。
+	ExternalID              string                            `json:"external_id,omitempty"`
+	Slug                    string                            `json:"slug"`
+	SeoMeta                 jsonmap.JSON                      `json:"seo_meta"`
+	Title                   jsonmap.JSON                      `json:"title"`
+	Description             jsonmap.JSON                      `json:"description"`
+	Content                 jsonmap.JSON                      `json:"content"`
+	Images                  []string                          `json:"images"`
+	Tags                    []string                          `json:"tags"`
+	PriceAmount             string                            `json:"price_amount"`
+	OriginalPrice           string                            `json:"original_price,omitempty"`
+	MemberPrice             string                            `json:"member_price,omitempty"`
+	WholesalePrices         productdomain.WholesalePriceTiers `json:"wholesale_prices,omitempty"`
+	Currency                string                            `json:"currency"`
+	FulfillmentType         string                            `json:"fulfillment_type"`
+	RequiresEmailActivation bool                              `json:"requires_email_activation"`
+	InStock                 bool                              `json:"in_stock"`
+	Stock                   int                               `json:"stock"`
+	PublicPriceAmount       string                            `json:"public_price_amount,omitempty"`
+	ManualFormSchema        jsonmap.JSON                      `json:"manual_form_schema"`
+	IsActive                bool                              `json:"is_active"`
+	CategoryID              uint                              `json:"category_id"`
+	SKUs                    []UpstreamSKU                     `json:"skus"`
+	UpdatedAt               time.Time                         `json:"updated_at"`
 }
 
 // UpstreamCategory 上游分类信息
@@ -94,7 +101,9 @@ type CategoryListResult struct {
 
 // UpstreamSKU 上游 SKU 信息
 type UpstreamSKU struct {
-	ID            uint         `json:"id"`
+	ID uint `json:"id"`
+	// ExternalID 保存非数字协议的原始 SKU ID。
+	ExternalID    string       `json:"external_id,omitempty"`
 	SKUCode       string       `json:"sku_code"`
 	SpecValues    jsonmap.JSON `json:"spec_values"`
 	PriceAmount   string       `json:"price_amount"`
@@ -138,7 +147,9 @@ type UpstreamFulfillment struct {
 
 // UpstreamOrderDetail 上游订单详情
 type UpstreamOrderDetail struct {
-	OrderID        uint                 `json:"order_id"`
+	OrderID uint `json:"order_id"`
+	// ExternalID 保存非数字协议的原始订单 ID。
+	ExternalID     string               `json:"external_id,omitempty"`
 	OrderNo        string               `json:"order_no"`
 	Status         string               `json:"status"`
 	Amount         string               `json:"amount"`
@@ -176,11 +187,32 @@ type Adapter interface {
 	DownloadImage(ctx context.Context, imageURL string) (localPath string, err error)
 }
 
+// ExternalIDAdapter 是使用字符串外部 ID 的上游协议扩展。
+// 旧的 Adapter 接口保留数字 ID 以兼容现有 Dujiao-Next 适配器；调用方
+// 处理 ProdSeller 时必须通过此接口传递完整外部 ID，不能把它转换成 uint。
+type ExternalIDAdapter interface {
+	Adapter
+	GetProductByExternalID(ctx context.Context, productID string) (*UpstreamProduct, error)
+	GetOrderByExternalID(ctx context.Context, orderID string) (*UpstreamOrderDetail, error)
+	ListOrdersByExternalID(ctx context.Context, opts ListOrdersOpts) ([]UpstreamOrderDetail, error)
+}
+
+// ListOrdersOpts 是外部订单查询的通用查询参数。
+type ListOrdersOpts struct {
+	ExternalID string
+	From       *time.Time
+	To         *time.Time
+	Page       int
+	PageSize   int
+}
+
 // NewAdapter 根据协议类型创建适配器
 func NewAdapter(conn *siteconnectiondomain.Connection, uploadsDir string) (Adapter, error) {
 	switch conn.Protocol {
 	case constants.ConnectionProtocolDujiaoNext:
 		return NewDujiaoNextAdapter(conn, uploadsDir), nil
+	case constants.ConnectionProtocolProdSeller:
+		return NewProdSellerAdapter(conn, uploadsDir)
 	default:
 		return nil, fmt.Errorf("unsupported protocol: %s", conn.Protocol)
 	}

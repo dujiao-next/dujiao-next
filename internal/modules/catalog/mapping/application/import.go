@@ -99,6 +99,7 @@ func (s *Service) importUpstreamProduct(connectionID uint, upstreamProductID uin
 	if !upProduct.IsActive {
 		return nil, mappingcontract.ErrUpstreamProductNotFound
 	}
+	s.translateProdSellerProduct(ctx, conn, nil, upProduct)
 
 	if autoCreateCategory && categoryID == 0 && upProduct.CategoryID > 0 {
 		if catMap == nil {
@@ -113,6 +114,13 @@ func (s *Service) importUpstreamProduct(connectionID uint, upstreamProductID uin
 			return nil, fmt.Errorf("auto create category: %w", createErr)
 		}
 		categoryID = category.ID
+	}
+	if categoryID == 0 {
+		autoCategoryID, categoryErr := s.ensureAutoCategoryForUpstreamProduct(upProduct)
+		if categoryErr != nil {
+			return nil, fmt.Errorf("auto classify category: %w", categoryErr)
+		}
+		categoryID = autoCategoryID
 	}
 	if err := productdomain.ValidateCategoryAssignment(s.categories, categoryID, 0, productcontract.ErrProductCategoryInvalid); err != nil {
 		return nil, err
@@ -262,12 +270,13 @@ func (s *Service) importUpstreamProduct(connectionID uint, upstreamProductID uin
 
 		now := time.Now()
 		mapping = &mappingdomain.Mapping{
-			ConnectionID:            connectionID,
-			LocalProductID:          product.ID,
-			UpstreamProductID:       upstreamProductID,
-			UpstreamFulfillmentType: upstreamFulfillmentType,
-			IsActive:                true,
-			LastSyncedAt:            &now,
+			ConnectionID:              connectionID,
+			LocalProductID:            product.ID,
+			UpstreamProductID:         upstreamProductID,
+			UpstreamProductExternalID: strings.TrimSpace(upProduct.ExternalID),
+			UpstreamFulfillmentType:   upstreamFulfillmentType,
+			IsActive:                  true,
+			LastSyncedAt:              &now,
 		}
 		if err := repos.Mappings.Create(mapping); err != nil {
 			return fmt.Errorf("create product mapping: %w", err)
@@ -330,13 +339,14 @@ func createSKUMappings(
 		upPrice, _ := decimal.NewFromString(upSKU.PriceAmount)
 		now := time.Now()
 		skuMapping := &mappingdomain.SKUMapping{
-			ProductMappingID: mappingID,
-			LocalSKUID:       localSKU.ID,
-			UpstreamSKUID:    upSKU.ID,
-			UpstreamPrice:    money.FromDecimal(upPrice.Round(2)),
-			UpstreamIsActive: upSKU.IsActive,
-			UpstreamStock:    upSKU.StockQuantity,
-			StockSyncedAt:    &now,
+			ProductMappingID:      mappingID,
+			LocalSKUID:            localSKU.ID,
+			UpstreamSKUID:         upSKU.ID,
+			UpstreamSKUExternalID: strings.TrimSpace(upSKU.ExternalID),
+			UpstreamPrice:         money.FromDecimal(upPrice.Round(2)),
+			UpstreamIsActive:      upSKU.IsActive,
+			UpstreamStock:         upSKU.StockQuantity,
+			StockSyncedAt:         &now,
 		}
 		if err := skuMappings.Create(skuMapping); err != nil {
 			return err
@@ -685,4 +695,255 @@ func listAllUpstreamProducts(ctx context.Context, adapter upstream.Adapter) ([]u
 		}
 	}
 	return nil, fmt.Errorf("upstream products exceed %d pages", maxUpstreamProductPages)
+}
+
+var externalSlugPattern = regexp.MustCompile(`[^a-z0-9]+`)
+
+func normalizeUpstreamFulfillmentType(raw string) string {
+	if strings.EqualFold(strings.TrimSpace(raw), constants.FulfillmentTypeAuto) {
+		return constants.FulfillmentTypeAuto
+	}
+	return constants.FulfillmentTypeManual
+}
+
+// ImportUpstreamProductByExternalID 导入 ProdSeller 等字符串 ID 上游商品。
+// 所有远端读取发生在事务外，事务只负责本地商品、SKU 和映射的一致写入。
+func (s *Service) ImportUpstreamProductByExternalID(connectionID uint, upstreamProductExternalID string, categoryID uint, slug string) (*mappingdomain.Mapping, error) {
+	externalID := strings.TrimSpace(upstreamProductExternalID)
+	if externalID == "" {
+		return nil, upstream.ErrProdSellerExternalIDRequired
+	}
+
+	existing, err := s.mappings.GetByConnectionAndExternalID(connectionID, externalID)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
+		return nil, mappingcontract.ErrMappingAlreadyExists
+	}
+
+	conn, err := s.connections.GetByID(connectionID)
+	if err != nil {
+		return nil, err
+	}
+	if conn == nil {
+		return nil, siteconnectioncontract.ErrNotFound
+	}
+	adapter, err := s.connections.GetAdapter(conn)
+	if err != nil {
+		return nil, err
+	}
+	externalAdapter, ok := adapter.(upstream.ExternalIDAdapter)
+	if !ok {
+		return nil, fmt.Errorf("upstream adapter does not support external product IDs")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	upProduct, err := externalAdapter.GetProductByExternalID(ctx, externalID)
+	if err != nil {
+		return nil, fmt.Errorf("fetch upstream product: %w", err)
+	}
+	if upProduct == nil || strings.TrimSpace(upProduct.ExternalID) == "" {
+		return nil, mappingcontract.ErrUpstreamProductNotFound
+	}
+	if strings.TrimSpace(upProduct.ExternalID) != externalID {
+		return nil, fmt.Errorf("upstream product ID mismatch")
+	}
+	s.translateProdSellerProduct(ctx, conn, nil, upProduct)
+	// ProdSeller's /products endpoint is the source of truth for listed
+	// products. Keep sold-out and email-activation products in the catalog as
+	// visible upstream products; the stock guard and later fulfillment policy
+	// still decide whether an order can proceed.
+	if categoryID == 0 {
+		autoCategoryID, categoryErr := s.ensureAutoCategoryForUpstreamProduct(upProduct)
+		if categoryErr != nil {
+			return nil, fmt.Errorf("auto classify category: %w", categoryErr)
+		}
+		categoryID = autoCategoryID
+	}
+	if err := productdomain.ValidateCategoryAssignment(s.categories, categoryID, 0, productcontract.ErrProductCategoryInvalid); err != nil {
+		return nil, err
+	}
+
+	localImages := s.downloadImages(ctx, adapter, upProduct.Images)
+	localContent := s.downloadContentImages(ctx, adapter, upProduct.Content)
+
+	costPrice, err := decimal.NewFromString(strings.TrimSpace(upProduct.PriceAmount))
+	if err != nil || costPrice.IsNegative() {
+		return nil, fmt.Errorf("invalid upstream price")
+	}
+	publicPrice := decimal.Zero
+	if strings.TrimSpace(upProduct.PublicPriceAmount) != "" {
+		publicPrice, _ = decimal.NewFromString(strings.TrimSpace(upProduct.PublicPriceAmount))
+		if publicPrice.IsNegative() {
+			publicPrice = decimal.Zero
+		}
+	}
+	localPrice := CalculateLocalPrice(costPrice, conn.ExchangeRate, conn.PriceMarkupPercent, conn.PriceRoundingMode)
+	if slug == "" {
+		slug, err = s.pickExternalImportSlug(connectionID, externalID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	product := productdomain.Product{
+		CategoryID:           categoryID,
+		Slug:                 slug,
+		TitleJSON:            upProduct.Title,
+		DescriptionJSON:      upProduct.Description,
+		ContentJSON:          localContent,
+		ManualFormSchemaJSON: upProduct.ManualFormSchema,
+		PriceAmount:          money.FromDecimal(localPrice.Round(2)),
+		CostPriceAmount:      money.FromDecimal(costPrice.Round(2)),
+		Images:               jsonslice.Strings(localImages),
+		Tags:                 jsonslice.Strings(upProduct.Tags),
+		PurchaseType:         constants.ProductPurchaseMember,
+		FulfillmentType:      constants.FulfillmentTypeUpstream,
+		IsMapped:             true,
+		IsActive:             true,
+	}
+
+	var mapping *mappingdomain.Mapping
+	if err := s.transactions.WithinTransaction(func(repos mappingcontract.ImportRepositories) error {
+		if err := repos.Products.Create(&product); err != nil {
+			return fmt.Errorf("create local product: %w", err)
+		}
+
+		localSKUs := make([]productdomain.ProductSKU, 0, len(upProduct.SKUs))
+		for _, upSKU := range upProduct.SKUs {
+			skuPrice := costPrice
+			if strings.TrimSpace(upSKU.PriceAmount) != "" {
+				if parsed, parseErr := decimal.NewFromString(upSKU.PriceAmount); parseErr == nil && !parsed.IsNegative() {
+					skuPrice = parsed
+				}
+			}
+			localSKU := productdomain.ProductSKU{
+				ProductID:       product.ID,
+				SKUCode:         normalizedExternalSKUCode(upSKU.SKUCode, upSKU.ExternalID),
+				SpecValuesJSON:  upSKU.SpecValues,
+				PriceAmount:     money.FromDecimal(CalculateLocalPrice(skuPrice, conn.ExchangeRate, conn.PriceMarkupPercent, conn.PriceRoundingMode).Round(2)),
+				CostPriceAmount: money.FromDecimal(skuPrice.Round(2)),
+				IsActive:        upSKU.IsActive,
+				SortOrder:       0,
+			}
+			if err := repos.SKUs.Create(&localSKU); err != nil {
+				return fmt.Errorf("create local sku: %w", err)
+			}
+			localSKUs = append(localSKUs, localSKU)
+		}
+		if len(localSKUs) == 0 {
+			defaultSKU := productdomain.ProductSKU{
+				ProductID:       product.ID,
+				SKUCode:         productdomain.DefaultSKUCode,
+				PriceAmount:     money.FromDecimal(localPrice.Round(2)),
+				CostPriceAmount: money.FromDecimal(costPrice.Round(2)),
+				IsActive:        true,
+			}
+			if err := repos.SKUs.Create(&defaultSKU); err != nil {
+				return fmt.Errorf("create default sku: %w", err)
+			}
+			localSKUs = append(localSKUs, defaultSKU)
+		}
+
+		now := time.Now()
+		mapping = &mappingdomain.Mapping{
+			ConnectionID:              connectionID,
+			LocalProductID:            product.ID,
+			UpstreamProductID:         0,
+			UpstreamProductExternalID: externalID,
+			UpstreamPublicPrice:       money.FromDecimal(publicPrice.Round(2)),
+			UpstreamFulfillmentType:   normalizeUpstreamFulfillmentType(upProduct.FulfillmentType),
+			UpstreamStatus:            mappingdomain.UpstreamStatusActive,
+			IsActive:                  true,
+			LastSyncedAt:              &now,
+		}
+		if err := repos.Mappings.Create(mapping); err != nil {
+			return fmt.Errorf("create product mapping: %w", err)
+		}
+		if err := createExternalSKUMappings(repos.SKUMappings, mapping.ID, localSKUs, upProduct.SKUs); err != nil {
+			return fmt.Errorf("create sku mappings: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return mapping, nil
+}
+
+func (s *Service) pickExternalImportSlug(connectionID uint, externalID string) (string, error) {
+	clean := strings.ToLower(externalSlugPattern.ReplaceAllString(strings.TrimSpace(externalID), "-"))
+	clean = strings.Trim(clean, "-")
+	if clean == "" {
+		clean = "product"
+	}
+	base := fmt.Sprintf("prodseller-%d-%s", connectionID, clean)
+	if len(base) > 100 {
+		base = base[:100]
+	}
+	if count, err := s.products.CountBySlug(base, nil); err != nil {
+		return "", err
+	} else if count == 0 {
+		return base, nil
+	}
+	return fmt.Sprintf("%s-%d", base[:minInt(len(base), 88)], time.Now().UnixMilli()), nil
+}
+
+func normalizedExternalSKUCode(code, externalID string) string {
+	code = strings.TrimSpace(code)
+	if code != "" {
+		return code
+	}
+	if externalID != "" {
+		return "EXT-" + strings.TrimSpace(externalID)
+	}
+	return productdomain.DefaultSKUCode
+}
+
+func createExternalSKUMappings(
+	skuMappings mappingcontract.ImportTxSKUMappingRepository,
+	mappingID uint,
+	localSKUs []productdomain.ProductSKU,
+	upstreamSKUs []upstream.UpstreamSKU,
+) error {
+	if skuMappings == nil || len(localSKUs) == 0 || len(upstreamSKUs) == 0 {
+		return nil
+	}
+	byCode := make(map[string]upstream.UpstreamSKU, len(upstreamSKUs))
+	for _, sku := range upstreamSKUs {
+		byCode[strings.ToLower(strings.TrimSpace(sku.SKUCode))] = sku
+	}
+	for _, localSKU := range localSKUs {
+		upSKU, ok := byCode[strings.ToLower(strings.TrimSpace(localSKU.SKUCode))]
+		if !ok && len(localSKUs) == 1 && len(upstreamSKUs) == 1 {
+			upSKU = upstreamSKUs[0]
+			ok = true
+		}
+		if !ok {
+			continue
+		}
+		price, _ := decimal.NewFromString(upSKU.PriceAmount)
+		now := time.Now()
+		if err := skuMappings.Create(&mappingdomain.SKUMapping{
+			ProductMappingID:      mappingID,
+			LocalSKUID:            localSKU.ID,
+			UpstreamSKUID:         0,
+			UpstreamSKUExternalID: strings.TrimSpace(upSKU.ExternalID),
+			UpstreamPrice:         money.FromDecimal(price.Round(2)),
+			UpstreamStock:         upSKU.StockQuantity,
+			UpstreamIsActive:      upSKU.IsActive,
+			StockSyncedAt:         &now,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

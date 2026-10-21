@@ -447,6 +447,21 @@ func TestUpdateSiteSettingNormalizedCurrency(t *testing.T) {
 	}
 }
 
+func TestUpdateSiteSettingAcceptsUSDT(t *testing.T) {
+	repo := newMockSettingRepo()
+	svc := NewService(repo)
+
+	result, err := svc.Update(constants.SettingKeySiteConfig, map[string]interface{}{
+		"currency": "usdt",
+	})
+	if err != nil {
+		t.Fatalf("update site config failed: %v", err)
+	}
+	if result[constants.SettingFieldSiteCurrency] != "USDT" {
+		t.Fatalf("unexpected normalized currency: %v", result[constants.SettingFieldSiteCurrency])
+	}
+}
+
 func TestUpdateOrderRefundSettingNormalized(t *testing.T) {
 	repo := newMockSettingRepo()
 	svc := NewService(repo)

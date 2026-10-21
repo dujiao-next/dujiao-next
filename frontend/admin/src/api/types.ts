@@ -562,6 +562,7 @@ export interface AdminSiteConnection {
   base_url: string
   api_key: string
   api_secret?: string
+  secret_ref?: string
   protocol?: string
   callback_url?: string
   retry_max?: number
@@ -586,6 +587,7 @@ export interface AdminProductMapping {
   connection_id: number
   local_product_id: number
   upstream_product_id: number
+  upstream_product_external_id?: string
   upstream_sku_id: number
   upstream_product_name: string
   upstream_sku_name: string

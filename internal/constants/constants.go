@@ -433,6 +433,10 @@ const (
 // 对接协议类型常量
 const (
 	ConnectionProtocolDujiaoNext = "dujiao-next"
+	// ConnectionProtocolProdSeller 使用 ProdSeller v1 API。
+	// ProdSeller 的 API Key 只允许通过 Connection.SecretRef 指向的环境变量读取。
+	ConnectionProtocolProdSeller  = "prodseller"
+	ConnectionSecretRefProdSeller = "PRODSELLER_API_KEY"
 )
 
 // API 凭证状态常量

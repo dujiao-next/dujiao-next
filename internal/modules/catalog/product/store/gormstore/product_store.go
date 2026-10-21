@@ -52,7 +52,10 @@ func (r *ProductStore) List(filter productcontract.ListFilter) ([]productdomain.
 	}
 	if filter.OnlyActive {
 		query = query.Where("products.is_active = ?", true)
-		query = query.Where("EXISTS (SELECT 1 FROM categories c WHERE c.id = products.category_id AND c.is_active = ? AND c.deleted_at IS NULL)", true)
+		// Upstream providers such as ProdSeller do not expose category data.
+		// Keep active uncategorized products visible in the public "all" view;
+		// an explicitly selected category still filters by category_id below.
+		query = query.Where("(products.category_id = 0 OR EXISTS (SELECT 1 FROM categories c WHERE c.id = products.category_id AND c.is_active = ? AND c.deleted_at IS NULL))", true)
 		query = query.Preload("SKUs", func(db *gorm.DB) *gorm.DB {
 			return db.Where("deleted_at IS NULL AND is_active = ?", true).Order("sort_order DESC, id ASC")
 		})
@@ -193,7 +196,7 @@ func (r *ProductStore) GetBySlug(slug string, onlyActive bool) (*productdomain.P
 	query := r.db.Preload("Category", "deleted_at IS NULL").Where("products.deleted_at IS NULL AND products.slug = ?", slug)
 	if onlyActive {
 		query = query.Where("products.is_active = ?", true)
-		query = query.Where("EXISTS (SELECT 1 FROM categories c WHERE c.id = products.category_id AND c.is_active = ? AND c.deleted_at IS NULL)", true)
+		query = query.Where("(products.category_id = 0 OR EXISTS (SELECT 1 FROM categories c WHERE c.id = products.category_id AND c.is_active = ? AND c.deleted_at IS NULL))", true)
 		query = query.Preload("SKUs", func(db *gorm.DB) *gorm.DB {
 			return db.Where("deleted_at IS NULL AND is_active = ?", true).Order("sort_order DESC, id ASC")
 		})

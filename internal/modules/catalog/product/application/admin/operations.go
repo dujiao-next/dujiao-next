@@ -82,8 +82,14 @@ func (s *AdminService) QuickUpdate(id string, fields map[string]interface{}) (*p
 			}
 			categoryID = parsedCategoryID
 		}
-		if err := validateActivationCategory(s.categories, categoryID, productcontract.ErrProductCategoryInvalid); err != nil {
-			return nil, err
+		// Upstream products may not have a category because the upstream API does
+		// not expose one. They are still publishable in the public "all products"
+		// view. Keep the category requirement for manually-created products and
+		// for mapped products that are explicitly assigned a category.
+		if !(product.IsMapped && categoryID == 0) {
+			if err := validateActivationCategory(s.categories, categoryID, productcontract.ErrProductCategoryInvalid); err != nil {
+				return nil, err
+			}
 		}
 	}
 	if err := s.products.QuickUpdate(id, fields); err != nil {

@@ -35,6 +35,7 @@ export function useProductList(options: UseProductListOptions = {}) {
   const categoryMap = computed(() => createCategoryMap(categories.value))
 
   let initializing = true
+	let refreshTimer: number | null = null
 
   const isParentExpanded = (categoryId: number) => {
     return expandedParentIds.value.includes(categoryId)
@@ -84,8 +85,8 @@ export function useProductList(options: UseProductListOptions = {}) {
     }
   }
 
-  const loadProducts = async () => {
-    loading.value = true
+	const loadProducts = async (silent = false) => {
+		if (!silent) loading.value = true
     try {
       const params: any = {
         page: currentPage.value,
@@ -106,7 +107,7 @@ export function useProductList(options: UseProductListOptions = {}) {
     } catch (error) {
       console.error('Failed to load products:', error)
     } finally {
-      loading.value = false
+		if (!silent) loading.value = false
     }
   }
 
@@ -199,10 +200,19 @@ export function useProductList(options: UseProductListOptions = {}) {
     }
     await loadProducts()
     initializing = false
+		if (typeof window !== 'undefined' && !refreshTimer) {
+			refreshTimer = window.setInterval(() => {
+				void loadProducts(true)
+			}, 60_000)
+		}
   }
 
   const cleanup = () => {
     debouncedLoadProducts.cancel()
+		if (refreshTimer) {
+			clearInterval(refreshTimer)
+			refreshTimer = null
+		}
   }
 
   return {

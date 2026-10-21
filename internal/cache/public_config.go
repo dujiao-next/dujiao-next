@@ -5,7 +5,11 @@ import (
 	"fmt"
 )
 
-const PublicConfigCachePrefix = "public:config"
+// Bump the namespace when the public config shape or startup normalization
+// changes. Existing cached config may contain an older settlement currency;
+// keeping it out of the read path avoids serving stale values without deleting
+// arbitrary Redis data during startup.
+const PublicConfigCachePrefix = "public:config:v2"
 
 func PublicConfigCacheKey(resellerID *uint) string {
 	if resellerID == nil {

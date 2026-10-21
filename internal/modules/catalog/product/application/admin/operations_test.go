@@ -90,6 +90,33 @@ func TestAdminServiceQuickUpdateValidatesActivationCategory(t *testing.T) {
 	}
 }
 
+func TestAdminServiceQuickUpdateAllowsMappedProductWithoutCategory(t *testing.T) {
+	products := &productRepositoryStub{product: &productdomain.Product{
+		ID:       12,
+		IsMapped: true,
+	}}
+	service := NewAdminService(Options{Products: products})
+
+	if _, err := service.QuickUpdate("12", map[string]interface{}{"is_active": true}); err != nil {
+		t.Fatalf("mapped upstream product without category should activate: %v", err)
+	}
+	if products.quickUpdates != 1 {
+		t.Fatalf("expected one persisted quick update, got %d", products.quickUpdates)
+	}
+}
+
+func TestAdminServiceQuickUpdateStillRejectsManualProductWithoutCategory(t *testing.T) {
+	products := &productRepositoryStub{product: &productdomain.Product{ID: 13}}
+	service := NewAdminService(Options{Products: products})
+
+	if _, err := service.QuickUpdate("13", map[string]interface{}{"is_active": true}); !errors.Is(err, productcontract.ErrProductCategoryInvalid) {
+		t.Fatalf("expected invalid category error, got %v", err)
+	}
+	if products.quickUpdates != 0 {
+		t.Fatalf("manual product must not be activated without category, got %d updates", products.quickUpdates)
+	}
+}
+
 func TestAdminServiceUpdateWholesalePricesCanonicalizesSKU(t *testing.T) {
 	products := &productRepositoryStub{adminProduct: &productdomain.Product{
 		ID: 13,

@@ -8,11 +8,14 @@ import (
 
 // Connection 表示一个上游站点连接。
 type Connection struct {
-	ID                 uint            `gorm:"primarykey" json:"id"`
-	Name               string          `gorm:"type:varchar(100);not null" json:"name"`
-	BaseURL            string          `gorm:"type:varchar(500);not null" json:"base_url"`
-	ApiKey             string          `gorm:"type:varchar(64);not null" json:"api_key"`
-	ApiSecret          string          `gorm:"type:varchar(512);not null" json:"-"` // AES-256 加密存储
+	ID        uint   `gorm:"primarykey" json:"id"`
+	Name      string `gorm:"type:varchar(100);not null" json:"name"`
+	BaseURL   string `gorm:"type:varchar(500);not null" json:"base_url"`
+	ApiKey    string `gorm:"type:varchar(64);not null" json:"api_key"`
+	ApiSecret string `gorm:"type:varchar(512);not null" json:"-"` // AES-256 加密存储
+	// SecretRef 是协议使用的服务端秘密引用（例如 PRODSELLER_API_KEY）。
+	// 这里只保存变量名，不保存变量对应的真实值；ProdSeller 不使用 ApiSecret。
+	SecretRef          string          `gorm:"type:varchar(128)" json:"secret_ref,omitempty"`
 	Protocol           string          `gorm:"type:varchar(20);not null;default:'dujiao-next'" json:"protocol"`
 	CallbackURL        string          `gorm:"type:varchar(500)" json:"callback_url"`
 	Status             string          `gorm:"type:varchar(20);not null;default:'pending'" json:"status"`

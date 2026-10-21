@@ -6,6 +6,7 @@ type CreateInput struct {
 	BaseURL            string  `json:"base_url"`
 	ApiKey             string  `json:"api_key"`
 	ApiSecret          string  `json:"api_secret"`
+	SecretRef          string  `json:"secret_ref"`
 	Protocol           string  `json:"protocol"`
 	CallbackURL        string  `json:"callback_url"`
 	RetryMax           int     `json:"retry_max"`
@@ -22,6 +23,7 @@ type UpdateInput struct {
 	BaseURL            string   `json:"base_url"`
 	ApiKey             string   `json:"api_key"`
 	ApiSecret          string   `json:"api_secret"` // 为空则不更新
+	SecretRef          string   `json:"secret_ref"`
 	Protocol           string   `json:"protocol"`
 	CallbackURL        string   `json:"callback_url"`
 	RetryMax           int      `json:"retry_max"`

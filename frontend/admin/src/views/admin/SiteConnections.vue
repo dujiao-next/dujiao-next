@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import type { AdminSiteConnection } from '@/api/types'
@@ -34,6 +34,7 @@ const form = reactive({
   base_url: '',
   api_key: '',
   api_secret: '',
+  secret_ref: 'PRODSELLER_API_KEY',
   protocol: 'dujiao-next',
   callback_url: '',
   retry_max: 3,
@@ -51,6 +52,7 @@ const siteConnectionSchema = {
   api_key: [rules.required()],
 }
 const { errors, validate, clearErrors } = useFormValidation(siteConnectionSchema)
+const isProdSeller = computed(() => form.protocol === 'prodseller')
 
 const fetchConnections = async (page = 1) => {
   loading.value = true
@@ -93,6 +95,7 @@ const resetForm = () => {
     base_url: '',
     api_key: '',
     api_secret: '',
+    secret_ref: 'PRODSELLER_API_KEY',
     protocol: 'dujiao-next',
     callback_url: '',
     retry_max: 3,
@@ -115,12 +118,14 @@ const openCreateModal = () => {
 const openEditModal = (conn: AdminSiteConnection) => {
   isEditing.value = true
   editingId.value = conn.id
+  const protocol = conn.protocol || 'dujiao-next'
   Object.assign(form, {
     name: conn.name || '',
     base_url: conn.base_url || '',
     api_key: conn.api_key || '',
     api_secret: conn.api_secret || '',
-    protocol: conn.protocol || 'dujiao-next',
+    secret_ref: conn.secret_ref || 'PRODSELLER_API_KEY',
+    protocol,
     callback_url: conn.callback_url || '',
     retry_max: conn.retry_max ?? 3,
     retry_intervals: (() => {
@@ -136,9 +141,11 @@ const openEditModal = (conn: AdminSiteConnection) => {
       return '30,60,120'
     })(),
     exchange_rate: conn.exchange_rate ?? 1,
-    price_markup_percent: conn.price_markup_percent ?? 0,
-    price_rounding_mode: conn.price_rounding_mode || 'none',
-    auto_sync_price: conn.auto_sync_price ? 'true' : 'false',
+    price_markup_percent: protocol === 'prodseller' ? (Number(conn.price_markup_percent) || 400) : (conn.price_markup_percent ?? 0),
+    price_rounding_mode: protocol === 'prodseller' && (!conn.price_rounding_mode || conn.price_rounding_mode === 'none')
+      ? 'ceil_cent'
+      : (conn.price_rounding_mode || 'none'),
+    auto_sync_price: protocol === 'prodseller' ? 'true' : (conn.auto_sync_price ? 'true' : 'false'),
   })
   showModal.value = true
 }
@@ -148,6 +155,18 @@ const closeModal = () => {
   clearErrors()
 }
 
+const handleProtocolChange = (protocol: unknown) => {
+  if (protocol === 'prodseller') {
+    if (!form.base_url) form.base_url = 'https://prodseller.com/v1'
+    form.api_key = ''
+    form.api_secret = ''
+    if (!form.secret_ref) form.secret_ref = 'PRODSELLER_API_KEY'
+    form.price_markup_percent = 400
+    form.price_rounding_mode = 'ceil_cent'
+    form.auto_sync_price = 'true'
+  }
+}
+
 const buildPayload = () => {
   const intervals = form.retry_intervals
     .split(',')
@@ -155,22 +174,24 @@ const buildPayload = () => {
     .filter((n: number) => !Number.isNaN(n) && n > 0)
   return {
     name: form.name,
-    base_url: form.base_url,
-    api_key: form.api_key,
-    api_secret: form.api_secret,
+    base_url: isProdSeller.value ? (form.base_url || 'https://prodseller.com/v1') : form.base_url,
+    api_key: isProdSeller.value ? '' : form.api_key,
+    api_secret: isProdSeller.value ? '' : form.api_secret,
+    secret_ref: isProdSeller.value ? form.secret_ref : '',
     protocol: form.protocol,
     callback_url: form.callback_url,
     retry_max: Number(form.retry_max) || 3,
     retry_intervals: JSON.stringify(intervals),
     exchange_rate: Number(form.exchange_rate) || 1,
-    price_markup_percent: Number(form.price_markup_percent) || 0,
-    price_rounding_mode: form.price_rounding_mode,
-    auto_sync_price: form.auto_sync_price === 'true',
+    price_markup_percent: isProdSeller.value ? (Number(form.price_markup_percent) || 400) : (Number(form.price_markup_percent) || 0),
+    price_rounding_mode: isProdSeller.value && form.price_rounding_mode === 'none' ? 'ceil_cent' : form.price_rounding_mode,
+    auto_sync_price: isProdSeller.value || form.auto_sync_price === 'true',
   }
 }
 
 const handleSubmit = async () => {
-  if (!validate({ ...form } as Record<string, unknown>)) return
+  const validationForm = isProdSeller.value ? { ...form, api_key: 'env-reference', base_url: form.base_url || 'https://prodseller.com/v1' } : { ...form }
+  if (!validate(validationForm as Record<string, unknown>)) return
   try {
     const payload = buildPayload()
     if (isEditing.value && editingId.value) {
@@ -379,30 +400,41 @@ onMounted(() => {
               <Input v-model="form.name" required :placeholder="t('siteConnections.form.namePlaceholder')" />
               <p v-if="errors.name" class="text-xs text-destructive mt-1">{{ errors.name }}</p>
             </div>
-            <div class="md:col-span-2">
+            <div v-if="!isProdSeller" class="md:col-span-2">
               <label class="mb-1.5 block text-xs font-medium text-muted-foreground">{{ t('siteConnections.form.baseUrl') }}</label>
               <Input v-model="form.base_url" required :placeholder="t('siteConnections.form.baseUrlPlaceholder')" />
               <p v-if="errors.base_url" class="text-xs text-destructive mt-1">{{ errors.base_url }}</p>
             </div>
-            <div>
+            <div v-if="!isProdSeller">
               <label class="mb-1.5 block text-xs font-medium text-muted-foreground">{{ t('siteConnections.form.apiKey') }}</label>
               <Input v-model="form.api_key" :placeholder="t('siteConnections.form.apiKeyPlaceholder')" />
               <p v-if="errors.api_key" class="text-xs text-destructive mt-1">{{ errors.api_key }}</p>
             </div>
-            <div>
+            <div v-if="!isProdSeller">
               <label class="mb-1.5 block text-xs font-medium text-muted-foreground">{{ t('siteConnections.form.apiSecret') }}</label>
               <Input v-model="form.api_secret" type="password" :placeholder="t('siteConnections.form.apiSecretPlaceholder')" />
             </div>
             <div>
               <label class="mb-1.5 block text-xs font-medium text-muted-foreground">{{ t('siteConnections.form.protocol') }}</label>
-              <Select v-model="form.protocol">
+              <Select v-model="form.protocol" @update:model-value="handleProtocolChange">
                 <SelectTrigger class="h-9 w-full">
                   <SelectValue :placeholder="t('siteConnections.form.protocolPlaceholder')" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="dujiao-next">dujiao-next</SelectItem>
+                  <SelectItem value="prodseller">{{ t('siteConnections.form.prodSellerProtocol') }}</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div v-if="isProdSeller">
+              <label class="mb-1.5 block text-xs font-medium text-muted-foreground">{{ t('siteConnections.form.secretRef') }}</label>
+              <Input v-model="form.secret_ref" :placeholder="t('siteConnections.form.secretRefPlaceholder')" autocomplete="off" />
+              <p class="mt-1 text-xs text-muted-foreground">{{ t('siteConnections.form.secretRefHint') }}</p>
+            </div>
+            <div v-if="isProdSeller" class="md:col-span-2">
+              <label class="mb-1.5 block text-xs font-medium text-muted-foreground">{{ t('siteConnections.form.baseUrl') }}</label>
+              <Input v-model="form.base_url" :placeholder="t('siteConnections.form.prodSellerBaseUrlPlaceholder')" />
+              <p class="mt-1 text-xs text-muted-foreground">{{ t('siteConnections.form.prodSellerBaseUrlHint') }}</p>
             </div>
             <div>
               <label class="mb-1.5 block text-xs font-medium text-muted-foreground">{{ t('siteConnections.form.callbackUrl') }}</label>
@@ -429,7 +461,7 @@ onMounted(() => {
               <div>
                 <label class="mb-1.5 block text-xs font-medium text-muted-foreground">{{ t('siteConnections.form.priceMarkupPercent') }}</label>
                 <div class="relative">
-                  <Input v-model.number="form.price_markup_percent" type="number" step="0.01" min="0" placeholder="0" />
+                  <Input v-model.number="form.price_markup_percent" type="number" step="0.01" min="0" :placeholder="isProdSeller ? '400' : '0'" />
                   <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
                 </div>
                 <p class="mt-1 text-xs text-muted-foreground">{{ t('siteConnections.form.priceMarkupPercentHint') }}</p>
@@ -442,6 +474,7 @@ onMounted(() => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">{{ t('siteConnections.form.roundingNone') }}</SelectItem>
+                    <SelectItem value="ceil_cent">{{ t('siteConnections.form.roundingCeilCent') }}</SelectItem>
                     <SelectItem value="ceil_int">{{ t('siteConnections.form.roundingCeilInt') }}</SelectItem>
                     <SelectItem value="ceil_tenth">{{ t('siteConnections.form.roundingCeilTenth') }}</SelectItem>
                   </SelectContent>

@@ -38,6 +38,7 @@ import (
 	notifyapp "github.com/dujiao-next/internal/modules/telegram/notify/application"
 	notifybotapi "github.com/dujiao-next/internal/modules/telegram/notify/infrastructure/botapi"
 	"github.com/dujiao-next/internal/platform/database/gormdb"
+	"github.com/dujiao-next/internal/platform/translation"
 )
 
 // initIntegrationServices 装配通知、站点对接、支付、采购、渠道与 Telegram 集成。
@@ -73,6 +74,7 @@ func (c *Container) initIntegrationServices() {
 		Categories:  c.CategoryRepo,
 		Connections: c.SiteConnectionService,
 		Media:       mediaCore,
+		Translator:  translation.NewClient(c.Config.Translation),
 	})
 	if err != nil {
 		logger.Errorw("provider_init_product_mapping_failed", "error", err)
@@ -82,6 +84,7 @@ func (c *Container) initIntegrationServices() {
 	c.ProductMappingService.SetCategoryCreator(c.CategoryService)
 	c.ProductMappingService.SetSettings(c.SettingService)
 	c.SiteConnectionService.SetMarkupReapplier(c.ProductMappingService)
+	c.normalizeProdSellerStorefront()
 	c.OrderService.SetProductMappingService(c.ProductMappingService)
 	var downstreamQueue downstreamcallbackcontract.CallbackQueue
 	if c.QueueClient != nil {

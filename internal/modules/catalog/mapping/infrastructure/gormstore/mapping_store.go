@@ -2,6 +2,7 @@ package gormstore
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	mappingcontract "github.com/dujiao-next/internal/modules/catalog/mapping/contract"
@@ -60,6 +61,17 @@ func (r *MappingStore) GetByLocalProductID(productID uint) (*mappingdomain.Mappi
 func (r *MappingStore) GetByConnectionAndUpstreamID(connectionID, upstreamProductID uint) (*mappingdomain.Mapping, error) {
 	var m mappingdomain.Mapping
 	if err := r.db.Where("deleted_at IS NULL AND connection_id = ? AND upstream_product_id = ?", connectionID, upstreamProductID).First(&m).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &m, nil
+}
+
+func (r *MappingStore) GetByConnectionAndExternalID(connectionID uint, upstreamProductExternalID string) (*mappingdomain.Mapping, error) {
+	var m mappingdomain.Mapping
+	if err := r.db.Where("deleted_at IS NULL AND connection_id = ? AND upstream_product_external_id = ?", connectionID, strings.TrimSpace(upstreamProductExternalID)).First(&m).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
@@ -172,6 +184,16 @@ func (r *MappingStore) ListUpstreamIDsByConnection(connectionID uint) ([]uint, e
 	if err := r.db.Model(&mappingdomain.Mapping{}).
 		Where("deleted_at IS NULL AND connection_id = ?", connectionID).
 		Pluck("upstream_product_id", &ids).Error; err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+func (r *MappingStore) ListUpstreamExternalIDsByConnection(connectionID uint) ([]string, error) {
+	var ids []string
+	if err := r.db.Model(&mappingdomain.Mapping{}).
+		Where("deleted_at IS NULL AND connection_id = ? AND upstream_product_external_id <> ''", connectionID).
+		Pluck("upstream_product_external_id", &ids).Error; err != nil {
 		return nil, err
 	}
 	return ids, nil

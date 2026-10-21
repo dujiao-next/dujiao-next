@@ -3,6 +3,7 @@ package mappinghttp
 import (
 	"context"
 	"errors"
+	"strings"
 
 	mappingapp "github.com/dujiao-next/internal/modules/catalog/mapping/application"
 	mappingcontract "github.com/dujiao-next/internal/modules/catalog/mapping/contract"
@@ -22,12 +23,15 @@ type ProductMappingService interface {
 	GetByID(id uint) (*mappingdomain.Mapping, error)
 	GetSKUMappings(mappingID uint) ([]mappingdomain.SKUMapping, error)
 	ImportUpstreamProductWithAutoCategory(connectionID, upstreamProductID, categoryID uint, slug string, autoCreateCategory bool) (*mappingdomain.Mapping, error)
+	ImportUpstreamProductByExternalID(connectionID uint, upstreamProductExternalID string, categoryID uint, slug string) (*mappingdomain.Mapping, error)
 	BatchImportUpstreamProducts(connectionID uint, upstreamProductIDs []uint, categoryID uint, autoCreateCategory bool) ([]mappingapp.BatchUpstreamProductImportOutcome, error)
+	BatchImportUpstreamProductsByExternalID(connectionID uint, upstreamProductExternalIDs []string, categoryID uint) ([]mappingapp.BatchUpstreamProductImportOutcome, error)
 	SyncProduct(mappingID uint) error
 	SetActive(id uint, active bool) error
 	Delete(id uint) error
 	ListUpstreamProducts(connectionID uint, page, pageSize int) (*upstream.ProductListResult, error)
 	GetMappedUpstreamIDs(connectionID uint) ([]uint, error)
+	GetMappedUpstreamExternalIDs(connectionID uint) ([]string, error)
 	ListUpstreamCategories(connectionID uint) ([]upstream.UpstreamCategory, bool, error)
 	ListUpstreamCategoryCounts(ctx context.Context, connectionID uint) (map[uint]int, int, error)
 	BatchImportByCategory(connectionID, upstreamCategoryID uint, autoCreateCategory bool, localCategoryID uint) (*mappingapp.BatchImportByCategoryResult, error)
@@ -120,11 +124,12 @@ func (h *AdminHandler) GetProductMapping(c *gin.Context) {
 
 // ImportUpstreamProductRequest 导入上游商品请求
 type ImportUpstreamProductRequest struct {
-	ConnectionID       uint   `json:"connection_id" binding:"required"`
-	UpstreamProductID  uint   `json:"upstream_product_id" binding:"required"`
-	CategoryID         uint   `json:"category_id"`
-	Slug               string `json:"slug"`
-	AutoCreateCategory bool   `json:"auto_create_category"`
+	ConnectionID              uint   `json:"connection_id" binding:"required"`
+	UpstreamProductID         uint   `json:"upstream_product_id"`
+	UpstreamProductExternalID string `json:"upstream_product_external_id"`
+	CategoryID                uint   `json:"category_id"`
+	Slug                      string `json:"slug"`
+	AutoCreateCategory        bool   `json:"auto_create_category"`
 }
 
 // ImportUpstreamProduct 导入上游商品
@@ -134,14 +139,29 @@ func (h *AdminHandler) ImportUpstreamProduct(c *gin.Context) {
 		ginutil.RespondBindError(c, err)
 		return
 	}
+	if (req.UpstreamProductID == 0) == (strings.TrimSpace(req.UpstreamProductExternalID) == "") {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", nil)
+		return
+	}
 
-	mapping, err := h.service.ImportUpstreamProductWithAutoCategory(
-		req.ConnectionID,
-		req.UpstreamProductID,
-		req.CategoryID,
-		req.Slug,
-		req.AutoCreateCategory,
-	)
+	var mapping *mappingdomain.Mapping
+	var err error
+	if strings.TrimSpace(req.UpstreamProductExternalID) != "" {
+		mapping, err = h.service.ImportUpstreamProductByExternalID(
+			req.ConnectionID,
+			req.UpstreamProductExternalID,
+			req.CategoryID,
+			req.Slug,
+		)
+	} else {
+		mapping, err = h.service.ImportUpstreamProductWithAutoCategory(
+			req.ConnectionID,
+			req.UpstreamProductID,
+			req.CategoryID,
+			req.Slug,
+			req.AutoCreateCategory,
+		)
+	}
 	if err != nil {
 		if errors.Is(err, mappingcontract.ErrMappingAlreadyExists) {
 			ginutil.RespondError(c, response.CodeBadRequest, "error.mapping_already_exists", nil)
@@ -153,6 +173,10 @@ func (h *AdminHandler) ImportUpstreamProduct(c *gin.Context) {
 		}
 		if errors.Is(err, mappingcontract.ErrUpstreamProductNotFound) {
 			ginutil.RespondError(c, response.CodeNotFound, "error.upstream_product_not_found", nil)
+			return
+		}
+		if errors.Is(err, mappingcontract.ErrUpstreamProductNotEligible) {
+			ginutil.RespondError(c, response.CodeBadRequest, "error.upstream_product_not_eligible", nil)
 			return
 		}
 		if errors.Is(err, productcontract.ErrSlugExists) {
@@ -172,17 +196,19 @@ func (h *AdminHandler) ImportUpstreamProduct(c *gin.Context) {
 
 // BatchImportUpstreamProductRequest 批量导入上游商品请求
 type BatchImportUpstreamProductRequest struct {
-	ConnectionID       uint   `json:"connection_id" binding:"required"`
-	UpstreamProductIDs []uint `json:"upstream_product_ids" binding:"required,min=1"`
-	CategoryID         uint   `json:"category_id"`
-	AutoCreateCategory bool   `json:"auto_create_category"`
+	ConnectionID               uint     `json:"connection_id" binding:"required"`
+	UpstreamProductIDs         []uint   `json:"upstream_product_ids"`
+	UpstreamProductExternalIDs []string `json:"upstream_product_external_ids"`
+	CategoryID                 uint     `json:"category_id"`
+	AutoCreateCategory         bool     `json:"auto_create_category"`
 }
 
 // BatchImportUpstreamProductResult 单个商品导入结果
 type BatchImportUpstreamProductResult struct {
-	UpstreamProductID uint   `json:"upstream_product_id"`
-	Success           bool   `json:"success"`
-	Error             string `json:"error,omitempty"`
+	UpstreamProductID         uint   `json:"upstream_product_id,omitempty"`
+	UpstreamProductExternalID string `json:"upstream_product_external_id,omitempty"`
+	Success                   bool   `json:"success"`
+	Error                     string `json:"error,omitempty"`
 }
 
 // BatchImportUpstreamProducts 批量导入上游商品
@@ -192,13 +218,18 @@ func (h *AdminHandler) BatchImportUpstreamProducts(c *gin.Context) {
 		ginutil.RespondBindError(c, err)
 		return
 	}
+	if (len(req.UpstreamProductIDs) == 0) == (len(req.UpstreamProductExternalIDs) == 0) {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", nil)
+		return
+	}
 
-	outcomes, err := h.service.BatchImportUpstreamProducts(
-		req.ConnectionID,
-		req.UpstreamProductIDs,
-		req.CategoryID,
-		req.AutoCreateCategory,
-	)
+	var outcomes []mappingapp.BatchUpstreamProductImportOutcome
+	var err error
+	if len(req.UpstreamProductExternalIDs) > 0 {
+		outcomes, err = h.service.BatchImportUpstreamProductsByExternalID(req.ConnectionID, req.UpstreamProductExternalIDs, req.CategoryID)
+	} else {
+		outcomes, err = h.service.BatchImportUpstreamProducts(req.ConnectionID, req.UpstreamProductIDs, req.CategoryID, req.AutoCreateCategory)
+	}
 	if err != nil {
 		if errors.Is(err, siteconnectioncontract.ErrNotFound) {
 			ginutil.RespondError(c, response.CodeNotFound, "error.connection_not_found", nil)
@@ -215,7 +246,10 @@ func (h *AdminHandler) BatchImportUpstreamProducts(c *gin.Context) {
 	results := make([]BatchImportUpstreamProductResult, len(outcomes))
 	successCount := 0
 	for i, o := range outcomes {
-		item := BatchImportUpstreamProductResult{UpstreamProductID: o.UpstreamProductID}
+		item := BatchImportUpstreamProductResult{
+			UpstreamProductID:         o.UpstreamProductID,
+			UpstreamProductExternalID: o.UpstreamProductExternalID,
+		}
 		if o.Err != nil {
 			item.Error = o.Err.Error()
 		} else {
@@ -227,7 +261,7 @@ func (h *AdminHandler) BatchImportUpstreamProducts(c *gin.Context) {
 
 	response.Success(c, gin.H{
 		"results":       results,
-		"total":         len(req.UpstreamProductIDs),
+		"total":         len(outcomes),
 		"success_count": successCount,
 	})
 }
@@ -390,14 +424,17 @@ func (h *AdminHandler) ListUpstreamProducts(c *gin.Context) {
 
 	// 查询已映射的上游商品 ID（仅首页时返回，避免重复查询）
 	var mappedIDs []uint
+	var mappedExternalIDs []string
 	if page == 1 {
 		mappedIDs, _ = h.service.GetMappedUpstreamIDs(connectionID)
+		mappedExternalIDs, _ = h.service.GetMappedUpstreamExternalIDs(connectionID)
 	}
 
 	response.Success(c, gin.H{
-		"items":      result.Items,
-		"total":      result.Total,
-		"mapped_ids": mappedIDs,
+		"items":               result.Items,
+		"total":               result.Total,
+		"mapped_ids":          mappedIDs,
+		"mapped_external_ids": mappedExternalIDs,
 	})
 }
 

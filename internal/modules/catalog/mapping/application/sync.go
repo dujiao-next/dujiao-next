@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,6 +21,8 @@ import (
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/logger"
 	settingsintegration "github.com/dujiao-next/internal/modules/settings/schema/integration"
+	"github.com/dujiao-next/internal/platform/translation"
+	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/money"
 	"github.com/dujiao-next/internal/upstream"
 
@@ -28,6 +31,12 @@ import (
 
 // SyncProduct 同步单个映射商品的上游数据（全量同步）
 func (s *Service) SyncProduct(mappingID uint) error {
+	// ProdSeller 等字符串 ID 适配器走独立路径，不能把外部 ID 转成 uint。
+	if mapping, lookupErr := s.mappings.GetByID(mappingID); lookupErr != nil {
+		return lookupErr
+	} else if mapping != nil && mapping.UpstreamProductExternalID != "" {
+		return s.SyncExternalProduct(mappingID)
+	}
 	mapping, err := s.mappings.GetByID(mappingID)
 	if err != nil {
 		return err
@@ -81,6 +90,15 @@ func (s *Service) SyncProduct(mappingID uint) error {
 	}
 	if localProduct != nil {
 		needsProductUpdate := false
+		if localProduct.CategoryID == 0 {
+			categoryID, categoryErr := s.ensureAutoCategoryForUpstreamProduct(upProduct)
+			if categoryErr != nil {
+				logger.Warnw("sync_auto_categorize_product_failed", "local_product_id", localProduct.ID, "error", categoryErr)
+			} else if categoryID > 0 {
+				localProduct.CategoryID = categoryID
+				needsProductUpdate = true
+			}
+		}
 		// 同步人工交付表单配置
 		if upProduct.ManualFormSchema != nil {
 			localProduct.ManualFormSchemaJSON = upProduct.ManualFormSchema
@@ -321,6 +339,9 @@ func (s *Service) SyncAllStock(cfg settingsintegration.UpstreamSyncConfig) error
 	if len(mappings) == 0 {
 		return nil
 	}
+	if categorized := s.AutoCategorizeUncategorized(mappings); categorized > 0 {
+		logger.Infow("sync_auto_categorize_products_done", "categorized", categorized)
+	}
 
 	// ── 按连接分组 ──
 	byConn := make(map[uint][]mappingdomain.Mapping)
@@ -420,6 +441,137 @@ func (s *Service) EnsureUpstreamStockForOrder(localSKUID uint, requiredQty int) 
 	return mappingcontract.ErrUpstreamStockInsufficient
 }
 
+// SyncExternalProduct 同步使用字符串外部 ID 的上游商品价格、库存和状态。
+// ProdSeller 的远端读取在本地写入前完成，避免 SQLite 事务内发生外部 HTTP。
+func (s *Service) SyncExternalProduct(mappingID uint) error {
+	mapping, err := s.mappings.GetByID(mappingID)
+	if err != nil {
+		return err
+	}
+	if mapping == nil {
+		return mappingcontract.ErrMappingNotFound
+	}
+	if strings.TrimSpace(mapping.UpstreamProductExternalID) == "" {
+		return fmt.Errorf("external product ID is missing")
+	}
+	conn, err := s.connections.GetByID(mapping.ConnectionID)
+	if err != nil {
+		return err
+	}
+	if conn == nil {
+		return siteconnectioncontract.ErrNotFound
+	}
+	adapter, err := s.connections.GetAdapter(conn)
+	if err != nil {
+		return err
+	}
+	externalAdapter, ok := adapter.(upstream.ExternalIDAdapter)
+	if !ok {
+		return fmt.Errorf("upstream adapter does not support external product IDs")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	upProduct, err := externalAdapter.GetProductByExternalID(ctx, mapping.UpstreamProductExternalID)
+	if err != nil {
+		if errors.Is(err, upstream.ErrUpstreamProductDeleted) {
+			return s.markUpstreamUnavailable(mapping, mappingdomain.UpstreamStatusDeleted, time.Now())
+		}
+		return fmt.Errorf("fetch upstream product: %w", err)
+	}
+	if upProduct == nil {
+		return mappingcontract.ErrUpstreamProductNotFound
+	}
+	now := time.Now()
+	if !upProduct.IsActive {
+		return s.markUpstreamUnavailable(mapping, mappingdomain.UpstreamStatusInactive, now)
+	}
+
+	localProduct, err := s.products.GetByID(strconv.FormatUint(uint64(mapping.LocalProductID), 10))
+	if err != nil {
+		return err
+	}
+	s.translateProdSellerProduct(ctx, conn, localProduct, upProduct)
+	if localProduct != nil {
+		if _, categoryErr := s.reclassifyAutoCategoryForProduct(localProduct, upProduct.Title, upProduct.Description, upProduct.Content, upProduct.Tags); categoryErr != nil {
+			logger.Warnw("sync_external_auto_categorize_product_failed", "local_product_id", localProduct.ID, "error", categoryErr)
+		}
+		localProduct.TitleJSON = upProduct.Title
+		localProduct.DescriptionJSON = upProduct.Description
+		if len(upProduct.Content) > 0 {
+			localProduct.ContentJSON = upProduct.Content
+		}
+		if mapping.IsActive {
+			localProduct.IsActive = true
+		}
+		if err := s.products.Update(localProduct); err != nil {
+			return err
+		}
+	}
+
+	skuMappings, err := s.skuMappings.ListByProductMapping(mappingID)
+	if err != nil {
+		return err
+	}
+	upstreamByExternalID := make(map[string]upstream.UpstreamSKU, len(upProduct.SKUs))
+	for _, upSKU := range upProduct.SKUs {
+		if key := strings.TrimSpace(upSKU.ExternalID); key != "" {
+			upstreamByExternalID[key] = upSKU
+		}
+	}
+	for i := range skuMappings {
+		upSKU, found := upstreamByExternalID[strings.TrimSpace(skuMappings[i].UpstreamSKUExternalID)]
+		if !found {
+			skuMappings[i].UpstreamIsActive = false
+			skuMappings[i].UpstreamStock = 0
+			skuMappings[i].StockSyncedAt = &now
+			if err := s.skuMappings.Update(&skuMappings[i]); err != nil {
+				return err
+			}
+			if localSKU, skuErr := s.skus.GetByID(skuMappings[i].LocalSKUID); skuErr == nil && localSKU != nil {
+				localSKU.IsActive = false
+				if err := s.skus.Update(localSKU); err != nil {
+					return err
+				}
+			}
+			continue
+		}
+
+		price, _ := decimal.NewFromString(upSKU.PriceAmount)
+		skuMappings[i].UpstreamPrice = money.FromDecimal(price.Round(2))
+		skuMappings[i].UpstreamStock = upSKU.StockQuantity
+		skuMappings[i].UpstreamIsActive = upSKU.IsActive
+		skuMappings[i].StockSyncedAt = &now
+		if err := s.skuMappings.Update(&skuMappings[i]); err != nil {
+			return err
+		}
+		localSKU, skuErr := s.skus.GetByID(skuMappings[i].LocalSKUID)
+		if skuErr != nil || localSKU == nil {
+			continue
+		}
+		// Keep listed SKUs visible even when upstream stock is zero; stock is
+		// carried separately and the order-time guard blocks sold-out orders.
+		localSKU.IsActive = upSKU.IsActive
+		if conn.AutoSyncPrice {
+			localSKU.PriceAmount = money.FromDecimal(CalculateLocalPrice(price, conn.ExchangeRate, conn.PriceMarkupPercent, conn.PriceRoundingMode).Round(2))
+			localSKU.CostPriceAmount = money.FromDecimal(convertCurrency(price, conn.ExchangeRate).Round(2))
+		}
+		if err := s.skus.Update(localSKU); err != nil {
+			return err
+		}
+	}
+
+	if localProduct != nil && conn.AutoSyncPrice {
+		s.recalcProductPrice(localProduct)
+	}
+	if publicPrice, parseErr := decimal.NewFromString(upProduct.PublicPriceAmount); parseErr == nil && !publicPrice.IsNegative() {
+		mapping.UpstreamPublicPrice = money.FromDecimal(publicPrice.Round(2))
+	}
+	mapping.UpstreamStatus = mappingdomain.UpstreamStatusActive
+	mapping.UpstreamFulfillmentType = normalizeUpstreamFulfillmentType(upProduct.FulfillmentType)
+	mapping.LastSyncedAt = &now
+	return s.mappings.Update(mapping)
+}
+
 // fullSyncIntervalFloor 强制全量同步的下限：任何情况下两次全量间隔至少 24h，
 // 用于发现上游下架/删除（增量模式下这些商品不会再次出现在 updated_after 之后的列表里）。
 const fullSyncIntervalFloor = 24 * time.Hour
@@ -495,6 +647,7 @@ func (s *Service) SyncConnectionStock(connectionID uint, connMappings []mappingd
 	// fetchComplete 表示是否拉满了 result.Total —— 只有完整拉取才允许根据 missing 推断"上游已删除"，
 	// 否则上游分页限流/截断/缓存抖动等会导致大量 mapping 被误标为 deleted。
 	upstreamProducts := make(map[uint]upstream.UpstreamProduct)
+	upstreamExternalProducts := make(map[string]upstream.UpstreamProduct)
 	includesInactive := false
 	fetchComplete := false
 	expectedTotal := 0
@@ -515,6 +668,7 @@ func (s *Service) SyncConnectionStock(connectionID uint, connMappings []mappingd
 				updatedAfter = nil
 				page = 1
 				upstreamProducts = make(map[uint]upstream.UpstreamProduct)
+				upstreamExternalProducts = make(map[string]upstream.UpstreamProduct)
 				expectedTotal = 0
 				continue
 			}
@@ -528,10 +682,17 @@ func (s *Service) SyncConnectionStock(connectionID uint, connMappings []mappingd
 		}
 
 		for _, p := range result.Items {
-			upstreamProducts[p.ID] = p
+			if externalID := strings.TrimSpace(p.ExternalID); externalID != "" {
+				upstreamExternalProducts[externalID] = p
+				continue
+			}
+			if p.ID > 0 {
+				upstreamProducts[p.ID] = p
+			}
 		}
 
-		if len(upstreamProducts) >= result.Total {
+		fetchedCount := len(upstreamProducts) + len(upstreamExternalProducts)
+		if fetchedCount >= result.Total {
 			fetchComplete = true
 			break
 		}
@@ -540,7 +701,7 @@ func (s *Service) SyncConnectionStock(connectionID uint, connMappings []mappingd
 			logger.Warnw("sync_pagination_truncated",
 				"connection_id", connectionID,
 				"page", page,
-				"fetched", len(upstreamProducts),
+				"fetched", len(upstreamProducts)+len(upstreamExternalProducts),
 				"expected_total", result.Total,
 			)
 			break
@@ -550,7 +711,7 @@ func (s *Service) SyncConnectionStock(connectionID uint, connMappings []mappingd
 			logger.Warnw("sync_pagination_max_pages_reached",
 				"connection_id", connectionID,
 				"max_pages", maxPages,
-				"fetched", len(upstreamProducts),
+				"fetched", len(upstreamProducts)+len(upstreamExternalProducts),
 				"expected_total", expectedTotal,
 			)
 			break
@@ -558,7 +719,7 @@ func (s *Service) SyncConnectionStock(connectionID uint, connMappings []mappingd
 	}
 
 	// 如果是增量同步且无更新，跳过
-	if updatedAfter != nil && len(upstreamProducts) == 0 {
+	if updatedAfter != nil && len(upstreamProducts)+len(upstreamExternalProducts) == 0 {
 		logger.Debugw("sync_skip_no_updates", "connection_id", connectionID)
 		// 仍然更新时间戳
 		_ = cache.SetString(syncCtx, lastSyncKey, syncStartTime.Format(time.RFC3339), 48*time.Hour)
@@ -570,6 +731,19 @@ func (s *Service) SyncConnectionStock(connectionID uint, connMappings []mappingd
 	isFullSync := updatedAfter == nil
 	for i := range connMappings {
 		mapping := &connMappings[i]
+		if strings.TrimSpace(mapping.UpstreamProductExternalID) != "" {
+			// ProdSeller exposes string IDs and the generic numeric SKU map
+			// cannot represent them. The external path performs one GET by the
+			// complete ID and updates title, description, price and stock.
+			if syncErr := s.SyncExternalProduct(mapping.ID); syncErr != nil {
+				logger.Warnw("sync_external_product_failed",
+					"mapping_id", mapping.ID,
+					"connection_id", connectionID,
+					"error", syncErr,
+				)
+			}
+			continue
+		}
 		upProduct, ok := upstreamProducts[mapping.UpstreamProductID]
 		if !ok {
 			if !isFullSync {
@@ -610,7 +784,7 @@ func (s *Service) SyncConnectionStock(connectionID uint, connMappings []mappingd
 	logger.Infow("sync_connection_stock_done",
 		"connection_id", connectionID,
 		"mappings", len(connMappings),
-		"upstream_fetched", len(upstreamProducts),
+		"upstream_fetched", len(upstreamProducts)+len(upstreamExternalProducts),
 		"incremental", !isFullSync,
 		"includes_inactive", includesInactive,
 		"fetch_complete", fetchComplete,
@@ -627,8 +801,15 @@ func (s *Service) syncProductFromData(mapping *mappingdomain.Mapping, conn *site
 		return
 	}
 
+	needsProductUpdate, categoryErr := s.reclassifyAutoCategoryForProduct(localProduct, upProduct.Title, upProduct.Description, upProduct.Content, upProduct.Tags)
+	if categoryErr != nil {
+		logger.Warnw("sync_auto_categorize_product_failed", "local_product_id", localProduct.ID, "error", categoryErr)
+	}
 	if upProduct.ManualFormSchema != nil {
 		localProduct.ManualFormSchemaJSON = upProduct.ManualFormSchema
+		needsProductUpdate = true
+	}
+	if needsProductUpdate {
 		_ = s.products.Update(localProduct)
 	}
 
@@ -762,4 +943,109 @@ func (s *Service) syncProductFromData(mapping *mappingdomain.Mapping, conn *site
 	mapping.UpstreamStatus = mappingdomain.UpstreamStatusActive
 	mapping.LastSyncedAt = now
 	_ = s.mappings.Update(mapping)
+}
+
+// translateProdSellerProduct fills Simplified Chinese fields for ProdSeller
+// products before local persistence. Translation is best-effort: an upstream
+// sync continues with the original content when the provider is disabled,
+// missing its environment key, rate-limited, or temporarily unavailable.
+func (s *Service) translateProdSellerProduct(ctx context.Context, conn *siteconnectiondomain.Connection, localProduct *productdomain.Product, upProduct *upstream.UpstreamProduct) {
+	if s == nil || s.translator == nil || conn == nil || upProduct == nil || conn.Protocol != constants.ConnectionProtocolProdSeller {
+		return
+	}
+	source := translation.ProductText{
+		Title:       localizedProductString(upProduct.Title),
+		Description: localizedProductString(upProduct.Description),
+		Content:     localizedProductString(upProduct.Content),
+	}
+	if !needsProductTranslation(localProduct, upProduct, source) {
+		return
+	}
+	translated, err := s.translator.TranslateProduct(ctx, source)
+	if err != nil {
+		logger.Warnw("prodseller_product_translation_failed",
+			"connection_id", conn.ID,
+			"external_product_id", strings.TrimSpace(upProduct.ExternalID),
+			"error", err,
+		)
+		return
+	}
+	upProduct.Title = withSimplifiedChinese(upProduct.Title, source.Title, translated.Title)
+	upProduct.Description = withSimplifiedChinese(upProduct.Description, source.Description, translated.Description)
+	upProduct.Content = withSimplifiedChinese(upProduct.Content, source.Content, translated.Content)
+}
+
+func needsProductTranslation(localProduct *productdomain.Product, upProduct *upstream.UpstreamProduct, source translation.ProductText) bool {
+	if upProduct == nil {
+		return false
+	}
+	var localTitle, localDescription, localContent jsonmap.JSON
+	if localProduct != nil {
+		localTitle = localProduct.TitleJSON
+		localDescription = localProduct.DescriptionJSON
+		localContent = localProduct.ContentJSON
+	}
+	fields := []struct {
+		source string
+		remote jsonmap.JSON
+		local  jsonmap.JSON
+	}{
+		{source: source.Title, remote: upProduct.Title, local: localTitle},
+		{source: source.Description, remote: upProduct.Description, local: localDescription},
+		{source: source.Content, remote: upProduct.Content, local: localContent},
+	}
+	for _, field := range fields {
+		if strings.TrimSpace(field.source) == "" {
+			continue
+		}
+		// An upstream-provided Chinese value is already authoritative.
+		if remote := localizedProductStringForLocale(field.remote, "zh-CN"); remote != "" && remote != field.source {
+			continue
+		}
+		if localProduct == nil {
+			return true
+		}
+		localSource := localizedProductStringForLocale(field.local, "en-US")
+		localChinese := localizedProductStringForLocale(field.local, "zh-CN")
+		// A changed English source or an untranslated local value requires a new
+		// request. A manually edited Chinese value is otherwise preserved.
+		if localSource != field.source || localChinese == "" || localChinese == field.source {
+			return true
+		}
+	}
+	return false
+}
+
+func localizedProductString(value jsonmap.JSON) string {
+	for _, locale := range []string{"en-US", "en", "zh-CN", "zh-TW", "zh"} {
+		if text := localizedProductStringForLocale(value, locale); text != "" {
+			return text
+		}
+	}
+	return ""
+}
+
+func localizedProductStringForLocale(value jsonmap.JSON, locale string) string {
+	if value == nil {
+		return ""
+	}
+	text, ok := value[locale].(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(text)
+}
+
+func withSimplifiedChinese(value jsonmap.JSON, source, translated string) jsonmap.JSON {
+	if strings.TrimSpace(source) == "" || strings.TrimSpace(translated) == "" {
+		return value
+	}
+	if value == nil {
+		value = jsonmap.JSON{}
+	}
+	value["zh-CN"] = translated
+	if _, ok := value["en-US"]; !ok {
+		value["en-US"] = source
+	}
+	return value
 }
