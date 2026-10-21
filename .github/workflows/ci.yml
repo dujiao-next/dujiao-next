@@ -166,4 +166,12 @@ jobs:
       # 只有带 fullstack tag 才会编译 embed_fullstack.go，
       # 默认构建覆盖不到，必须在这里单独验证一次完整的嵌入链路。
       - name: Build fullstack binary
-        run: go build -tags release,fullstack ./cmd/server
+        run: go build -tags release,fullstack -o dujiao-next-linux-amd64 ./cmd/server
+
+      - name: Upload linux amd64 deploy artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dujiao-next-linux-amd64-${{ github.sha }}
+          path: dujiao-next-linux-amd64
+          if-no-files-found: error
+          retention-days: 7
