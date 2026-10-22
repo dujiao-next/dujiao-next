@@ -377,7 +377,7 @@ func Load() *Config {
 	viper.SetDefault("translation.enabled", true)
 	viper.SetDefault("translation.base_url", DefaultTranslationBaseURL)
 	viper.SetDefault("translation.model", DefaultTranslationModel)
-	viper.SetDefault("translation.timeout_seconds", 30)
+	viper.SetDefault("translation.timeout_seconds", 60)
 	viper.SetDefault("translation.max_chars", 12000)
 	viper.SetDefault("upload.max_size", 10485760)
 	viper.SetDefault("upload.allowed_types", []string{

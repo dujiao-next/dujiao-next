@@ -97,7 +97,7 @@ translation:
   enabled: true
   base_url: "https://api.siliconflow.cn/v1"
   model: "Qwen/Qwen3-8B"
-  timeout_seconds: 30
+  timeout_seconds: 60
   max_chars: 12000
 
 upload:

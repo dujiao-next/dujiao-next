@@ -490,7 +490,12 @@ func (s *Service) SyncExternalProduct(mappingID uint) error {
 	if err != nil {
 		return err
 	}
-	s.translateProdSellerProduct(ctx, conn, localProduct, upProduct)
+	// Translation has its own deadline. The upstream product request uses a
+	// short read timeout, while the model may legitimately need longer to
+	// translate a long product description.
+	translationCtx, translationCancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer translationCancel()
+	s.translateProdSellerProduct(translationCtx, conn, localProduct, upProduct)
 	if localProduct != nil {
 		if _, categoryErr := s.reclassifyAutoCategoryForProduct(localProduct, upProduct.Title, upProduct.Description, upProduct.Content, upProduct.Tags); categoryErr != nil {
 			logger.Warnw("sync_external_auto_categorize_product_failed", "local_product_id", localProduct.ID, "error", categoryErr)
