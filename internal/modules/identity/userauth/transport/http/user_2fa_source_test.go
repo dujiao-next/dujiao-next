@@ -44,7 +44,7 @@ func (s sourceTest2FAAuth) ParseUserChallengeToken(string) (*UserChallengeClaims
 	}, nil
 }
 
-func (sourceTest2FAAuth) CompleteLoginAfter2FA(uint, bool) (*AuthLoginResult, error) {
+func (sourceTest2FAAuth) CompleteLoginAfter2FA(context.Context, uint, bool) (*AuthLoginResult, error) {
 	now := time.Now()
 	return &AuthLoginResult{
 		User: &userdomain.User{

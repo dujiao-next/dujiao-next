@@ -3,6 +3,7 @@ package integrationtest
 import (
 	"context"
 	"fmt"
+	userauthgormstore "github.com/dujiao-next/internal/modules/identity/userauth/infrastructure/gormstore"
 	"testing"
 	"time"
 
@@ -57,6 +58,7 @@ func TestLoginWithTelegramMiniAppCreatesUserIdentityAndToken(t *testing.T) {
 		nil,
 		telegramSvc,
 	)
+	svc.SetAuthUnitOfWork(userauthgormstore.New(db))
 
 	initData := buildUserAuthTestTelegramMiniAppInitData(t, "test-bot-token", time.Now().Unix(), `{"id":987654,"first_name":"Mini","last_name":"Buyer","username":"mini_buyer"}`)
 	res, err := svc.LoginWithTelegramMiniApp(userauthapp.LoginWithTelegramMiniAppInput{

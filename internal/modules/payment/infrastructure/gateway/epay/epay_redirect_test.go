@@ -5,6 +5,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"net/http"
 	"net/url"
 	"strings"
 	"testing"
@@ -99,25 +100,54 @@ func TestBuildRedirectURLV2(t *testing.T) {
 		t.Fatalf("BuildRedirectURL v2 failed: %v", err)
 	}
 
-	assertRedirectURLPath(t, result.PayURL, "https://gateway.example.com/api/pay/submit")
-	query := parseRedirectQuery(t, result.PayURL)
-	if got := query.Get("pid"); got != "1002" {
+	if result.PayURL != "" {
+		t.Fatalf("v2 redirect pay url = %q, want empty so the RSA sign is not on a query string", result.PayURL)
+	}
+	if result.Raw == nil {
+		t.Fatalf("v2 redirect raw payload is nil")
+	}
+	if got := rawRedirectString(t, result.Raw, "endpoint"); got != "https://gateway.example.com/api/pay/submit" {
+		t.Fatalf("endpoint = %s", got)
+	}
+	if got := rawRedirectString(t, result.Raw, "submit_method"); got != http.MethodPost {
+		t.Fatalf("submit_method = %s, want POST", got)
+	}
+	params := rawRedirectParams(t, result.Raw)
+	if sign := params["sign"]; sign != "" && strings.Contains(result.PayURL, sign) {
+		t.Fatalf("RSA sign must not be placed on a query string")
+	}
+	if got := params["pid"]; got != "1002" {
 		t.Fatalf("pid = %s, want 1002", got)
 	}
-	if got := query.Get("type"); got != constants.PaymentChannelTypeWxpay {
+	if got := params["type"]; got != constants.PaymentChannelTypeWxpay {
 		t.Fatalf("type = %s, want %s", got, constants.PaymentChannelTypeWxpay)
 	}
-	if got := query.Get("timestamp"); got == "" {
+	if got := params["out_trade_no"]; got != "DJP20002" {
+		t.Fatalf("out_trade_no = %s", got)
+	}
+	if got := params["notify_url"]; got != cfg.NotifyURL {
+		t.Fatalf("notify_url = %s", got)
+	}
+	if got := params["return_url"]; got != cfg.ReturnURL {
+		t.Fatalf("return_url = %s", got)
+	}
+	if got := params["name"]; got != "测试订单2" {
+		t.Fatalf("name = %s", got)
+	}
+	if got := params["money"]; got != "66.00" {
+		t.Fatalf("money = %s", got)
+	}
+	if got := params["timestamp"]; got == "" {
 		t.Fatalf("timestamp should not be empty")
 	}
-	if got := query.Get("sign_type"); got != epaySignTypeRSA {
+	if got := params["sign_type"]; got != epaySignTypeRSA {
 		t.Fatalf("sign_type = %s, want %s", got, epaySignTypeRSA)
 	}
-	if got := query.Get("clientip"); got != "" {
-		t.Fatalf("clientip should be empty for redirect mode, got %s", got)
+	if _, ok := params["clientip"]; ok {
+		t.Fatalf("clientip should be omitted for redirect mode")
 	}
-	if got := query.Get("method"); got != "" {
-		t.Fatalf("method should be empty for redirect mode, got %s", got)
+	if _, ok := params["method"]; ok {
+		t.Fatalf("method should be omitted for redirect mode")
 	}
 	signContent := buildSignContent(map[string]string{
 		"pid":          "1002",
@@ -127,11 +157,37 @@ func TestBuildRedirectURLV2(t *testing.T) {
 		"return_url":   cfg.ReturnURL,
 		"name":         "测试订单2",
 		"money":        "66.00",
-		"timestamp":    query.Get("timestamp"),
+		"timestamp":    params["timestamp"],
 	})
-	if err := verifyRSA(signContent, query.Get("sign"), publicKeyPEM); err != nil {
+	if err := verifyRSA(signContent, params["sign"], publicKeyPEM); err != nil {
 		t.Fatalf("verify redirect sign failed: %v", err)
 	}
+}
+
+func rawRedirectString(t *testing.T, raw map[string]interface{}, key string) string {
+	t.Helper()
+	value, ok := raw[key].(string)
+	if !ok {
+		t.Fatalf("raw[%s] = %#v, want string", key, raw[key])
+	}
+	return value
+}
+
+func rawRedirectParams(t *testing.T, raw map[string]interface{}) map[string]string {
+	t.Helper()
+	params, ok := raw["params"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("params = %#v, want map", raw["params"])
+	}
+	out := make(map[string]string, len(params))
+	for key, value := range params {
+		text, ok := value.(string)
+		if !ok {
+			t.Fatalf("param %s = %#v, want string", key, value)
+		}
+		out[key] = text
+	}
+	return out
 }
 
 func parseRedirectQuery(t *testing.T, rawURL string) url.Values {

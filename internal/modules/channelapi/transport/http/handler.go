@@ -67,6 +67,7 @@ type TelegramIdentityInput struct {
 	FirstName     string
 	LastName      string
 	AvatarURL     string
+	InviteCode    string
 }
 
 type BindTelegramIdentityInput struct {

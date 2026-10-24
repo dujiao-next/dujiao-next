@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	userauthgormstore "github.com/dujiao-next/internal/modules/identity/userauth/infrastructure/gormstore"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -111,6 +112,7 @@ func setupChannelGiftCardHandlerTest(t *testing.T) (*gorm.DB, *httptest.Server) 
 		Redeemer: giftcardredeemgormuow.New(giftCardRepo, walletSvc),
 	})
 	userAuthSvc := userauthapp.NewService(&config.Config{}, userRepo, identityRepo, emailVerifyRepo, nil, nil, nil)
+	userAuthSvc.SetAuthUnitOfWork(userauthgormstore.New(db))
 
 	handler := giftcardtransport.NewChannelHandler(giftCardSvc, giftCardChannelUserProvisioner{auth: userAuthSvc})
 

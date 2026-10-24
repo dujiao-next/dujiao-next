@@ -217,9 +217,11 @@
       </Card>
 
       <div v-if="registrationEnabled || ssoOnlyMode" class="mt-4 text-center">
-        <RouterLink to="/auth/register" class="text-sm text-muted-foreground transition-colors hover:text-foreground">{{ t('auth.login.noAccount') }}</RouterLink>
+        <RouterLink :to="registerLink" class="text-sm text-muted-foreground transition-colors hover:text-foreground">{{ t('auth.login.noAccount') }}</RouterLink>
+        <p v-if="inviteOnlyEnabled" class="mt-1 text-xs text-muted-foreground">{{ t('auth.login.inviteOnlyHint') }}</p>
       </div>
     </div>
+    <InviteCodeDialog @success="continueAfterLogin" />
   </div>
 </template>
 
@@ -231,6 +233,7 @@ import TurnstileCaptcha from '../../../components/captcha/TurnstileCaptcha.vue'
 import SSOCaptcha from '../../../components/captcha/SSOCaptcha.vue'
 import FormField from '../../../components/FormField.vue'
 import GoogleIdentityButton from '../../../components/auth/GoogleIdentityButton.vue'
+import InviteCodeDialog from '../../../components/InviteCodeDialog.vue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -247,7 +250,7 @@ const {
   error, info, formValidation,
   loginCaptchaEnabled, captchaProvider, captchaPayload, turnstileToken, turnstileSiteKey,
   imageCaptchaRef, turnstileRef, handleCaptchaConfigStale,
-  registrationEnabled, emailVerificationEnabled,
+  registrationEnabled, emailVerificationEnabled, inviteOnlyEnabled, registerLink, continueAfterLogin,
   showTelegramWidget, telegramWidgetRef, showTelegramOidc, startTelegramOidc,
   showMiniAppLoginHint, attemptingMiniAppLogin, showTelegramMiniAppEntry, openTelegramMiniAppEntry,
   googleClientID, googleButtonLocale, googleIdentityUXMode, googleRedirectLoginURI,

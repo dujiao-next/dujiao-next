@@ -24,6 +24,25 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+var importSlugPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
+
+// pickImportSlug 依次尝试 上游 slug → slug-上游ID → upstream-连接ID-上游ID-毫秒时间戳。
+func (s *Service) pickImportSlug(upstreamSlug string, connectionID, upstreamProductID uint) (string, error) {
+	upstreamSlug = strings.ToLower(strings.TrimSpace(upstreamSlug))
+	if len(upstreamSlug) <= 100 && importSlugPattern.MatchString(upstreamSlug) {
+		for _, candidate := range []string{upstreamSlug, fmt.Sprintf("%s-%d", upstreamSlug, upstreamProductID)} {
+			count, err := s.products.CountBySlug(candidate, nil)
+			if err != nil {
+				return "", err
+			}
+			if count == 0 {
+				return candidate, nil
+			}
+		}
+	}
+	return fmt.Sprintf("upstream-%d-%d-%d", connectionID, upstreamProductID, time.Now().UnixMilli()), nil
+}
+
 // ImportUpstreamProduct 从上游导入商品（克隆为本地商品 + 建立映射）
 func (s *Service) ImportUpstreamProduct(connectionID uint, upstreamProductID uint, categoryID uint, slug string) (*mappingdomain.Mapping, error) {
 	return s.importUpstreamProduct(connectionID, upstreamProductID, categoryID, slug, false, nil)
@@ -136,9 +155,12 @@ func (s *Service) importUpstreamProduct(connectionID uint, upstreamProductID uin
 		}
 	}
 
-	// 自动生成 slug（如果未提供）
+	// 未指定 slug 时优先沿用上游 slug，不可用再回退自动生成
 	if slug == "" {
-		slug = fmt.Sprintf("upstream-%d-%d-%d", connectionID, upstreamProductID, time.Now().UnixMilli())
+		slug, err = s.pickImportSlug(upProduct.Slug, connectionID, upstreamProductID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// 创建本地商品
@@ -609,4 +631,58 @@ func (s *Service) ListUpstreamCategories(connectionID uint) ([]upstream.Upstream
 	}
 
 	return result.Categories, result.Supported, nil
+}
+
+// ListUpstreamCategoryCounts 拉取上游全部商品并按分类统计数量。
+// 管理端只加载首页商品用于预览，不代表分类下商品的真实数量，所以这里遍历全部分页。
+// ctx 取自请求：管理端关闭弹窗或切换连接后，剩余分页不再继续拉取。
+func (s *Service) ListUpstreamCategoryCounts(ctx context.Context, connectionID uint) (map[uint]int, int, error) {
+	conn, err := s.connections.GetByID(connectionID)
+	if err != nil {
+		return nil, 0, err
+	}
+	if conn == nil {
+		return nil, 0, siteconnectioncontract.ErrNotFound
+	}
+
+	adapter, err := s.connections.GetAdapter(conn)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	products, err := listAllUpstreamProducts(ctx, adapter)
+	if err != nil {
+		return nil, 0, err
+	}
+	counts := make(map[uint]int)
+	for _, p := range products {
+		counts[p.CategoryID]++
+	}
+	return counts, len(products), nil
+}
+
+// maxUpstreamProductPages 全量翻页的页数上限（每页 50 条，即 5 万条商品）。
+// 上游若忽略 page 参数且 total 异常，翻页条件永远不满足，靠它兜底防止死循环。
+const maxUpstreamProductPages = 1000
+
+// listAllUpstreamProducts 逐页拉取上游全部商品。上游 page_size 上限为 50。
+func listAllUpstreamProducts(ctx context.Context, adapter upstream.Adapter) ([]upstream.UpstreamProduct, error) {
+	const pageSize = 50
+	var products []upstream.UpstreamProduct
+	for page := 1; page <= maxUpstreamProductPages; page++ {
+		pageCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		result, err := adapter.ListProducts(pageCtx, upstream.ListProductsOpts{
+			Page:     page,
+			PageSize: pageSize,
+		})
+		cancel()
+		if err != nil {
+			return nil, fmt.Errorf("fetch upstream products page %d: %w", page, err)
+		}
+		products = append(products, result.Items...)
+		if len(result.Items) < pageSize || page*pageSize >= result.Total {
+			return products, nil
+		}
+	}
+	return nil, fmt.Errorf("upstream products exceed %d pages", maxUpstreamProductPages)
 }

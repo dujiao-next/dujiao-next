@@ -147,23 +147,9 @@ var googleLoginErrorRules = []googleLoginErrorRule{
 }
 
 func (h *UserGoogleHandler) recordLogin(c *gin.Context, email string, userID uint, status, failReason string) {
-	if h == nil || h.recorder == nil || c == nil {
-		return
+	if h != nil {
+		recordLoginEvent(h.recorder, c, email, userID, status, failReason, constants.LoginLogSourceGoogle)
 	}
-	requestID := ""
-	if rid, ok := c.Get("request_id"); ok {
-		requestID, _ = rid.(string)
-	}
-	h.recorder.Record(
-		email,
-		userID,
-		status,
-		failReason,
-		constants.LoginLogSourceGoogle,
-		c.ClientIP(),
-		c.GetHeader("User-Agent"),
-		requestID,
-	)
 }
 
 func (h *UserGoogleHandler) respondGoogleLoginError(c *gin.Context, err error) {
@@ -228,6 +214,9 @@ func (h *UserGoogleHandler) UserGoogleLogin(c *gin.Context) {
 }
 
 func (h *UserGoogleHandler) respondGoogleLoginResult(c *gin.Context, result *AuthLoginResult) {
+	if respondInviteRequired(c, result) {
+		return
+	}
 	if result == nil || result.User == nil {
 		h.respondGoogleLoginError(c, errors.New("google login returned an empty result"))
 		return

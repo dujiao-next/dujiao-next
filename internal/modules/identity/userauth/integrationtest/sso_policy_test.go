@@ -123,10 +123,10 @@ func TestUnifiedPolicyCoreAndOldChallenges(t *testing.T) {
 	checks := []func() error{
 		func() error { _, err := svc.LoginStep1("buyer@example.com", "password", false); return err },
 		func() error {
-			_, _, _, err := svc.Register("buyer@example.com", "password", "code", true, true)
+			_, _, _, err := svc.Register("buyer@example.com", "password", "code", "", true, true)
 			return err
 		},
-		func() error { return svc.SendVerifyCode(context.Background(), "buyer@example.com", "reset", "en-US") },
+		func() error { return svc.SendVerifyCode(context.Background(), "buyer@example.com", "reset", "en-US", "") },
 		func() error { return svc.ResetPassword("buyer@example.com", "code", "password") },
 		func() error { return svc.ChangePassword(1, "old", "new") },
 		func() error {

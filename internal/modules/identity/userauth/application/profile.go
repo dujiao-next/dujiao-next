@@ -129,6 +129,9 @@ func (s *Service) UpdateProfile(userID uint, nickname, locale *string) (*userdom
 	if nickname != nil {
 		trimmed := strings.TrimSpace(*nickname)
 		if trimmed != "" {
+			if !userdomain.ValidDisplayName(trimmed) {
+				return nil, ErrNicknameInvalid
+			}
 			user.DisplayName = trimmed
 			fields["display_name"] = trimmed
 			updated = true

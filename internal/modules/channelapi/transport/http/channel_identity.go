@@ -18,6 +18,7 @@ type telegramIdentityRequest struct {
 	LastName       string `json:"last_name"`
 	AvatarURL      string `json:"avatar_url"`
 	Locale         string `json:"locale"`
+	InviteCode     string `json:"invite_code"`
 }
 
 type telegramBindRequest struct {
@@ -73,6 +74,7 @@ func (h *Handler) ProvisionTelegramIdentity(c *gin.Context) {
 		respondChannelError(c, 400, 400, "validation_error", "error.bad_request", nil)
 		return
 	}
+	input.InviteCode = strings.TrimSpace(req.InviteCode)
 
 	user, identity, created, err := h.UserAuthService.ProvisionTelegramChannelIdentity(input)
 	if err != nil {

@@ -25,6 +25,7 @@ type BotNotification struct {
 type Queue interface {
 	ordercontract.Queue
 	EnqueueOrderAutoFulfill(orderID uint) error
+	EnqueueAffiliateOrderPaid(orderID uint) error
 	EnqueueBotNotification(input BotNotification) error
 	EnqueueWalletRechargeExpire(paymentID uint, delay time.Duration) error
 }

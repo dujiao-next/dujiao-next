@@ -13,6 +13,7 @@ import (
 	userstore "github.com/dujiao-next/internal/modules/identity/user/infrastructure/gormstore"
 	userauthapp "github.com/dujiao-next/internal/modules/identity/userauth/application"
 	"github.com/dujiao-next/internal/modules/identity/userauth/challenge"
+	resellercontract "github.com/dujiao-next/internal/modules/reseller/contract"
 
 	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
 
@@ -171,5 +172,50 @@ func TestUserJWTMiddlewareRejectsCustomTypValue(t *testing.T) {
 	got := runUserMiddleware(t, repo, signToken(t, claims))
 	if got != 401 {
 		t.Fatalf("expected 401 for unknown typ, got %d", got)
+	}
+}
+
+// 令牌只在签发时所在的站点有效：分销站签发的令牌不能拿到主站或其他分销站用，反之亦然。
+func TestUserJWTMiddlewareBindsTokenToTenant(t *testing.T) {
+	repo, user := setupUserMiddlewareTestRepo(t)
+	gin.SetMode(gin.TestMode)
+	run := func(tokenRID uint, tenantRID *uint) int {
+		claims := userauthapp.UserJWTClaims{
+			UserID: user.ID, Email: user.Email, TokenVersion: user.TokenVersion,
+			Typ: jwttoken.TypeAccess, ResellerID: tokenRID,
+			RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour))},
+		}
+		r := gin.New()
+		r.Use(func(c *gin.Context) {
+			if tenantRID != nil {
+				ctx := resellercontract.WithTenantContext(c.Request.Context(), resellercontract.TenantContext{ResellerID: tenantRID})
+				c.Request = c.Request.WithContext(ctx)
+			}
+		}, UserJWTAuthMiddleware(middlewareTestSecret, repo))
+		r.GET("/me/ping", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"ok": true}) })
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/me/ping", nil)
+		req.Header.Set("Authorization", "Bearer "+signToken(t, claims))
+		r.ServeHTTP(w, req)
+		var resp map[string]any
+		_ = json.Unmarshal(w.Body.Bytes(), &resp)
+		if ok, _ := resp["ok"].(bool); ok {
+			return 200
+		}
+		return 401
+	}
+	reseller := uint(7)
+	other := uint(8)
+	if got := run(7, nil); got != 401 {
+		t.Fatalf("reseller token on main site must be rejected, got %d", got)
+	}
+	if got := run(7, &other); got != 401 {
+		t.Fatalf("reseller token on another reseller site must be rejected, got %d", got)
+	}
+	if got := run(0, &reseller); got != 401 {
+		t.Fatalf("main token on reseller site must be rejected, got %d", got)
+	}
+	if got := run(7, &reseller); got != 200 {
+		t.Fatalf("reseller token on its own site must pass, got %d", got)
 	}
 }

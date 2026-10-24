@@ -62,14 +62,15 @@ func (s *Store) Create(order *procurementdomain.Order) error {
 	return s.db.Omit(clause.Associations).Create(order).Error
 }
 
-func (s *Store) UpdateStatus(id uint, status string, updates map[string]interface{}) error {
+func (s *Store) UpdateStatus(id uint, fromStatus, toStatus string, updates map[string]interface{}) (bool, error) {
 	if updates == nil {
 		updates = map[string]interface{}{}
 	}
-	updates["status"] = status
-	return s.db.Model(&procurementdomain.Order{}).
-		Where("id = ? AND deleted_at IS NULL", id).
-		Updates(updates).Error
+	updates["status"] = toStatus
+	result := s.db.Model(&procurementdomain.Order{}).
+		Where("id = ? AND deleted_at IS NULL AND status = ?", id, fromStatus).
+		Updates(updates)
+	return result.RowsAffected == 1, result.Error
 }
 
 func (s *Store) List(filter procurementcontract.ListFilter) ([]procurementdomain.Order, int64, error) {

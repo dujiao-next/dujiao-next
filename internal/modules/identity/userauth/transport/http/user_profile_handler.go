@@ -17,6 +17,7 @@ import (
 
 var (
 	ErrProfileEmpty        = errors.New("user profile empty")
+	ErrNicknameInvalid     = errors.New("user nickname invalid")
 	ErrUserNotFound        = errors.New("user not found")
 	ErrUnifiedAuthRequired = errors.New("unified authentication required")
 )
@@ -126,6 +127,8 @@ func (h *UserProfileHandler) UpdateUserProfile(c *gin.Context) {
 			response.ErrorWithHTTPStatus(c, response.CodeForbidden, response.CodeForbidden, i18n.T(i18n.ResolveLocale(c), "error.unified_auth_required"))
 		case errors.Is(err, ErrProfileEmpty):
 			ginutil.RespondError(c, response.CodeBadRequest, "error.profile_empty", nil)
+		case errors.Is(err, ErrNicknameInvalid):
+			ginutil.RespondError(c, response.CodeBadRequest, "error.nickname_invalid", nil)
 		case errors.Is(err, ErrUserNotFound):
 			ginutil.RespondError(c, response.CodeNotFound, "error.user_not_found", nil)
 		default:

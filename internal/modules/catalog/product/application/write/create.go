@@ -142,7 +142,7 @@ func (s *WriteService) Create(input CreateProductInput) (*productdomain.Product,
 			if err := s.applyProductSKUsWithStockGuard(skuRepo, cardSecretRepo, product.ID, fulfillmentType, normalizedSKUs); err != nil {
 				return err
 			}
-		} else if err := s.syncSingleProductSKU(skuRepo, product.ID, priceAmount, costPriceAmount, manualStockTotal, true); err != nil {
+		} else if err := s.syncSingleProductSKU(skuRepo, cardSecretRepo, product.ID, fulfillmentType, priceAmount, costPriceAmount, &manualStockTotal); err != nil {
 			return err
 		}
 		if input.WholesalePrices != nil {

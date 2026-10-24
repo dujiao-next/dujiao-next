@@ -13,10 +13,14 @@ import (
 	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
 
 	"github.com/dujiao-next/internal/constants"
+	userauthapp "github.com/dujiao-next/internal/modules/identity/userauth/application"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/money"
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 )
 
 func TestBuildChannelIdentityResponse(t *testing.T) {
@@ -492,5 +496,64 @@ func TestBuildChannelPaymentResponse_USDTQRExposesWalletFields(t *testing.T) {
 	}
 	if got := resp["interaction_mode"]; got != constants.PaymentInteractionQR {
 		t.Fatalf("interaction_mode: got %v want qr", got)
+	}
+}
+
+// inviteIdentityService 模拟邀请注册模式：只有 GOOD 能开号。
+type inviteIdentityService struct {
+	IdentityService
+	gotCode string
+}
+
+func (s *inviteIdentityService) ProvisionTelegramChannelIdentity(input TelegramIdentityInput) (*userdomain.User, *externalidentitydomain.Identity, bool, error) {
+	s.gotCode = input.InviteCode
+	switch input.InviteCode {
+	case "":
+		return nil, nil, false, userauthapp.ErrInviteCodeRequired
+	case "GOOD":
+		return &userdomain.User{ID: 1}, nil, true, nil
+	default:
+		return nil, nil, false, userauthapp.ErrInviteCodeInvalid
+	}
+}
+
+// Telegram Bot 依赖这些 error_code 字符串判断是否提示输入邀请码，改动即为对 Bot 的破坏性变更。
+func TestProvisionTelegramIdentityInviteErrorCodes(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cases := []struct {
+		inviteCode string
+		wantStatus int
+		wantCode   string
+	}{
+		{"", http.StatusForbidden, "invite_code_required"},
+		{"BAD", http.StatusBadRequest, "invite_code_invalid"},
+		{"GOOD", http.StatusOK, ""},
+	}
+	for _, tc := range cases {
+		service := &inviteIdentityService{}
+		handler := &Handler{Dependencies{UserAuthService: service}}
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		body := `{"channel_user_id":"1001","invite_code":"` + tc.inviteCode + `"}`
+		c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/channel/identities/telegram/provision", strings.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		handler.ProvisionTelegramIdentity(c)
+
+		var resp struct {
+			ErrorCode string `json:"error_code"`
+		}
+		_ = json.Unmarshal(recorder.Body.Bytes(), &resp)
+		if recorder.Code != tc.wantStatus || resp.ErrorCode != tc.wantCode || service.gotCode != tc.inviteCode {
+			t.Fatalf("invite_code=%q: status=%d error_code=%q passed=%q body=%s", tc.inviteCode, recorder.Code, resp.ErrorCode, service.gotCode, recorder.Body.String())
+		}
+	}
+	// 注册关闭也要给出可识别的错误码，而不是 internal_error。
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/channel/orders", nil)
+	respondChannelIdentityServiceError(c, userauthapp.ErrRegistrationDisabled)
+	if recorder.Code != http.StatusForbidden || !strings.Contains(recorder.Body.String(), `"error_code":"registration_disabled"`) {
+		t.Fatalf("registration disabled: status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 }

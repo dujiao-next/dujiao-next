@@ -196,6 +196,12 @@ func (s *PaymentService) CreatePayment(input CreatePaymentInput) (*CreatePayment
 			if err := s.markOrderPaid(tx, &lockedOrder, paidAt); err != nil {
 				return err
 			}
+			// 与在线支付回调一致：分销利润与支付在同一事务入账
+			if s.resellerAccounting != nil {
+				if err := s.resellerAccounting.PostOrderProfit(tx.ResellerAccounting(), &lockedOrder, payment); err != nil {
+					return err
+				}
+			}
 			orderPaidByWallet = true
 			order = &lockedOrder
 			return nil

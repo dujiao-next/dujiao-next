@@ -73,6 +73,9 @@ func (s *Service) UpdateWithEffects(key string, value map[string]interface{}) (U
 		return UpdateResult{}, nil
 	}
 	normalized := s.registry.Normalize(key, jsonmap.JSON(value))
+	if err := s.registry.Validate(key, normalized); err != nil {
+		return UpdateResult{}, err
+	}
 
 	stored, err := s.repo.Upsert(key, normalized)
 	if err != nil {

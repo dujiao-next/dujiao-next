@@ -161,7 +161,7 @@ func setupWholesaleOrderFixture(t *testing.T, name string, wholesalePrices produ
 		PromotionRepo:      promotiongormstore.New(db),
 		CouponStore:        coupongormstore.New(db),
 		CouponUsageStore:   coupongormstore.NewUsageStore(db),
-		MemberLevelService: memberlevelapp.NewService(levelRepo, priceRepo, userRepo),
+		MemberLevelService: memberlevelapp.NewService(levelRepo, priceRepo, memberlevelgormstore.NewUserStore(db)),
 		ExpireMinutes:      15,
 	})
 
@@ -669,5 +669,47 @@ func TestBuildOrderResultSKUWholesaleDoesNotFallbackToUniversalTier(t *testing.T
 	}
 	if item := bySKU[skuB.ID]; item.UnitPrice.String() != "80.00" || item.WholesaleDiscount.String() != "120.00" {
 		t.Fatalf("expected skuB to use universal tier: unit=%s wholesale=%s", item.UnitPrice.String(), item.WholesaleDiscount.String())
+	}
+}
+
+type syncingStockEnsurer func()
+
+func (f syncingStockEnsurer) EnsureUpstreamStockForOrder(uint, int) error {
+	f()
+	return nil
+}
+
+// 下单前的上游库存检查可能实时同步并恢复交付表单，校验必须使用同步后的 schema。
+func TestBuildOrderResultValidatesManualFormRestoredByUpstreamSync(t *testing.T) {
+	fixture := setupWholesaleOrderFixture(t, "upstream_form_resync", nil, nil, nil)
+	fixture.product.FulfillmentType = constants.FulfillmentTypeUpstream
+	fixture.product.ManualFormSchemaJSON = jsonmap.JSON{}
+	if err := fixture.db.Save(&fixture.product).Error; err != nil {
+		t.Fatalf("save product failed: %v", err)
+	}
+	schema := jsonmap.JSON{"fields": []interface{}{map[string]interface{}{
+		"key": "x_handle", "type": "text", "required": true,
+	}}}
+	fixture.svc.SetProductMappingService(syncingStockEnsurer(func() {
+		if err := fixture.db.Model(&productdomain.Product{ID: fixture.product.ID}).Update("ManualFormSchemaJSON", schema).Error; err != nil {
+			t.Fatalf("simulate sync failed: %v", err)
+		}
+	}))
+
+	if _, err := fixture.svc.buildOrderResult(orderCreateParams{
+		Items: []CreateOrderItem{{ProductID: fixture.product.ID, SKUID: fixture.sku.ID, Quantity: 1}},
+	}); err == nil {
+		t.Fatal("expected empty manual form to be rejected after sync restored a required schema")
+	}
+
+	result, err := fixture.svc.buildOrderResult(orderCreateParams{
+		Items:          []CreateOrderItem{{ProductID: fixture.product.ID, SKUID: fixture.sku.ID, Quantity: 1}},
+		ManualFormData: map[string]jsonmap.JSON{fmt.Sprintf("%d", fixture.product.ID): {"x_handle": "fixture_user"}},
+	})
+	if err != nil {
+		t.Fatalf("buildOrderResult failed: %v", err)
+	}
+	if got := result.Plans[0].Item.ManualFormSubmissionJSON["x_handle"]; got != "fixture_user" {
+		t.Fatalf("expected submission snapshot, got %#v", result.Plans[0].Item.ManualFormSubmissionJSON)
 	}
 }

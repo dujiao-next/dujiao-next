@@ -1,6 +1,7 @@
 package gormstore
 
 import (
+	"github.com/dujiao-next/internal/persistence/gormutil"
 	"time"
 
 	couponcontract "github.com/dujiao-next/internal/modules/coupon/contract"
@@ -60,7 +61,7 @@ func (r *UsageStore) ListByUser(filter couponcontract.UsageListFilter) ([]coupon
 		return nil, 0, err
 	}
 
-	query = applyPagination(query, filter.Page, filter.PageSize)
+	query = gormutil.ApplyPagination(query, filter.Page, filter.PageSize)
 
 	var usages []coupondomain.CouponUsage
 	if err := query.Order("id desc").Find(&usages).Error; err != nil {

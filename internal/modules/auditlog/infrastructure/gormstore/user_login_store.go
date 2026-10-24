@@ -3,6 +3,7 @@ package gormstore
 import (
 	"github.com/dujiao-next/internal/modules/auditlog/contract"
 	"github.com/dujiao-next/internal/modules/auditlog/domain"
+	"github.com/dujiao-next/internal/persistence/gormutil"
 
 	"gorm.io/gorm"
 )
@@ -53,7 +54,7 @@ func (r *UserLoginStore) ListAdmin(filter contract.UserLoginFilter) ([]domain.Us
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	query = applyPagination(query, filter.Page, filter.PageSize)
+	query = gormutil.ApplyPagination(query, filter.Page, filter.PageSize)
 
 	logs := make([]domain.UserLoginLog, 0)
 	if err := query.Order("id desc").Find(&logs).Error; err != nil {

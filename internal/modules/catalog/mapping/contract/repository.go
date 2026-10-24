@@ -47,6 +47,7 @@ type ProductRepository interface {
 	GetByID(id string) (*productdomain.Product, error)
 	Update(item *productdomain.Product) error
 	QuickUpdate(id string, fields map[string]interface{}) error
+	CountBySlug(slug string, excludeID *string) (int64, error)
 }
 
 // SKURepository 是映射上下文所需的最小本地 SKU 端口。

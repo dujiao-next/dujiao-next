@@ -23,6 +23,7 @@
             v-model="profileForm.nickname"
             :disabled="!localIdentityEditable"
             :placeholder="t('personalCenter.profile.nicknamePlaceholder')"
+            maxlength="32"
             class="h-11"
           />
         </div>

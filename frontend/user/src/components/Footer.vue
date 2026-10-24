@@ -70,6 +70,17 @@
               </svg>
               <span>WhatsApp</span>
             </a>
+            <a v-if="config?.contact?.email" :href="`mailto:${config.contact.email}`"
+              class="flex items-center space-x-3 text-sm hover:text-gray-900 dark:hover:text-white transition-colors p-3 rounded-lg bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 border border-gray-100 dark:border-white/5 hover:border-gray-200 dark:hover:border-white/10">
+              <Mail class="w-5 h-5 text-amber-400" />
+              <span>{{ t('footer.email') }}</span>
+            </a>
+            <a v-if="config?.contact?.support_url" :href="config.contact.support_url"
+              :target="config.contact.support_url.startsWith('https://') ? '_blank' : undefined" rel="noopener noreferrer"
+              class="flex items-center space-x-3 text-sm hover:text-gray-900 dark:hover:text-white transition-colors p-3 rounded-lg bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 border border-gray-100 dark:border-white/5 hover:border-gray-200 dark:hover:border-white/10">
+              <Headphones class="w-5 h-5 text-violet-400" />
+              <span>{{ t('footer.supportUrl') }}</span>
+            </a>
           </div>
         </div>
       </div>
@@ -118,7 +129,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Home, LayoutGrid, Newspaper, Info } from 'lucide-vue-next'
+import { Home, LayoutGrid, Newspaper, Info, Mail, Headphones } from 'lucide-vue-next'
 import { useAppStore } from '../stores/app'
 import { getImageUrl } from '../utils/image'
 import { getLocalizedText } from '../utils/resellerSiteConfig'

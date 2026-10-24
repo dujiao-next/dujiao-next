@@ -68,3 +68,11 @@ func RegisterWebhookRoutes(api gin.IRoutes, handler *WebhookHandler) {
 	api.POST("/payments/webhook/paypal", handler.PaypalWebhook)
 	api.POST("/payments/webhook/stripe", handler.StripeWebhook)
 }
+
+// RegisterEpayRedirectRoute 注册易支付 v2 跳转表单。挂在回调限流组上，不要求用户登录。
+func RegisterEpayRedirectRoute(api gin.IRoutes, handler *EpayRedirectHandler) {
+	if api == nil || handler == nil {
+		panic("epay redirect route: required dependency is nil")
+	}
+	api.GET("/payments/epay-redirect", handler.EpayRedirect)
+}

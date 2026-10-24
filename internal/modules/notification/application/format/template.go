@@ -63,10 +63,6 @@ func ComposePlainTextMessage(title, body string) string {
 	return title + "\n\n" + body
 }
 
-func ComposeTelegramMessage(title, body string) string {
-	return ComposePlainTextMessage(title, body)
-}
-
 func JSONToMap(data jsonmap.JSON) map[string]interface{} {
 	if data == nil {
 		return map[string]interface{}{}

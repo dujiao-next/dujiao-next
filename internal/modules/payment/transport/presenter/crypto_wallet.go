@@ -72,12 +72,6 @@ func ExtractCryptoWalletInfo(providerType, interactionMode string, payload jsonm
 	}
 }
 
-// ExtractUSDTWalletInfo 从 Payment.ProviderPayload 中提取 USDT 收款钱包地址和链上实付金额。
-func ExtractUSDTWalletInfo(providerType, interactionMode string, payload jsonmap.JSON) (address, chainAmount string) {
-	info := ExtractCryptoWalletInfo(providerType, interactionMode, payload)
-	return info.Address, info.ChainAmount
-}
-
 func firstPayloadString(values ...string) string {
 	for _, value := range values {
 		if value != "" {

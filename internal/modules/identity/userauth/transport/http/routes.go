@@ -20,20 +20,28 @@ func RegisterUserEmailRoutes(user gin.IRoutes, handler *UserEmailHandler) {
 	user.POST("/me/email/change", handler.ChangeEmail)
 }
 
-// RegisterUserVerifyAuthRoutes 注册公开的发送邮箱验证码端点。
-func RegisterUserVerifyAuthRoutes(auth gin.IRoutes, handler *UserVerifyHandler) {
-	if auth == nil || handler == nil {
+// RegisterUserVerifyAuthRoutes 注册公开的发送邮箱验证码端点（需附带限流中间件）。
+func RegisterUserVerifyAuthRoutes(auth gin.IRoutes, handler *UserVerifyHandler, rateLimit gin.HandlerFunc) {
+	if auth == nil || handler == nil || rateLimit == nil {
 		panic("user verify auth routes: required dependency is nil")
 	}
-	auth.POST("/send-verify-code", handler.SendUserVerifyCode)
+	auth.POST("/send-verify-code", rateLimit, handler.SendUserVerifyCode)
 }
 
-// RegisterUserRegisterAuthRoutes 注册公开的用户注册端点。
-func RegisterUserRegisterAuthRoutes(auth gin.IRoutes, handler *UserLoginHandler) {
-	if auth == nil || handler == nil {
+// RegisterUserRegisterAuthRoutes 注册公开的用户注册端点（需附带限流中间件）。
+func RegisterUserRegisterAuthRoutes(auth gin.IRoutes, handler *UserLoginHandler, rateLimit gin.HandlerFunc) {
+	if auth == nil || handler == nil || rateLimit == nil {
 		panic("user register auth routes: required dependency is nil")
 	}
-	auth.POST("/register", handler.UserRegister)
+	auth.POST("/register", rateLimit, handler.UserRegister)
+}
+
+// RegisterUserInviteAuthRoutes 注册第三方登录新用户补填邀请码端点（需附带限流中间件）。
+func RegisterUserInviteAuthRoutes(auth gin.IRoutes, handler *UserInviteHandler, rateLimit gin.HandlerFunc) {
+	if auth == nil || handler == nil || rateLimit == nil {
+		panic("user invite auth routes: required dependency is nil")
+	}
+	auth.POST("/invite/complete", rateLimit, handler.CompleteInviteRegistration)
 }
 
 // RegisterUserLoginAuthRoutes 注册公开的用户登录端点（需附带限流中间件）。
@@ -64,12 +72,12 @@ func RegisterUser2FARoutes(user gin.IRoutes, handler *User2FAHandler) {
 	user.POST("/me/2fa/recovery-codes/regenerate", handler.RegenerateUser2FARecoveryCodes)
 }
 
-// RegisterUserPasswordAuthRoutes 注册公开的忘记密码端点。
-func RegisterUserPasswordAuthRoutes(auth gin.IRoutes, handler *UserPasswordHandler) {
-	if auth == nil || handler == nil {
+// RegisterUserPasswordAuthRoutes 注册公开的忘记密码端点（需附带限流中间件）。
+func RegisterUserPasswordAuthRoutes(auth gin.IRoutes, handler *UserPasswordHandler, rateLimit gin.HandlerFunc) {
+	if auth == nil || handler == nil || rateLimit == nil {
 		panic("user password auth routes: required dependency is nil")
 	}
-	auth.POST("/forgot-password", handler.UserForgotPassword)
+	auth.POST("/forgot-password", rateLimit, handler.UserForgotPassword)
 }
 
 // RegisterUserPasswordRoutes 注册登录态改密端点。

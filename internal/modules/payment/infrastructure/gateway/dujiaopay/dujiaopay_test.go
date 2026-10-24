@@ -189,9 +189,6 @@ func TestResolveChainSupportsBSCUSDC(t *testing.T) {
 	if got := ResolveChain("bsc-usdc"); got != "bsc" {
 		t.Fatalf("ResolveChain(bsc-usdc) = %q, want bsc", got)
 	}
-	if !IsSupportedTokenID("BSC-USDC") {
-		t.Fatalf("IsSupportedTokenID should accept bsc-usdc case-insensitively")
-	}
 }
 
 // ResolveChain 对未收录的 token_id 按最后一个连字符切分，使 DujiaoPay 新增链或代币时

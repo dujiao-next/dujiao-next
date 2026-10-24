@@ -19,6 +19,7 @@ import (
 	admindomain "github.com/dujiao-next/internal/modules/identity/admin/domain"
 	emailverificationdomain "github.com/dujiao-next/internal/modules/identity/emailverification/domain"
 	externalidentitydomain "github.com/dujiao-next/internal/modules/identity/externalidentity/domain"
+	invitecodedomain "github.com/dujiao-next/internal/modules/identity/invitecode/domain"
 	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
 	memberleveldomain "github.com/dujiao-next/internal/modules/memberlevel/domain"
 	notificationdomain "github.com/dujiao-next/internal/modules/notification/domain"
@@ -46,6 +47,7 @@ func AutoMigrate() error {
 		&admindomain.Admin{},
 		&userdomain.User{},
 		&externalidentitydomain.Identity{},
+		&invitecodedomain.InviteCode{},
 		&affiliatedomain.Profile{},
 		&affiliatedomain.Click{},
 		&affiliatedomain.Commission{},

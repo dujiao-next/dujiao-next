@@ -425,7 +425,10 @@ func buildRedirectV2(cfg *Config, input CreateInput, payType string) (*CreateRes
 	params["sign"] = sign
 	params["sign_type"] = cfg.SignType
 	endpoint := buildEndpoint(cfg.GatewayURL, epaySubmitPathV2)
-	return buildRedirectResult(endpoint, payType, params), nil
+	// v2 的 RSA sign 含 + / =，放进网关 query 会被伪静态重写破坏。只把已签名字段交给 POST 表单。
+	result := newRedirectResult(endpoint, payType, params)
+	result.Raw["submit_method"] = http.MethodPost
+	return result, nil
 }
 
 func resolvePayType(channelType string) string {
@@ -471,12 +474,17 @@ func buildRedirectResult(endpoint, payType string, params map[string]string) *Cr
 	if encoded != "" {
 		redirectURL += "?" + encoded
 	}
+	result := newRedirectResult(endpoint, payType, params)
+	result.PayURL = redirectURL
+	return result
+}
+
+func newRedirectResult(endpoint, payType string, params map[string]string) *CreateResult {
 	rawParams := make(map[string]interface{}, len(params))
 	for key, value := range params {
 		rawParams[key] = value
 	}
 	return &CreateResult{
-		PayURL:  redirectURL,
 		PayType: payType,
 		Raw: map[string]interface{}{
 			"mode":     constants.PaymentInteractionRedirect,

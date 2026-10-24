@@ -66,12 +66,7 @@ func NewLatestHandler(guestOrders GuestOrderLookup, userOrders UserOrderLookup, 
 }
 
 func tenantFromRequest(c *gin.Context) reseller.TenantContext {
-	if c != nil && c.Request != nil {
-		if tenant, ok := reseller.TenantFromContext(c.Request.Context()); ok {
-			return tenant
-		}
-	}
-	return reseller.MainTenantContext("")
+	return reseller.TenantOrMain(c.Request.Context())
 }
 
 // GetGuestLatestPayment 获取游客最新待支付记录

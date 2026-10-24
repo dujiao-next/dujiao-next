@@ -40,13 +40,6 @@ func New(db *gorm.DB, guestCredentialSecret string) *Store {
 	return &Store{db: db, guestCredentialSecret: []byte(secret)}
 }
 
-func (r *Store) bind(tx *gorm.DB) *Store {
-	if tx == nil {
-		return r
-	}
-	return &Store{db: tx, guestCredentialSecret: r.guestCredentialSecret}
-}
-
 func (r *Store) withChildren(query *gorm.DB) *gorm.DB {
 	return query.
 		Where("orders.deleted_at IS NULL").

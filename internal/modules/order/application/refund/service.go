@@ -311,9 +311,12 @@ func (s *Service) AdminManualRefund(input AdminManualRefundInput) (*orderdomain.
 		if amount.GreaterThan(refundable) {
 			return walletcontract.ErrRefundExceeded
 		}
+		now := time.Now()
+		if err := reserveParentRefund(orders, &order, amount, now); err != nil {
+			return err
+		}
 
 		newRefunded := refundedBefore.Add(amount).Round(2)
-		now := time.Now()
 		updates := map[string]interface{}{
 			"refunded_amount": money.FromDecimal(newRefunded),
 			"updated_at":      now,

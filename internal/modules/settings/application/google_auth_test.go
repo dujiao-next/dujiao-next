@@ -23,10 +23,6 @@ func TestGoogleAuthSettingNormalizeValidateAndPublicConfig(t *testing.T) {
 	if err := settingssecurity.ValidateGoogleAuthSetting(settingssecurity.GoogleAuthSetting{Enabled: true}); !errors.Is(err, settingssecurity.ErrGoogleAuthConfigInvalid) {
 		t.Fatalf("missing client id error = %v", err)
 	}
-	public := settingssecurity.PublicGoogleAuthSetting(setting)
-	if public["enabled"] != true || public["client_id"] != "client.apps.googleusercontent.com" {
-		t.Fatalf("unexpected public config: %#v", public)
-	}
 }
 
 func TestPatchGoogleAuthSettingPersistsNormalizedValue(t *testing.T) {

@@ -18,16 +18,18 @@
         </Button>
       </div>
     </Card>
+    <InviteCodeDialog @success="continueAfterLogin" @cancel="cancelInvite" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
+import InviteCodeDialog from '../../../components/InviteCodeDialog.vue'
 import { AlertCircle } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useGoogleRedirectCallback } from '../../../composables/useGoogleRedirectCallback'
 
 const { t } = useI18n()
-const { loading, errMsg, retryPath } = useGoogleRedirectCallback()
+const { loading, errMsg, retryPath, continueAfterLogin, cancelInvite } = useGoogleRedirectCallback()
 </script>

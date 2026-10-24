@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	userauthgormstore "github.com/dujiao-next/internal/modules/identity/userauth/infrastructure/gormstore"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -130,6 +131,7 @@ func setupChannelAffiliateHandlerTest(t *testing.T) (*gorm.DB, *httptest.Server)
 
 	affiliateSvc := affiliateapp.NewService(affiliateRepo, userRepo, channelAffiliateOrderReader{db: db}, nil, settingSvc)
 	userAuthSvc := userauthapp.NewService(&config.Config{}, userRepo, identityRepo, emailVerifyRepo, nil, nil, nil)
+	userAuthSvc.SetAuthUnitOfWork(userauthgormstore.New(db))
 	handler := affiliatetransport.NewChannelHandler(
 		affiliateSvc,
 		channelAffiliateUserAdapter{auth: userAuthSvc},

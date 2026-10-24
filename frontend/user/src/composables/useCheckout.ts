@@ -364,9 +364,7 @@ export function useCheckout() {
   const manualFormProducts = computed<ManualFormProduct[]>(() => {
     const grouped = new Map<number, ManualFormProduct>()
     cartItems.value.forEach((item) => {
-      if (item.fulfillmentType !== 'manual' && item.fulfillmentType !== 'upstream') {
-        return
-      }
+      // 按 schema 而非交付类型判断：对接商品对外展示为 auto 时也可能需要交付资料
       const fields = normalizeManualFormSchema(item.manualFormSchema)
       if (fields.length === 0) {
         return

@@ -434,7 +434,7 @@ watch(
                     <SelectItem value="partially_refunded">{{ t('order.status.partially_refunded') }}</SelectItem>
                     <SelectItem value="delivered">{{ t('order.status.delivered') }}</SelectItem>
                     <SelectItem value="completed">{{ t('order.status.completed') }}</SelectItem>
-                    <SelectItem value="canceled">{{ t('order.status.canceled') }}</SelectItem>
+                    <SelectItem v-if="order.status === 'pending_payment'" value="canceled">{{ t('order.status.canceled') }}</SelectItem>
                     <SelectItem value="refunded">{{ t('order.status.refunded') }}</SelectItem>
                   </SelectContent>
                 </Select>

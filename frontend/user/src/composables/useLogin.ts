@@ -106,6 +106,12 @@ export function useLogin() {
     : ''
   const googleRedirectAvailable = googleIdentityUXMode === 'popup' || googleRedirectLoginURI !== ''
   const registrationEnabled = computed(() => ssoOnlyMode.value || appStore.config?.registration_enabled !== false)
+  const inviteOnlyEnabled = computed(() => appStore.config?.invite_only_enabled === true)
+  // 透传 ?invite=，方便站长分发的邀请链接在登录/注册间切换时不丢失
+  const registerLink = computed(() => ({
+    path: '/auth/register',
+    query: typeof route.query.invite === 'string' ? { invite: route.query.invite } : {},
+  }))
   const emailVerificationEnabled = computed(() => appStore.config?.email_verification_enabled !== false)
   const isTelegramUrlEnv = isTelegramUrlEnvironment()
   const isTelegramMiniApp = computed(() => (telegramMiniAppStore.isMiniApp && telegramMiniAppStore.isReady) || isTelegramUrlEnv)
@@ -331,6 +337,16 @@ export function useLogin() {
     startChallengeCountdown()
   }
 
+  // 第三方登录 / 邀请码补填后的统一后续：需邀请码时由 InviteCodeDialog 接管（store.inviteTicket 已置位）
+  const continueAfterLogin = async (result: { requiresTotp: boolean; inviteRequired?: boolean }) => {
+    if (result.inviteRequired) return
+    if (result.requiresTotp) {
+      enter2FAStep()
+      return
+    }
+    await redirectAfterLogin()
+  }
+
   const handleTelegramAuth = async (raw: any) => {
     error.value = ''
     const payload = buildTelegramPayload(raw)
@@ -340,11 +356,7 @@ export function useLogin() {
     }
     try {
       const result = await userAuthStore.telegramLogin(payload)
-      if (result && result.requiresTotp) {
-        enter2FAStep()
-        return
-      }
-      await redirectAfterLogin()
+      await continueAfterLogin(result)
     } catch (err: any) {
       error.value = err.message || t('auth.login.telegramLoginFailed')
     }
@@ -361,11 +373,7 @@ export function useLogin() {
 
     try {
       const result = await userAuthStore.googleLogin(normalizedCredential)
-      if (result?.requiresTotp) {
-        enter2FAStep()
-        return
-      }
-      await redirectAfterLogin()
+      await continueAfterLogin(result)
     } catch (err: any) {
       error.value = err?.message || t('auth.login.googleLoginFailed')
     }
@@ -400,12 +408,9 @@ export function useLogin() {
     error.value = ''
 
     try {
+      // 邀请制新用户：同一 initData 不能重放，只能走 InviteCodeDialog 的票据流程
       const result = await userAuthStore.telegramMiniAppLogin(miniAppInitData.value)
-      if (result && result.requiresTotp) {
-        enter2FAStep()
-        return
-      }
-      await redirectAfterLogin()
+      await continueAfterLogin(result)
     } catch (err: any) {
       error.value = err.message || t('auth.login.telegramLoginFailed')
     } finally {
@@ -572,6 +577,9 @@ export function useLogin() {
     // flags
     registrationEnabled,
     emailVerificationEnabled,
+    inviteOnlyEnabled,
+    registerLink,
+    continueAfterLogin,
     // telegram
     showTelegramWidget,
     telegramWidgetRef,

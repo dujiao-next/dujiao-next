@@ -19,6 +19,8 @@ type TelegramChannelIdentityInput struct {
 	FirstName     string
 	LastName      string
 	AvatarURL     string
+	// InviteCode 邀请注册模式下 Bot 新用户建号所需的邀请码。
+	InviteCode string
 }
 
 // BindTelegramChannelByEmailCodeInput Telegram 渠道邮箱验证码绑定输入
@@ -43,7 +45,7 @@ func (s *Service) ProvisionTelegramChannelIdentity(input TelegramChannelIdentity
 	if err != nil {
 		return nil, nil, false, err
 	}
-	return s.provisionTelegramChannelIdentity(verified)
+	return s.provisionTelegramChannelIdentity(verified, input.InviteCode)
 }
 
 // BindTelegramChannelByEmailCode 使用邮箱验证码绑定 Telegram 渠道身份到既有账号
@@ -107,7 +109,7 @@ func (s *Service) resolveTelegramChannelIdentity(verified *telegramauthapp.Ident
 	return user, identity, nil
 }
 
-func (s *Service) provisionTelegramChannelIdentity(verified *telegramauthapp.IdentityVerified) (*userdomain.User, *externalidentitydomain.Identity, bool, error) {
+func (s *Service) provisionTelegramChannelIdentity(verified *telegramauthapp.IdentityVerified, inviteCode string) (*userdomain.User, *externalidentitydomain.Identity, bool, error) {
 	if verified == nil {
 		return nil, nil, false, telegramauthapp.ErrTelegramAuthPayloadInvalid
 	}
@@ -129,7 +131,7 @@ func (s *Service) provisionTelegramChannelIdentity(verified *telegramauthapp.Ide
 	}
 	created := placeholderUser == nil
 
-	user, err = s.findOrCreateTelegramUser(verified)
+	user, err = s.findOrCreateTelegramUser(verified, inviteCode)
 	if err != nil {
 		return nil, nil, false, err
 	}

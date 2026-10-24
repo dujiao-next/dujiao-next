@@ -3,6 +3,8 @@ package gormstore
 import (
 	"context"
 	"errors"
+	"github.com/dujiao-next/internal/persistence/gormutil"
+	"strconv"
 	"strings"
 
 	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
@@ -51,8 +53,8 @@ func (s *PostStore) List(ctx context.Context, query contract.PostQuery) ([]domai
 	}
 	if search := strings.TrimSpace(query.Search); search != "" {
 		like := "%" + search + "%"
-		condition, argCount := buildLocalizedLikeCondition(db, []string{"slug"}, []string{"title_json"})
-		statement = statement.Where(condition, repeatLikeArgs(like, argCount)...)
+		condition, argCount := gormutil.BuildLocalizedLikeCondition(db, []string{"slug"}, []string{"title_json"})
+		statement = statement.Where(condition, gormutil.RepeatLikeArgs(like, argCount)...)
 	}
 
 	var total int64
@@ -60,7 +62,7 @@ func (s *PostStore) List(ctx context.Context, query contract.PostQuery) ([]domai
 		return nil, 0, err
 	}
 
-	statement = applyPagination(statement, query.Page, query.PageSize)
+	statement = gormutil.ApplyPagination(statement, query.Page, query.PageSize)
 	orderBy := "created_at DESC"
 	if query.Order == contract.PostOrderPublishedDesc {
 		orderBy = "published_at DESC, created_at DESC"
@@ -88,8 +90,12 @@ func (s *PostStore) GetBySlug(ctx context.Context, slug string, onlyPublished bo
 }
 
 func (s *PostStore) GetByID(ctx context.Context, id string) (*domain.Post, error) {
+	pk, err := strconv.ParseUint(id, 10, 64)
+	if err != nil {
+		return nil, nil
+	}
 	var post domain.Post
-	if err := withContext(s.db, ctx).Where("deleted_at IS NULL").First(&post, id).Error; err != nil {
+	if err := withContext(s.db, ctx).Where("deleted_at IS NULL").First(&post, pk).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}

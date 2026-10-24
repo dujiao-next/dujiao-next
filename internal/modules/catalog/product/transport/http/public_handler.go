@@ -98,12 +98,7 @@ func NewPublicHandler(
 }
 
 func tenantFromRequest(c *gin.Context) reseller.TenantContext {
-	if c != nil && c.Request != nil {
-		if tenant, ok := reseller.TenantFromContext(c.Request.Context()); ok {
-			return tenant
-		}
-	}
-	return reseller.MainTenantContext("")
+	return reseller.TenantOrMain(c.Request.Context())
 }
 
 func isResellerTenant(tenant reseller.TenantContext) bool {

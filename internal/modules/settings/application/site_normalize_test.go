@@ -712,3 +712,35 @@ func TestUpdateTelegramAuthSettingNormalized(t *testing.T) {
 		t.Fatalf("unexpected replay_ttl_seconds: %v", result["replay_ttl_seconds"])
 	}
 }
+
+func TestUpdateSiteSettingValidatesContactLinks(t *testing.T) {
+	repo := newMockSettingRepo()
+	svc := NewService(repo)
+
+	cases := []struct {
+		contact map[string]interface{}
+		field   string
+	}{
+		{map[string]interface{}{"whatsapp": "https://example.com/logo.png"}, "contact_whatsapp"},
+		{map[string]interface{}{"telegram": "javascript:alert(1)"}, "contact_telegram"},
+	}
+	for _, tc := range cases {
+		_, err := svc.Update(constants.SettingKeySiteConfig, map[string]interface{}{"contact": tc.contact})
+		var fieldErr *SettingFieldError
+		if !errors.As(err, &fieldErr) || fieldErr.Field != tc.field {
+			t.Fatalf("contact %v: expected field error %s, got %v", tc.contact, tc.field, err)
+		}
+	}
+	if _, ok := repo.store[constants.SettingKeySiteConfig]; ok {
+		t.Fatalf("invalid site config must not be persisted")
+	}
+
+	if _, err := svc.Update(constants.SettingKeySiteConfig, map[string]interface{}{
+		"contact": map[string]interface{}{"telegram": "https://t.me/shop", "whatsapp": "https://wa.me/1234567890"},
+	}); err != nil {
+		t.Fatalf("valid contact links rejected: %v", err)
+	}
+	if _, err := svc.Update(constants.SettingKeySiteConfig, map[string]interface{}{"contact": map[string]interface{}{}}); err != nil {
+		t.Fatalf("empty contact links rejected: %v", err)
+	}
+}

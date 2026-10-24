@@ -9,6 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dujiao-next/internal/constants"
+	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
+	downstreamcallbackdomain "github.com/dujiao-next/internal/modules/downstreamcallback/domain"
+	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
 	procurementcontract "github.com/dujiao-next/internal/modules/procurement/contract"
 	procurementdomain "github.com/dujiao-next/internal/modules/procurement/domain"
 	siteconnectiondomain "github.com/dujiao-next/internal/modules/siteconnection/domain"
@@ -123,5 +127,113 @@ func TestHandleCallbackOwnership(t *testing.T) {
 		if procurements.handled != tc.wantHandled {
 			t.Fatalf("%s: handled=%v want %v (body %s)", tc.name, procurements.handled, tc.wantHandled, recorder.Body.String())
 		}
+	}
+}
+
+type formTestProducts struct{ product productdomain.Product }
+
+func (s formTestProducts) GetByID(string) (*productdomain.Product, error) {
+	p := s.product
+	return &p, nil
+}
+
+type formTestSKUs struct{}
+
+func (formTestSKUs) GetByID(uint) (*productdomain.ProductSKU, error) {
+	return &productdomain.ProductSKU{ID: 19, ProductID: 18, IsActive: true}, nil
+}
+
+type formTestOrders struct {
+	Orders
+	received CreateOrderInput
+}
+
+func (s *formTestOrders) CreateOrder(input CreateOrderInput) (*orderdomain.Order, error) {
+	s.received = input
+	return &orderdomain.Order{ID: 100, OrderNo: "FORM-TEST", Status: constants.OrderStatusPendingPayment}, nil
+}
+
+type formTestPayments struct{}
+
+func (formTestPayments) CreatePayment(CreatePaymentInput) (*CreatePaymentResult, error) {
+	return &CreatePaymentResult{OrderPaid: true}, nil
+}
+
+type formTestRefs struct{}
+
+func (formTestRefs) Create(*downstreamcallbackdomain.OrderRef) error { return nil }
+func (formTestRefs) GetByCredentialAndDownstreamNo(uint, string) (*downstreamcallbackdomain.OrderRef, error) {
+	return nil, nil
+}
+
+type formTestSettings struct{ Settings }
+
+func (formTestSettings) GetSiteCurrency(string) (string, error) { return "CNY", nil }
+
+// 接收端不得按交付类型丢弃 manual_form_data：对接商品（upstream）同样可能带必填表单。
+func TestCreateOrderPassesManualFormDataForAllFulfillmentTypes(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, kind := range []string{constants.FulfillmentTypeManual, constants.FulfillmentTypeAuto, constants.FulfillmentTypeUpstream} {
+		t.Run(kind, func(t *testing.T) {
+			orders := &formTestOrders{}
+			handler := &Handler{Dependencies: Dependencies{
+				ProductRepository: formTestProducts{productdomain.Product{ID: 18, IsActive: true, FulfillmentType: kind}},
+				SKUs:              formTestSKUs{}, Orders: orders, Payments: formTestPayments{},
+				DownstreamRefs: formTestRefs{}, Settings: formTestSettings{},
+			}}
+			body, _ := json.Marshal(map[string]interface{}{
+				"sku_id": 19, "quantity": 1, "manual_form_data": map[string]interface{}{"x_handle": "fixture_user"},
+			})
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Request = httptest.NewRequest(http.MethodPost, "/api/v1/upstream/orders", bytes.NewReader(body))
+			ctx.Request.Header.Set("Content-Type", "application/json")
+			ctx.Set(upstreamUserIDKey, uint(1))
+			ctx.Set(upstreamCredentialIDKey, uint(1))
+			handler.CreateOrder(ctx)
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+			}
+			if got := orders.received.ManualFormData["18"]["x_handle"]; got != "fixture_user" {
+				t.Fatalf("manual form data dropped for %s: %#v", kind, orders.received.ManualFormData)
+			}
+		})
+	}
+}
+
+type canceledRefOrders struct{ formTestOrders }
+
+func (s *canceledRefOrders) GetOrderByUser(uint, uint) (*orderdomain.Order, error) {
+	return &orderdomain.Order{ID: 50, OrderNo: "OLD", Status: constants.OrderStatusCanceled}, nil
+}
+
+type existingRefs struct{ formTestRefs }
+
+func (existingRefs) GetByCredentialAndDownstreamNo(uint, string) (*downstreamcallbackdomain.OrderRef, error) {
+	return &downstreamcallbackdomain.OrderRef{OrderID: 50}, nil
+}
+
+// 余额不足导致旧单被取消后，下游用同一单号重试必须真正重新下单，而不是拿回已取消的旧单。
+func TestCreateOrderRecreatesWhenSameDownstreamNoWasCanceled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	orders := &canceledRefOrders{}
+	handler := &Handler{Dependencies: Dependencies{
+		ProductRepository: formTestProducts{productdomain.Product{ID: 18, IsActive: true, FulfillmentType: constants.FulfillmentTypeAuto}},
+		SKUs:              formTestSKUs{}, Orders: orders, Payments: formTestPayments{},
+		DownstreamRefs: existingRefs{}, Settings: formTestSettings{},
+	}}
+	body, _ := json.Marshal(map[string]interface{}{"sku_id": 19, "quantity": 1, "downstream_order_no": "LOCAL-1"})
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/v1/upstream/orders", bytes.NewReader(body))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	ctx.Set(upstreamUserIDKey, uint(1))
+	ctx.Set(upstreamCredentialIDKey, uint(1))
+	handler.CreateOrder(ctx)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if orders.received.Items == nil {
+		t.Fatalf("expected a new order to be created, body=%s", recorder.Body.String())
 	}
 }

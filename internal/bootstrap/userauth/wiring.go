@@ -18,6 +18,7 @@ type Handlers struct {
 	Telegram     *userauthtransport.UserTelegramHandler
 	Google       *userauthtransport.UserGoogleHandler
 	SSO          *userauthtransport.UserSSOHandler
+	Invite       *userauthtransport.UserInviteHandler
 }
 
 // New assembles user authentication transports at the application boundary.
@@ -70,6 +71,10 @@ func New(c *container.Container) Handlers {
 			userSSOTransportAdapter{auth: c.UserAuthService},
 			recorder,
 			captcha,
+		),
+		Invite: userauthtransport.NewUserInviteHandler(
+			userInviteTransportAdapter{auth: c.UserAuthService},
+			recorder,
 		),
 	}
 }

@@ -86,7 +86,8 @@ func TestExtractUSDTWalletInfo(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			gotAddr, gotAmount := ExtractUSDTWalletInfo(tc.providerType, tc.interactionMode, tc.payload)
+			info := ExtractCryptoWalletInfo(tc.providerType, tc.interactionMode, tc.payload)
+			gotAddr, gotAmount := info.Address, info.ChainAmount
 			if gotAddr != tc.wantAddress {
 				t.Errorf("address: got %q want %q", gotAddr, tc.wantAddress)
 			}

@@ -308,7 +308,7 @@ func TestPreviewOrderAppliesMemberDiscountForManualProductBeforeFormCompleted(t 
 		ProductStore:       productgormstore.NewProductStore(db),
 		ProductSKUStore:    productgormstore.NewSKUStore(db),
 		PromotionRepo:      promotiongormstore.New(db),
-		MemberLevelService: memberlevelapp.NewService(levelRepo, priceRepo, userRepo),
+		MemberLevelService: memberlevelapp.NewService(levelRepo, priceRepo, memberlevelgormstore.NewUserStore(db)),
 		ExpireMinutes:      15,
 	})
 
@@ -439,7 +439,7 @@ func TestBuildOrderResultStacksPromotionAndMemberDiscount(t *testing.T) {
 		ProductStore:       productgormstore.NewProductStore(db),
 		ProductSKUStore:    productgormstore.NewSKUStore(db),
 		PromotionRepo:      promotiongormstore.New(db),
-		MemberLevelService: memberlevelapp.NewService(levelRepo, priceRepo, userRepo),
+		MemberLevelService: memberlevelapp.NewService(levelRepo, priceRepo, memberlevelgormstore.NewUserStore(db)),
 		ExpireMinutes:      15,
 	})
 

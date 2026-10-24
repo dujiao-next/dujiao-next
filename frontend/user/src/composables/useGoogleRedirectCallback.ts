@@ -26,6 +26,25 @@ export function useGoogleRedirectCallback() {
   const loading = ref(true)
   const errMsg = ref('')
   const retryPath = ref('/auth/login')
+  let returnPath = '/me/orders'
+
+  // 登录成功（含邀请码补填后）的后续跳转；需要邀请码时停在本页由 InviteCodeDialog 接管
+  const continueAfterLogin = async (result: { requiresTotp: boolean; inviteRequired?: boolean }) => {
+    if (result.inviteRequired) return
+    if (result.requiresTotp) {
+      await router.replace({
+        path: '/auth/login',
+        query: {
+          google2fa: '1',
+          redirect: returnPath,
+        },
+      })
+      return
+    }
+    await router.replace(returnPath)
+  }
+
+  const cancelInvite = () => router.replace('/auth/login')
 
   const fail = (message?: string) => {
     errMsg.value = message || t('auth.googleCallback.failed')
@@ -74,18 +93,9 @@ export function useGoogleRedirectCallback() {
         return
       }
 
+      returnPath = intent.returnPath
       const result = await userAuthStore.googleRedirectLogin()
-      if (result?.requiresTotp) {
-        await router.replace({
-          path: '/auth/login',
-          query: {
-            google2fa: '1',
-            redirect: intent.returnPath,
-          },
-        })
-        return
-      }
-      await router.replace(intent.returnPath)
+      await continueAfterLogin(result)
     } catch (error: any) {
       fail(error?.message || t('auth.googleCallback.failed'))
     }
@@ -95,5 +105,7 @@ export function useGoogleRedirectCallback() {
     loading,
     errMsg,
     retryPath,
+    continueAfterLogin,
+    cancelInvite,
   }
 }

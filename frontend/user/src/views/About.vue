@@ -60,6 +60,17 @@
               </svg>
               <span class="font-bold">WhatsApp</span>
             </a>
+            <a v-if="contactConfig?.email" :href="`mailto:${contactConfig.email}`"
+              class="group flex items-center justify-center space-x-3 bg-secondary border text-muted-foreground px-6 py-4 rounded-xl transition-colors hover:text-foreground">
+              <Mail class="w-6 h-6 text-amber-500" />
+              <span class="font-bold">{{ t('footer.email') }}</span>
+            </a>
+            <a v-if="contactConfig?.support_url" :href="contactConfig.support_url"
+              :target="contactConfig.support_url.startsWith('https://') ? '_blank' : undefined" rel="noopener noreferrer"
+              class="group flex items-center justify-center space-x-3 bg-secondary border text-muted-foreground px-6 py-4 rounded-xl transition-colors hover:text-foreground">
+              <Headphones class="w-6 h-6 text-violet-500" />
+              <span class="font-bold">{{ t('footer.supportUrl') }}</span>
+            </a>
           </div>
         </div>
       </Card>
@@ -68,9 +79,12 @@
 </template>
 
 <script setup lang="ts">
-import { Check } from 'lucide-vue-next'
+import { useI18n } from 'vue-i18n'
+import { Check, Mail, Headphones } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { useAbout } from '../composables/useAbout'
+
+const { t } = useI18n()
 
 const {
   contactConfig, heroTitle, heroSubtitle, introductionText, servicesTitle, contactTitle, contactText,

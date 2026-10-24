@@ -13,11 +13,13 @@
         </Button>
       </div>
     </Card>
+    <InviteCodeDialog @success="continueAfterLogin" @cancel="cancelInvite" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
+import InviteCodeDialog from '../../../components/InviteCodeDialog.vue'
 import { AlertCircle } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -25,5 +27,5 @@ import { useTelegramCallback } from '../../../composables/useTelegramCallback'
 
 const { t } = useI18n()
 
-const { loading, errMsg } = useTelegramCallback()
+const { loading, errMsg, continueAfterLogin, cancelInvite } = useTelegramCallback()
 </script>

@@ -5,7 +5,9 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"go.uber.org/zap"
 	"strconv"
 	"sync"
 	"testing"
@@ -46,6 +48,7 @@ import (
 	"github.com/dujiao-next/internal/constants"
 	paymentcontract "github.com/dujiao-next/internal/modules/payment/contract"
 	"github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/provider"
+	resellercontract "github.com/dujiao-next/internal/modules/reseller/contract"
 	"github.com/dujiao-next/internal/platform/database/gormdb"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/money"
@@ -1414,5 +1417,76 @@ func TestStripeExchangeRateUnderpaidCallbackRejected(t *testing.T) {
 	}
 	if reloadedOrder.Status != constants.OrderStatusPendingPayment || reloadedOrder.PaidAt != nil {
 		t.Fatalf("rejected stripe gbp payment must not fulfill order, got status=%s paid_at=%v", reloadedOrder.Status, reloadedOrder.PaidAt)
+	}
+}
+
+type recordingResellerAccounting struct{ orderIDs []uint }
+
+func (r *recordingResellerAccounting) PostOrderProfit(_ resellercontract.AccountingLedgerStore, order *orderdomain.Order, _ *paymentdomain.Payment) error {
+	r.orderIDs = append(r.orderIDs, order.ID)
+	return nil
+}
+
+// 余额全额支付与在线支付回调一样要入账分销利润，否则分销站余额支付的订单利润丢失。
+func TestCreatePaymentWalletFullAmountPostsResellerProfit(t *testing.T) {
+	svc, db := setupPaymentServiceWalletTest(t)
+	accounting := &recordingResellerAccounting{}
+	svc.resellerAccounting = accounting
+	now := time.Now()
+	user := &userdomain.User{Email: "wallet_reseller@example.com", PasswordHash: "hash", Status: constants.UserStatusActive}
+	if err := db.Create(user).Error; err != nil {
+		t.Fatalf("create user failed: %v", err)
+	}
+	order := &orderdomain.Order{
+		OrderNo:     "DJTESTWALLETRESELLER",
+		UserID:      user.ID,
+		Status:      constants.OrderStatusPendingPayment,
+		Currency:    "CNY",
+		TotalAmount: money.FromDecimal(decimal.NewFromInt(50)),
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	if err := db.Create(order).Error; err != nil {
+		t.Fatalf("create order failed: %v", err)
+	}
+	if err := db.Create(&walletdomain.Account{UserID: user.ID, Balance: money.FromDecimal(decimal.NewFromInt(100))}).Error; err != nil {
+		t.Fatalf("create wallet account failed: %v", err)
+	}
+	if _, err := svc.CreatePayment(CreatePaymentInput{OrderID: order.ID, UseBalance: true}); err != nil {
+		t.Fatalf("create payment failed: %v", err)
+	}
+	if len(accounting.orderIDs) != 1 || accounting.orderIDs[0] != order.ID {
+		t.Fatalf("expected reseller profit posted once for order %d, got %v", order.ID, accounting.orderIDs)
+	}
+}
+
+type failingAffiliate struct{}
+
+func (failingAffiliate) HandleOrderPaid(uint) error { return errors.New("db busy") }
+
+type affiliateRetryQueue struct {
+	paymentcontract.Queue
+	retried []uint
+}
+
+func (q *affiliateRetryQueue) Enabled() bool                         { return true }
+func (q *affiliateRetryQueue) EnqueueOrderAutoFulfill(uint) error    { return nil }
+func (q *affiliateRetryQueue) EnqueueStatusEmail(uint, string) error { return nil }
+func (q *affiliateRetryQueue) EnqueueTimeoutCancel(uint, time.Duration) error {
+	return nil
+}
+func (q *affiliateRetryQueue) EnqueueAffiliateOrderPaid(orderID uint) error {
+	q.retried = append(q.retried, orderID)
+	return nil
+}
+
+// 支付已提交后佣金写入失败，必须交给队列重试，而不是只记日志导致佣金永久丢失。
+func TestEnqueueOrderPaidAsyncRetriesFailedAffiliateCommission(t *testing.T) {
+	queue := &affiliateRetryQueue{}
+	svc := &PaymentService{affiliateSvc: failingAffiliate{}, queue: queue}
+	order := &orderdomain.Order{ID: 42, Items: []orderdomain.OrderItem{{FulfillmentType: constants.FulfillmentTypeAuto}}}
+	svc.enqueueOrderPaidAsync(order, nil, zap.NewNop().Sugar())
+	if len(queue.retried) != 1 || queue.retried[0] != 42 {
+		t.Fatalf("expected affiliate retry enqueued for order 42, got %v", queue.retried)
 	}
 }

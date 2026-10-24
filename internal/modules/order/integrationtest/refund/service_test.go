@@ -10,6 +10,7 @@ import (
 	. "github.com/dujiao-next/internal/modules/order/application/refund"
 	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
 
+	walletcontract "github.com/dujiao-next/internal/modules/wallet/contract"
 	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 
 	siteconnectiondomain "github.com/dujiao-next/internal/modules/siteconnection/domain"
@@ -728,5 +729,34 @@ func TestOrderRefundServiceResolveStatusEmailRefundDetails(t *testing.T) {
 	}
 	if !fallbackFromNilSvc.Amount.Decimal.Equal(decimal.NewFromInt(20)) || fallbackFromNilSvc.Reason != "" {
 		t.Fatalf("unexpected fallback from nil service: %+v", fallbackFromNilSvc)
+	}
+}
+
+// 子订单与父订单各自的可退额度必须互相约束：先退子单 50，再退父单 50，同一笔 50 元不能退两次。
+func TestOrderRefundServiceChildRefundCountsAgainstParent(t *testing.T) {
+	svc, db := setupOrderRefundServiceTest(t)
+	now := time.Now()
+	parent := &orderdomain.Order{
+		OrderNo: "REFUND-CHILD-PARENT", GuestEmail: "guest-child-parent@example.com",
+		Status: constants.OrderStatusDelivered, Currency: "CNY",
+		TotalAmount: money.FromDecimal(decimal.NewFromInt(50)), PaidAt: &now, CreatedAt: now, UpdatedAt: now,
+	}
+	if err := db.Create(parent).Error; err != nil {
+		t.Fatalf("create parent failed: %v", err)
+	}
+	child := &orderdomain.Order{
+		OrderNo: "REFUND-CHILD-PARENT-1", ParentID: &parent.ID, GuestEmail: parent.GuestEmail,
+		Status: constants.OrderStatusDelivered, Currency: "CNY",
+		TotalAmount: money.FromDecimal(decimal.NewFromInt(50)), PaidAt: &now, CreatedAt: now, UpdatedAt: now,
+	}
+	if err := db.Create(child).Error; err != nil {
+		t.Fatalf("create child failed: %v", err)
+	}
+	fifty := money.FromDecimal(decimal.NewFromInt(50))
+	if _, _, err := svc.AdminManualRefund(AdminManualRefundInput{OrderID: child.ID, Amount: fifty}); err != nil {
+		t.Fatalf("child refund failed: %v", err)
+	}
+	if _, _, err := svc.AdminManualRefund(AdminManualRefundInput{OrderID: parent.ID, Amount: fifty}); !errors.Is(err, walletcontract.ErrRefundExceeded) {
+		t.Fatalf("parent refund after full child refund must be rejected, got %v", err)
 	}
 }

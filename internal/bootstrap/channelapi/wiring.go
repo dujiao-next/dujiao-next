@@ -47,6 +47,7 @@ func identityServiceInput(input channeltransport.TelegramIdentityInput) userauth
 	return userauthapp.TelegramChannelIdentityInput{
 		ChannelUserID: input.ChannelUserID, Username: input.Username,
 		FirstName: input.FirstName, LastName: input.LastName, AvatarURL: input.AvatarURL,
+		InviteCode: input.InviteCode,
 	}
 }
 

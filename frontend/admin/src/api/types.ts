@@ -280,6 +280,21 @@ export interface AdminGiftCardBatch {
   created_at: string
 }
 
+// --- InviteCode ---
+export interface AdminInviteCode {
+  id: number
+  code: string
+  max_uses: number
+  used_count: number
+  expires_at?: string | null
+  status: 'active' | 'disabled'
+  note: string
+  created_by?: number | null
+  created_at: string
+  updated_at: string
+  usable: boolean
+}
+
 // --- MemberLevel ---
 export interface AdminMemberLevel {
   id: number

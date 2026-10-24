@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
@@ -64,6 +65,10 @@ func (s *Service) LoginWithTelegramMiniApp(input LoginWithTelegramMiniAppInput) 
 // LoginVerifiedTelegram completes a login after a trusted Telegram verifier
 // has authenticated and normalized the upstream identity.
 func (s *Service) LoginVerifiedTelegram(verified *telegramauthapp.IdentityVerified) (*UserLoginResult, error) {
+	return s.loginVerifiedTelegram(verified, "")
+}
+
+func (s *Service) loginVerifiedTelegram(verified *telegramauthapp.IdentityVerified, inviteCode string) (*UserLoginResult, error) {
 	if err := s.requireLocalIdentityManagement(); err != nil {
 		return nil, err
 	}
@@ -90,7 +95,10 @@ func (s *Service) LoginVerifiedTelegram(verified *telegramauthapp.IdentityVerifi
 			}
 		}
 	} else {
-		user, err = s.findOrCreateTelegramUser(verified)
+		user, err = s.findOrCreateTelegramUser(verified, inviteCode)
+		if errors.Is(err, ErrInviteCodeRequired) {
+			return s.inviteRequiredResult(inviteTicketClaims{Provider: inviteTicketProviderTG, Telegram: verified})
+		}
 		if err != nil {
 			return nil, err
 		}

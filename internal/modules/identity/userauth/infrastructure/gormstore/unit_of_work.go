@@ -7,6 +7,7 @@ import (
 	"time"
 
 	externalidentitydomain "github.com/dujiao-next/internal/modules/identity/externalidentity/domain"
+	invitecodestore "github.com/dujiao-next/internal/modules/identity/invitecode/infrastructure/gormstore"
 	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
 	userauthapp "github.com/dujiao-next/internal/modules/identity/userauth/application"
 
@@ -115,6 +116,10 @@ func (t *transaction) CreateUser(user *userdomain.User) error {
 		return nil
 	}
 	return t.db.Create(user).Error
+}
+
+func (t *transaction) ConsumeInviteCode(code string, now time.Time) (uint, error) {
+	return invitecodestore.Consume(t.db, code, now)
 }
 
 func (t *transaction) UpdateUser(user *userdomain.User) error {

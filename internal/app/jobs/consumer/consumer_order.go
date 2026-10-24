@@ -298,8 +298,10 @@ func (c *Consumer) handleOrderTimeoutCancel(_ context.Context, task *asynq.Task)
 			logger.Debugw("worker_order_timeout_cancel_skip_order_not_found", "order_id", payload.OrderID)
 			return nil
 		case errors.Is(err, orderapp.ErrOrderFetchFailed):
+			// 读库瞬时失败（如 SQLite database is locked）必须交给队列重试，
+			// 否则订单永远停在待支付并占着预占库存
 			logger.Warnw("worker_order_timeout_cancel_fetch_failed", "order_id", payload.OrderID, "error", err)
-			return nil
+			return err
 		case errors.Is(err, orderapp.ErrOrderUpdateFailed):
 			logger.Warnw("worker_order_timeout_cancel_update_failed", "order_id", payload.OrderID, "error", err)
 			return err

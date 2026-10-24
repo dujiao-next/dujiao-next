@@ -1,6 +1,7 @@
 package application
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -22,23 +23,24 @@ func (s *Service) CreateForOrder(orderID uint) error {
 		return procurementcontract.ErrOrderNotFound
 	}
 
-	// 父订单有子订单：遍历子订单
+	// 父订单有子订单：遍历子订单。单个子订单失败不能挡住其余子订单的采购。
 	if order.ParentID == nil && len(order.Children) > 0 {
+		var errs []error
 		for i := range order.Children {
 			child := &order.Children[i]
 			if !s.hasUpstreamItems(child) {
 				continue
 			}
-			if err := s.createProcurementForSingleOrder(child); err != nil {
+			if err := s.createProcurementForSingleOrder(child); err != nil && !errors.Is(err, procurementcontract.ErrExists) {
 				logger.Warnw("procurement_create_child_failed",
 					"parent_order_id", orderID,
 					"child_order_id", child.ID,
 					"error", err,
 				)
-				return err
+				errs = append(errs, err)
 			}
 		}
-		return nil
+		return errors.Join(errs...)
 	}
 
 	// 单订单
@@ -95,7 +97,7 @@ func (s *Service) createProcurementForSingleOrder(order *procurementdomain.Local
 
 	// 入队提交任务
 	if s.queue != nil {
-		if err := s.queue.EnqueueSubmit(procOrder.ID); err != nil {
+		if err := s.queue.EnqueueSubmit(procOrder.ID, 0); err != nil {
 			logger.Warnw("procurement_enqueue_submit_failed",
 				"procurement_order_id", procOrder.ID,
 				"error", err,

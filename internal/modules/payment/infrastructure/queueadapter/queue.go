@@ -42,6 +42,13 @@ func (q *Queue) EnqueueOrderAutoFulfill(orderID uint) error {
 	return q.client.EnqueueOrderAutoFulfill(queue.OrderAutoFulfillPayload{OrderID: orderID}, asynq.MaxRetry(3))
 }
 
+func (q *Queue) EnqueueAffiliateOrderPaid(orderID uint) error {
+	if q == nil || q.client == nil {
+		return nil
+	}
+	return q.client.EnqueueAffiliateOrderPaid(queue.AffiliateOrderPaidPayload{OrderID: orderID}, asynq.ProcessIn(time.Minute), asynq.MaxRetry(5))
+}
+
 func (q *Queue) EnqueueBotNotification(input paymentcontract.BotNotification) error {
 	if q == nil || q.client == nil {
 		return nil

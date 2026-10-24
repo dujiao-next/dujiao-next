@@ -23,6 +23,8 @@ type AuthTransaction interface {
 	GetUserByEmail(email string) (*userdomain.User, error)
 	GetUserByIDForUpdate(userID uint) (*userdomain.User, error)
 	CreateUser(user *userdomain.User) error
+	// ConsumeInviteCode 原子核销一次邀请码，返回其 ID；不存在或不可用时返回 0。
+	ConsumeInviteCode(code string, now time.Time) (uint, error)
 	UpdateUser(user *userdomain.User) error
 	UpdateUserFields(userID uint, fields map[string]interface{}) error
 	GetIdentityByProviderUserID(provider, providerUserID string) (*externalidentitydomain.Identity, error)

@@ -9,6 +9,7 @@ import (
 
 	"github.com/dujiao-next/internal/constants"
 	procurementcontract "github.com/dujiao-next/internal/modules/procurement/contract"
+	procurementgormstore "github.com/dujiao-next/internal/modules/procurement/infrastructure/gormstore"
 )
 
 type procurementCallbackStatusFixture struct {
@@ -223,4 +224,23 @@ func TestHandleUpstreamCallback_Refunded_AfterCompletedKeepsOrderStatus(t *testi
 		expectedProcurementStatus: constants.ProcurementStatusRefunded,
 		expectedOrderStatus:       constants.OrderStatusCompleted,
 	})
+}
+
+// 秒发货的回调可能先于下单响应把采购单推进到 fulfilled；随后的提交 / 轮询写入
+// 必须基于读到的旧状态做比较后再写，不能把状态回退为 accepted。
+func TestProcurementStoreUpdateStatusIsCompareAndSet(t *testing.T) {
+	db := setupProcurementTestDB(t)
+	order := createProcTestOrder(t, db, "PROC-CAS-001", constants.OrderStatusDelivered, constants.FulfillmentTypeUpstream)
+	proc := createTestProcurementOrder(t, db, 1, order.ID, order.OrderNo, constants.ProcurementStatusFulfilled)
+
+	store := procurementgormstore.New(db)
+	written, err := store.UpdateStatus(proc.ID, constants.ProcurementStatusPending, constants.ProcurementStatusAccepted, nil)
+	if err != nil || written {
+		t.Fatalf("stale transition must not be written: written=%v err=%v", written, err)
+	}
+	var reloaded ProcurementOrder
+	db.First(&reloaded, proc.ID)
+	if reloaded.Status != constants.ProcurementStatusFulfilled {
+		t.Fatalf("expected status to stay fulfilled, got %q", reloaded.Status)
+	}
 }

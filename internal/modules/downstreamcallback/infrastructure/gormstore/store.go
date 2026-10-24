@@ -51,7 +51,8 @@ func (s *Store) GetByCredentialAndDownstreamNo(credentialID uint, downstreamOrde
 		return nil, nil
 	}
 	var ref downstreamdomain.OrderRef
-	if err := s.db.Where("api_credential_id = ? AND downstream_order_no = ?", credentialID, downstreamOrderNo).First(&ref).Error; err != nil {
+	// 同一单号在旧单取消后可重新下单，取最新一条
+	if err := s.db.Where("api_credential_id = ? AND downstream_order_no = ?", credentialID, downstreamOrderNo).Last(&ref).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}

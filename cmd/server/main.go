@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/dujiao-next/internal/cache"
 	"io"
 	"os"
 	"path/filepath"
@@ -377,6 +378,8 @@ func runAdminSubcommand(args []string) {
 		fmt.Fprintf(os.Stderr, "init db: %v\n", err)
 		os.Exit(1)
 	}
+	// 重置密码 / 2FA 后需清理鉴权缓存，Redis 不可用不阻断命令
+	_ = cache.InitRedis(&cfg.Redis)
 	admincmd.Run(args)
 }
 

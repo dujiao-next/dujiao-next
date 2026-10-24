@@ -3,6 +3,7 @@ package gormstore
 import (
 	"github.com/dujiao-next/internal/modules/auditlog/contract"
 	"github.com/dujiao-next/internal/modules/auditlog/domain"
+	"github.com/dujiao-next/internal/persistence/gormutil"
 
 	"gorm.io/gorm"
 )
@@ -56,7 +57,7 @@ func (r *AuthzStore) ListAdmin(filter contract.AuthzFilter) ([]domain.AuthzAudit
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	query = applyPagination(query, filter.Page, filter.PageSize)
+	query = gormutil.ApplyPagination(query, filter.Page, filter.PageSize)
 
 	logs := make([]domain.AuthzAuditLog, 0)
 	if err := query.Order("id DESC").Find(&logs).Error; err != nil {

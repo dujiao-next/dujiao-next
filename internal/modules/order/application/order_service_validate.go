@@ -204,6 +204,14 @@ func (s *OrderService) buildOrderResult(input orderCreateParams) (*orderBuildRes
 			if err := s.productMappingService.EnsureUpstreamStockForOrder(sku.ID, item.Quantity); err != nil {
 				return nil, err
 			}
+			// 库存检查可能触发实时同步并更新交付表单，重新读取以免用旧 schema 校验。
+			refreshed, err := s.productRepo.GetByID(strconv.FormatUint(uint64(product.ID), 10))
+			if err != nil {
+				return nil, err
+			}
+			if refreshed != nil {
+				product.ManualFormSchemaJSON = refreshed.ManualFormSchemaJSON
+			}
 		}
 
 		manualSchemaSnapshot := jsonmap.JSON{}

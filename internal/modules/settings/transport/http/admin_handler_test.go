@@ -61,3 +61,19 @@ func TestAdminHandlerRejectsGoogleAuthOnGenericUpdate(t *testing.T) {
 		t.Fatalf("unexpected rejection message: %q", body.Msg)
 	}
 }
+
+// 有专用接口的配置一律不能走通用接口，否则会跳过校验与运行时生效。
+func TestAdminHandlerRejectsDedicatedKeysOnGenericUpdate(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for key, endpoint := range dedicatedSettingEndpoints {
+		stub := &adminSettingsStub{}
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequest(http.MethodPut, "/api/v1/admin/settings", strings.NewReader(`{"key":"`+key+`","value":{}}`))
+		ctx.Request.Header.Set("Content-Type", "application/json")
+		NewAdminHandler(stub).Update(ctx)
+		if stub.updateCalls != 0 || !strings.Contains(recorder.Body.String(), endpoint) {
+			t.Fatalf("%s: generic update must be rejected with hint %s, body=%s", key, endpoint, recorder.Body.String())
+		}
+	}
+}

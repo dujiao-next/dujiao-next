@@ -278,6 +278,21 @@ export interface AdminExportGiftCardsPayload {
   format: 'txt' | 'csv'
 }
 
+export interface AdminGenerateInviteCodesPayload {
+  quantity: number
+  code?: string
+  max_uses: number
+  expires_at?: string
+  note?: string
+}
+
+export interface AdminUpdateInviteCodePayload {
+  max_uses?: number
+  expires_at?: string
+  status?: 'active' | 'disabled'
+  note?: string
+}
+
 export interface AdminAffiliateSetting {
   enabled: boolean
   commission_rate: number
@@ -352,6 +367,8 @@ export const adminAPI = {
   deleteProduct: (id: number) => api.delete(`/admin/products/${id}`),
   batchUpdateProductStatus: (ids: number[], isActive: boolean) => api.post('/admin/products/batch-status', { ids, is_active: isActive }),
   batchUpdateProductCategory: (ids: number[], categoryId: number) => api.post('/admin/products/batch-category', { ids, category_id: categoryId }),
+  batchUpdateProductStockDisplay: (ids: number[], stockDisplayMode: string) =>
+    api.post('/admin/products/batch-stock-display', { ids, stock_display_mode: stockDisplayMode }),
   batchDeleteProducts: (ids: number[]) => api.post('/admin/products/batch-delete', { ids }),
   getCategories: (params?: Record<string, unknown>) => api.get('/admin/categories', { params }),
   createCategory: (data: Partial<AdminCategory>) => api.post('/admin/categories', data),
@@ -532,6 +549,13 @@ export const adminAPI = {
     api.patch('/admin/gift-cards/batch-status', data),
   exportGiftCards: (data: AdminExportGiftCardsPayload) =>
     api.post('/admin/gift-cards/export', data, { blob: true }),
+  generateInviteCodes: (data: AdminGenerateInviteCodesPayload) =>
+    api.post('/admin/invite-codes/generate', data),
+  getInviteCodes: (params?: Record<string, unknown>) => api.get('/admin/invite-codes', { params }),
+  updateInviteCode: (id: number, data: AdminUpdateInviteCodePayload) => api.put(`/admin/invite-codes/${id}`, data),
+  deleteInviteCode: (id: number) => api.delete(`/admin/invite-codes/${id}`),
+  getInviteCodeUsers: (id: number, params?: Record<string, unknown>) =>
+    api.get(`/admin/invite-codes/${id}/users`, { params }),
   createPromotion: (data: Partial<AdminPromotion>) => api.post('/admin/promotions', data),
   getPromotions: (params?: Record<string, unknown>) => api.get('/admin/promotions', { params }),
   updatePromotion: (id: number, data: Partial<AdminPromotion>) => api.put(`/admin/promotions/${id}`, data),
@@ -585,6 +609,7 @@ export const adminAPI = {
   batchDeleteProductMappings: (ids: number[]) => api.post('/admin/product-mappings/batch-delete', { ids }),
   getUpstreamProducts: (params?: Record<string, unknown>) => api.get('/admin/upstream-products', { params }),
   getUpstreamCategories: (params: { connection_id: string }) => api.get('/admin/upstream-categories', { params }),
+  getUpstreamCategoryCounts: (params: { connection_id: string }) => api.get('/admin/upstream-category-counts', { params }),
   batchImportByCategory: (data: Record<string, unknown>) => api.post('/admin/product-mappings/batch-import-by-category', data),
   // Procurement Orders
   getProcurementOrders: (params?: Record<string, unknown>) => api.get('/admin/procurement-orders', { params }),

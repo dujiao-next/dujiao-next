@@ -16,6 +16,8 @@ import (
 	adminauthapp "github.com/dujiao-next/internal/modules/identity/adminauth/application"
 	admintotpapp "github.com/dujiao-next/internal/modules/identity/adminauth/totp/application"
 	googleauthapp "github.com/dujiao-next/internal/modules/identity/googleauth/application"
+	invitecodeapp "github.com/dujiao-next/internal/modules/identity/invitecode/application"
+	invitecodestore "github.com/dujiao-next/internal/modules/identity/invitecode/infrastructure/gormstore"
 	ssoauthapp "github.com/dujiao-next/internal/modules/identity/ssoauth/application"
 	telegramauthapp "github.com/dujiao-next/internal/modules/identity/telegramauth/application"
 	userauthapp "github.com/dujiao-next/internal/modules/identity/userauth/application"
@@ -139,6 +141,8 @@ func (c *Container) initIdentityAndCatalogServices() {
 	c.UserAuthService.SetGoogleRedirectStore(userauthcachestore.NewGoogleRedirectStore())
 	c.UserAuthService.SetAuthUnitOfWork(userauthgormstore.New(gormdb.DB))
 	c.UserAuthService.SetEmailBrandResolver(c.EmailBrandResolver)
+	c.InviteCodeService = invitecodeapp.NewService(invitecodestore.New(gormdb.DB))
+	c.UserAuthService.SetInviteCodeChecker(c.InviteCodeService)
 	c.UploadService = uploadapp.NewService(uploadapp.Policy{
 		MaxSize:           c.Config.Upload.MaxSize,
 		AllowedTypes:      c.Config.Upload.AllowedTypes,

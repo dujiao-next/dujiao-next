@@ -43,6 +43,18 @@ func (c *Consumer) handleNotificationDispatch(ctx context.Context, task *asynq.T
 	return nil
 }
 
+// handleAffiliateOrderPaid 重试支付后失败的佣金创建；返回错误交由队列按退避重试。
+func (c *Consumer) handleAffiliateOrderPaid(_ context.Context, task *asynq.Task) error {
+	if c == nil || task == nil || c.AffiliateService == nil {
+		return nil
+	}
+	var payload queue.AffiliateOrderPaidPayload
+	if err := json.Unmarshal(task.Payload(), &payload); err != nil || payload.OrderID == 0 {
+		return nil
+	}
+	return c.AffiliateService.HandleOrderPaid(payload.OrderID)
+}
+
 // handleAffiliateConfirmCommissions 处理分销佣金确认任务。
 func (c *Consumer) handleAffiliateConfirmCommissions(_ context.Context, _ *asynq.Task) error {
 	if c == nil || c.AffiliateService == nil {

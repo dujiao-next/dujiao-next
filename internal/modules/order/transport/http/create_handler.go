@@ -3,7 +3,6 @@ package orderhttp
 import (
 	"context"
 	"errors"
-	"strings"
 
 	paymentpresenter "github.com/dujiao-next/internal/modules/payment/transport/presenter"
 
@@ -279,7 +278,7 @@ func (h *CreateHandler) respondCreateAndPay(c *gin.Context, order *orderdomain.O
 		UseBalance:    useBalance,
 		ClientIP:      c.ClientIP(),
 		Context:       c.Request.Context(),
-		RequestScheme: requestSchemeFromContext(c),
+		RequestScheme: ginutil.RequestScheme(c),
 	})
 	if err != nil {
 		response.Success(c, gin.H{
@@ -321,21 +320,4 @@ func (h *CreateHandler) respondCreateAndPay(c *gin.Context, order *orderdomain.O
 		resp["expires_at"] = result.Payment.ExpiredAt
 	}
 	response.Success(c, resp)
-}
-
-// requestSchemeFromContext 返回当前请求的 scheme（优先 X-Forwarded-Proto）。
-func requestSchemeFromContext(c *gin.Context) string {
-	if c == nil || c.Request == nil {
-		return ""
-	}
-	if proto := strings.TrimSpace(c.GetHeader("X-Forwarded-Proto")); proto != "" {
-		proto = strings.ToLower(strings.TrimSpace(strings.Split(proto, ",")[0]))
-		if proto == "http" || proto == "https" {
-			return proto
-		}
-	}
-	if c.Request.TLS != nil {
-		return "https"
-	}
-	return "http"
 }

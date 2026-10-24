@@ -1,6 +1,7 @@
 package userauthhttp
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -30,8 +31,8 @@ type UserLoginSettings interface {
 
 // UserLoginAuth 是注册/登录端点所需的认证端口。
 type UserLoginAuth interface {
-	Register(email, password, code string, agreementAccepted, emailVerificationEnabled bool) (*userdomain.User, string, time.Time, error)
-	LoginStep1(email, password string, rememberMe bool) (*AuthLoginResult, error)
+	Register(ctx context.Context, email, password, code, inviteCode string, agreementAccepted, emailVerificationEnabled bool) (*userdomain.User, string, time.Time, error)
+	LoginStep1(ctx context.Context, email, password string, rememberMe bool) (*AuthLoginResult, error)
 }
 
 // UserLoginHandler 处理公开的注册与登录 HTTP 请求。
@@ -57,6 +58,7 @@ type UserRegisterRequest struct {
 	Email             string `json:"email" binding:"required"`
 	Password          string `json:"password" binding:"required"`
 	Code              string `json:"code"`
+	InviteCode        string `json:"invite_code"`
 	AgreementAccepted bool   `json:"agreement_accepted"`
 }
 
@@ -69,16 +71,9 @@ type UserLoginRequest struct {
 }
 
 func (h *UserLoginHandler) recordLogin(c *gin.Context, email string, userID uint, status, failReason, source string) {
-	if h == nil || h.recorder == nil || c == nil {
-		return
+	if h != nil {
+		recordLoginEvent(h.recorder, c, email, userID, status, failReason, source)
 	}
-	requestID := ""
-	if rid, ok := c.Get("request_id"); ok {
-		if value, ok := rid.(string); ok {
-			requestID = value
-		}
-	}
-	h.recorder.Record(email, userID, status, failReason, source, c.ClientIP(), c.GetHeader("User-Agent"), requestID)
 }
 
 // UserRegister 用户注册。
@@ -105,8 +100,11 @@ func (h *UserLoginHandler) UserRegister(c *gin.Context) {
 		return
 	}
 
-	user, token, expiresAt, err := h.auth.Register(req.Email, req.Password, req.Code, req.AgreementAccepted, emailVerificationEnabled)
+	user, token, expiresAt, err := h.auth.Register(c.Request.Context(), req.Email, req.Password, req.Code, req.InviteCode, req.AgreementAccepted, emailVerificationEnabled)
 	if err != nil {
+		if respondInviteCodeError(c, err) {
+			return
+		}
 		switch {
 		case errors.Is(err, ErrInvalidEmail):
 			ginutil.RespondError(c, response.CodeBadRequest, "error.email_invalid", nil)
@@ -169,7 +167,7 @@ func (h *UserLoginHandler) UserLogin(c *gin.Context) {
 		}
 	}
 
-	res, err := h.auth.LoginStep1(req.Email, req.Password, req.RememberMe)
+	res, err := h.auth.LoginStep1(c.Request.Context(), req.Email, req.Password, req.RememberMe)
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrInvalidEmail):
@@ -202,6 +200,108 @@ func (h *UserLoginHandler) UserLogin(c *gin.Context) {
 	}
 
 	h.recordLogin(c, res.User.Email, res.User.ID, constants.LoginLogStatusSuccess, "", constants.LoginLogSourceWeb)
+	response.Success(c, gin.H{
+		"requires_totp": false,
+		"user":          userpresenter.NewUserAuthBriefResp(res.User),
+		"token":         res.Token,
+		"expires_at":    res.ExpiresAt.Format("2006-01-02T15:04:05Z07:00"),
+	})
+}
+
+var (
+	ErrInviteCodeRequired  = errors.New("invite code required")
+	ErrInviteCodeInvalid   = errors.New("invite code invalid")
+	ErrInviteTicketInvalid = errors.New("invite ticket invalid")
+)
+
+// UserInviteService 是第三方登录补填邀请码端点所需的端口。
+type UserInviteService interface {
+	CompleteInviteRegistration(ctx context.Context, ticket, inviteCode string) (*AuthLoginResult, error)
+}
+
+// UserInviteHandler 处理第三方登录新用户补填邀请码。
+type UserInviteHandler struct {
+	service  UserInviteService
+	recorder LoginRecorder
+}
+
+func NewUserInviteHandler(service UserInviteService, recorder LoginRecorder) *UserInviteHandler {
+	if service == nil {
+		panic("user invite handler: service is nil")
+	}
+	return &UserInviteHandler{service: service, recorder: recorder}
+}
+
+type completeInviteRegistrationRequest struct {
+	Ticket     string `json:"invite_ticket" binding:"required"`
+	InviteCode string `json:"invite_code" binding:"required"`
+}
+
+// respondInviteRequired 第三方身份已验证但需邀请码才能建号：返回票据，由前端弹窗补填后调用 /auth/invite/complete。
+func respondInviteRequired(c *gin.Context, res *AuthLoginResult) bool {
+	if res == nil || !res.InviteRequired {
+		return false
+	}
+	response.Success(c, gin.H{
+		"invite_required": true,
+		"invite_ticket":   res.InviteTicket,
+	})
+	return true
+}
+
+// respondInviteCodeError 映射邀请码相关错误，未命中返回 false。
+func respondInviteCodeError(c *gin.Context, err error) bool {
+	switch {
+	case errors.Is(err, ErrInviteCodeRequired):
+		ginutil.RespondError(c, response.CodeBadRequest, "error.invite_code_required", nil)
+	case errors.Is(err, ErrInviteCodeInvalid):
+		ginutil.RespondError(c, response.CodeBadRequest, "error.invite_code_invalid", nil)
+	case errors.Is(err, ErrInviteTicketInvalid):
+		ginutil.RespondError(c, response.CodeBadRequest, "error.invite_ticket_invalid", nil)
+	default:
+		return false
+	}
+	return true
+}
+
+// CompleteInviteRegistration POST /auth/invite/complete
+func (h *UserInviteHandler) CompleteInviteRegistration(c *gin.Context) {
+	var req completeInviteRegistrationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		ginutil.RespondBindError(c, err)
+		return
+	}
+	res, err := h.service.CompleteInviteRegistration(c.Request.Context(), req.Ticket, req.InviteCode)
+	if err != nil {
+		recordLoginEvent(h.recorder, c, "", 0, constants.LoginLogStatusFailed, constants.LoginLogFailReasonBadRequest, constants.LoginLogSourceWeb)
+		if respondInviteCodeError(c, err) {
+			return
+		}
+		switch {
+		case errors.Is(err, ErrRegistrationDisabled):
+			ginutil.RespondError(c, response.CodeForbidden, "error.registration_disabled", nil)
+		case errors.Is(err, ErrEmailDomainNotAllowed):
+			ginutil.RespondError(c, response.CodeBadRequest, "error.email_domain_not_allowed", nil)
+		case errors.Is(err, ErrUserDisabled):
+			ginutil.RespondError(c, response.CodeUnauthorized, "error.user_disabled", nil)
+		default:
+			ginutil.RespondError(c, response.CodeInternal, "error.login_failed", err)
+		}
+		return
+	}
+	if res == nil || res.User == nil {
+		ginutil.RespondError(c, response.CodeInternal, "error.login_failed", errors.New("invite registration returned an empty result"))
+		return
+	}
+	if res.RequiresTOTP {
+		response.Success(c, gin.H{
+			"requires_totp":        true,
+			"challenge_token":      res.ChallengeToken,
+			"challenge_expires_at": res.ChallengeExpiresAt.Format("2006-01-02T15:04:05Z07:00"),
+		})
+		return
+	}
+	recordLoginEvent(h.recorder, c, res.User.Email, res.User.ID, constants.LoginLogStatusSuccess, "", constants.LoginLogSourceWeb)
 	response.Success(c, gin.H{
 		"requires_totp": false,
 		"user":          userpresenter.NewUserAuthBriefResp(res.User),

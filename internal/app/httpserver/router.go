@@ -89,6 +89,7 @@ func SetupRouter(cfg *config.Config, c *container.Container) *gin.Engine {
 	adminPaymentChannelHandler := paymentHandlers.AdminChannel
 	paymentWebhookHandler := paymentHandlers.Webhook
 	paymentCallbackHandler := paymentHandlers.Callback
+	paymentEpayRedirectHandler := paymentHandlers.EpayRedirect
 	publicConfigHandler := publicconfigwiring.NewHandler(c)
 	userCartHandler := carttransport.NewUserHandler(c.CartService)
 	channelHandler := channelwiring.NewHandler(c)
@@ -129,6 +130,7 @@ func SetupRouter(cfg *config.Config, c *container.Container) *gin.Engine {
 	userSSOHandler := userAuthHandlers.SSO
 	userTelegramHandler := userAuthHandlers.Telegram
 	userGoogleHandler := userAuthHandlers.Google
+	userInviteHandler := userAuthHandlers.Invite
 	walletHandlers := walletbootstrap.New(c)
 	userWalletHandler := walletHandlers.User
 	adminWalletHandler := walletHandlers.Admin
@@ -247,13 +249,14 @@ func SetupRouter(cfg *config.Config, c *container.Container) *gin.Engine {
 	r.Use(middleware.CallbackRouteMiddleware(c.SettingService, paymentCallbackHandler, paymentWebhookHandler, upstreamHandler))
 
 	// 静态文件服务（上传的图片）必须放在前面。
-	// SVG 强制下载并禁止脚本：即使上传校验被绕过，直接打开 /uploads/x.svg 也不会在站点源下执行脚本；
-	// <img src> 引用不受 Content-Disposition 影响，正常显示。
+	// 所有上传文件一律禁止脚本：即使上传校验被绕过（如 telegram 场景不限扩展名、上游图片），
+	// 直接打开 /uploads/x.html 也不会在站点源下执行脚本；<img src> 引用不受影响。
+	// SVG 额外强制下载。
 	r.Group("/uploads", func(c *gin.Context) {
+		c.Header("Content-Security-Policy", "sandbox; script-src 'none'")
+		c.Header("X-Content-Type-Options", "nosniff")
 		if strings.EqualFold(path.Ext(c.Request.URL.Path), ".svg") {
 			c.Header("Content-Disposition", "attachment")
-			c.Header("Content-Security-Policy", "sandbox; script-src 'none'")
-			c.Header("X-Content-Type-Options", "nosniff")
 		}
 	}).Static("/", "./uploads")
 
@@ -261,10 +264,10 @@ func SetupRouter(cfg *config.Config, c *container.Container) *gin.Engine {
 	sitemaptransport.RegisterRoutes(r, sitemaptransport.NewHandler(c.SitemapService, sitemapbrand.New(c.SettingService)))
 
 	apiV1 := r.Group("/api/v1")
-	registerStorefrontRoutes(apiV1, cfg, c, publicContentHandler, publicCatalogHandler, publicCategoryHandler, userResellerHandler, userResellerProductSettingHandler, userResellerFinanceHandler, userResellerOrderHandler, userApiCredentialHandler, userAuditLogHandler, userGiftCardHandler, publicMemberLevelHandler, userProfileHandler, userEmailHandler, userPasswordHandler, userVerifyHandler, userTelegramOIDCHandler, userTelegramHandler, userGoogleHandler, userSSOHandler, userLoginHandler, user2FAHandler, publicConfigHandler, userCartHandler, userOrderHandler, guestOrderHandler, orderPreviewHandler, orderCreateHandler, paymentLatestHandler, paymentWriteHandler, userWalletHandler, redisClient, loginRule, guestReadRule, guestWriteRule, giftCardRedeemRule)
+	registerStorefrontRoutes(apiV1, cfg, c, publicContentHandler, publicCatalogHandler, publicCategoryHandler, userResellerHandler, userResellerProductSettingHandler, userResellerFinanceHandler, userResellerOrderHandler, userApiCredentialHandler, userAuditLogHandler, userGiftCardHandler, publicMemberLevelHandler, userProfileHandler, userEmailHandler, userPasswordHandler, userVerifyHandler, userTelegramOIDCHandler, userTelegramHandler, userGoogleHandler, userSSOHandler, userLoginHandler, user2FAHandler, userInviteHandler, publicConfigHandler, userCartHandler, userOrderHandler, guestOrderHandler, orderPreviewHandler, orderCreateHandler, paymentLatestHandler, paymentWriteHandler, userWalletHandler, redisClient, loginRule, guestReadRule, guestWriteRule, giftCardRedeemRule)
 	registerUpstreamRoutes(apiV1, c, upstreamHandler, redisClient, upstreamAPIRule, callbackRule)
 	registerChannelRoutes(apiV1, c, channelHandler, channelMemberLevelHandler, channelGiftCardHandler, channelAffiliateHandler, channelTelegramBotHandler, channelWalletHandler, redisClient, channelAPIRule)
-	registerPaymentCallbackRoutes(apiV1, paymentCallbackHandler, paymentWebhookHandler, redisClient, callbackRule)
+	registerPaymentCallbackRoutes(apiV1, paymentCallbackHandler, paymentWebhookHandler, paymentEpayRedirectHandler, redisClient, callbackRule)
 	registerAdminRoutes(r, apiV1, cfg, c, adminLoginHandler, admin2FAHandler, adminUser2FAHandler, adminUserHandler, adminAuthzHandler, adminFulfillmentHandler, adminOrderHandler, adminOrderRefundHandler, adminContentHandler, adminDashboardHandler, adminMemberLevelHandler, adminApiCredentialHandler, adminAuditLogHandler, adminCardSecretHandler, adminCatalogCategoryHandler, adminCatalogProductHandler, adminCatalogProductMappingHandler, adminCouponHandler, adminGiftCardHandler, adminPromotionHandler, adminNotificationHandler, adminProcurementHandler, adminResellerManagementHandler, adminResellerProfileDetailHandler, adminResellerSiteConfigHandler, adminResellerProductSettingHandler, adminResellerOperationsHandler, adminResellerFinanceHandler, adminSettingsHandler, adminWalletHandler, adminPaymentHandler, adminPaymentChannelHandler, redisClient, adminLoginRule)
 
 	// 健康检查
