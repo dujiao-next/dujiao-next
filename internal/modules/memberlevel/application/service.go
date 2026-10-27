@@ -10,9 +10,10 @@ import (
 
 // Service 会员等级服务
 type Service struct {
-	levelRepo memberlevelcontract.LevelRepository
-	priceRepo memberlevelcontract.PriceRepository
-	userRepo  memberlevelcontract.UserRepository
+	levelRepo     memberlevelcontract.LevelRepository
+	priceRepo     memberlevelcontract.PriceRepository
+	userRepo      memberlevelcontract.UserRepository
+	userPriceRepo memberlevelcontract.UserPriceRepository
 }
 
 // NewService 创建会员等级服务

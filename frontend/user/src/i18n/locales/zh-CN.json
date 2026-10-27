@@ -270,6 +270,14 @@
       "viewAllOrders": "查看全部订单",
       "emptyOrders": "暂无最近订单"
     },
+    "exclusivePrice": {
+      "title": "我的专属价",
+      "hint": "以下商品为你单独设置了一口价，下单时直接按此价格结算",
+      "unavailable": "商品已下架或不可用",
+      "total": "共 {n} 条",
+      "showAll": "查看全部（{n}）",
+      "collapse": "收起"
+    },
     "memberLevel": {
       "currentLevel": "当前等级",
       "discountRate": "会员折扣",

@@ -55,6 +55,7 @@ type OrderService struct {
 
 type OrderMemberLevelService interface {
 	ResolveMemberPrice(levelID, productID, skuID uint, basePrice decimal.Decimal) (decimal.Decimal, decimal.Decimal)
+	ResolveUserPrice(userID, productID, skuID uint, basePrice decimal.Decimal) (decimal.Decimal, bool)
 	OnOrderPaid(userID uint, amount decimal.Decimal) error
 }
 

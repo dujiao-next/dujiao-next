@@ -16,9 +16,11 @@ import (
 	procurementcontract "github.com/dujiao-next/internal/modules/procurement/contract"
 	procurementdomain "github.com/dujiao-next/internal/modules/procurement/domain"
 	siteconnectiondomain "github.com/dujiao-next/internal/modules/siteconnection/domain"
+	"github.com/dujiao-next/internal/shared/money"
 	upstreamadapter "github.com/dujiao-next/internal/upstream"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 )
 
 func TestMapCallbackStatus(t *testing.T) {
@@ -235,5 +237,59 @@ func TestCreateOrderRecreatesWhenSameDownstreamNoWasCanceled(t *testing.T) {
 	}
 	if orders.received.Items == nil {
 		t.Fatalf("expected a new order to be created, body=%s", recorder.Body.String())
+	}
+}
+
+type catalogPriceLevels struct {
+	MemberLevelService
+	userPrice  decimal.Decimal
+	levelPrice decimal.Decimal
+}
+
+func (l catalogPriceLevels) ResolveUserPrice(userID, _, _ uint, base decimal.Decimal) (decimal.Decimal, bool) {
+	if userID == 7 && l.userPrice.LessThan(base) {
+		return l.userPrice, true
+	}
+	return base, false
+}
+
+func (l catalogPriceLevels) ResolveMemberPrice(levelID, _, _ uint, base decimal.Decimal) (decimal.Decimal, decimal.Decimal) {
+	if levelID == 3 && l.levelPrice.LessThan(base) {
+		return l.levelPrice, base.Sub(l.levelPrice)
+	}
+	return base, decimal.Zero
+}
+
+// 上游目录价口径必须与下单一致：用户专属价优先于会员等级价，且未命中时回退到等级价。
+func TestUpstreamCatalogPricePrefersUserPriceOverLevelPrice(t *testing.T) {
+	handler := &Handler{Dependencies: Dependencies{MemberLevels: catalogPriceLevels{
+		userPrice:  decimal.RequireFromString("95"),
+		levelPrice: decimal.RequireFromString("90"),
+	}}}
+	product := productdomain.Product{
+		ID:          18,
+		PriceAmount: money.FromDecimal(decimal.NewFromInt(100)),
+		SKUs: []productdomain.ProductSKU{{
+			ID: 19, ProductID: 18, IsActive: true,
+			PriceAmount: money.FromDecimal(decimal.NewFromInt(100)),
+		}},
+	}
+
+	hit := handler.toUpstreamProductWithMemberPrice(product, 7, 3, nil)
+	if hit.PriceAmount != "95.00" || hit.MemberPrice != "95.00" || hit.OriginalPrice != "100.00" {
+		t.Fatalf("product price with user price = %s/%s/%s, want 95.00/95.00/100.00", hit.PriceAmount, hit.MemberPrice, hit.OriginalPrice)
+	}
+	if got := hit.SKUs[0]; got.PriceAmount != "95.00" || got.MemberPrice != "95.00" || got.OriginalPrice != "100.00" {
+		t.Fatalf("sku price with user price = %s/%s/%s, want 95.00/95.00/100.00", got.PriceAmount, got.MemberPrice, got.OriginalPrice)
+	}
+
+	fallback := handler.toUpstreamProductWithMemberPrice(product, 8, 3, nil)
+	if fallback.PriceAmount != "90.00" || fallback.SKUs[0].PriceAmount != "90.00" {
+		t.Fatalf("level fallback price = %s/%s, want 90.00", fallback.PriceAmount, fallback.SKUs[0].PriceAmount)
+	}
+
+	none := handler.toUpstreamProductWithMemberPrice(product, 8, 0, nil)
+	if none.PriceAmount != "100.00" || none.MemberPrice != "" || none.SKUs[0].PriceAmount != "100.00" {
+		t.Fatalf("no discount price = %s member=%q, want 100.00 and empty", none.PriceAmount, none.MemberPrice)
 	}
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/dujiao-next/internal/shared/money"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 )
 
 // upstreamCategory 上游分类响应格式
@@ -135,7 +136,7 @@ func (h *Handler) ListProducts(c *gin.Context) {
 
 	items := make([]upstreamProduct, 0, len(products))
 	for _, p := range products {
-		items = append(items, h.toUpstreamProductWithMemberPrice(p, memberLevelID, fulfillmentTypeMap))
+		items = append(items, h.toUpstreamProductWithMemberPrice(p, userID, memberLevelID, fulfillmentTypeMap))
 	}
 
 	successResponse(c, gin.H{
@@ -195,7 +196,7 @@ func (h *Handler) GetProduct(c *gin.Context) {
 
 	successResponse(c, gin.H{
 		"ok":      true,
-		"product": h.toUpstreamProductWithMemberPrice(products[0], memberLevelID, fulfillmentTypeMap),
+		"product": h.toUpstreamProductWithMemberPrice(products[0], userID, memberLevelID, fulfillmentTypeMap),
 	})
 }
 
@@ -247,7 +248,7 @@ func (h *Handler) resolveEffectiveFulfillmentTypes(products []productdomain.Prod
 	return result
 }
 
-func (h *Handler) toUpstreamProductWithMemberPrice(p productdomain.Product, memberLevelID uint, fulfillmentTypeMap map[uint]string) upstreamProduct {
+func (h *Handler) toUpstreamProductWithMemberPrice(p productdomain.Product, userID, memberLevelID uint, fulfillmentTypeMap map[uint]string) upstreamProduct {
 	skus := make([]upstreamSKU, 0, len(p.SKUs))
 	for _, s := range p.SKUs {
 		if !s.IsActive {
@@ -263,13 +264,10 @@ func (h *Handler) toUpstreamProductWithMemberPrice(p productdomain.Product, memb
 			StockQuantity: stockQuantity,
 			IsActive:      s.IsActive,
 		}
-		if memberLevelID > 0 && h.MemberLevels != nil {
-			mp, _ := h.MemberLevels.ResolveMemberPrice(memberLevelID, p.ID, s.ID, s.PriceAmount.Decimal)
-			if mp.LessThan(s.PriceAmount.Decimal) {
-				si.OriginalPrice = si.PriceAmount
-				si.MemberPrice = money.FromDecimal(mp).StringFixed(2)
-				si.PriceAmount = si.MemberPrice // price_amount 是实际售价（会员价）
-			}
+		if mp, ok := h.resolveCatalogPrice(userID, memberLevelID, p.ID, s.ID, s.PriceAmount.Decimal); ok {
+			si.OriginalPrice = si.PriceAmount
+			si.MemberPrice = money.FromDecimal(mp).StringFixed(2)
+			si.PriceAmount = si.MemberPrice // price_amount 是实际售价（专属价或会员价）
 		}
 		skus = append(skus, si)
 	}
@@ -300,16 +298,32 @@ func (h *Handler) toUpstreamProductWithMemberPrice(p productdomain.Product, memb
 		UpdatedAt:        p.UpdatedAt,
 	}
 
-	if memberLevelID > 0 && h.MemberLevels != nil {
-		mp, _ := h.MemberLevels.ResolveMemberPrice(memberLevelID, p.ID, 0, p.PriceAmount.Decimal)
-		if mp.LessThan(p.PriceAmount.Decimal) {
-			result.OriginalPrice = result.PriceAmount
-			result.MemberPrice = money.FromDecimal(mp).StringFixed(2)
-			result.PriceAmount = result.MemberPrice
-		}
+	if mp, ok := h.resolveCatalogPrice(userID, memberLevelID, p.ID, 0, p.PriceAmount.Decimal); ok {
+		result.OriginalPrice = result.PriceAmount
+		result.MemberPrice = money.FromDecimal(mp).StringFixed(2)
+		result.PriceAmount = result.MemberPrice
 	}
 
 	return result
+}
+
+// resolveCatalogPrice 解析目录展示的对接价，口径与下单一致：用户专属价优先，其次会员等级价。
+// 仅当结果低于原价时返回 true。
+func (h *Handler) resolveCatalogPrice(userID, memberLevelID, productID, skuID uint, base decimal.Decimal) (decimal.Decimal, bool) {
+	if h.MemberLevels == nil {
+		return base, false
+	}
+	if userID > 0 {
+		if price, hit := h.MemberLevels.ResolveUserPrice(userID, productID, skuID, base); hit {
+			return price, true
+		}
+	}
+	if memberLevelID > 0 {
+		if price, _ := h.MemberLevels.ResolveMemberPrice(memberLevelID, productID, skuID, base); price.LessThan(base) {
+			return price, true
+		}
+	}
+	return base, false
 }
 
 // computeSKUStock 计算 SKU 的库存状态和实际可用量

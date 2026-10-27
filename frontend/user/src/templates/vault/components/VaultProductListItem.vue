@@ -44,7 +44,11 @@
     <!-- Price + actions -->
     <div class="flex flex-none items-center gap-2 sm:gap-3">
       <div class="text-right">
-        <template v-if="promo">
+        <template v-if="exclusivePrice !== null">
+          <span class="block text-sm font-extrabold tabular-nums text-[color:var(--gold-strong)] sm:text-base">{{ formatPrice(exclusivePrice, siteCurrency) }}</span>
+          <span class="block text-[11px] font-semibold text-muted-foreground line-through">{{ formatPrice(product.price_amount, siteCurrency) }}</span>
+        </template>
+        <template v-else-if="promo">
           <span class="block text-sm font-extrabold tabular-nums text-primary sm:text-base">{{ formatPrice(getPromotionPriceAmount(product), siteCurrency) }}</span>
           <span class="block text-[11px] font-semibold text-muted-foreground line-through">{{ formatPrice(product.price_amount, siteCurrency) }}</span>
         </template>
@@ -79,7 +83,7 @@ const { t } = useI18n()
 const { getLocalizedText, siteCurrency, formatPrice } = useLocalized()
 const {
   getStockStatusLabel, getPurchaseTypeLabel, getFulfillmentTypeLabel,
-  isSoldOut, hasPromotionPrice, getPromotionPriceAmount, hasWholesalePrices, hasPromotionRules,
+  isSoldOut, hasPromotionPrice, getPromotionPriceAmount, hasWholesalePrices, hasPromotionRules, getCardExclusivePrice,
 } = useProductLabels()
 
 const covers = [
@@ -95,6 +99,7 @@ const title = computed(() => getLocalizedText(props.product?.title))
 const categoryName = computed(() => getLocalizedText(props.product?.category?.name))
 const soldOut = computed(() => isSoldOut(props.product))
 const promo = computed(() => hasPromotionPrice(props.product))
+const exclusivePrice = computed(() => getCardExclusivePrice(props.product))
 
 const imageErrored = ref(false)
 const coverImage = computed(() => {

@@ -98,7 +98,13 @@
         <div class="flex flex-col">
           <span class="hidden md:block text-xs text-muted-foreground uppercase tracking-wider">{{ t('products.price') }}</span>
           <span
-            v-if="hasPromotionPrice(product)"
+            v-if="exclusivePrice !== null"
+            class="theme-price-sm text-amber-600 dark:text-amber-300"
+          >
+            {{ formatPrice(exclusivePrice, siteCurrency) }}
+          </span>
+          <span
+            v-else-if="hasPromotionPrice(product)"
             class="theme-price-sm theme-price-promotion"
             :aria-label="t('products.promotionPriceAria', { price: formatPrice(getPromotionPriceAmount(product), siteCurrency) })"
           >
@@ -111,7 +117,13 @@
           >
             {{ formatPrice(product.price_amount, siteCurrency) }}
           </span>
-          <div v-if="hasPromotionPrice(product)" class="mt-0.5 flex flex-wrap items-center gap-1.5">
+          <div v-if="exclusivePrice !== null" class="mt-0.5 flex flex-wrap items-center gap-1.5">
+            <span class="hidden md:inline text-xs text-muted-foreground opacity-80 line-through">{{ formatPrice(product.price_amount, siteCurrency) }}</span>
+            <Badge variant="warning" size="xs">
+              {{ t('products.memberPriceTag') }}
+            </Badge>
+          </div>
+          <div v-else-if="hasPromotionPrice(product)" class="mt-0.5 flex flex-wrap items-center gap-1.5">
             <span
               class="hidden md:inline text-xs text-muted-foreground opacity-80 line-through"
               :aria-label="t('products.originalPriceAria', { price: formatPrice(product.price_amount, siteCurrency) })"
@@ -189,7 +201,8 @@ defineEmits<{
 
 const { t } = useI18n()
 const { getLocalizedText, siteCurrency, formatPrice } = useLocalized()
-const { getPurchaseTypeLabel, getFulfillmentTypeLabel, getStockBadgeVariant, getStockStatusLabel, isSoldOut, hasPromotionPrice, getPromotionPriceAmount, hasPromotionRules, hasWholesalePrices } = useProductLabels()
+const { getPurchaseTypeLabel, getFulfillmentTypeLabel, getStockBadgeVariant, getStockStatusLabel, isSoldOut, hasPromotionPrice, getPromotionPriceAmount, hasPromotionRules, hasWholesalePrices, getCardExclusivePrice } = useProductLabels()
+const exclusivePrice = computed(() => getCardExclusivePrice(props.product))
 
 const imageErrored = ref(false)
 const attemptIdx = ref(0)

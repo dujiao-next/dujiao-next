@@ -81,6 +81,7 @@ func (c *Container) initRepositories() error {
 	c.TelegramBroadcastRepo = broadcaststore.New(db)
 	c.MemberLevelRepo = memberlevelgormstore.NewLevelStore(db)
 	c.MemberLevelPriceRepo = memberlevelgormstore.NewPriceStore(db)
+	c.UserProductPriceRepo = memberlevelgormstore.NewUserPriceStore(db)
 	c.MemberLevelUserRepo = memberlevelgormstore.NewUserStore(db)
 	return nil
 }

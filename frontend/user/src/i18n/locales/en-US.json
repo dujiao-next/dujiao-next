@@ -318,6 +318,14 @@
       "viewAllOrders": "View all orders",
       "emptyOrders": "No recent orders"
     },
+    "exclusivePrice": {
+      "title": "My exclusive prices",
+      "hint": "These products have a fixed price set just for you, applied directly at checkout",
+      "unavailable": "Product is off the shelf or unavailable",
+      "total": "{n} in total",
+      "showAll": "Show all ({n})",
+      "collapse": "Collapse"
+    },
     "memberLevel": {
       "currentLevel": "Current Level",
       "discountRate": "Member Discount",
