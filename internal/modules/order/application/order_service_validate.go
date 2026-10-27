@@ -37,7 +37,7 @@ func (s *OrderService) buildOrderResult(input orderCreateParams) (*orderBuildRes
 		}
 	}
 	resellerOrder := isResellerOrderContext(input.Tenant)
-	if resellerOrder && strings.TrimSpace(input.CouponCode) != "" {
+	if (resellerOrder || input.IsApiOrder) && strings.TrimSpace(input.CouponCode) != "" {
 		return nil, ErrResellerCouponNotAllowed
 	}
 
@@ -72,7 +72,7 @@ func (s *OrderService) buildOrderResult(input orderCreateParams) (*orderBuildRes
 	// 解析用户会员等级
 	var userMemberLevelID uint
 	var memberLevelIDSnapshot *uint
-	if !resellerOrder && input.UserID > 0 && s.userRepo != nil {
+	if !resellerOrder && !input.IsApiOrder && input.UserID > 0 && s.userRepo != nil {
 		user, _ := s.userRepo.GetByID(input.UserID)
 		if user != nil && user.MemberLevelID > 0 {
 			userMemberLevelID = user.MemberLevelID
@@ -82,7 +82,7 @@ func (s *OrderService) buildOrderResult(input orderCreateParams) (*orderBuildRes
 	}
 
 	var promotionService *promotionapp.Service
-	if !resellerOrder {
+	if !resellerOrder && !input.IsApiOrder && s.promotionRepo != nil {
 		promotionService = promotionapp.NewService(s.promotionRepo)
 	}
 	manualFormData := input.ManualFormData
@@ -117,6 +117,11 @@ func (s *OrderService) buildOrderResult(input orderCreateParams) (*orderBuildRes
 
 		productCurrency := currency
 		basePrice := sku.PriceAmount.Decimal.Round(2)
+		if input.IsApiOrder {
+			if sku.AgencyPriceAmount.Decimal.GreaterThan(decimal.Zero) {
+				basePrice = sku.AgencyPriceAmount.Decimal.Round(2)
+			}
+		}
 
 		// 1. 计算活动价
 		priceCarrier := *product
@@ -148,7 +153,7 @@ func (s *OrderService) buildOrderResult(input orderCreateParams) (*orderBuildRes
 		var wholesaleUnitPrice decimal.Decimal
 		wholesaleDiscount := decimal.Zero
 		wholesaleMatched := false
-		if !resellerOrder {
+		if !resellerOrder && !input.IsApiOrder {
 			wholesaleUnitPrice, wholesaleDiscount, wholesaleMatched = productdomain.ResolveWholesaleUnitPriceForSKU(product, basePrice, sku.ID, sku.SKUCode, wholesaleMatchQuantity, item.Quantity)
 		}
 		if wholesaleMatched && wholesaleUnitPrice.LessThan(unitPriceAmount) {

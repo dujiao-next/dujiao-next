@@ -78,6 +78,7 @@ func (a orderServiceAdapter) CreateOrder(input upstreamtransport.CreateOrderInpu
 	order, err := a.orders.CreateOrder(orderapp.CreateOrderInput{
 		UserID: input.UserID, Items: items, ClientIP: input.ClientIP,
 		ManualFormData: input.ManualFormData, SkipRiskControl: input.SkipRiskControl,
+		IsApiOrder: input.IsApiOrder,
 	})
 	return order, mapOrderError(err)
 }
