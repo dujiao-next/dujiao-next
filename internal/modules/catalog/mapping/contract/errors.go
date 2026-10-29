@@ -10,4 +10,5 @@ var (
 	ErrMediaRecorderRequired     = errors.New("product mapping media recorder is required")
 	ErrUpstreamStockInsufficient = errors.New("upstream stock insufficient")
 	ErrBatchImportInProgress     = errors.New("batch import already running for this connection")
+	ErrUpstreamProductNoCategory = errors.New("upstream product has no category, select a local category manually")
 )

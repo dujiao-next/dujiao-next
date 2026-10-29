@@ -1,6 +1,66 @@
 package application
 
-import "github.com/shopspring/decimal"
+import (
+	"encoding/json"
+	"strconv"
+	"strings"
+
+	"github.com/dujiao-next/internal/shared/jsonmap"
+
+	"github.com/shopspring/decimal"
+)
+
+// maxCategoryDepth 沿父分类向上查找加价时的最大层数，防止上游分类数据成环导致死循环。
+const maxCategoryDepth = 16
+
+// parseCategoryMarkup 把 category_markups 里的值转成百分比。
+// 数据库读出来是 float64，前端提交可能是数字或字符串；无法解析或为负数时视为未配置。
+func parseCategoryMarkup(raw interface{}) (decimal.Decimal, bool) {
+	var value decimal.Decimal
+	switch v := raw.(type) {
+	case float64:
+		value = decimal.NewFromFloat(v)
+	case int:
+		value = decimal.NewFromInt(int64(v))
+	case json.Number:
+		parsed, err := decimal.NewFromString(v.String())
+		if err != nil {
+			return decimal.Zero, false
+		}
+		value = parsed
+	case string:
+		parsed, err := decimal.NewFromString(strings.TrimSpace(v))
+		if err != nil {
+			return decimal.Zero, false
+		}
+		value = parsed
+	default:
+		return decimal.Zero, false
+	}
+	if value.IsNegative() {
+		return decimal.Zero, false
+	}
+	return value, true
+}
+
+// ResolveCategoryMarkup 返回上游分类应使用的加价百分比。
+// 先取该分类自己的配置；没有则沿父分类向上找（子分类继承父分类）；都没有则用连接默认加价。
+// parents 为「上游分类 ID → 父分类 ID」，可为 nil（此时不继承，只看分类自身）。
+func ResolveCategoryMarkup(defaultPercent decimal.Decimal, markups jsonmap.JSON, upstreamCategoryID uint, parents map[uint]uint) decimal.Decimal {
+	if len(markups) == 0 || upstreamCategoryID == 0 {
+		return defaultPercent
+	}
+	current := upstreamCategoryID
+	for depth := 0; depth < maxCategoryDepth && current != 0; depth++ {
+		if raw, ok := markups[strconv.FormatUint(uint64(current), 10)]; ok {
+			if percent, valid := parseCategoryMarkup(raw); valid {
+				return percent
+			}
+		}
+		current = parents[current]
+	}
+	return defaultPercent
+}
 
 var (
 	hundred    = decimal.NewFromInt(100)

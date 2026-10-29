@@ -104,6 +104,52 @@ func TestSiteConnectionServiceUpdateSkipsReapplyWhenPriceConfigUnchanged(t *test
 	}
 }
 
+func TestSiteConnectionServiceUpdateTriggersReapplyWhenCategoryMarkupsChange(t *testing.T) {
+	repo := &siteConnectionRepoStub{conn: newReapplyTestConn()}
+	svc := siteconnectionapp.NewService(repo, "test-secret-key", t.TempDir())
+	reapplier := &fakeMarkupReapplier{}
+	svc.SetMarkupReapplier(reapplier)
+
+	// 非法键（非数字、0）和负数值会被丢弃，只保留 "5": 30。
+	input := siteconnectionapp.UpdateInput{CategoryMarkups: map[string]float64{"5": 30, "abc": 10, "0": 10, "6": -1}}
+	conn, err := svc.Update(7, input)
+	if err != nil {
+		t.Fatalf("update failed: %v", err)
+	}
+	if len(reapplier.calls) != 1 || reapplier.calls[0] != 7 {
+		t.Fatalf("expected reapply called once for conn 7, got %#v", reapplier.calls)
+	}
+	if len(conn.CategoryMarkups) != 1 || conn.CategoryMarkups["5"] != float64(30) {
+		t.Fatalf("expected only category 5 kept with 30, got %#v", conn.CategoryMarkups)
+	}
+
+	// 再次提交相同配置：没有变化，不应再次重算。
+	if _, err := svc.Update(7, siteconnectionapp.UpdateInput{CategoryMarkups: map[string]float64{"5": 30}}); err != nil {
+		t.Fatalf("second update failed: %v", err)
+	}
+	if len(reapplier.calls) != 1 {
+		t.Fatalf("expected no extra reapply for unchanged markups, got %#v", reapplier.calls)
+	}
+
+	// 字段未传（nil）不修改已有配置，也不触发重算。
+	conn, err = svc.Update(7, siteconnectionapp.UpdateInput{Name: "renamed"})
+	if err != nil {
+		t.Fatalf("third update failed: %v", err)
+	}
+	if len(reapplier.calls) != 1 || len(conn.CategoryMarkups) != 1 {
+		t.Fatalf("omitted category_markups must keep config, calls=%#v markups=%#v", reapplier.calls, conn.CategoryMarkups)
+	}
+
+	// 传空对象表示清空，并触发重算。
+	conn, err = svc.Update(7, siteconnectionapp.UpdateInput{CategoryMarkups: map[string]float64{}})
+	if err != nil {
+		t.Fatalf("clear update failed: %v", err)
+	}
+	if len(reapplier.calls) != 2 || len(conn.CategoryMarkups) != 0 {
+		t.Fatalf("clearing markups should reapply once more, calls=%#v markups=%#v", reapplier.calls, conn.CategoryMarkups)
+	}
+}
+
 type siteConnectionRepoStub struct {
 	conn    *siteconnectiondomain.Connection
 	updated bool

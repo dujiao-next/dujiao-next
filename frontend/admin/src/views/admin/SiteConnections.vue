@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import type { AdminSiteConnection } from '@/api/types'
@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import TableSkeleton from '@/components/TableSkeleton.vue'
 import ListPagination from '@/components/ListPagination.vue'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { getLocalizedText } from '@/utils/format'
 import { confirmAction } from '@/utils/confirm'
 import { notifyError, notifySuccess } from '@/utils/notify'
 import { useFormValidation, rules } from '@/composables/useFormValidation'
@@ -44,6 +45,69 @@ const form = reactive({
   auto_sync_price: 'false',
 })
 const reapplyingId = ref<number | null>(null)
+
+// 按上游分类加价：键为上游分类 ID，值为输入框内容（空表示沿用默认加价）
+interface UpstreamCategoryItem {
+  id: number
+  parent_id: number
+  name: Record<string, string>
+  sort_order: number
+}
+const categoryMarkupInputs = reactive<Record<string, number | string>>({})
+const upstreamCategories = ref<UpstreamCategoryItem[]>([])
+const loadingUpstreamCategories = ref(false)
+const upstreamCategoriesLoaded = ref(false)
+const upstreamCategoriesSupported = ref(true)
+
+const resetCategoryMarkups = (source?: Record<string, number> | null) => {
+  for (const key of Object.keys(categoryMarkupInputs)) delete categoryMarkupInputs[key]
+  for (const [key, value] of Object.entries(source || {})) categoryMarkupInputs[key] = value
+  upstreamCategories.value = []
+  upstreamCategoriesLoaded.value = false
+  upstreamCategoriesSupported.value = true
+}
+
+// 按父子关系展开成带缩进层级的列表，成环或父分类缺失的分类按顶层处理
+const categoryRows = computed(() => {
+  const items = upstreamCategories.value
+  const ids = new Set(items.map((c) => c.id))
+  const childrenOf = new Map<number, UpstreamCategoryItem[]>()
+  for (const c of items) {
+    const parent = ids.has(c.parent_id) && c.parent_id !== c.id ? c.parent_id : 0
+    const list = childrenOf.get(parent) || []
+    list.push(c)
+    childrenOf.set(parent, list)
+  }
+  const rows: { category: UpstreamCategoryItem; depth: number }[] = []
+  const visited = new Set<number>()
+  const walk = (parent: number, depth: number) => {
+    const list = [...(childrenOf.get(parent) || [])].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id)
+    for (const c of list) {
+      if (visited.has(c.id)) continue
+      visited.add(c.id)
+      rows.push({ category: c, depth })
+      walk(c.id, depth + 1)
+    }
+  }
+  walk(0, 0)
+  return rows
+})
+
+const loadUpstreamCategories = async () => {
+  if (!editingId.value) return
+  loadingUpstreamCategories.value = true
+  try {
+    const res = await adminAPI.getUpstreamCategories({ connection_id: String(editingId.value) })
+    const data = res.data.data as { supported?: boolean; categories?: UpstreamCategoryItem[] } | null
+    upstreamCategoriesSupported.value = data?.supported ?? false
+    upstreamCategories.value = data?.categories || []
+    upstreamCategoriesLoaded.value = true
+  } catch (err: any) {
+    notifyError(err?.response?.data?.message || err?.message)
+  } finally {
+    loadingUpstreamCategories.value = false
+  }
+}
 
 const siteConnectionSchema = {
   name: [rules.required()],
@@ -102,6 +166,7 @@ const resetForm = () => {
     price_rounding_mode: 'none',
     auto_sync_price: 'false',
   })
+  resetCategoryMarkups()
 }
 
 const openCreateModal = () => {
@@ -140,6 +205,7 @@ const openEditModal = (conn: AdminSiteConnection) => {
     price_rounding_mode: conn.price_rounding_mode || 'none',
     auto_sync_price: conn.auto_sync_price ? 'true' : 'false',
   })
+  resetCategoryMarkups(conn.category_markups)
   showModal.value = true
 }
 
@@ -166,7 +232,19 @@ const buildPayload = () => {
     price_markup_percent: Number(form.price_markup_percent) || 0,
     price_rounding_mode: form.price_rounding_mode,
     auto_sync_price: form.auto_sync_price === 'true',
+    category_markups: buildCategoryMarkups(),
   }
+}
+
+// 空输入表示沿用默认加价，不写入；始终提交对象（可为空）以便清空已有配置
+const buildCategoryMarkups = () => {
+  const result: Record<string, number> = {}
+  for (const [key, value] of Object.entries(categoryMarkupInputs)) {
+    if (value === '' || value === null || value === undefined) continue
+    const n = Number(value)
+    if (Number.isFinite(n) && n >= 0) result[key] = n
+  }
+  return result
 }
 
 const handleSubmit = async () => {
@@ -459,6 +537,40 @@ onMounted(() => {
                   </SelectContent>
                 </Select>
                 <p class="mt-1 text-xs text-muted-foreground">{{ t('siteConnections.form.autoSyncPriceHint') }}</p>
+              </div>
+            </div>
+
+            <div class="mt-4">
+              <div class="flex items-center justify-between gap-2">
+                <label class="block text-xs font-medium text-muted-foreground">{{ t('siteConnections.form.categoryMarkups') }}</label>
+                <Button
+                  v-if="isEditing"
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  class="h-7 text-xs"
+                  :disabled="loadingUpstreamCategories"
+                  @click="loadUpstreamCategories"
+                >{{ upstreamCategoriesLoaded ? t('siteConnections.form.categoryMarkupsReload') : t('siteConnections.form.categoryMarkupsLoad') }}</Button>
+              </div>
+              <p class="mt-1 text-xs text-muted-foreground">{{ t('siteConnections.form.categoryMarkupsHint') }}</p>
+              <p v-if="!isEditing" class="mt-2 text-xs text-amber-600">{{ t('siteConnections.form.categoryMarkupsSaveFirst') }}</p>
+              <p v-else-if="upstreamCategoriesLoaded && !upstreamCategoriesSupported" class="mt-2 text-xs text-amber-600">{{ t('siteConnections.form.categoryMarkupsUnsupported') }}</p>
+              <p v-else-if="upstreamCategoriesLoaded && categoryRows.length === 0" class="mt-2 text-xs text-muted-foreground">{{ t('siteConnections.form.categoryMarkupsEmpty') }}</p>
+              <div v-else-if="categoryRows.length > 0" class="mt-2 max-h-64 divide-y divide-border overflow-y-auto rounded-lg border border-border">
+                <div v-for="row in categoryRows" :key="row.category.id" class="flex items-center gap-3 px-3 py-2">
+                  <span class="min-w-0 flex-1 truncate text-sm text-foreground" :style="{ paddingLeft: `${row.depth * 16}px` }">{{ getLocalizedText(row.category.name) }}</span>
+                  <div class="relative w-32 shrink-0">
+                    <Input
+                      v-model.number="categoryMarkupInputs[String(row.category.id)]"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      :placeholder="t('siteConnections.form.categoryMarkupsDefaultPlaceholder')"
+                    />
+                    <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

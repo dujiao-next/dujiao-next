@@ -130,6 +130,11 @@ func (s *Service) BatchImportByCategory(
 		return nil, err
 	}
 
+	// 上游「未分类」商品没有分类可供自动创建，必须由管理员指定本地分类
+	if autoCreateCategory && localCategoryID == 0 && upstreamCategoryID == 0 {
+		return nil, mappingcontract.ErrUpstreamProductNoCategory
+	}
+
 	// 分页拉取上游所有商品，筛选属于目标分类的
 	allProducts, err := listAllUpstreamProducts(context.Background(), adapter)
 	if err != nil {

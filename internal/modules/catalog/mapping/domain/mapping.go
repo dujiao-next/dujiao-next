@@ -21,6 +21,7 @@ type Mapping struct {
 	ConnectionID            uint       `gorm:"index;not null" json:"connection_id"`
 	LocalProductID          uint       `gorm:"uniqueIndex;not null" json:"local_product_id"`
 	UpstreamProductID       uint       `gorm:"not null" json:"upstream_product_id"`
+	UpstreamCategoryID      uint       `gorm:"not null;default:0;index" json:"upstream_category_id"`                        // 上游分类 ID，用于按分类加价；0 表示未知或上游未分类
 	UpstreamFulfillmentType string     `gorm:"type:varchar(20);not null;default:'manual'" json:"upstream_fulfillment_type"` // 上游原始交付类型（auto/manual）
 	UpstreamStatus          string     `gorm:"type:varchar(16);not null;default:'active';index" json:"upstream_status"`     // 上游商品状态：active/inactive/deleted
 	IsActive                bool       `gorm:"not null;default:true" json:"is_active"`
