@@ -84,6 +84,7 @@ export const guestOrderAPI = {
 }
 
 export const paymentAPI = {
+    cashier: (params: { order_no: string; payment_id: number }) => userApi.get('/payments/cashier', { params, cache: 'no-store', silentBusinessError: true }),
     create: (data: CreatePaymentPayload) => userApi.post('/payments', data),
     capture: (id: number) => userApi.post(`/payments/${id}/capture`),
     latest: (params: any) => userApi.get('/payments/latest', { params, silentBusinessError: true }),

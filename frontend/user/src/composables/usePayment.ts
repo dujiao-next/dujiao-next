@@ -22,6 +22,7 @@ import {
   type PaymentResetReason,
 } from '../utils/paymentResumePolicy'
 import QRCode from 'qrcode'
+import { isFixedPayment as isFixedPaymentResult } from '../utils/fixedCashier'
 import { type PageAlert } from '../utils/alerts'
 import { loadGuestOrderAuth, saveGuestOrderAuth } from '../utils/guestOrderAuth'
 
@@ -177,6 +178,10 @@ export function usePayment() {
 
   const resultChannelName = computed(() => resolveChannelName(resultChannel.value, paymentResult.value?.channel_type, paymentResult.value?.channel_name))
 
+  const isFixedPayment = computed(() => isFixedPaymentResult(paymentResult.value))
+  const fixedPaymentID = computed(() => currentPaymentID())
+  const cashierOrderNo = computed(() => orderNoQuery.value)
+
   const currentPaymentID = () => {
     const paymentID = Number(paymentResult.value?.payment_id || paymentResult.value?.id || 0)
     return Number.isFinite(paymentID) && paymentID > 0 ? paymentID : 0
@@ -197,11 +202,12 @@ export function usePayment() {
     return mode
   })
 
-  const paymentResultTitle = computed(() => t(resolvePaymentResultTitleKey(interactionMode.value)))
+  const paymentResultTitle = computed(() => isFixedPayment.value ? t('payment.fixed.title') : t(resolvePaymentResultTitleKey(interactionMode.value)))
   const paymentGuideTitle = computed(() => paymentPresentationMode.value === 'redirect' ? t('payment.redirectTitle') : t('payment.qrTitle'))
-  const paymentGuideTip = computed(() => paymentPresentationMode.value === 'redirect' ? t('payment.redirectTip') : t('payment.qrTip'))
+  const paymentGuideTip = computed(() => isFixedPayment.value ? t('payment.fixed.guide') : paymentPresentationMode.value === 'redirect' ? t('payment.redirectTip') : t('payment.qrTip'))
 
   const showPayLink = computed(() => {
+    if (isFixedPayment.value) return false
     return paymentPresentationMode.value === 'redirect' || Boolean(payLink.value)
   })
   const isTelegramMiniApp = computed(() => telegramMiniAppStore.isMiniApp && telegramMiniAppStore.isReady)
@@ -210,12 +216,12 @@ export function usePayment() {
     isTelegramMiniApp.value ? t('payment.redirectOpenedTelegram') : t('payment.redirectOpened')
   ))
 
-  const payLink = computed(() => String(paymentResult.value?.pay_url || '').trim())
-  const qrCodeContent = computed(() => String(paymentResult.value?.qr_code || '').trim())
-  const cryptoWalletAddress = computed(() => String(paymentResult.value?.wallet_address || '').trim())
-  const cryptoChainAmount = computed(() => String(paymentResult.value?.chain_amount || '').trim())
-  const cryptoChain = computed(() => String(paymentResult.value?.chain || '').trim())
-  const cryptoTokenID = computed(() => String(paymentResult.value?.token_id || '').trim())
+  const payLink = computed(() => isFixedPayment.value ? '' : String(paymentResult.value?.pay_url || '').trim())
+  const qrCodeContent = computed(() => isFixedPayment.value ? '' : String(paymentResult.value?.qr_code || '').trim())
+  const cryptoWalletAddress = computed(() => isFixedPayment.value ? '' : String(paymentResult.value?.wallet_address || '').trim())
+  const cryptoChainAmount = computed(() => isFixedPayment.value ? '' : String(paymentResult.value?.chain_amount || '').trim())
+  const cryptoChain = computed(() => isFixedPayment.value ? '' : String(paymentResult.value?.chain || '').trim())
+  const cryptoTokenID = computed(() => isFixedPayment.value ? '' : String(paymentResult.value?.token_id || '').trim())
   const cryptoTokenLabel = computed(() => {
     const tokenID = cryptoTokenID.value
     if (!tokenID) return ''
@@ -787,7 +793,7 @@ export function usePayment() {
         response = await paymentAPI.latest({ order_no: orderNoResolved.value })
       }
       const data = response.data.data
-      if (data && (data.pay_url || data.qr_code)) {
+      if (data && (isFixedPaymentResult(data) || data.pay_url || data.qr_code)) {
         cachedPayment.value = data
         paymentResult.value = data
         selectedChannelId.value = data.channel_id || null
@@ -984,7 +990,7 @@ export function usePayment() {
           channel_id: selectedChannelId.value,
         })
         paymentResult.value = response.data.data
-        if (paymentResult.value?.pay_url || paymentResult.value?.qr_code) {
+        if (isFixedPayment.value || paymentResult.value?.pay_url || paymentResult.value?.qr_code) {
           cachedPayment.value = paymentResult.value
         }
         openedPayWindow.value = false
@@ -1015,7 +1021,7 @@ export function usePayment() {
           return
         }
         paymentResult.value = created
-        if (paymentResult.value?.pay_url || paymentResult.value?.qr_code) {
+        if (isFixedPayment.value || paymentResult.value?.pay_url || paymentResult.value?.qr_code) {
           cachedPayment.value = paymentResult.value
         }
         openedPayWindow.value = false
@@ -1136,6 +1142,7 @@ export function usePayment() {
   }
 
   const handleChangePaymentMethod = () => {
+    if (isFixedPayment.value) return
     resetPayment('change_payment_method')
   }
 
@@ -1341,6 +1348,7 @@ export function usePayment() {
   }
 
   return {
+    isFixedPayment, fixedPaymentID, cashierOrderNo,
     // state
     loading,
     submitting,

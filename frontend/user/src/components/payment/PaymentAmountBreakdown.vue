@@ -1,6 +1,6 @@
 <template>
   <div class="bg-secondary border rounded-2xl p-4">
-    <div class="text-xs uppercase tracking-wider text-muted-foreground">{{ t('payment.payableAmountLabel') }}</div>
+    <div class="text-xs uppercase tracking-wider text-muted-foreground">{{ t(paymentResult.fixed_payment === true ? 'payment.fixed.fiatOnlineAmount' : 'payment.payableAmountLabel') }}</div>
     <div class="mt-1 text-2xl font-bold text-foreground">{{ payableAmountDisplay }}</div>
     <div class="mt-4 space-y-2 text-xs">
       <div class="flex items-center justify-between gap-4">

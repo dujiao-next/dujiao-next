@@ -1164,6 +1164,27 @@
     }
   },
   "payment": {
+    "fixed": {
+      "title": "USDT 付款",
+      "guide": "请核对网络，并按本页金额准确转账。",
+      "amountDue": "本次应付",
+      "fiatOnlineAmount": "商品在线金额（折算前）",
+      "exactAmountTip": "金额包含用于识别本次订单的尾数，请勿取整；请确保收款地址实际收到完整金额。",
+      "qrAlt": "本次 USDT 收款地址二维码",
+      "qrAddressOnly": "二维码仅包含收款地址，请在钱包中选择上方网络并填写精确金额。",
+      "copyAmount": "复制金额",
+      "contract": "代币合约",
+      "waitForConfirmation": "到账确认后自动更新订单，请勿重复付款。",
+      "latePayment": "过期后请勿转账。已转账但未更新、迟到或金额不符的款项，请联系商家人工核对。",
+      "doNotPay": "当前不提供付款信息，请暂勿转账，稍后刷新。",
+      "states": {
+        "preparing": "正在准备付款信息",
+        "paused": "USDT 付款暂时停用",
+        "expired": "本次付款已过期",
+        "closed": "本次付款已结束",
+        "unavailable": "暂时无法确认付款信息"
+      }
+    },
     "title": "发起支付",
     "subtitle": "选择支付方式并完成支付",
     "backToOrders": "返回订单",
