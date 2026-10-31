@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"mime"
+	"net"
 	"net/mail"
 	"net/smtp"
 	"strings"
@@ -487,7 +488,7 @@ func buildEmailMessage(from, to, subject, body string, replyTo ...string) string
 }
 
 func sendMailWithSSL(addr, host, from string, to []string, msg []byte, username, password string) (err error) {
-	conn, err := tls.Dial("tcp", addr, &tls.Config{ServerName: host})
+	conn, err := dialSMTP(addr, host, true)
 	if err != nil {
 		return err
 	}
@@ -510,8 +511,13 @@ func sendMailWithSSL(addr, host, from string, to []string, msg []byte, username,
 }
 
 func sendMailWithStartTLS(addr, host, from string, to []string, msg []byte, username, password string) (err error) {
-	client, err := smtp.Dial(addr)
+	conn, err := dialSMTP(addr, host, false)
 	if err != nil {
+		return err
+	}
+	client, err := smtp.NewClient(conn, host)
+	if err != nil {
+		_ = conn.Close()
 		return err
 	}
 	defer closeSMTPClientOnError(client, &err, host, addr)
@@ -529,8 +535,13 @@ func sendMailWithStartTLS(addr, host, from string, to []string, msg []byte, user
 }
 
 func sendMailPlain(addr, host, from string, to []string, msg []byte, username, password string) (err error) {
-	client, err := smtp.Dial(addr)
+	conn, err := dialSMTP(addr, host, false)
 	if err != nil {
+		return err
+	}
+	client, err := smtp.NewClient(conn, host)
+	if err != nil {
+		_ = conn.Close()
 		return err
 	}
 	defer closeSMTPClientOnError(client, &err, host, addr)
@@ -761,4 +772,26 @@ func isEmailRecipientRejected(err error) bool {
 		}
 	}
 	return false
+}
+
+// Bound every protocol phase, including greeting, STARTTLS, AUTH and DATA.
+// smtp.Dial / tls.Dial alone have no whole-session deadline.
+func dialSMTP(addr, host string, implicitTLS bool) (net.Conn, error) {
+	conn, err := (&net.Dialer{Timeout: 10 * time.Second}).Dial("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+	if err = conn.SetDeadline(time.Now().Add(30 * time.Second)); err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	if implicitTLS {
+		secure := tls.Client(conn, &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12})
+		if err = secure.Handshake(); err != nil {
+			_ = conn.Close()
+			return nil, err
+		}
+		return secure, nil
+	}
+	return conn, nil
 }

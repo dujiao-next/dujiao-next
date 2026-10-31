@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -125,7 +126,7 @@ func (s *Service) SendTest(ctx context.Context, input contract.TestSendInput) er
 	}
 }
 
-func (s *Service) dispatchSingleEvent(ctx context.Context, setting settingsmessaging.NotificationCenterSetting, payload queue.NotificationDispatchPayload) error {
+func (s *Service) dispatchSingleEvent(ctx context.Context, setting settingsmessaging.NotificationCenterSetting, payload queue.NotificationDispatchPayload, admissions ...func(context.Context) error) error {
 	if !payload.Force {
 		ok, err := acquireNotificationDedupe(ctx, setting.DedupeTTLSeconds, payload)
 		if err != nil {
@@ -148,120 +149,64 @@ func (s *Service) dispatchSingleEvent(ctx context.Context, setting settingsmessa
 		title = "Notification"
 	}
 
-	var firstErr error
-	if setting.Channels.Email.Enabled && len(setting.Channels.Email.Recipients) > 0 {
+	var deliveries []contract.RecipientDelivery
+	add := func(channel, key, recipient string, send func(context.Context) error) {
+		deliveries = append(deliveries, contract.RecipientDelivery{Key: key, Send: func(callCtx context.Context) error {
+			if len(admissions) > 0 {
+				if err := admissions[0](callCtx); err != nil {
+					return err
+				}
+			}
+			err := send(callCtx)
+			s.recordSendAttempt(notificationSendAttempt{eventType: payload.EventType, bizType: payload.BizType, bizID: payload.BizID, channel: channel, recipient: recipient, locale: locale, title: title, body: body, variables: variables, sendErr: err})
+			return err
+		}})
+	}
+	if setting.Channels.Email.Enabled {
 		for _, recipient := range setting.Channels.Email.Recipients {
-			var sendErr error
-			if s.emailService == nil {
-				sendErr = contract.ErrSendFailed
-			} else {
-				sendErr = s.emailService.SendCustomEmail(recipient, title, body)
-			}
-			s.recordSendAttempt(notificationSendAttempt{
-				eventType: payload.EventType,
-				bizType:   payload.BizType,
-				bizID:     payload.BizID,
-				channel:   constants.NotificationChannelEmail,
-				recipient: recipient,
-				locale:    locale,
-				title:     title,
-				body:      body,
-				variables: variables,
-				sendErr:   sendErr,
-			})
-			if sendErr != nil {
-				logger.Warnw("notification_email_send_failed",
-					"event_type", payload.EventType,
-					"biz_type", payload.BizType,
-					"biz_id", payload.BizID,
-					"recipient", recipient,
-					"error", sendErr,
-				)
-				if firstErr == nil {
-					firstErr = sendErr
+			add(constants.NotificationChannelEmail, contract.RecipientKey("email", recipient), recipient, func(context.Context) error {
+				if s.emailService == nil {
+					return contract.ErrSendFailed
 				}
-			}
+				return s.emailService.SendCustomEmail(recipient, title, body)
+			})
 		}
 	}
-	if setting.Channels.Telegram.Enabled && len(setting.Channels.Telegram.Recipients) > 0 {
-		message := format.ComposePlainTextMessage(title, body)
+	if setting.Channels.Telegram.Enabled {
 		for _, recipient := range setting.Channels.Telegram.Recipients {
-			var sendErr error
-			if s.telegramSender == nil {
-				sendErr = contract.ErrSendFailed
-			} else {
-				sendErr = s.telegramSender.SendMessage(ctx, recipient, message)
-			}
-			s.recordSendAttempt(notificationSendAttempt{
-				eventType: payload.EventType,
-				bizType:   payload.BizType,
-				bizID:     payload.BizID,
-				channel:   constants.NotificationChannelTelegram,
-				recipient: recipient,
-				locale:    locale,
-				title:     title,
-				body:      body,
-				variables: variables,
-				sendErr:   sendErr,
-			})
-			if sendErr != nil {
-				logger.Warnw("notification_telegram_send_failed",
-					"event_type", payload.EventType,
-					"biz_type", payload.BizType,
-					"biz_id", payload.BizID,
-					"recipient", recipient,
-					"error", sendErr,
-				)
-				if firstErr == nil {
-					firstErr = sendErr
+			add(constants.NotificationChannelTelegram, contract.RecipientKey("telegram", recipient), recipient, func(callCtx context.Context) error {
+				if s.telegramSender == nil {
+					return contract.ErrSendFailed
 				}
-			}
+				return s.telegramSender.SendMessage(callCtx, recipient, format.ComposePlainTextMessage(title, body))
+			})
 		}
 	}
-	if setting.Channels.Feishu.Enabled && len(setting.Channels.Feishu.Recipients) > 0 {
-		message := format.ComposePlainTextMessage(title, body)
-		for _, recipient := range setting.Channels.Feishu.Recipients {
-			var sendErr error
-			if s.feishuSender == nil {
-				sendErr = contract.ErrSendFailed
-			} else {
-				sendErr = s.feishuSender.SendMessage(
-					ctx,
-					setting.Channels.Feishu.AppID,
-					setting.Channels.Feishu.AppSecret,
-					setting.Channels.Feishu.ReceiveIDType,
-					recipient,
-					message,
-				)
-			}
-			s.recordSendAttempt(notificationSendAttempt{
-				eventType: payload.EventType,
-				bizType:   payload.BizType,
-				bizID:     payload.BizID,
-				channel:   constants.NotificationChannelFeishu,
-				recipient: recipient,
-				locale:    locale,
-				title:     title,
-				body:      body,
-				variables: variables,
-				sendErr:   sendErr,
-			})
-			if sendErr != nil {
-				logger.Warnw("notification_feishu_send_failed",
-					"event_type", payload.EventType,
-					"biz_type", payload.BizType,
-					"biz_id", payload.BizID,
-					"recipient", recipient,
-					"error", sendErr,
-				)
-				if firstErr == nil {
-					firstErr = sendErr
+	if setting.Channels.Feishu.Enabled {
+		f := setting.Channels.Feishu
+		for _, recipient := range f.Recipients {
+			add(constants.NotificationChannelFeishu, contract.RecipientKey("feishu", f.AppID, f.ReceiveIDType, recipient), recipient, func(callCtx context.Context) error {
+				if s.feishuSender == nil {
+					return contract.ErrSendFailed
 				}
-			}
+				return s.feishuSender.SendMessage(callCtx, f.AppID, f.AppSecret, f.ReceiveIDType, recipient, format.ComposePlainTextMessage(title, body))
+			})
 		}
 	}
-	if firstErr != nil {
-		return fmt.Errorf("%w: %v", contract.ErrSendFailed, firstErr)
+	if s.deliveryBatch != nil {
+		return s.deliveryBatch(ctx, deliveries)
+	}
+	var failures []error
+	for _, delivery := range deliveries {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err := delivery.Send(ctx); err != nil {
+			failures = append(failures, err)
+		}
+	}
+	if err := errors.Join(failures...); err != nil {
+		return fmt.Errorf("%w: %w", contract.ErrSendFailed, err)
 	}
 	return nil
 }

@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -23,22 +24,24 @@ var callbackRetryDelays = []time.Duration{
 
 // Options 声明下游回调应用服务的全部端口。
 type Options struct {
-	References  downstreamcontract.Repository
-	Orders      downstreamcontract.OrderReader
-	Credentials downstreamcontract.CredentialReader
-	Queue       downstreamcontract.CallbackQueue
-	Deliverer   downstreamcontract.Deliverer
-	Now         func() time.Time
+	PaymentEffects PaymentEffectOwner
+	References     downstreamcontract.Repository
+	Orders         downstreamcontract.OrderReader
+	Credentials    downstreamcontract.CredentialReader
+	Queue          downstreamcontract.CallbackQueue
+	Deliverer      downstreamcontract.Deliverer
+	Now            func() time.Time
 }
 
 // Service 编排 B 侧下游回调引用、投递和重试状态。
 type Service struct {
-	references  downstreamcontract.Repository
-	orders      downstreamcontract.OrderReader
-	credentials downstreamcontract.CredentialReader
-	queue       downstreamcontract.CallbackQueue
-	deliverer   downstreamcontract.Deliverer
-	now         func() time.Time
+	paymentEffects PaymentEffectOwner
+	references     downstreamcontract.Repository
+	orders         downstreamcontract.OrderReader
+	credentials    downstreamcontract.CredentialReader
+	queue          downstreamcontract.CallbackQueue
+	deliverer      downstreamcontract.Deliverer
+	now            func() time.Time
 }
 
 // NewService 创建下游回调应用服务。
@@ -59,12 +62,13 @@ func NewService(options Options) *Service {
 		options.Now = time.Now
 	}
 	return &Service{
-		references:  options.References,
-		orders:      options.Orders,
-		credentials: options.Credentials,
-		queue:       options.Queue,
-		deliverer:   options.Deliverer,
-		now:         options.Now,
+		paymentEffects: options.PaymentEffects,
+		references:     options.References,
+		orders:         options.Orders,
+		credentials:    options.Credentials,
+		queue:          options.Queue,
+		deliverer:      options.Deliverer,
+		now:            options.Now,
 	}
 }
 
@@ -84,54 +88,72 @@ func (s *Service) GetByOrderID(orderID uint) (*downstreamdomain.OrderRef, error)
 
 // EnqueueCallback 在 B 侧订单状态变更后解析引用并投递回调任务。
 func (s *Service) EnqueueCallback(orderID uint) {
-	if s.queue == nil {
-		logger.Debugw("downstream_callback_skip_no_queue", "order_id", orderID)
-		return
+	if err := s.EnqueueCallbackReliable(orderID); err != nil {
+		logger.Warnw("downstream_enqueue_callback_failed", "order_id", orderID, "error", err)
 	}
+}
 
+// EnqueueCallbackReliable exposes handoff failures to the durable payment outbox.
+func (s *Service) EnqueueCallbackReliable(orderID uint) error {
+	if s.paymentEffects != nil {
+		if fixed, err := s.usesFixedPaymentEffects(orderID); err != nil {
+			return err
+		} else if fixed {
+			return nil
+		}
+	}
+	if s.queue == nil {
+		return fmt.Errorf("downstream queue unavailable")
+	}
 	ref, err := s.references.GetByOrderID(orderID)
-	if err != nil || ref == nil {
-		order, orderErr := s.orders.GetByID(orderID)
-		if orderErr != nil || order == nil || order.ParentID == nil {
-			logger.Debugw("downstream_callback_skip_no_ref", "order_id", orderID, "error", err)
-			return
+	if err != nil {
+		return err
+	}
+	if ref == nil {
+		order, err := s.orders.GetByID(orderID)
+		if err != nil {
+			return err
+		}
+		if order == nil || order.ParentID == nil {
+			return nil
 		}
 		ref, err = s.references.GetByOrderID(*order.ParentID)
-		if err != nil || ref == nil {
-			logger.Debugw("downstream_callback_skip_no_ref", "order_id", orderID, "parent_id", *order.ParentID, "error", err)
-			return
+		if err != nil {
+			return err
 		}
-		logger.Debugw("downstream_callback_resolved_parent_ref", "order_id", orderID, "parent_id", *order.ParentID, "ref_id", ref.ID)
 	}
-
-	if strings.TrimSpace(ref.CallbackURL) == "" {
-		logger.Warnw("downstream_callback_skip_empty_url", "order_id", orderID, "ref_id", ref.ID)
-		return
+	if ref == nil || strings.TrimSpace(ref.CallbackURL) == "" {
+		return nil
 	}
-	logger.Infow("downstream_callback_enqueue",
-		"order_id", orderID,
-		"ref_id", ref.ID,
-		"callback_url", ref.CallbackURL,
-		"callback_status", ref.CallbackStatus,
-	)
 	if ref.CallbackStatus != downstreamdomain.StatusPending {
 		ref.CallbackStatus = downstreamdomain.StatusPending
 		ref.CallbackRetryCount = 0
-		_ = s.references.Update(ref)
+		if err := s.references.Update(ref); err != nil {
+			return err
+		}
 	}
-	if err := s.queue.EnqueueCallback(ref.ID, 0); err != nil {
-		logger.Warnw("downstream_enqueue_callback_failed", "order_id", orderID, "ref_id", ref.ID, "error", err)
-	}
+	return s.queue.EnqueueCallback(ref.ID, 0)
 }
 
 // SendCallback 读取最新订单状态并执行一次下游回调。
 func (s *Service) SendCallback(ctx context.Context, refID uint) error {
+	return s.sendCallback(ctx, refID, nil)
+}
+
+func (s *Service) sendCallback(ctx context.Context, refID uint, admit func(context.Context) error) error {
 	ref, err := s.references.GetByID(refID)
 	if err != nil {
 		return err
 	}
 	if ref == nil {
 		return downstreamcontract.ErrRefNotFound
+	}
+	if admit == nil && s.paymentEffects != nil {
+		if fixed, err := s.usesFixedPaymentEffects(ref.OrderID); err != nil {
+			return err
+		} else if fixed {
+			return nil
+		}
 	}
 	if strings.TrimSpace(ref.CallbackURL) == "" {
 		return nil
@@ -140,6 +162,9 @@ func (s *Service) SendCallback(ctx context.Context, refID uint) error {
 	order, err := s.orders.GetByID(ref.OrderID)
 	if err != nil || order == nil {
 		logger.Warnw("downstream_callback_order_not_found", "ref_id", ref.ID, "order_id", ref.OrderID)
+		if err == nil {
+			err = fmt.Errorf("callback order not found")
+		}
 		return err
 	}
 	credential, err := s.credentials.GetByID(ref.ApiCredentialID)
@@ -172,6 +197,11 @@ func (s *Service) SendCallback(ctx context.Context, refID uint) error {
 		"status", order.Status,
 		"has_fulfillment", fulfillment != nil,
 	)
+	if admit != nil {
+		if err := admit(ctx); err != nil {
+			return err
+		}
+	}
 	if err := s.deliverer.Send(ctx, downstreamcontract.DeliveryRequest{
 		URL:       ref.CallbackURL,
 		APIKey:    credential.APIKey,
@@ -179,6 +209,14 @@ func (s *Service) SendCallback(ctx context.Context, refID uint) error {
 		Payload:   payload,
 	}); err != nil {
 		logger.Warnw("downstream_callback_http_error", "ref_id", ref.ID, "callback_url", ref.CallbackURL, "error", err)
+		if admit != nil {
+			// SQL outbox owns retry. Never enqueue a second Redis retry or swallow
+			// HTTP failure merely because persisting the status succeeded.
+			ref.CallbackRetryCount++
+			ref.CallbackStatus = downstreamdomain.StatusFailed
+			ref.LastCallbackAt = &now
+			return errors.Join(err, s.references.Update(ref))
+		}
 		return s.handleCallbackFailure(ref, now, err)
 	}
 
@@ -230,4 +268,60 @@ func (s *Service) handleCallbackFailure(ref *downstreamdomain.OrderRef, now time
 	}
 
 	return s.references.Update(ref)
+}
+
+type PaymentEffectOwner interface{ UsesFixedPaymentEffects(uint) (bool, error) }
+
+// Payment owns success/delivery callbacks. Refund and cancellation transitions
+// still use their existing queue until they gain their own durable effects.
+func (s *Service) usesFixedPaymentEffects(orderID uint) (bool, error) {
+	fixed, err := s.paymentEffects.UsesFixedPaymentEffects(orderID)
+	if err != nil || !fixed {
+		return fixed, err
+	}
+	order, err := s.orders.GetByID(orderID)
+	if err != nil {
+		return false, err
+	}
+	if order == nil {
+		return false, fmt.Errorf("callback order missing")
+	}
+	switch order.Status {
+	case constants.OrderStatusCanceled, constants.OrderStatusRefunded, constants.OrderStatusPartiallyRefunded:
+		return false, nil
+	default:
+		return true, nil
+	}
+}
+
+// SendCallbackDurable returns only after the HTTP protocol acknowledgment and
+// reference write succeed. Payment owns retry/recovery through its SQL outbox.
+func (s *Service) SendCallbackDurable(ctx context.Context, orderID uint, admit func(context.Context) error) error {
+	if admit == nil {
+		return fmt.Errorf("callback admission unavailable")
+	}
+	ref, err := s.references.GetByOrderID(orderID)
+	if err != nil {
+		return err
+	}
+	if ref == nil {
+		order, err := s.orders.GetByID(orderID)
+		if err != nil {
+			return err
+		}
+		if order == nil {
+			return fmt.Errorf("callback order missing")
+		}
+		if order.ParentID == nil {
+			return nil
+		}
+		ref, err = s.references.GetByOrderID(*order.ParentID)
+		if err != nil {
+			return err
+		}
+	}
+	if ref == nil || strings.TrimSpace(ref.CallbackURL) == "" {
+		return nil
+	}
+	return s.sendCallback(ctx, ref.ID, admit)
 }

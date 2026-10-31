@@ -248,3 +248,35 @@ func TestServiceDispatchSingleEventSendsFeishuAndRecordsEachRecipient(t *testing
 		t.Fatalf("unexpected feishu log statuses: %#v", statuses)
 	}
 }
+
+type durableSenderStub struct {
+	calls int
+	err   error
+}
+
+func (s *durableSenderStub) SendCustomEmail(string, string, string) error { s.calls++; return s.err }
+func TestDurableNotificationRetryAndFreezeDoNotUseRedisDedupe(t *testing.T) {
+	setting := settingsmessaging.NotificationCenterSetting{}
+	setting.Scenes.OrderPaidSuccess = true
+	setting.Channels.Email.Enabled = true
+	setting.Channels.Email.Recipients = []string{"synthetic@example.com"}
+	sender := &durableSenderStub{err: errors.New("synthetic SMTP failure")}
+	svc := NewService(notificationSettingsStub{notification: setting}, sender, nil, nil, nil, nil, nil)
+	input := contract.EnqueueInput{EventType: constants.NotificationEventOrderPaidSuccess, BizType: constants.NotificationBizTypeOrder, BizID: 1}
+	admissions := 0
+	permit := func(context.Context) error { admissions++; return nil }
+	if err := svc.DispatchDurable(context.Background(), input, permit); err == nil {
+		t.Fatal("failed delivery acknowledged")
+	}
+	sender.err = nil
+	if err := svc.DispatchDurable(context.Background(), input, permit); err != nil {
+		t.Fatal(err)
+	}
+	frozen := errors.New("synthetic freeze")
+	if err := svc.DispatchDurable(context.Background(), input, func(context.Context) error { return frozen }); !errors.Is(err, frozen) {
+		t.Fatal("freeze ignored")
+	}
+	if sender.calls != 2 || admissions != 2 {
+		t.Fatal("dedupe swallowed retry or freeze sent a message")
+	}
+}

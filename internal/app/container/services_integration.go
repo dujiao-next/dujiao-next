@@ -1,8 +1,14 @@
 package container
 
 import (
+	paymentsecurityalerts "github.com/dujiao-next/internal/modules/payment/application/securityalerts"
+	paymentalertstore "github.com/dujiao-next/internal/modules/payment/infrastructure/gormstore/securityalerts"
+	"github.com/dujiao-next/internal/modules/payment/infrastructure/securitytelegram"
+	"time"
+
 	catalogmappingbootstrap "github.com/dujiao-next/internal/bootstrap/catalogmapping"
 	telegrambroadcast "github.com/dujiao-next/internal/bootstrap/telegrambroadcast"
+	"github.com/dujiao-next/internal/config"
 	"github.com/dujiao-next/internal/logger"
 	apicredentialapp "github.com/dujiao-next/internal/modules/apicredential/application"
 	auditlogapp "github.com/dujiao-next/internal/modules/auditlog/application"
@@ -21,6 +27,11 @@ import (
 	notificationasyncqueue "github.com/dujiao-next/internal/modules/notification/infrastructure/asyncqueue"
 	notificationfeishu "github.com/dujiao-next/internal/modules/notification/infrastructure/feishu"
 	paymentapp "github.com/dujiao-next/internal/modules/payment/application"
+	paymentcandidates "github.com/dujiao-next/internal/modules/payment/application/candidates"
+	paymentchainverification "github.com/dujiao-next/internal/modules/payment/application/chainverification"
+	paymentsettlement "github.com/dujiao-next/internal/modules/payment/application/settlement"
+	paymentchainrpc "github.com/dujiao-next/internal/modules/payment/infrastructure/chainrpc"
+	paymentgormstore "github.com/dujiao-next/internal/modules/payment/infrastructure/gormstore"
 	paymentqueue "github.com/dujiao-next/internal/modules/payment/infrastructure/queueadapter"
 	procurementapp "github.com/dujiao-next/internal/modules/procurement/application"
 	procurementmapping "github.com/dujiao-next/internal/modules/procurement/infrastructure/mappingreader"
@@ -88,11 +99,12 @@ func (c *Container) initIntegrationServices() {
 		downstreamQueue = downstreamcallbackqueue.New(c.QueueClient)
 	}
 	c.DownstreamCallbackService = downstreamcallbackapp.NewService(downstreamcallbackapp.Options{
-		References:  c.DownstreamOrderRefRepo,
-		Orders:      downstreamcallbackorderreader.New(c.OrderStore),
-		Credentials: downstreamcallbackcredentialreader.New(c.ApiCredentialRepo),
-		Queue:       downstreamQueue,
-		Deliverer:   downstreamcallbackclient.New(),
+		PaymentEffects: paymentgormstore.New(gormdb.DB, c.Config.App.SecretKey),
+		References:     c.DownstreamOrderRefRepo,
+		Orders:         downstreamcallbackorderreader.New(c.OrderStore),
+		Credentials:    downstreamcallbackcredentialreader.New(c.ApiCredentialRepo),
+		Queue:          downstreamQueue,
+		Deliverer:      downstreamcallbackclient.New(),
 	})
 	c.PaymentService = paymentapp.NewPaymentService(paymentapp.PaymentServiceOptions{
 		OrderStore:              c.OrderStore,
@@ -113,6 +125,43 @@ func (c *Container) initIntegrationServices() {
 		PaymentProviderRegistry: c.PaymentProviderRegistry,
 		ResellerAccounting:      c.ResellerAccountingLedger,
 	})
+	c.PaymentCandidateService = &paymentcandidates.Service{Channels: c.PaymentChannelStore, Registry: c.PaymentProviderRegistry,
+		Inbox: paymentgormstore.New(gormdb.DB, c.Config.App.SecretKey), Recovery: c.PaymentService}
+	c.PaymentEffectsService = &paymentsettlement.Effects{Store: paymentgormstore.New(gormdb.DB, c.Config.App.SecretKey), Handler: c.PaymentService}
+	if settings := c.Config.PaymentSecurityAlerts; settings.Enabled {
+		if !c.Config.Queue.Enabled {
+			panic("payment security alerts require worker queue")
+		}
+		sender, err := securitytelegram.New(settings.BotToken, settings.ChatID)
+		if err != nil {
+			panic("invalid payment security alert configuration")
+		}
+		c.PaymentSecurityAlertsService = &paymentsecurityalerts.Service{Store: paymentalertstore.New(gormdb.DB), Sender: sender}
+	}
+
+	if c.Config.PaymentChainVerification.SettlementEnabled && !c.Config.PaymentChainVerification.Enabled {
+		panic("payment settlement requires chain verification")
+	}
+	if settings := c.Config.PaymentChainVerification; settings.Enabled {
+		if !c.Config.Queue.Enabled {
+			panic("payment chain verification requires worker queue")
+		}
+		networkPolicy := func(cfg config.PaymentRPCNetworkConfig) paymentchainrpc.NetworkPolicy {
+			p := paymentchainrpc.NetworkPolicy{AnchorNumber: cfg.AnchorNumber, AnchorHash: cfg.AnchorHash}
+			for _, source := range cfg.Sources {
+				p.Sources = append(p.Sources, paymentchainrpc.Source{Name: source.Name, Provider: source.Provider, URL: source.URL, APIKey: source.APIKey})
+			}
+			return p
+		}
+		verifier, err := paymentchainrpc.New(paymentchainrpc.Policy{Version: settings.Version, MaxHeadAge: time.Duration(settings.MaxHeadAgeSeconds) * time.Second, BSC: networkPolicy(settings.BSC), TRON: networkPolicy(settings.TRON)})
+		if err != nil {
+			panic("invalid payment chain verification configuration")
+		}
+		c.PaymentChainVerificationService = &paymentchainverification.Service{Store: paymentgormstore.New(gormdb.DB, c.Config.App.SecretKey), Registry: c.PaymentProviderRegistry, Verifier: verifier}
+		if settings.SettlementEnabled {
+			c.PaymentSettlementService = &paymentsettlement.Service{Store: paymentgormstore.New(gormdb.DB, c.Config.App.SecretKey), Registry: c.PaymentProviderRegistry, Verifier: verifier, Apply: c.PaymentService.ApplyChainSettlement}
+		}
+	}
 	c.ProcurementOrderService = procurementapp.NewService(procurementapp.Options{
 		Repository:         c.ProcurementOrderRepo,
 		Orders:             procurementorder.New(c.OrderStore),

@@ -18,6 +18,7 @@ import (
 	"github.com/dujiao-next/internal/htmltext"
 	"github.com/dujiao-next/internal/logger"
 	notificationcontract "github.com/dujiao-next/internal/modules/notification/contract"
+	paymentcontract "github.com/dujiao-next/internal/modules/payment/contract"
 	settingsmessaging "github.com/dujiao-next/internal/modules/settings/schema/messaging"
 	walletcontract "github.com/dujiao-next/internal/modules/wallet/contract"
 	"github.com/dujiao-next/internal/queue"
@@ -39,6 +40,30 @@ func (c *Consumer) handleOrderStatusEmail(ctx context.Context, task *asynq.Task)
 		logger.Warnw("worker_order_status_email_unmarshal_failed", "error", err)
 		return err
 	}
+	status := strings.TrimSpace(payload.Status)
+	if status == "" && c.orderReader != nil {
+		order, err := c.orderReader.GetByID(payload.OrderID)
+		if err != nil {
+			return err
+		}
+		if order != nil {
+			status = strings.TrimSpace(order.Status)
+		}
+	}
+	if status == constants.OrderStatusPaid || status == constants.OrderStatusDelivered || status == constants.OrderStatusCompleted {
+		if fixed, err := c.usesFixedPaymentEffects(payload.OrderID); err != nil {
+			return err
+		} else if fixed {
+			return nil
+		}
+	}
+	return c.sendOrderStatusEmail(ctx, payload, nil)
+}
+
+func (c *Consumer) sendOrderStatusEmail(ctx context.Context, payload queue.OrderStatusEmailPayload, admit func(context.Context) error) error {
+	if admit != nil && (c == nil || c.Container == nil || c.SettingService == nil || c.Config == nil) {
+		return fmt.Errorf("payment email settings unavailable")
+	}
 	if payload.OrderID == 0 {
 		logger.Debugw("worker_order_status_email_skip_invalid_payload", "order_id", payload.OrderID)
 		return nil
@@ -54,7 +79,11 @@ func (c *Consumer) handleOrderStatusEmail(ctx context.Context, task *asynq.Task)
 	if c.SettingService != nil && c.Config != nil {
 		smtpSetting, smtpErr := c.SettingService.GetSMTPSetting(c.Config.Email)
 		if smtpErr != nil {
-			// fail-closed：读不到设置就视作关闭，不重试，避免 DB 抖动放大成邮件雪崩。
+			// Durable payment work retains SQL retry state on lookup failure.
+			if admit != nil {
+				return smtpErr
+			}
+			// Legacy tasks keep their original skip policy.
 			logger.Warnw("worker_order_status_email_load_smtp_setting_failed", "order_id", payload.OrderID, "error", smtpErr)
 			return nil
 		}
@@ -76,6 +105,9 @@ func (c *Consumer) handleOrderStatusEmail(ctx context.Context, task *asynq.Task)
 		return err
 	}
 	if order == nil {
+		if admit != nil {
+			return fmt.Errorf("payment notification order missing")
+		}
 		logger.Debugw("worker_order_status_email_skip_order_not_found", "order_id", payload.OrderID)
 		return nil
 	}
@@ -115,6 +147,9 @@ func (c *Consumer) handleOrderStatusEmail(ctx context.Context, task *asynq.Task)
 		return nil
 	}
 	if c.EmailSender == nil {
+		if admit != nil {
+			return fmt.Errorf("payment email sender unavailable")
+		}
 		logger.Warnw("worker_order_status_email_skip_email_service_nil", "order_id", order.ID, "order_no", order.OrderNo)
 		return nil
 	}
@@ -122,6 +157,9 @@ func (c *Consumer) handleOrderStatusEmail(ctx context.Context, task *asynq.Task)
 	if c.SettingService != nil {
 		setting, tmplErr := c.SettingService.GetOrderEmailTemplateSetting()
 		if tmplErr != nil {
+			if admit != nil {
+				return tmplErr
+			}
 			logger.Warnw("worker_order_status_email_load_template_failed", "order_id", order.ID, "error", tmplErr)
 		} else {
 			tmplSetting = &setting
@@ -164,6 +202,11 @@ func (c *Consumer) handleOrderStatusEmail(ctx context.Context, task *asynq.Task)
 	if status == constants.OrderStatusDelivered || status == constants.OrderStatusCompleted {
 		input.Instructions = buildOrderInstructionsEmailText(order, locale)
 	}
+	if admit != nil {
+		if err := admit(ctx); err != nil {
+			return err
+		}
+	}
 	if err := c.EmailSender.SendOrderStatusEmailWithTemplate(receiverEmail, input, locale, tmplSetting); err != nil {
 		switch {
 		case errors.Is(err, notificationcontract.ErrEmailServiceDisabled):
@@ -175,6 +218,9 @@ func (c *Consumer) handleOrderStatusEmail(ctx context.Context, task *asynq.Task)
 			)
 			return nil
 		case errors.Is(err, notificationcontract.ErrEmailNotConfigured):
+			if admit != nil {
+				return err
+			}
 			logger.Debugw("worker_order_status_email_skip_email_not_configured",
 				"order_id", order.ID,
 				"order_no", order.OrderNo,
@@ -183,6 +229,9 @@ func (c *Consumer) handleOrderStatusEmail(ctx context.Context, task *asynq.Task)
 			)
 			return nil
 		case errors.Is(err, notificationcontract.ErrInvalidEmail):
+			if admit != nil {
+				return paymentcontract.ErrEffectPermanent
+			}
 			logger.Debugw("worker_order_status_email_skip_invalid_email",
 				"order_id", order.ID,
 				"order_no", order.OrderNo,
@@ -249,7 +298,12 @@ func (c *Consumer) handleOrderAutoFulfill(_ context.Context, task *asynq.Task) e
 		logger.Debugw("worker_order_auto_fulfill_skip_invalid_payload", "order_id", payload.OrderID)
 		return nil
 	}
-	_, err := c.FulfillmentService.CreateAuto(payload.OrderID)
+	var err error
+	if payload.DurablePaymentEffects {
+		_, err = c.FulfillmentService.CreateAutoWithDurableEffects(payload.OrderID)
+	} else {
+		_, err = c.FulfillmentService.CreateAuto(payload.OrderID)
+	}
 	if err != nil {
 		switch {
 		case errors.Is(err, fulfillmentapp.ErrFulfillmentExists):

@@ -12,6 +12,7 @@ import (
 
 // Service 通知中心服务。
 type Service struct {
+	deliveryBatch  contract.DeliverBatch
 	settingService contract.SettingsReader
 	emailService   contract.EmailSender
 	queueClient    contract.DispatchQueue
@@ -85,4 +86,37 @@ func (s *Service) Dispatch(ctx context.Context, payload queue.NotificationDispat
 		return s.dispatchExceptionAlertCheck(ctx, setting, payload)
 	}
 	return s.dispatchSingleEvent(ctx, setting, payload)
+}
+
+// DispatchDurable is owned by the payment SQL outbox. Redis dedupe taken before
+// a send is not an acknowledgment and must never suppress a failed retry here.
+func (s *Service) DispatchDurable(ctx context.Context, input contract.EnqueueInput, admit func(context.Context) error) error {
+	if s == nil || s.settingService == nil || admit == nil {
+		return contract.ErrSendFailed
+	}
+	if input.EventType != constants.NotificationEventOrderPaidSuccess && input.EventType != constants.NotificationEventManualFulfillmentPending {
+		return contract.ErrEventInvalid
+	}
+	setting, err := s.settingService.GetNotificationCenterSetting()
+	if err != nil {
+		return err
+	}
+	if !setting.Scenes.IsSceneEnabled(input.EventType) {
+		if s.deliveryBatch != nil {
+			return s.deliveryBatch(ctx, nil)
+		}
+		return nil
+	}
+	payload := queue.NotificationDispatchPayload{EventType: input.EventType, BizType: input.BizType, BizID: input.BizID, Locale: input.Locale, Force: true, Data: format.JSONToMap(input.Data)}
+	return s.dispatchSingleEvent(ctx, setting, payload, admit)
+}
+
+// DispatchRecipients delegates the full destination set before any outbound IO.
+func (s *Service) DispatchRecipients(ctx context.Context, input contract.EnqueueInput, batch contract.DeliverBatch) error {
+	if s == nil || batch == nil {
+		return contract.ErrSendFailed
+	}
+	copy := *s
+	copy.deliveryBatch = batch
+	return copy.DispatchDurable(ctx, input, func(context.Context) error { return nil })
 }

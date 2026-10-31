@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/logger"
 	"github.com/dujiao-next/internal/queue"
 
@@ -30,6 +31,14 @@ func (c *Consumer) handleNotificationDispatch(ctx context.Context, task *asynq.T
 	if strings.TrimSpace(payload.EventType) == "" {
 		logger.Debugw("worker_notification_dispatch_skip_empty_event")
 		return nil
+	}
+	if payload.BizType == constants.NotificationBizTypeOrder &&
+		(payload.EventType == constants.NotificationEventOrderPaidSuccess || payload.EventType == constants.NotificationEventManualFulfillmentPending) {
+		if fixed, err := c.usesFixedPaymentEffects(payload.BizID); err != nil {
+			return err
+		} else if fixed {
+			return nil
+		}
 	}
 	if err := c.NotificationService.Dispatch(ctx, payload); err != nil {
 		logger.Warnw("worker_notification_dispatch_failed",

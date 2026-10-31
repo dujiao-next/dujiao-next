@@ -206,3 +206,53 @@ func TestSendCallbackReturnsStableNotFoundSentinel(t *testing.T) {
 		t.Fatalf("error = %v, want ErrRefNotFound", err)
 	}
 }
+
+type fixedEffectOwner struct{}
+
+func (fixedEffectOwner) UsesFixedPaymentEffects(uint) (bool, error) { return true, nil }
+func TestDurableCallbackPropagatesFailureWithoutRedisRetry(t *testing.T) {
+	ref := &downstreamdomain.OrderRef{ID: 1, OrderID: 2, ApiCredentialID: 3, CallbackURL: "https://synthetic.example/callback"}
+	repo := &refRepositoryStub{byID: map[uint]*downstreamdomain.OrderRef{1: ref}, byOrderID: map[uint]*downstreamdomain.OrderRef{2: ref}}
+	queue := &callbackQueueStub{}
+	deliverer := &durableDelivererStub{err: errors.New("synthetic failure")}
+	order := &downstreamcontract.OrderSnapshot{ID: 2, OrderNo: "synthetic", Status: "paid"}
+	svc := downstreamapp.NewService(downstreamapp.Options{References: repo, Orders: orderReaderStub{orders: map[uint]*downstreamcontract.OrderSnapshot{2: order}}, Credentials: credentialReaderStub{credentials: map[uint]*downstreamcontract.Credential{3: {APIKey: "test", APISecret: "test"}}}, Queue: queue, Deliverer: deliverer, PaymentEffects: fixedEffectOwner{}})
+	if err := svc.SendCallback(context.Background(), 1); err != nil || deliverer.calls != 0 {
+		t.Fatal("old queue bypassed fixed owner")
+	}
+	if err := svc.EnqueueCallbackReliable(2); err != nil || len(queue.callbacks) != 0 {
+		t.Fatal("legacy task created for fixed payment")
+	}
+	permit := func(context.Context) error { return nil }
+	if err := svc.SendCallbackDurable(context.Background(), 2, permit); err == nil || len(queue.callbacks) != 0 {
+		t.Fatal("HTTP failure swallowed or independently requeued")
+	}
+	deliverer.err = nil
+	if err := svc.SendCallbackDurable(context.Background(), 2, permit); err != nil {
+		t.Fatal(err)
+	}
+	if deliverer.calls != 2 || ref.CallbackStatus != downstreamdomain.StatusSent {
+		t.Fatal("callback not acknowledged")
+	}
+	frozen := errors.New("frozen")
+	if err := svc.SendCallbackDurable(context.Background(), 2, func(context.Context) error { return frozen }); !errors.Is(err, frozen) || deliverer.calls != 2 {
+		t.Fatal("frozen callback sent")
+	}
+	order.Status = "refunded"
+	if err := svc.EnqueueCallbackReliable(2); err != nil || len(queue.callbacks) != 1 {
+		t.Fatal("refund callback suppressed")
+	}
+	if err := svc.SendCallback(context.Background(), 1); err != nil || deliverer.calls != 3 {
+		t.Fatal("refund callback not delivered")
+	}
+}
+
+type durableDelivererStub struct {
+	calls int
+	err   error
+}
+
+func (d *durableDelivererStub) Send(context.Context, downstreamcontract.DeliveryRequest) error {
+	d.calls++
+	return d.err
+}

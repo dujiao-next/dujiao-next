@@ -50,7 +50,8 @@ type OrderStatusEmailPayload struct {
 
 // OrderAutoFulfillPayload 自动交付任务载荷
 type OrderAutoFulfillPayload struct {
-	OrderID uint `json:"order_id"`
+	DurablePaymentEffects bool `json:"durable_payment_effects,omitempty"`
+	OrderID               uint `json:"order_id"`
 }
 
 // OrderTimeoutCancelPayload 超时取消任务载荷
@@ -247,3 +248,24 @@ func NewTelegramBroadcastTask(payload TelegramBroadcastPayload) (*asynq.Task, er
 	}
 	return asynq.NewTask(TaskTelegramBroadcast, body), nil
 }
+
+// TaskPaymentCandidateSync wakes the durable SQL inbox/recovery poller.
+const TaskPaymentCandidateSync = constants.TaskPaymentCandidateSync
+
+func NewPaymentCandidateSyncTask() *asynq.Task { return asynq.NewTask(TaskPaymentCandidateSync, nil) }
+
+const TaskPaymentChainVerify = constants.TaskPaymentChainVerify
+
+func NewPaymentChainVerifyTask() *asynq.Task { return asynq.NewTask(TaskPaymentChainVerify, nil) }
+
+const TaskPaymentChainSettle = constants.TaskPaymentChainSettle
+
+func NewPaymentChainSettleTask() *asynq.Task { return asynq.NewTask(TaskPaymentChainSettle, nil) }
+
+const TaskPaymentEffects = constants.TaskPaymentEffects
+
+func NewPaymentEffectsTask() *asynq.Task { return asynq.NewTask(TaskPaymentEffects, nil) }
+
+const TaskPaymentSecurityAlerts = "payment:security_alerts"
+
+func NewPaymentSecurityAlertsTask() *asynq.Task { return asynq.NewTask(TaskPaymentSecurityAlerts, nil) }

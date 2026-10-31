@@ -5,7 +5,9 @@ import (
 	"strings"
 	"time"
 
+	ordercontract "github.com/dujiao-next/internal/modules/order/contract"
 	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
+	settingsintegration "github.com/dujiao-next/internal/modules/settings/schema/integration"
 
 	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
 
@@ -338,4 +340,33 @@ func buildSplitCommissionType(sourceID uint) string {
 		return result[:20]
 	}
 	return result
+}
+
+type paidSettings struct {
+	value settingsintegration.AffiliateSetting
+}
+
+func (s paidSettings) GetAffiliateSetting() (settingsintegration.AffiliateSetting, error) {
+	return s.value, nil
+}
+
+type paidOrder struct{ value *orderdomain.Order }
+
+func (o paidOrder) GetByID(uint) (*orderdomain.Order, error) { return o.value, nil }
+
+// PrepareOrderPaid reads configuration before entering the caller's transaction.
+// All commission reads/writes then use that transaction and its locked order.
+func (s *Service) PrepareOrderPaid() (func(ordercontract.Transaction, *orderdomain.Order) error, error) {
+	setting, err := s.settings.GetAffiliateSetting()
+	if err != nil {
+		return nil, err
+	}
+	return func(tx ordercontract.Transaction, order *orderdomain.Order) error {
+		copy := *s
+		copy.repo = tx.Affiliates()
+		copy.productRepo = tx.Products()
+		copy.orderRepo = paidOrder{order}
+		copy.settings = paidSettings{setting}
+		return copy.HandleOrderPaid(order.ID)
+	}, nil
 }
