@@ -1,7 +1,10 @@
 package application
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -175,12 +178,24 @@ func (s *PaymentService) applyProviderPayment(input CreatePaymentInput, order *o
 		// 分销站/自定义域名下单时按当前 tenant 域名生成 ReturnURL（主站为空，
 		// 由各 adapter fallback 到 cfg 的 return_url/success_url），再 append ReturnURLQuery。
 		// NotifyURL 留空，始终由各 adapter 从 cfg 读取。
-		ReturnURL: resolveTenantReturnURL(input.Context, input.RequestScheme, channel),
+		ReturnURL:     resolveTenantReturnURL(input.Context, input.RequestScheme, channel),
+		PaymentIntent: payment.PaymentIntent,
+		ExpiresAt:     order.ExpiresAt,
+	}
+	if preparer, ok := p.(paymentcontract.GatewayIntentPreparer); ok {
+		if err := s.prepareGatewayPaymentIntent(preparer, channel, payment, &createInput); err != nil {
+			return err
+		}
+	} else if payment.RequiresChainVerification {
+		return ErrPaymentInvalid
 	}
 
 	result, err := p.CreatePayment(gatewayCtx, channel.ConfigJSON, createInput)
 	if err != nil {
 		return mapProviderErrorToService(err)
+	}
+	if result == nil || (payment.RequiresChainVerification && len(result.PaymentIntent) == 0) {
+		return ErrPaymentInvalid
 	}
 
 	// 把 result 写回 payment 字段
@@ -221,10 +236,239 @@ func (s *PaymentService) applyProviderPayment(input CreatePaymentInput, order *o
 	payment.Status = constants.PaymentStatusPending
 	payment.UpdatedAt = time.Now()
 
+	if payment.RequiresChainVerification {
+		if result.ExpiresAt == nil || !result.ExpiresAt.After(time.Now()) {
+			return ErrPaymentInvalid
+		}
+		payment.ExpiredAt = result.ExpiresAt
+		return s.persistGatewayPaymentIntent(payment, createInput.PaymentIntent, result.PaymentIntent)
+	}
 	if err := s.paymentRepo.Update(payment); err != nil {
 		return ErrPaymentUpdateFailed
 	}
 	return nil
+}
+
+func (s *PaymentService) prepareGatewayPaymentIntent(preparer paymentcontract.GatewayIntentPreparer, channel *paymentdomain.PaymentChannel, payment *paymentdomain.Payment, input *paymentcontract.GatewayCreateInput) error {
+	return s.paymentRepo.WithinTransaction(func(tx paymentcontract.Transaction) error {
+		revision, err := s.lockPaymentCreation(tx, channel, payment.OrderID)
+		if err != nil {
+			return err
+		}
+		input.AutomationRevision = revision
+		return s.prepareGatewayPaymentIntentTx(tx, preparer, channel, payment, input)
+	})
+}
+
+func (s *PaymentService) prepareGatewayPaymentIntentTx(tx paymentcontract.Transaction, preparer paymentcontract.GatewayIntentPreparer, channel *paymentdomain.PaymentChannel, payment *paymentdomain.Payment, input *paymentcontract.GatewayCreateInput) error {
+	// Lock in the same order as create/cancel to avoid reversing lock order.
+	order, err := tx.Orders().GetByIDForUpdateWithChildren(payment.OrderID)
+	if err != nil || order == nil || order.UserID == 0 || order.Status != constants.OrderStatusPendingPayment || (order.ExpiresAt != nil && !order.ExpiresAt.After(time.Now())) {
+		return ErrPaymentInvalid
+	}
+	locked, err := tx.Payments().GetByIDForUpdate(payment.ID)
+	if err != nil || locked == nil {
+		return ErrPaymentUpdateFailed
+	}
+	if (locked.Status != constants.PaymentStatusInitiated && locked.Status != constants.PaymentStatusPending) || locked.SupersededAt != nil ||
+		(locked.RequiresChainVerification && len(locked.PaymentIntent) == 0) ||
+		(locked.GatewayOrderNo != "" && locked.GatewayOrderNo != input.OrderNo) {
+		return ErrPaymentInvalid
+	}
+	input.PaymentIntent = locked.PaymentIntent
+	intent, err := preparer.PreparePaymentIntent(channel.ConfigJSON, *input)
+	if err != nil {
+		return mapProviderErrorToService(err)
+	}
+	if len(intent) == 0 {
+		if locked.RequiresChainVerification {
+			return ErrPaymentInvalid
+		}
+		return nil
+	}
+	// The caller took this fence BEFORE order locks; never invert that order.
+	if input.AutomationRevision == 0 {
+		return paymentdomain.ErrAutomationFrozen
+	}
+	if err := validateFixedPaymentItems(order); err != nil {
+		return err
+	}
+	deadline, err := preparer.PaymentIntentDeadline(intent)
+	if err != nil || !deadline.After(time.Now()) {
+		return ErrPaymentInvalid
+	}
+	if locked.RequiresChainVerification {
+		if locked.SettlementBasis == "" || locked.SettlementBasis != paymentdomain.OrderBasis(*locked, *order) {
+			return ErrPaymentInvalid
+		}
+	} else {
+		locked.SettlementBasis = paymentdomain.OrderBasis(*locked, *order)
+	}
+	receiver, ok := preparer.(paymentcontract.GatewayCandidateReceiver)
+	subscriptions, supported := tx.Payments().(paymentcontract.CandidateSubscriptionStore)
+	if !ok || !supported {
+		return ErrPaymentInvalid
+	}
+	source, enabled, sourceErr := receiver.CandidateSource(channel.ConfigJSON)
+	if sourceErr != nil || !enabled {
+		return ErrPaymentInvalid
+	}
+	if err := subscriptions.SaveCandidateSubscription(context.Background(), source, channel.ChannelType, channel.ConfigJSON); err != nil {
+		return ErrPaymentUpdateFailed
+	}
+	locked.AutomationRevision = input.AutomationRevision
+	locked.PaymentIntent = intent
+	locked.RequiresChainVerification = true
+	locked.GatewayOrderNo = input.OrderNo
+	if locked.ExpiredAt == nil {
+		locked.ExpiredAt = &deadline
+	}
+	if locked.IntentRetryAt == nil {
+		retry := time.Now().Add(time.Minute)
+		locked.IntentRetryAt = &retry
+	}
+	if err := tx.Payments().Update(locked); err != nil {
+		return ErrPaymentUpdateFailed
+	}
+	*payment = *locked
+	input.PaymentIntent = intent
+	return nil
+}
+
+// RecoverFixedPaymentIntents resumes only unfinished, still-payable authorizations.
+// SQL is the recovery queue; Redis holds disposable periodic wake-up tasks.
+func (s *PaymentService) RecoverFixedPaymentIntents(ctx context.Context) error {
+	repo, ok := s.paymentRepo.(paymentcontract.IntentRecoveryStore)
+	if !ok {
+		return ErrPaymentUpdateFailed
+	}
+	control, ok := s.paymentRepo.(interface {
+		OpenAutomationRevision(context.Context) (uint64, error)
+	})
+	if !ok {
+		return paymentdomain.ErrAutomationFrozen
+	}
+	if _, err := control.OpenAutomationRevision(ctx); err != nil {
+		if errors.Is(err, paymentdomain.ErrAutomationFrozen) {
+			return nil
+		}
+		return err
+	}
+	rows, err := repo.ListIntentRecoveries(time.Now(), 5)
+	if err != nil {
+		return ErrPaymentUpdateFailed
+	}
+	var failures []error
+	for _, row := range rows {
+		if err := ctx.Err(); err != nil {
+			return errors.Join(append(failures, err)...)
+		}
+		now := time.Now()
+		claimed, err := repo.ClaimIntentRecovery(row.ID, now, now.Add(time.Minute))
+		if err != nil {
+			failures = append(failures, ErrPaymentUpdateFailed)
+			continue
+		}
+		if !claimed {
+			continue
+		}
+		channel, err := s.channelRepo.GetByID(row.ChannelID)
+		if err != nil || channel == nil || channel.ProviderType != constants.PaymentProviderEpusdt {
+			failures = append(failures, ErrPaymentChannelConfigInvalid)
+			continue
+		}
+		// Disabling sales does not abandon an already authorized request. The
+		// adapter still requires the original endpoint/PID and fixed mode.
+		order, err := s.orderRepo.GetByID(row.OrderID)
+		if err != nil || order == nil {
+			failures = append(failures, ErrPaymentInvalid)
+			continue
+		}
+		if order.Status != constants.OrderStatusPendingPayment || (order.ExpiresAt != nil && !order.ExpiresAt.After(now)) {
+			continue
+		}
+		if err := s.applyProviderPayment(CreatePaymentInput{Context: ctx}, order, channel, &row); err != nil {
+			failures = append(failures, err)
+		}
+	}
+	return errors.Join(failures...)
+}
+
+// Bind a gateway result only if the durable authorization is still the one used
+// for the request. Concurrent retries may observe the exact same bound result.
+func (s *PaymentService) persistGatewayPaymentIntent(payment *paymentdomain.Payment, authorized, bound jsonmap.JSON) error {
+	expected, err := json.Marshal(authorized)
+	if err != nil {
+		return ErrPaymentInvalid
+	}
+	result, err := json.Marshal(bound)
+	if err != nil || len(bound) == 0 {
+		return ErrPaymentInvalid
+	}
+	return s.paymentRepo.WithinTransaction(func(tx paymentcontract.Transaction) error {
+		control, ok := tx.(interface{ LockAutomation(uint64) error })
+		if !ok || payment.AutomationRevision == 0 {
+			return paymentdomain.ErrAutomationFrozen
+		}
+		if err := control.LockAutomation(payment.AutomationRevision); err != nil {
+			return err
+		}
+		order, err := tx.Orders().GetByIDForUpdateWithChildren(payment.OrderID)
+		if err != nil || order == nil || order.Status != constants.OrderStatusPendingPayment || (order.ExpiresAt != nil && !order.ExpiresAt.After(time.Now())) {
+			return ErrPaymentInvalid
+		}
+		locked, err := tx.Payments().GetByIDForUpdate(payment.ID)
+		if err != nil || locked == nil {
+			return ErrPaymentUpdateFailed
+		}
+		if locked.SupersededAt != nil || !locked.RequiresChainVerification || (locked.Status != constants.PaymentStatusInitiated && locked.Status != constants.PaymentStatusPending) {
+			return ErrPaymentInvalid
+		}
+		current, err := json.Marshal(locked.PaymentIntent)
+		if err != nil || (!bytes.Equal(current, expected) && !bytes.Equal(current, result)) {
+			return ErrPaymentInvalid
+		}
+		if locked.SettlementBasis == "" || locked.SettlementBasis != paymentdomain.OrderBasis(*locked, *order) {
+			return ErrPaymentInvalid
+		}
+		locked.PaymentIntent = bound
+		locked.ProviderRef = payment.ProviderRef
+		locked.ProviderPayload = payment.ProviderPayload
+		locked.Status = constants.PaymentStatusPending
+		locked.ExpiredAt = payment.ExpiredAt
+		locked.UpdatedAt = time.Now()
+		locked.IntentRetryAt = nil
+		// Gateway-hosted pages are outside the merchant trust boundary. The trusted
+		// cashier is a later implementation step; never expose these URLs here.
+		locked.PayURL, locked.QRCode = "", ""
+		provider, ok := s.paymentProviderRegistry.Lookup(locked.ProviderType, locked.ChannelType)
+		if !ok {
+			return ErrPaymentInvalid
+		}
+		reader, ok := provider.(paymentcontract.GatewayChainIntentReader)
+		if !ok {
+			return ErrPaymentInvalid
+		}
+		expectation, err := reader.ReadChainExpectation(*locked)
+		if err != nil {
+			return ErrPaymentInvalid
+		}
+		allocations, ok := tx.Payments().(paymentcontract.AllocationStore)
+		if !ok {
+			return ErrPaymentUpdateFailed
+		}
+		if err := allocations.ReserveAllocation(paymentdomain.Allocation{SlotKey: expectation.SlotKey(), PaymentID: locked.ID, OrderID: order.ID,
+			Network: expectation.Network, Contract: expectation.Contract, Recipient: expectation.Recipient, RawAmount: expectation.RawAmount,
+			Snapshot: paymentdomain.SettlementSnapshot(*locked, *order), CreatedAt: time.Now()}); err != nil {
+			return err
+		}
+		if err := tx.Payments().Update(locked); err != nil {
+			return ErrPaymentUpdateFailed
+		}
+		locked.AutomationRevision = payment.AutomationRevision
+		*payment = *locked
+		return nil
+	})
 }
 
 // TestChannelSecurity 对已保存的微信支付渠道执行官方非交易安全诊断。
@@ -341,6 +585,10 @@ func (s *PaymentService) ValidateChannel(channel *paymentdomain.PaymentChannel) 
 	if err := p.ValidateConfig(channel.ConfigJSON, validateParam); err != nil {
 		return mapProviderErrorToService(err)
 	}
+	if isEpusdtProvider(providerType) {
+		channel.PaymentRoles = []string{constants.PaymentRoleMember}
+		channel.PaymentTypes = []string{constants.PaymentTypeOrder}
+	}
 	return nil
 }
 
@@ -403,4 +651,56 @@ func resolveTokenPayOrderUserKey(order *orderdomain.Order) string {
 		return guestEmail
 	}
 	return strings.TrimSpace(order.OrderNo)
+}
+
+// lockPaymentCreation runs before any order/payment/wallet lock. Selecting an
+// existing fixed intent still requires the fence even if channel config changed.
+func (s *PaymentService) lockPaymentCreation(tx paymentcontract.Transaction, channel *paymentdomain.PaymentChannel, orderID uint) (uint64, error) {
+	needed := false
+	if channel != nil && s.paymentProviderRegistry != nil {
+		if provider, ok := s.paymentProviderRegistry.Lookup(channel.ProviderType, channel.ChannelType); ok {
+			if preparer, ok := provider.(paymentcontract.GatewayIntentPreparer); ok {
+				var err error
+				needed, err = preparer.RequiresPaymentIntent(channel.ConfigJSON)
+				if err != nil {
+					return 0, mapProviderErrorToService(err)
+				}
+			}
+		}
+	}
+	prior, err := tx.Payments().ListByOrderID(orderID)
+	if err != nil {
+		return 0, err
+	}
+	for _, p := range prior {
+		if p.RequiresChainVerification && p.SupersededAt == nil && (p.Status == constants.PaymentStatusInitiated || p.Status == constants.PaymentStatusPending) && (p.ExpiredAt == nil || p.ExpiredAt.After(time.Now())) {
+			needed = true
+		}
+	}
+	if !needed {
+		return 0, nil
+	}
+	reader, ok := tx.Payments().(interface {
+		OpenAutomationRevision(context.Context) (uint64, error)
+	})
+	control, supported := tx.(interface{ LockAutomation(uint64) error })
+	if !ok || !supported {
+		return 0, paymentdomain.ErrAutomationFrozen
+	}
+	revision, err := reader.OpenAutomationRevision(context.Background())
+	if err != nil {
+		return 0, err
+	}
+	if err := control.LockAutomation(revision); err != nil {
+		return 0, err
+	}
+	return revision, nil
+}
+
+// Uncertain upstream purchases must be excluded before requesting funds.
+func validateFixedPaymentItems(order *orderdomain.Order) error {
+	if err := paymentdomain.ValidateFixedOrder(order); err != nil {
+		return ErrPaymentChannelNotAllowedForProduct
+	}
+	return nil
 }

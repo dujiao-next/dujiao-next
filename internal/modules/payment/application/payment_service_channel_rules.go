@@ -1,6 +1,8 @@
 package application
 
 import (
+	"strings"
+
 	"github.com/dujiao-next/internal/constants"
 	productcontract "github.com/dujiao-next/internal/modules/catalog/product/contract"
 	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
@@ -154,6 +156,13 @@ func (s *PaymentService) GetWalletRechargeChannels() ([]paymentdomain.PaymentCha
 	if err != nil {
 		return nil, err
 	}
+	filteredByProvider := make([]paymentdomain.PaymentChannel, 0, len(channels))
+	for _, channel := range channels {
+		if !isEpusdtProvider(channel.ProviderType) {
+			filteredByProvider = append(filteredByProvider, channel)
+		}
+	}
+	channels = filteredByProvider
 	if s.settingService == nil {
 		return channels, nil
 	}
@@ -250,7 +259,15 @@ func matchesChannelAmount(channel paymentdomain.PaymentChannel, targetAmount *mo
 		(!channel.MaxAmount.Decimal.IsPositive() || !amount.GreaterThan(channel.MaxAmount.Decimal))
 }
 
+func isEpusdtProvider(provider string) bool {
+	return strings.EqualFold(strings.TrimSpace(provider), constants.PaymentProviderEpusdt)
+}
+
 func matchesChannelRole(channel paymentdomain.PaymentChannel, user *userdomain.User) bool {
+	// Epusdt recovery is restricted to persisted member orders, even for legacy unrestricted channels.
+	if isEpusdtProvider(channel.ProviderType) && (user == nil || user.ID == 0) {
+		return false
+	}
 	if len(channel.PaymentRoles) == 0 {
 		return true
 	}
@@ -282,6 +299,9 @@ func matchesChannelMemberLevel(channel paymentdomain.PaymentChannel, user *userd
 }
 
 func matchesChannelPaymentType(channel paymentdomain.PaymentChannel, paymentType string) bool {
+	if isEpusdtProvider(channel.ProviderType) && paymentType != "" && paymentType != constants.PaymentTypeOrder {
+		return false
+	}
 	if len(channel.PaymentTypes) == 0 || paymentType == "" {
 		return true
 	}

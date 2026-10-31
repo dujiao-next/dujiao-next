@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"github.com/dujiao-next/internal/modules/payment/infrastructure/gormstore/automation"
 	"strconv"
 	"sync"
 	"testing"
@@ -74,9 +75,23 @@ func setupPaymentServiceWalletTest(t *testing.T) (*PaymentService, *gorm.DB) {
 		&walletdomain.RechargeOrder{},
 		&paymentdomain.PaymentChannel{},
 		&paymentdomain.Payment{},
+		&paymentdomain.Allocation{},
+		&paymentdomain.EventConsumption{},
+		&paymentdomain.PaymentEffect{},
+		&paymentdomain.RecipientReceipt{},
+		&paymentdomain.SecurityAlert{},
+		&paymentdomain.AutomationControl{},
+		&paymentdomain.CandidateEvidence{},
+		&paymentdomain.CandidateReceipt{}, &paymentdomain.CandidateSubscription{},
 		&settingsstore.SettingRecord{},
 	); err != nil {
 		t.Fatalf("auto migrate failed: %v", err)
+	}
+	if err := automation.Ensure(db); err != nil {
+		t.Fatal(err)
+	}
+	if err := automation.SetFrozen(context.Background(), db, false, 1, "synthetic acceptance"); err != nil {
+		t.Fatal(err)
 	}
 	gormdb.DB = db
 

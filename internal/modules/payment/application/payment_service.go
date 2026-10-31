@@ -1,6 +1,7 @@
 package application
 
 import (
+	"context"
 	"errors"
 
 	"github.com/dujiao-next/internal/config"
@@ -46,6 +47,7 @@ var (
 
 // PaymentService 支付服务
 type PaymentService struct {
+	effectDelivery          PaymentEffectDelivery
 	orderRepo               ordercontract.Store
 	productRepo             productcontract.Repository
 	productSKURepo          productcontract.SKURepository
@@ -66,6 +68,20 @@ type PaymentService struct {
 	memberLevelSvc          MemberLevelProgressor
 	paymentProviderRegistry paymentcontract.GatewayRegistry
 	resellerAccounting      resellerAccountingTransactions
+}
+
+// PaymentEffectDelivery executes synchronously; nil means policy skip or an
+// actual sender acknowledgment, never an intermediate Redis enqueue.
+type PaymentEffectDelivery interface {
+	SendPaymentStatusEmail(context.Context, uint, string, func(context.Context) error) error
+	SendPaymentBot(context.Context, paymentcontract.BotNotification, func(context.Context) error) error
+}
+
+// WithEffectDelivery returns a worker-local copy, avoiding shared mutable wiring.
+func (s *PaymentService) WithEffectDelivery(delivery PaymentEffectDelivery) *PaymentService {
+	copy := *s
+	copy.effectDelivery = delivery
+	return &copy
 }
 
 type MemberLevelProgressor interface {

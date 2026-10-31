@@ -48,6 +48,9 @@ func hasProviderResult(payment *paymentdomain.Payment) bool {
 	if payment == nil {
 		return false
 	}
+	if payment.RequiresChainVerification {
+		return len(payment.PaymentIntent) != 0 && payment.ProviderRef != ""
+	}
 	return strings.TrimSpace(payment.PayURL) != "" || strings.TrimSpace(payment.QRCode) != ""
 }
 
@@ -67,6 +70,7 @@ func (s *PaymentService) CreatePayment(input CreatePaymentInput) (*CreatePayment
 	var channel *paymentdomain.PaymentChannel
 	feeRate := decimal.Zero
 	reusedPending := false
+	resumeIntent := false
 	orderPaidByWallet := false
 	now := time.Now()
 	feeConfig := settingsapp.DefaultPaymentFeeConfig()
@@ -84,6 +88,18 @@ func (s *PaymentService) CreatePayment(input CreatePaymentInput) (*CreatePayment
 	}
 
 	err := s.paymentRepo.WithinTransaction(func(tx paymentcontract.Transaction) error {
+		var selected *paymentdomain.PaymentChannel
+		if input.ChannelID != 0 {
+			var err error
+			selected, err = tx.PaymentChannels().GetByID(input.ChannelID)
+			if err != nil {
+				return err
+			}
+		}
+		revision, err := s.lockPaymentCreation(tx, selected, input.OrderID)
+		if err != nil {
+			return err
+		}
 		preloaded, err := tx.Orders().GetByIDForUpdateWithChildren(input.OrderID)
 		if err != nil {
 			return orderapp.ErrOrderFetchFailed
@@ -102,8 +118,49 @@ func (s *PaymentService) CreatePayment(input CreatePaymentInput) (*CreatePayment
 			return orderapp.ErrOrderStatusInvalid
 		}
 
+		if revision != 0 {
+			if err := validateFixedPaymentItems(&lockedOrder); err != nil {
+				return err
+			}
+		}
 		paymentRepo := tx.Payments()
 		channelRepo := tx.PaymentChannels()
+		// Preserve the wallet split and identity while a fixed intent is active,
+		// including the gap between SQL commit and the first gateway response.
+		prior, err := paymentRepo.ListByOrderID(lockedOrder.ID)
+		if err != nil {
+			return ErrPaymentCreateFailed
+		}
+		for idx := range prior {
+			p := &prior[idx]
+			if !p.RequiresChainVerification || p.SupersededAt != nil || (p.Status != constants.PaymentStatusInitiated && p.Status != constants.PaymentStatusPending) || (p.ExpiredAt != nil && !p.ExpiredAt.After(time.Now())) {
+				continue
+			}
+			if p.ChannelID != input.ChannelID {
+				return ErrPaymentStatusInvalid
+			}
+			// Another request may have created this intent while we waited for
+			// the order lock. Retry from the start instead of taking locks backwards.
+			if revision == 0 {
+				return paymentdomain.ErrAutomationFrozen
+			}
+			resolved, err := channelRepo.GetByID(p.ChannelID)
+			if err != nil || resolved == nil {
+				return ErrPaymentChannelNotFound
+			}
+			if err := validateOrderChannelEligibility(*resolved, &lockedOrder); err != nil {
+				return err
+			}
+			if len(p.PaymentIntent) == 0 {
+				return ErrPaymentInvalid
+			}
+			p.AutomationRevision = revision
+			payment, order, channel = p, &lockedOrder, resolved
+			reusedPending = hasProviderResult(p)
+			resumeIntent = !reusedPending
+			return nil
+		}
+
 		if input.ChannelID != 0 {
 			if channel == nil {
 				// 事务内必须使用 tx 绑定仓储，避免在单连接池下发生自锁等待。
@@ -242,6 +299,21 @@ func (s *PaymentService) CreatePayment(input CreatePaymentInput) (*CreatePayment
 		if err := paymentRepo.Create(payment); err != nil {
 			return ErrPaymentCreateFailed
 		}
+		// Authorize in the SAME transaction as payment creation. A process
+		// crash after this commit must leave a complete resumable request.
+		if s.paymentProviderRegistry != nil {
+			if provider, ok := s.paymentProviderRegistry.Lookup(channel.ProviderType, channel.ChannelType); ok {
+				if preparer, ok := provider.(paymentcontract.GatewayIntentPreparer); ok {
+					payment.GatewayOrderNo = resolveGatewayOrderNo(channel, payment)
+					createInput := paymentcontract.GatewayCreateInput{AutomationRevision: revision, PaymentID: payment.ID, OrderID: lockedOrder.ID, OrderNo: payment.GatewayOrderNo,
+						Subject: buildOrderSubject(&lockedOrder), Amount: payment.Amount, Currency: payment.Currency, ExpiresAt: lockedOrder.ExpiresAt,
+						ReturnURL: resolveTenantReturnURL(input.Context, input.RequestScheme, channel), ReturnURLQuery: buildPaymentReturnQuery(input, &lockedOrder, channel.ProviderType+"_return", "")}
+					if err := s.prepareGatewayPaymentIntentTx(tx, preparer, channel, payment, &createInput); err != nil {
+						return err
+					}
+				}
+			}
+		}
 		if err := tx.Orders().UpdateFields(lockedOrder.ID, map[string]interface{}{
 			"online_paid_amount": money.FromDecimal(onlineAmount),
 			"updated_at":         time.Now(),
@@ -303,7 +375,26 @@ func (s *PaymentService) CreatePayment(input CreatePaymentInput) (*CreatePayment
 		return nil, ErrPaymentCreateFailed
 	}
 
+	if resumeIntent {
+		repo, ok := s.paymentRepo.(paymentcontract.IntentRecoveryStore)
+		if !ok {
+			return nil, ErrPaymentUpdateFailed
+		}
+		now := time.Now()
+		claimed, err := repo.ClaimIntentRecovery(payment.ID, now, now.Add(time.Minute))
+		if err != nil {
+			return nil, ErrPaymentUpdateFailed
+		}
+		if !claimed {
+			return nil, ErrPaymentGatewayRequestFailed
+		}
+	}
 	if err := s.applyProviderPayment(input, order, channel, payment); err != nil {
+		// HTTP errors and invalid responses cannot prove that the remote order
+		// was never created. Keep SQL authorization and reserved wallet funds.
+		if payment.RequiresChainVerification {
+			return nil, err
+		}
 		rollbackErr := s.paymentRepo.WithinTransaction(func(tx paymentcontract.Transaction) error {
 			paymentRepo := tx.Payments()
 			payment.Status = constants.PaymentStatusFailed

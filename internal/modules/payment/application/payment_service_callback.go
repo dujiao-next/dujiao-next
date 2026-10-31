@@ -66,6 +66,14 @@ func (s *PaymentService) HandleCallback(input PaymentCallbackInput) (*paymentdom
 		log.Warnw("payment_callback_payment_not_found")
 		return nil, ErrPaymentNotFound
 	}
+	// Ordinary callbacks are hints, never settlement authority for fixed intents.
+	// Keep this fail-closed even if the saved snapshot is missing or malformed.
+	if payment.RequiresChainVerification {
+		return nil, ErrPaymentInvalid
+	}
+	if payment.OrderID == 0 && isEpusdtProvider(payment.ProviderType) {
+		return nil, ErrPaymentChannelNotAllowedForRecharge
+	}
 	if payment.OrderID == 0 {
 		log.Infow("payment_callback_wallet_recharge_flow")
 		return s.handleWalletRechargeCallback(payment, status, input)
@@ -79,6 +87,10 @@ func (s *PaymentService) HandleCallback(input PaymentCallbackInput) (*paymentdom
 	if order == nil {
 		log.Warnw("payment_callback_order_not_found", "order_id", payment.OrderID)
 		return nil, orderapp.ErrOrderNotFound
+	}
+
+	if isEpusdtProvider(payment.ProviderType) && order.UserID == 0 {
+		return nil, ErrPaymentChannelNotAllowedForProduct
 	}
 
 	if input.ChannelID != 0 && input.ChannelID != payment.ChannelID {
@@ -255,12 +267,18 @@ func (s *PaymentService) applyPaymentUpdate(payment *paymentdomain.Payment, orde
 		if lockedPayment == nil {
 			return ErrPaymentNotFound
 		}
+		if lockedPayment.RequiresChainVerification {
+			return ErrPaymentInvalid
+		}
 		lockedOrder, err := tx.Orders().GetByIDForUpdateWithChildren(order.ID)
 		if err != nil {
 			return orderapp.ErrOrderFetchFailed
 		}
 		if lockedOrder == nil {
 			return orderapp.ErrOrderNotFound
+		}
+		if isEpusdtProvider(lockedPayment.ProviderType) && lockedOrder.UserID == 0 {
+			return ErrPaymentChannelNotAllowedForProduct
 		}
 		if err := validateCallbackPaymentFacts(lockedPayment, lockedOrder.OrderNo, status, input); err != nil {
 			return err
@@ -485,4 +503,38 @@ func (s *PaymentService) markOrderPaid(tx paymentcontract.Transaction, order *or
 		return err
 	}
 	return nil
+}
+
+// ApplyChainSettlement is a transaction-only integration port, with no HTTP
+// route. The settlement coordinator owns all proof/ownership/lifecycle checks.
+func (s *PaymentService) ApplyChainSettlement(tx paymentcontract.SettlementTransaction, order *orderdomain.Order, payment *paymentdomain.Payment, now time.Time) error {
+	if !payment.RequiresChainVerification || order.UserID == 0 {
+		return ErrPaymentInvalid
+	}
+	user, err := tx.Users().GetByID(order.UserID)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return ErrPaymentInvalid
+	}
+	payment.Status = constants.PaymentStatusSuccess
+	payment.PaidAt, payment.UpdatedAt, payment.IntentRetryAt = &now, now, nil
+	if err := tx.Payments().Update(payment); err != nil {
+		return err
+	}
+	if err := s.markOrderPaid(tx, order, now); err != nil {
+		return err
+	}
+	if _, err := tx.Payments().ExpirePendingByOrderIDs([]uint{order.ID}, now); err != nil {
+		return err
+	}
+	if s.resellerAccounting != nil {
+		if err := s.resellerAccounting.PostOrderProfit(tx.ResellerAccounting(), order, payment); err != nil {
+			return err
+		}
+	}
+	// Consumption uniqueness + this same transaction is the idempotency fence.
+	// The outbox performs only CheckAndUpgrade, never OnOrderPaid's increment.
+	return tx.Users().IncrementTotalSpent(order.UserID, order.TotalAmount.Decimal)
 }
