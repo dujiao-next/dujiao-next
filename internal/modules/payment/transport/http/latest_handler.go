@@ -1,6 +1,7 @@
 package paymenthttp
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -56,13 +57,18 @@ type LatestHandler struct {
 	guestOrders GuestOrderLookup
 	userOrders  UserOrderLookup
 	payments    PendingPaymentLookup
+	cashier     CashierReader
 }
 
-func NewLatestHandler(guestOrders GuestOrderLookup, userOrders UserOrderLookup, payments PendingPaymentLookup) *LatestHandler {
+func NewLatestHandler(guestOrders GuestOrderLookup, userOrders UserOrderLookup, payments PendingPaymentLookup, readers ...CashierReader) *LatestHandler {
 	if guestOrders == nil || userOrders == nil || payments == nil {
 		panic("payment latest handler: required dependency is nil")
 	}
-	return &LatestHandler{guestOrders: guestOrders, userOrders: userOrders, payments: payments}
+	h := &LatestHandler{guestOrders: guestOrders, userOrders: userOrders, payments: payments}
+	if len(readers) > 0 {
+		h.cashier = readers[0]
+	}
+	return h
 }
 
 func tenantFromRequest(c *gin.Context) reseller.TenantContext {
@@ -153,4 +159,43 @@ func (h *LatestHandler) respondLatestPayment(c *gin.Context, order *orderdomain.
 	}
 
 	response.Success(c, paymentpresenter.NewLatestPaymentResp(payment, order.OrderNo))
+}
+
+// CashierReader is read-only and receives an already tenant-authorized order.
+type CashierReader interface {
+	Read(context.Context, uint, uint, uint) (paymentdomain.CashierView, error)
+}
+
+func (h *LatestHandler) GetCashier(c *gin.Context) {
+	c.Header("Cache-Control", "no-store, private, max-age=0")
+	c.Header("Pragma", "no-cache")
+	c.Header("Vary", "Authorization")
+	c.Header("Referrer-Policy", "no-referrer")
+	uid, ok := ginutil.GetUserID(c)
+	if !ok {
+		return
+	}
+	var query struct {
+		OrderNo   string `form:"order_no" binding:"required"`
+		PaymentID uint   `form:"payment_id" binding:"required"`
+	}
+	if err := c.ShouldBindQuery(&query); err != nil {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", nil)
+		return
+	}
+	order, err := h.userOrders.GetOrderByUserOrderNoForTenant(tenantFromRequest(c), query.OrderNo, uid)
+	if err != nil || order == nil || order.UserID != uid || order.ParentID != nil {
+		ginutil.RespondError(c, response.CodeNotFound, "error.order_not_found", nil)
+		return
+	}
+	if h.cashier == nil {
+		ginutil.RespondError(c, response.CodeInternal, "error.payment_fetch_failed", nil)
+		return
+	}
+	view, err := h.cashier.Read(c.Request.Context(), query.PaymentID, order.ID, uid)
+	if err != nil {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.payment_invalid", nil)
+		return
+	}
+	response.Success(c, view)
 }

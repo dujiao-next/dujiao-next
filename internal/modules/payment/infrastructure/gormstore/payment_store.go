@@ -112,11 +112,11 @@ func (r *Store) GetLatestPendingByOrder(orderID uint, now time.Time) (*paymentdo
 	result := r.db.
 		Select("payments.*, payment_channels.name AS channel_name").
 		Joins("LEFT JOIN payment_channels ON payment_channels.id = payments.channel_id AND payment_channels.deleted_at IS NULL").
-		Where("payments.deleted_at IS NULL AND payments.order_id = ? AND payments.status IN ? AND payments.superseded_at IS NULL AND payments.fee_policy IN ? AND (payments.expired_at IS NULL OR payments.expired_at > ?) AND ((payments.pay_url IS NOT NULL AND payments.pay_url <> '') OR (payments.qr_code IS NOT NULL AND payments.qr_code <> ''))",
+		Where("payments.deleted_at IS NULL AND payments.order_id = ? AND payments.status IN ? AND payments.superseded_at IS NULL AND payments.fee_policy IN ? AND (payments.expired_at IS NULL OR payments.expired_at > ?) AND ((payments.pay_url IS NOT NULL AND payments.pay_url <> '') OR (payments.qr_code IS NOT NULL AND payments.qr_code <> '') OR (payments.requires_chain_verification = true AND payments.expired_at > ?))",
 			orderID,
 			[]string{constants.PaymentStatusInitiated, constants.PaymentStatusPending},
 			[]string{constants.PaymentFeePolicyNone, constants.PaymentFeePolicyMerchantAbsorbed, constants.PaymentFeePolicyCustomerSurcharge},
-			now,
+			now, now,
 		).Order("payments.id desc").Limit(1).Find(&payment)
 	if result.Error != nil {
 		return nil, result.Error
@@ -130,11 +130,11 @@ func (r *Store) GetLatestPendingByOrder(orderID uint, now time.Time) (*paymentdo
 // GetLatestPendingByOrderChannel 获取订单+渠道最新待支付记录
 func (r *Store) GetLatestPendingByOrderChannel(orderID uint, channelID uint, now time.Time) (*paymentdomain.Payment, error) {
 	var payment paymentdomain.Payment
-	result := r.db.Where("deleted_at IS NULL AND order_id = ? AND channel_id = ? AND status IN ? AND superseded_at IS NULL AND (expired_at IS NULL OR expired_at > ?) AND ((pay_url IS NOT NULL AND pay_url <> '') OR (qr_code IS NOT NULL AND qr_code <> ''))",
+	result := r.db.Where("deleted_at IS NULL AND order_id = ? AND channel_id = ? AND status IN ? AND superseded_at IS NULL AND (expired_at IS NULL OR expired_at > ?) AND ((pay_url IS NOT NULL AND pay_url <> '') OR (qr_code IS NOT NULL AND qr_code <> '') OR (requires_chain_verification = true AND provider_ref <> '' AND expired_at > ?))",
 		orderID,
 		channelID,
 		[]string{constants.PaymentStatusInitiated, constants.PaymentStatusPending},
-		now,
+		now, now,
 	).Order("id desc").Limit(1).Find(&payment)
 	if result.Error != nil {
 		return nil, result.Error

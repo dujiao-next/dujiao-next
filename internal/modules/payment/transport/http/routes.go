@@ -16,6 +16,7 @@ func RegisterUserLatestRoute(user gin.IRoutes, handler *LatestHandler) {
 		panic("payment user latest route: required dependency is nil")
 	}
 	user.GET("/payments/latest", handler.GetLatestPayment)
+	user.GET("/payments/cashier", handler.GetCashier)
 }
 
 // RegisterGuestWriteRoutes 注册前台游客支付创建/捕获路由。

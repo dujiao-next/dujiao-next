@@ -1,6 +1,7 @@
 package queueadapter
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -61,4 +62,11 @@ func (q *Queue) EnqueueWalletRechargeExpire(paymentID uint, delay time.Duration)
 		return nil
 	}
 	return q.client.EnqueueWalletRechargeExpire(queue.WalletRechargeExpirePayload{PaymentID: paymentID}, delay)
+}
+
+func (q *Queue) EnqueueVerifiedOrderAutoFulfill(orderID uint) error {
+	if !q.Enabled() {
+		return fmt.Errorf("payment fulfillment queue unavailable")
+	}
+	return q.client.EnqueueOrderAutoFulfill(queue.OrderAutoFulfillPayload{OrderID: orderID, DurablePaymentEffects: true}, asynq.MaxRetry(3))
 }

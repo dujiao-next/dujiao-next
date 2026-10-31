@@ -389,6 +389,8 @@ const (
 	TaskResellerConfirmLedger       = "reseller:confirm_ledger"
 	TaskProcurementSubmit           = "procurement:submit"
 	TaskProcurementPollStatus       = "procurement:poll_status"
+	TaskPaymentChainVerify          = "payment:chain_verify"
+	TaskPaymentCandidateSync        = "payment:candidate_sync"
 	TaskProcurementSyncAccepted     = "procurement:sync_accepted"
 	TaskUpstreamSyncProducts        = "upstream:sync_products"
 	TaskUpstreamSyncStock           = "upstream:sync_stock"
@@ -583,3 +585,6 @@ const (
 	BannerLinkTypeInternal = "internal"
 	BannerLinkTypeExternal = "external"
 )
+
+const TaskPaymentChainSettle = "payment:chain_settle"
+const TaskPaymentEffects = "payment:effects"

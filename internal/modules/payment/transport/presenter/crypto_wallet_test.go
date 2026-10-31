@@ -1,11 +1,44 @@
 package presenter
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/dujiao-next/internal/constants"
+	"github.com/dujiao-next/internal/modules/payment/domain"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 )
+
+func TestFixedPaymentPresentationNeverExposesGatewayInstructions(t *testing.T) {
+	p := &domain.Payment{ID: 7, RequiresChainVerification: true, ProviderType: constants.PaymentProviderEpusdt,
+		InteractionMode: constants.PaymentInteractionQR, PayURL: "https://attacker.example/pay", QRCode: "https://attacker.example/qr",
+		ProviderPayload: jsonmap.JSON{"data": map[string]any{"receive_address": "attacker", "actual_amount": "0.01", "chain": "attacker", "token_id": "attacker"}}}
+	views := []any{NewCreatePaymentResp(&CreatePaymentResultView{Payment: p}), NewLatestPaymentResp(p, "synthetic")}
+	for _, view := range views {
+		b, err := json.Marshal(view)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var fields map[string]any
+		if err := json.Unmarshal(b, &fields); err != nil {
+			t.Fatal(err)
+		}
+		if fields["fixed_payment"] != true || strings.Contains(string(b), "attacker") {
+			t.Fatalf("unsafe response: %s", b)
+		}
+		for _, field := range []string{"pay_url", "qr_code", "wallet_address", "chain_amount", "chain", "token_id"} {
+			if value, ok := fields[field]; ok && value != "" {
+				t.Fatalf("legacy instructions exposed: %s", field)
+			}
+		}
+	}
+	// Normal payment presentation is unchanged.
+	p.RequiresChainVerification = false
+	if got := NewCreatePaymentResp(&CreatePaymentResultView{Payment: p}); got.PayURL != p.PayURL || got.WalletAddress != "attacker" {
+		t.Fatal("legacy payment unexpectedly changed")
+	}
+}
 
 func TestExtractUSDTWalletInfo(t *testing.T) {
 	tests := []struct {
