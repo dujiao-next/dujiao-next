@@ -37,6 +37,61 @@ jobs:
           python3 ops/maimen/scripts/check_templates.py
           python3 -B -m unittest discover -s ops/maimen/scripts -p 'test_*.py'
 
+  payment-security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      GOFLAGS: -mod=readonly
+      PAYMENT_TEST_POSTGRES_URL: postgres://payment_ci:synthetic_ci_only@127.0.0.1:5432/payment_lab?sslmode=disable
+      PAYMENT_TEST_REDIS_HOST: dujiao-payment-redis13
+    services:
+      # Disposable GitHub-hosted services, never production credentials or volumes.
+      postgres:
+        image: postgres:16.14-bookworm
+        env:
+          POSTGRES_DB: payment_lab
+          POSTGRES_USER: payment_ci
+          POSTGRES_PASSWORD: synthetic_ci_only
+        ports: ["127.0.0.1:5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U payment_ci -d payment_lab"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+      redis:
+        image: redis:7.4.9-bookworm
+        ports: ["127.0.0.1:6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Resolve the test-only Redis alias on this disposable runner
+        run: |
+          printf '127.0.0.1 dujiao-payment-redis13\n' | sudo tee -a /etc/hosts > /dev/null
+      - name: Exercise payment races against PostgreSQL and Redis
+        shell: bash
+        run: |
+          set -euo pipefail
+          go test -race -count=1 -json ./internal/persistence/integrationtest/payment ./internal/modules/payment/... ./internal/modules/fulfillment/... ./internal/modules/affiliate/... ./internal/modules/memberlevel/... ./internal/modules/notification/... ./internal/modules/downstreamcallback/... ./internal/app/jobs/consumer ./internal/architecture > "$RUNNER_TEMP/payment-tests.jsonl"
+          python3 ops/maimen/scripts/check_payment_test_report.py "$RUNNER_TEMP/payment-tests.jsonl"
+      - name: Check reachable vulnerabilities in both merchant entry points
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+          govulncheck ./cmd/server ./cmd/payment-ops
+      - name: Retain synthetic test evidence, including failed runs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: payment-tests-${{ github.sha }}
+          path: ${{ runner.temp }}/payment-tests.jsonl
+          if-no-files-found: error
+          retention-days: 14
+
   frontend:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -69,7 +124,7 @@ jobs:
 
   image:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/maimen-fullstack' && github.repository == 'googidaddy/dujiao-next-api'
-    needs: [api, frontend]
+    needs: [api, frontend, payment-security]
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:

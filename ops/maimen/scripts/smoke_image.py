@@ -99,7 +99,13 @@ def main():
                 raise RuntimeError("Unexpected health response")
             check_spa(container, "/")
             check_spa(container, "/verify-admin/", admin=True)
-            print("Image smoke test passed: API, storefront, custom admin path, and embedded assets.")
+            # Exercise the shipped operator binary against this disposable DB.
+            # status never migrates or resumes payment automation.
+            status = docker("exec", container, "/app/payment-ops", "-action", "status")
+            control = json.loads(status.stdout.strip().splitlines()[-1])
+            if control.get("Frozen") is not True or control.get("Revision") != 1:
+                raise RuntimeError("Fresh image did not preserve default payment freeze")
+            print("Image smoke test passed: API, storefront, custom admin path, assets, and payment-ops default freeze.")
         except Exception:
             if created:
                 logs = docker("logs", "--tail", "80", container, check=False)

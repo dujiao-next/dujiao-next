@@ -1,0 +1,43 @@
+# Settlement/delivery also require the default-frozen SQL control to be opened after acceptance.
+# Scope and operator procedure: payment-automation-control.md
+# Merge this section into the server-owned merchant config.yml only after review.
+# Keep credentials in the private, read-only mounted config. Never commit filled values.
+# Disabled by default. This enables evidence verification, NOT U payments/settlement.
+payment_chain_verification:
+  enabled: false
+  settlement_enabled: false
+  # Merchant member cashier only; requires both flags above AND an open SQL fence.
+  cashier_enabled: false # Separate activation; deployment acceptance still required.
+  version: "mainnet-policy-v1"
+  max_head_age_seconds: 120
+  bsc:
+    # Independently pin a known finalized MAINNET block, not a gateway-supplied value.
+    anchor_number: 0
+    anchor_hash: ""  # 0x + 64 hex characters; fill before enabling
+    sources:
+      - name: "bsc-source-a"
+        provider: "provider-a"
+        url: "https://bsc-a.example/REPLACE_PRIVATE_ENDPOINT"
+      - name: "bsc-source-b"
+        provider: "provider-b"
+        url: "https://bsc-b.example/REPLACE_PRIVATE_ENDPOINT"
+  tron:
+    # Independently pin a known MAINNET solid block. Use a non-genesis block.
+    anchor_number: 0
+    anchor_hash: ""  # 64 hex characters, no 0x; includes height in first 8 bytes
+    sources:
+      - name: "tron-source-a"
+        provider: "provider-a"
+        url: "https://tron-a.example"
+        api_key: ""  # Optional TRON-PRO-API-KEY header, fill privately if required
+      - name: "tron-source-b"
+        provider: "provider-b"
+        url: "https://tron-b.example"
+        api_key: ""
+
+# Independent outbound operator alerts; remains available while payment SQL is frozen.
+# Fill secrets only in private server configuration after deployment acceptance.
+payment_security_alerts:
+  enabled: false
+  bot_token: ""
+  chat_id: ""

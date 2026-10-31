@@ -29,7 +29,7 @@ RUN cd user  && pnpm run build
 
 # ---- 阶段 2：构建内嵌前端的 Go 二进制 ----
 # 版本必须 >= go.mod 的 go 指令，官方镜像默认 GOTOOLCHAIN=local 不会自动拉取更高工具链。
-FROM --platform=$BUILDPLATFORM golang:1.26.5-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.9-bookworm@sha256:d9c68c2c51161e12fd77e4c6320687c9cd86e1af1e3ad6e6cd63ff970641453c AS builder
 
 ARG TARGETOS
 ARG TARGETARCH
@@ -54,7 +54,8 @@ RUN set -eux; \
     export GOOS="$TARGETOS" GOARCH="$TARGETARCH"; \
     if [ "$TARGETARCH" = "arm" ] && [ -n "$TARGETVARIANT" ]; then export GOARM="${TARGETVARIANT#v}"; fi; \
     if [ "$TARGETARCH" = "amd64" ] && [ -n "$TARGETVARIANT" ]; then export GOAMD64="${TARGETVARIANT#v}"; fi; \
-    go build -trimpath -tags release,fullstack -ldflags="-s -w -X github.com/dujiao-next/internal/version.Version=${APP_VERSION} -X github.com/dujiao-next/internal/version.BuildType=release" -o /out/dujiao-next ./cmd/server
+    go build -trimpath -tags release,fullstack -ldflags="-s -w -X github.com/dujiao-next/internal/version.Version=${APP_VERSION} -X github.com/dujiao-next/internal/version.BuildType=release" -o /out/dujiao-next ./cmd/server; \
+    go build -trimpath -ldflags="-s -w" -o /out/payment-ops ./cmd/payment-ops
 
 # ---- 阶段 3：运行时 ----
 FROM alpine:latest
@@ -65,6 +66,7 @@ RUN apk --no-cache add ca-certificates tzdata \
     && mkdir -p /app/db /app/uploads /app/logs
 
 COPY --from=builder /out/dujiao-next /app/dujiao-next
+COPY --from=builder /out/payment-ops /app/payment-ops
 COPY config.yml.example /app/config.yml.example
 
 EXPOSE 8080
