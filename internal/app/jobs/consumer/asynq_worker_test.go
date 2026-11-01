@@ -1,9 +1,24 @@
 package consumer
 
 import (
+	"bufio"
 	"context"
 	"errors"
+	"fmt"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
+
+	channelclientapp "github.com/dujiao-next/internal/modules/channelclient/application"
+	channelclientcontract "github.com/dujiao-next/internal/modules/channelclient/contract"
+	channelclientdomain "github.com/dujiao-next/internal/modules/channelclient/domain"
+	paymentcontract "github.com/dujiao-next/internal/modules/payment/contract"
+	settingsapp "github.com/dujiao-next/internal/modules/settings/application"
+	settingscontract "github.com/dujiao-next/internal/modules/settings/contract"
 
 	fulfillmentdomain "github.com/dujiao-next/internal/modules/fulfillment/domain"
 	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
@@ -372,5 +387,177 @@ func TestBuildOrderFulfillmentEmailPayloadFromChildren(t *testing.T) {
 	want := "[DJ-CHILD-01]\nSECRET-01\n\n[DJ-CHILD-04]\nSECRET-04-L1\nSECRET-04-L2"
 	if got != want {
 		t.Fatalf("unexpected payload, want %q, got %q", want, got)
+	}
+}
+
+type paymentWorkerOwner struct{ paymentcontract.Store }
+
+func (paymentWorkerOwner) UsesFixedPaymentEffects(uint) (bool, error) { return true, nil }
+
+type paymentWorkerSettings struct {
+	settingscontract.Store
+	err error
+}
+
+func (s paymentWorkerSettings) GetByKey(string) (jsonmap.JSON, bool, error) { return nil, false, s.err }
+
+type paymentWorkerChannel struct {
+	channelclientcontract.Store
+	client *channelclientdomain.Client
+}
+
+func (s paymentWorkerChannel) FindActiveByChannelType(string) (*channelclientdomain.Client, error) {
+	return s.client, nil
+}
+
+func TestDurableBotDeliveryWaitsForHTTPAndRespectsAdmission(t *testing.T) {
+	var calls atomic.Int32
+	var status atomic.Int32
+	status.Store(503)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		if r.URL.Path != "/internal/order-paid" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		w.WriteHeader(int(status.Load()))
+	}))
+	defer srv.Close()
+	c := &Consumer{Container: &container.Container{
+		PaymentStore:         paymentWorkerOwner{},
+		ChannelClientService: channelclientapp.NewService(paymentWorkerChannel{client: &channelclientdomain.Client{CallbackURL: srv.URL, ChannelKey: "synthetic"}}, "synthetic"),
+	}}
+	input := paymentcontract.BotNotification{EventType: paymentcontract.BotNotificationOrderPaid, OrderID: 1, TelegramUserID: "synthetic"}
+	permit := func(context.Context) error { return nil }
+	for _, code := range []int{503, 429, 408, 403, 200} {
+		status.Store(int32(code))
+		err := c.SendPaymentBot(context.Background(), input, permit)
+		if code == 200 && err != nil {
+			t.Fatal(err)
+		}
+		if code != 200 && err == nil {
+			t.Fatalf("status %d acknowledged", code)
+		}
+		if errors.Is(err, paymentcontract.ErrEffectPermanent) != (code == 403) {
+			t.Fatalf("status %d classification: %v", code, err)
+		}
+	}
+	frozen := errors.New("synthetic frozen")
+	if err := c.SendPaymentBot(context.Background(), input, func(context.Context) error { return frozen }); !errors.Is(err, frozen) {
+		t.Fatal(err)
+	}
+	task, err := queue.NewBotNotifyTask(queue.BotNotifyPayload{EventType: queue.BotNotifyEventOrderPaid, OrderID: 1, TelegramUserID: "synthetic"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.handleBotNotify(context.Background(), task); err != nil {
+		t.Fatal(err)
+	}
+	if calls.Load() != 5 {
+		t.Fatalf("frozen or legacy task sent: %d", calls.Load())
+	}
+}
+
+// A local SMTP receiver verifies DATA rejection is retained, then accepted on
+// retry. It never relays messages and only contains synthetic addresses.
+func TestDurableOrderEmailDeliveryAndLegacyRefundScope(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var messages atomic.Int32
+	var accept atomic.Bool
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			func() {
+				defer conn.Close()
+				_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+				_, _ = fmt.Fprint(conn, "220 synthetic\r\n")
+				reader := bufio.NewReader(conn)
+				data := false
+				for {
+					line, err := reader.ReadString('\n')
+					if err != nil {
+						return
+					}
+					line = strings.TrimSpace(line)
+					if data {
+						if line != "." {
+							continue
+						}
+						data = false
+						messages.Add(1)
+						if accept.Load() {
+							_, _ = fmt.Fprint(conn, "250 accepted\r\n")
+						} else {
+							_, _ = fmt.Fprint(conn, "451 try again\r\n")
+						}
+						continue
+					}
+					switch {
+					case strings.HasPrefix(line, "EHLO"), strings.HasPrefix(line, "HELO"), strings.HasPrefix(line, "MAIL"), strings.HasPrefix(line, "RCPT"):
+						_, _ = fmt.Fprint(conn, "250 OK\r\n")
+					case line == "DATA":
+						data = true
+						_, _ = fmt.Fprint(conn, "354 send data\r\n")
+					case line == "QUIT":
+						_, _ = fmt.Fprint(conn, "221 bye\r\n")
+						return
+					default:
+						_, _ = fmt.Fprint(conn, "500 unexpected\r\n")
+					}
+				}
+			}()
+		}
+	}()
+	t.Cleanup(func() { _ = listener.Close(); <-stopped })
+	cfg := &config.Config{Email: config.EmailConfig{Enabled: true, Host: "127.0.0.1", Port: listener.Addr().(*net.TCPAddr).Port, From: "sender@example.test"}}
+	order := &orderdomain.Order{ID: 1, OrderNo: "synthetic", GuestEmail: "receiver@example.test", Status: constants.OrderStatusPaid, Currency: "CNY"}
+	c := &Consumer{Container: &container.Container{Config: cfg, PaymentStore: paymentWorkerOwner{}, SettingService: settingsapp.NewService(paymentWorkerSettings{}), EmailSender: notificationsmtp.New(&cfg.Email)}, orderReader: orderStatusEmailWorkerOrderRepoStub{order: order}}
+	permit := func(context.Context) error { return nil }
+	if err := c.SendPaymentStatusEmail(context.Background(), 1, constants.OrderStatusPaid, permit); err == nil {
+		t.Fatal("SMTP rejection acknowledged")
+	}
+	accept.Store(true)
+	if err := c.SendPaymentStatusEmail(context.Background(), 1, constants.OrderStatusPaid, permit); err != nil {
+		t.Fatal(err)
+	}
+	if messages.Load() != 2 {
+		t.Fatal("SMTP retry not sent")
+	}
+	frozen := errors.New("synthetic frozen")
+	if err := c.SendPaymentStatusEmail(context.Background(), 1, constants.OrderStatusPaid, func(context.Context) error { return frozen }); !errors.Is(err, frozen) {
+		t.Fatal(err)
+	}
+	for _, status := range []string{constants.OrderStatusPaid, "", constants.OrderStatusCompleted, constants.OrderStatusRefunded} {
+		task, err := queue.NewOrderStatusEmailTask(queue.OrderStatusEmailPayload{OrderID: 1, Status: status})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := c.handleOrderStatusEmail(context.Background(), task); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if messages.Load() != 3 {
+		t.Fatalf("legacy payment bypass or lost refund notification: %d", messages.Load())
+	}
+	c.SettingService = settingsapp.NewService(paymentWorkerSettings{err: errors.New("synthetic DB failure")})
+	if err := c.SendPaymentStatusEmail(context.Background(), 1, constants.OrderStatusPaid, permit); err == nil {
+		t.Fatal("settings failure acknowledged")
+	}
+	c.SettingService = settingsapp.NewService(paymentWorkerSettings{})
+	c.EmailSender = notificationsmtp.New(&config.EmailConfig{Enabled: true})
+	if err := c.SendPaymentStatusEmail(context.Background(), 1, constants.OrderStatusPaid, permit); !errors.Is(err, notificationcontract.ErrEmailNotConfigured) {
+		t.Fatalf("missing config: %v", err)
+	}
+	c.EmailSender = notificationsmtp.New(&cfg.Email)
+	order.GuestEmail = "invalid-address"
+	if err := c.SendPaymentStatusEmail(context.Background(), 1, constants.OrderStatusPaid, permit); !errors.Is(err, paymentcontract.ErrEffectPermanent) {
+		t.Fatalf("invalid recipient: %v", err)
 	}
 }

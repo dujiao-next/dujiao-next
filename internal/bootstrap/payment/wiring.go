@@ -2,6 +2,7 @@ package paymentbootstrap
 
 import (
 	"github.com/dujiao-next/internal/app/container"
+	"github.com/dujiao-next/internal/modules/payment/application/cashier"
 	paymenttransport "github.com/dujiao-next/internal/modules/payment/transport/http"
 	paymentcallbacktransport "github.com/dujiao-next/internal/modules/payment/transport/http/callback"
 )
@@ -28,6 +29,7 @@ func New(c *container.Container) Handlers {
 			guestOrders,
 			userOrders,
 			pendingLookupAdapter{payments: c.PaymentStore},
+			&cashier.Service{Store: c.PaymentStore, Registry: c.PaymentProviderRegistry, Enabled: c.Config != nil && c.Config.PaymentChainVerification.Enabled && c.Config.PaymentChainVerification.SettlementEnabled && c.Config.PaymentChainVerification.CashierEnabled},
 		),
 		Write: paymenttransport.NewWriteHandler(
 			guestOrders,

@@ -45,14 +45,15 @@
         </div>
         <div class="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" class="rounded-full" :disabled="loading" @click="handleRefresh">{{ t('payment.refreshStatus') }}</Button>
-          <Button variant="outline" size="sm" class="rounded-full" @click="handleChangePaymentMethod">{{ t('payment.changeMethod') }}</Button>
+          <Button variant="outline" size="sm" class="rounded-full" v-if="!isFixedPayment" @click="handleChangePaymentMethod">{{ t('payment.changeMethod') }}</Button>
         </div>
       </div>
 
       <div class="mt-5 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         <div>
           <!-- QR -->
-          <div v-if="showQRCode" class="flex flex-col items-center rounded-xl border bg-secondary p-[22px] text-center">
+          <FixedUsdtCashier v-if="isFixedPayment" :key="`${cashierOrderNo}:${fixedPaymentID}`" :payment-id="fixedPaymentID" :order-no="cashierOrderNo" @refresh-order="handleRefresh" />
+              <div v-else-if="showQRCode" class="flex flex-col items-center rounded-xl border bg-secondary p-[22px] text-center">
             <div class="mb-3 text-[13px] text-muted-foreground">{{ paymentGuideTitle }}</div>
             <div class="aspect-square w-full max-w-[240px] overflow-hidden rounded-md bg-white p-2"><img :src="qrImageUrl" alt="QR Code" class="h-full w-full object-contain" /></div>
             <div v-if="qrUsingPayLinkFallback" class="mt-2.5 text-xs text-muted-foreground">{{ t('payment.qrFallbackHint') }}</div>
@@ -254,6 +255,7 @@ import { useI18n } from 'vue-i18n'
 import { AlertCircle } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import FixedUsdtCashier from '../../components/payment/FixedUsdtCashier.vue'
 import PaymentAmountBreakdown from '../../components/payment/PaymentAmountBreakdown.vue'
 import PaymentChannelSelector from '../../components/payment/PaymentChannelSelector.vue'
 import VaultCheckoutSteps from './components/VaultCheckoutSteps.vue'
@@ -262,6 +264,7 @@ import { usePayment } from '../../composables/usePayment'
 const { t } = useI18n()
 
 const {
+  isFixedPayment, fixedPaymentID, cashierOrderNo,
   loading, submitting, order, paymentResult, selectedChannelId, copied, walletAddressCopied,
   openedPayWindow, cachedPayment, guestAuth, guestAuthError, walletLoading, useBalance,
   backLink, showGuestAuthForm, walletOnlyPayment, showBalanceOption, configReady, channels,

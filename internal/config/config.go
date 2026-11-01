@@ -14,6 +14,9 @@ import (
 
 // Config 应用配置结构
 type Config struct {
+	PaymentSecurityAlerts    PaymentSecurityAlertsConfig    `mapstructure:"payment_security_alerts"`
+	PaymentChainVerification PaymentChainVerificationConfig `mapstructure:"payment_chain_verification"`
+
 	App          AppConfig          `mapstructure:"app"`
 	Server       ServerConfig       `mapstructure:"server"`
 	Log          LogConfig          `mapstructure:"log"`
@@ -450,4 +453,34 @@ func Load() *Config {
 	}
 
 	return &cfg
+}
+
+// PaymentChainVerificationConfig is server-owned and never loaded from gateway
+// or database payment-channel JSON. It is disabled unless explicitly configured.
+type PaymentChainVerificationConfig struct {
+	CashierEnabled    bool                    `mapstructure:"cashier_enabled"`
+	SettlementEnabled bool                    `mapstructure:"settlement_enabled"`
+	Enabled           bool                    `mapstructure:"enabled"`
+	Version           string                  `mapstructure:"version"`
+	MaxHeadAgeSeconds int                     `mapstructure:"max_head_age_seconds"`
+	BSC               PaymentRPCNetworkConfig `mapstructure:"bsc"`
+	TRON              PaymentRPCNetworkConfig `mapstructure:"tron"`
+}
+type PaymentRPCNetworkConfig struct {
+	AnchorNumber uint64                   `mapstructure:"anchor_number"`
+	AnchorHash   string                   `mapstructure:"anchor_hash"`
+	Sources      []PaymentRPCSourceConfig `mapstructure:"sources"`
+}
+type PaymentRPCSourceConfig struct {
+	Name     string `mapstructure:"name"`
+	Provider string `mapstructure:"provider"`
+	URL      string `mapstructure:"url" json:"-"`
+	APIKey   string `mapstructure:"api_key" json:"-"`
+}
+
+// PaymentSecurityAlertsConfig is a separate outbound-only operator channel.
+type PaymentSecurityAlertsConfig struct {
+	Enabled  bool   `mapstructure:"enabled"`
+	BotToken string `mapstructure:"bot_token" json:"-"`
+	ChatID   string `mapstructure:"chat_id" json:"-"`
 }

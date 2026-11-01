@@ -1,7 +1,9 @@
 package gormstore
 
 import (
+	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -437,5 +439,121 @@ func TestLatestPaymentRestoreExcludesLegacyFeeLinksAndSupersededRows(t *testing.
 	}
 	if stored.Status != constants.PaymentStatusExpired || stored.SupersededAt == nil || stored.SupersededByPaymentID == nil || *stored.SupersededByPaymentID != merchant.ID {
 		t.Fatalf("unexpected superseded payment: %+v", stored)
+	}
+}
+
+func TestLatestFixedPaymentRestoresPreparingWithoutGatewayPresentation(t *testing.T) {
+	repo, db := setupStoreTest(t)
+	now := time.Now()
+	expiry := now.Add(time.Minute)
+	p := paymentdomain.Payment{OrderID: 91, ChannelID: 1, RequiresChainVerification: true, Status: constants.PaymentStatusInitiated, ExpiredAt: &expiry, FeePolicy: constants.PaymentFeePolicyNone}
+	if err := db.Create(&p).Error; err != nil {
+		t.Fatal(err)
+	}
+	got, err := repo.GetLatestPendingByOrder(p.OrderID, now)
+	if err != nil || got == nil || got.ID != p.ID {
+		t.Fatalf("pending fixed intent lost on reload: %+v %v", got, err)
+	}
+	if got, err = repo.GetLatestPendingByOrder(p.OrderID, expiry.Add(time.Second)); err != nil || got != nil {
+		t.Fatal("expired intent restored")
+	}
+}
+
+func TestCandidateInboxConcurrentConflictsAndAtomicBatch(t *testing.T) {
+	repo, db := setupStoreTest(t)
+	if err := db.AutoMigrate(&paymentdomain.CandidateReceipt{}, &paymentdomain.CandidateSubscription{}, &paymentdomain.CandidateEvidence{}); err != nil {
+		t.Fatal(err)
+	}
+	source := paymentdomain.CandidateSource{GatewayURL: "https://gateway.example", PID: "1000"}
+	rows := []paymentdomain.TransferCandidate{{ID: "1", OrderID: "DJP-1", TradeID: "trade-1", RawAmount: "100"}, {ID: "1", OrderID: "DJP-1", TradeID: "trade-1", RawAmount: "1"}}
+	var wg sync.WaitGroup
+	errs := make([]error, 2)
+	for i := range rows {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			errs[i] = repo.CommitCandidates(context.Background(), source, []paymentdomain.TransferCandidate{rows[i]})
+		}(i)
+	}
+	wg.Wait()
+	// SQLite may reject a competing writer. Failed delivery remains unacknowledged
+	// and is retried; both accepted versions must survive without overwrite.
+	for i, err := range errs {
+		if err != nil {
+			if err := repo.CommitCandidates(context.Background(), source, []paymentdomain.TransferCandidate{rows[i]}); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	var receipt paymentdomain.CandidateReceipt
+	if err := db.First(&receipt).Error; err != nil || !receipt.Conflicted {
+		t.Fatal("concurrent conflict was lost")
+	}
+	var count int64
+	if err := db.Model(&paymentdomain.CandidateEvidence{}).Count(&count).Error; err != nil || count != 2 {
+		t.Fatal("concurrent evidence overwritten")
+	}
+	batch := []paymentdomain.TransferCandidate{{ID: "2", OrderID: "DJP-2", TradeID: "trade-2"}, {ID: "invalid", OrderID: "DJP-3", TradeID: "trade-3"}}
+	if repo.CommitCandidates(context.Background(), source, batch) == nil {
+		t.Fatal("invalid batch accepted")
+	}
+	if err := db.Model(&paymentdomain.CandidateReceipt{}).Count(&count).Error; err != nil || count != 1 {
+		t.Fatal("partial batch committed")
+	}
+}
+
+func TestFixedIntentRecoveryLeaseAndEligibility(t *testing.T) {
+	repo, db := setupStoreTest(t)
+	now := time.Now()
+	future := now.Add(time.Minute)
+	past := now.Add(-time.Minute)
+	for i := uint(1); i <= 4; i++ {
+		payment := paymentdomain.Payment{ID: i, OrderID: 1, RequiresChainVerification: true, ExpiredAt: &future, IntentRetryAt: &past, Status: constants.PaymentStatusInitiated}
+		if i == 2 {
+			payment.ExpiredAt = &past
+		}
+		if i == 3 {
+			payment.ProviderRef = "bound"
+		}
+		if i == 4 {
+			payment.SupersededAt = &past
+		}
+		if err := db.Create(&payment).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	rows, err := repo.ListIntentRecoveries(now, 20)
+	if err != nil || len(rows) != 1 || rows[0].ID != 1 {
+		t.Fatalf("invalid recovery selection: %v %#v", err, rows)
+	}
+	var wg sync.WaitGroup
+	wins := make([]bool, 2)
+	for i := range wins {
+		wg.Add(1)
+		go func(i int) { defer wg.Done(); wins[i], _ = repo.ClaimIntentRecovery(1, now, future) }(i)
+	}
+	wg.Wait()
+	if wins[0] == wins[1] {
+		t.Fatalf("lease must have one winner: %v", wins)
+	}
+	if rows, err := repo.ListIntentRecoveries(now, 20); err != nil || len(rows) != 0 {
+		t.Fatal("live lease was selected again")
+	}
+}
+
+func TestChainCheckMigrationPreservesReceivedEvidence(t *testing.T) {
+	_, db := setupStoreTest(t)
+	if err := db.Exec(`CREATE TABLE payment_candidate_evidence (id integer PRIMARY KEY, receipt_id integer NOT NULL, digest text NOT NULL, payload text NOT NULL, payment_id integer, match_state text NOT NULL, received_at datetime)`).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Exec(`INSERT INTO payment_candidate_evidence (id,receipt_id,digest,payload,match_state) VALUES (1,1,'retained-digest','{}','awaiting_chain_check')`).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(&paymentdomain.CandidateEvidence{}); err != nil {
+		t.Fatal(err)
+	}
+	var row paymentdomain.CandidateEvidence
+	if err := db.First(&row).Error; err != nil || row.Digest != "retained-digest" || row.Payload != "{}" || row.CheckState != "pending" || row.ChainProof != "" {
+		t.Fatalf("old evidence migration failed: %v %#v", err, row)
 	}
 }

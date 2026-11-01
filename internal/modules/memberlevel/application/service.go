@@ -227,6 +227,56 @@ func (s *Service) CheckAndUpgrade(userID uint) error {
 	return nil
 }
 
+// PrepareUpgrade reads level policy before the caller's transaction. The apply
+// function rereads current totals and CAS-updates only the prepared current level
+// through the transaction's user repository; it never increments spend again.
+func (s *Service) PrepareUpgrade(userID uint) (func(memberlevelcontract.UserRepository) error, error) {
+	user, err := s.userRepo.GetByID(userID)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, memberlevelcontract.ErrUserNotFound
+	}
+	levels, err := s.levelRepo.ListAllActive()
+	if err != nil {
+		return nil, err
+	}
+	currentSort, known, err := s.resolveCurrentSortOrder(user.MemberLevelID, levels)
+	if err != nil {
+		return nil, err
+	}
+	return func(users memberlevelcontract.UserRepository) error {
+		current, err := users.GetByID(userID)
+		if err != nil {
+			return err
+		}
+		if current == nil {
+			return memberlevelcontract.ErrUserNotFound
+		}
+		if current.MemberLevelID != user.MemberLevelID {
+			return memberlevelcontract.ErrUpgradeConflict
+		}
+		if !known {
+			return nil
+		}
+		for _, level := range levels {
+			if level.ID == current.MemberLevelID || level.SortOrder <= currentSort || !s.meetsThreshold(current, &level) {
+				continue
+			}
+			updated, err := users.UpdateMemberLevelIfCurrent(current.ID, current.MemberLevelID, level.ID)
+			if err != nil {
+				return err
+			}
+			if updated != 1 {
+				return memberlevelcontract.ErrUpgradeConflict
+			}
+			return nil
+		}
+		return nil
+	}, nil
+}
+
 func (s *Service) findUpgradeTarget(user *userdomain.User, levels []memberleveldomain.MemberLevel) (*memberleveldomain.MemberLevel, error) {
 	if user == nil {
 		return nil, nil

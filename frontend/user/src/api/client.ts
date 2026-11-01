@@ -101,6 +101,7 @@ function createClient(injectAuth: boolean) {
                 headers,
                 body: body instanceof FormData ? body : body !== undefined ? JSON.stringify(body) : undefined,
                 credentials: opts.credentials,
+                cache: opts.cache,
                 signal: controller.signal,
             })
         } catch (err: any) {

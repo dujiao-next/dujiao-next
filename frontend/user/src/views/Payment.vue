@@ -79,7 +79,7 @@
               <Button variant="secondary" :disabled="loading" @click="handleRefresh">
                 {{ t('payment.refreshStatus') }}
               </Button>
-              <Button variant="secondary" @click="handleChangePaymentMethod">
+              <Button variant="secondary" v-if="!isFixedPayment" @click="handleChangePaymentMethod">
                 {{ t('payment.changeMethod') }}
               </Button>
             </div>
@@ -87,7 +87,8 @@
 
           <div class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div class="lg:col-span-2 space-y-4">
-              <div v-if="showQRCode"
+              <FixedUsdtCashier v-if="isFixedPayment" :key="`${cashierOrderNo}:${fixedPaymentID}`" :payment-id="fixedPaymentID" :order-no="cashierOrderNo" @refresh-order="handleRefresh" />
+              <div v-else-if="showQRCode"
                 class="bg-secondary border rounded-2xl p-4 sm:p-6 flex flex-col items-center justify-center text-center">
                 <div class="text-sm text-muted-foreground mb-4">{{ paymentGuideTitle }}</div>
                 <div class="w-full max-w-[280px] sm:max-w-[240px] aspect-square rounded-xl overflow-hidden bg-white p-2">
@@ -492,6 +493,7 @@
 import { useI18n } from 'vue-i18n'
 import { Copy, ExternalLink } from 'lucide-vue-next'
 import { pageAlertVariant, pageAlertToneClass } from '../utils/alerts'
+import FixedUsdtCashier from '../components/payment/FixedUsdtCashier.vue'
 import PaymentAmountBreakdown from '../components/payment/PaymentAmountBreakdown.vue'
 import PaymentChannelSelector from '../components/payment/PaymentChannelSelector.vue'
 import EmptyState from '../components/EmptyState.vue'
@@ -505,6 +507,7 @@ import { usePayment } from '../composables/usePayment'
 const { t } = useI18n()
 
 const {
+  isFixedPayment, fixedPaymentID, cashierOrderNo,
   loading, submitting, order, paymentResult, selectedChannelId, copied, walletAddressCopied,
   openedPayWindow, cachedPayment, guestAuth, guestAuthError, walletLoading, useBalance,
   backLink, showGuestAuthForm, walletOnlyPayment, showBalanceOption, configReady, channels,

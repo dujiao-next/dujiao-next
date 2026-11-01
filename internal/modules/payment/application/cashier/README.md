@@ -1,0 +1,31 @@
+# Merchant-owned fixed USDT cashier
+
+Local implementation checkpoint, 2026-10-09. **Live payment acceptance is not complete.** This is the existing merchant storefront's authenticated, same-origin payment page, shared by Classic and Vault. It does not deploy a separate pay origin, anonymous capability link, Access or Passkey.
+
+## Read boundary
+
+`GET /payments/cashier?order_no=...&payment_id=...` is registered only in the storefront's existing UserJWT group (under its API prefix). The [HTTP handler](../../transport/http/latest_handler.go) authorizes the order through the existing tenant/user lookup before [Service.Read](service.go) rechecks payment/order ownership using persisted records. No guest route exists. The response uses `Cache-Control: no-store, private, max-age=0`, `Pragma: no-cache`, `Vary: Authorization`, and `Referrer-Policy: no-referrer`. These are API response headers, not a deployment-wide browser policy.
+
+The service uses the existing SQL automation admission transaction and lock order: control, order, payment, allocation. Although it takes a control-row lock through a conditional write, it does not create an intent, call a gateway/RPC, allocate a slot, mark payment successful, cancel, refund or deliver anything. It rereads original merchant authorization, accepted terms, economic basis and permanent allocation identity/snapshot. Address, network, pinned contract, raw amount, decimals, fiat amount and expiry must agree. Current gateway presentation fields and current channel pricing do not supply instructions.
+
+[ValidateFixedOrder](../../domain/cashier.go) also guards fixed creation/recovery: a pending member root with a positive total and valid expiry; consistent child ownership, parent/tenant/currency and totals; nonempty leaf items with persisted IDs, matching order IDs, valid SKU/quantity, no duplicates or deleted items; auto/manual fulfillment only. Cancellation/refund/paid markers and incompatible wallet shares reject eligibility. This validates stored order obligations; it does not independently redo catalog pricing, promotions or inventory reservation. Existing order pricing and the frozen economic basis retain those responsibilities.
+
+`payment_chain_verification.enabled`, `settlement_enabled` and new `cashier_enabled` must all be true, and the SQL control must be open. All three configuration flags default to false. See [example configuration](../../../../../ops/maimen/payment-chain-verification.example.yml) and [freeze scope](../../../../../ops/maimen/payment-automation-control.md). Enabling a page never proves worker health or provider readiness.
+
+## Response and display
+
+The minimal view contains payment ID, state, server time, display deadline, and details only when ready. No order contents, customer records, gateway payloads, provider credentials or delivery data are returned. Missing terms are `preparing`; disabled/frozen is `paused`; completed/nonpayable orders are `closed`; expired is `expired`. Inconsistent authorization, missing allocation or storage failure returns no details. `closed` asks the UI to reload the merchant order; it is not a payment-success assertion.
+
+Create/latest presenters return a `fixed_payment` marker and normal order metadata but clear legacy pay URL, QR, wallet address, chain amount, chain and token fields. A still-unbound active intent can be restored through latest into `preparing`. Never fall back to legacy gateway presentation if the dedicated read fails.
+
+The [shared Vue component](../../../../../frontend/user/src/components/payment/FixedUsdtCashier.vue) uses [strict parsing](../../../../../frontend/user/src/utils/fixedCashier.ts), converts raw integer token units with decimal strings (never floating-point Number), and generates a local QR **containing the address only**. Network and exact amount must be selected/entered by the payer; the page explicitly explains this. Display/copy values agree with the bound amount; QR is not an amount-bearing wallet URI.
+
+Active visible pages refresh every 5 seconds. Server display validity is at most 15 seconds and never beyond terms expiry; the client subtracts request duration using monotonic time. A 250 ms display timer hides expired details. Request generations discard late replies after route changes, offline/hidden/pagehide events or unmount; old QR generation cannot restore a hidden image. Copy rechecks validity immediately. Browser suspension/timer scheduling is not a hard wall-clock SLA. Freeze prevents new reads at SQL admission; a previously authorized response may arrive afterwards. Already copied addresses or sent transfers cannot be revoked; late/unclear transfers remain manual exceptions.
+
+## Validation and remaining acceptance
+
+Real temporary SQLite and native intent validation cover both networks, malicious provider presentation, gate freeze/resume, missing/changed ownership, invalid structures, expiry, unbound recovery and create-to-cashier handoff. HTTP tests cover missing identity, another user/order/tenant/payment, error sanitization and privacy headers. Presenter tests cover legacy-field suppression and normal-channel behavior.
+
+Frontend tests run the actual SFC through Vue's custom renderer, with controlled network/browser IO: exact copy/QR input, delayed QR/replies, route change, offline/hidden transitions, freeze, expiry before copy, slow response, failure and unmount. The actual QR library produces a PNG from the validated address. This is component behavior testing, not a real-browser layout, QR scan, wallet-app or public-domain acceptance test. Both templates typecheck/build together. No new package dependency is needed.
+
+Deployment still requires real browser/proxy/cache/CSP, RPC/clock and RN acceptance. The final topology keeps this same-origin member page; pay is only the service API, with no cross-origin customer capability flow. Gateway Access/Passkey, local Compose persistence/restore, alerts and operator are now implemented separately. Tabbit had no usable runtime in local acceptance; 67 frontend tests and both-template typecheck/build passed with synthetic IO. Do not expose the whole merchant API at pay or load instructions from mutable gateway assets.

@@ -8,6 +8,7 @@ import (
 
 const (
 	BotNotificationOrderPaid               = "order_paid"
+	BotNotificationOrderFulfilled          = "order_fulfilled"
 	BotNotificationWalletRechargeSucceeded = "wallet_recharge_succeeded"
 )
 

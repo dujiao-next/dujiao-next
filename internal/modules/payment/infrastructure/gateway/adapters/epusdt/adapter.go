@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	gatewaycommon "github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/common"
 
 	paymentcontract "github.com/dujiao-next/internal/modules/payment/contract"
+	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
 
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/epusdt"
@@ -29,8 +31,10 @@ func NewEpusdtAdapter() paymentcontract.GatewayProvider { return &epusdtAdapter{
 
 // 编译期断言 epusdtAdapter 实现了 paymentcontract.GatewayProvider 和 paymentcontract.GatewayCallbackVerifier。
 var (
-	_ paymentcontract.GatewayProvider         = (*epusdtAdapter)(nil)
-	_ paymentcontract.GatewayCallbackVerifier = (*epusdtAdapter)(nil)
+	_ paymentcontract.GatewayProvider          = (*epusdtAdapter)(nil)
+	_ paymentcontract.GatewayCallbackVerifier  = (*epusdtAdapter)(nil)
+	_ paymentcontract.GatewayIntentPreparer    = (*epusdtAdapter)(nil)
+	_ paymentcontract.GatewayCandidateReceiver = (*epusdtAdapter)(nil)
 )
 
 // Type 返回 provider 标识。epusdt 的 channel_type 统一为 epusdt，实际币种和网络保存在配置中；
@@ -57,6 +61,33 @@ func (a *epusdtAdapter) ValidateConfig(raw jsonmap.JSON, _ string) error {
 	return err
 }
 
+func epusdtNativeInput(cfg *epusdt.Config, input paymentcontract.GatewayCreateInput) epusdt.CreateInput {
+	returnURL := strings.TrimSpace(input.ReturnURL)
+	if returnURL == "" {
+		returnURL = cfg.ReturnURL
+	}
+	return epusdt.CreateInput{OrderNo: input.OrderNo, Amount: input.Amount.Decimal.String(), Name: input.Subject,
+		NotifyURL: input.NotifyURL, ReturnURL: gatewaycommon.AppendQueryParams(returnURL, input.ReturnURLQuery)}
+}
+
+func (a *epusdtAdapter) RequiresPaymentIntent(raw jsonmap.JSON) (bool, error) {
+	cfg, err := epusdt.ParseConfig(raw)
+	if err != nil {
+		return false, mapEpusdtError(err)
+	}
+	return cfg.FixedPaymentIntent, nil
+}
+
+func (a *epusdtAdapter) PreparePaymentIntent(raw jsonmap.JSON, input paymentcontract.GatewayCreateInput) (jsonmap.JSON, error) {
+	cfg, err := a.parseConfig(raw)
+	if err != nil {
+		return nil, err
+	}
+	intent, err := epusdt.PrepareIntent(cfg, epusdtNativeInput(cfg, input), input.PaymentID, input.OrderID,
+		input.Currency, input.ExpiresAt, input.PaymentIntent, time.Now())
+	return intent, mapEpusdtError(err)
+}
+
 // CreatePayment 创建支付。epusdt 的实际币种和网络由配置决定，不依赖 channel_type。
 func (a *epusdtAdapter) CreatePayment(ctx context.Context, raw jsonmap.JSON, input paymentcontract.GatewayCreateInput) (*paymentcontract.GatewayCreateResult, error) {
 	cfg, err := a.parseConfig(raw)
@@ -64,19 +95,22 @@ func (a *epusdtAdapter) CreatePayment(ctx context.Context, raw jsonmap.JSON, inp
 		return nil, err
 	}
 
-	returnURL := strings.TrimSpace(input.ReturnURL)
-	if returnURL == "" {
-		returnURL = strings.TrimSpace(cfg.ReturnURL)
+	if cfg.FixedPaymentIntent || len(input.PaymentIntent) != 0 {
+		if len(input.PaymentIntent) == 0 {
+			return nil, paymentcontract.ErrGatewayConfigInvalid
+		}
+		intent, err := a.PreparePaymentIntent(raw, input)
+		if err != nil {
+			return nil, err
+		}
+		result, err := epusdt.CreateFixedPayment(ctx, cfg, intent)
+		if err != nil {
+			return nil, mapEpusdtError(err)
+		}
+		return &paymentcontract.GatewayCreateResult{ProviderRef: result.TradeID, PaymentIntent: result.PaymentIntent, ExpiresAt: &result.ExpiresAt,
+			DisplayChannelType: "usdt." + intent["network"].(string)}, nil
 	}
-	returnURL = gatewaycommon.AppendQueryParams(returnURL, input.ReturnURLQuery)
-
-	native := epusdt.CreateInput{
-		OrderNo:   input.OrderNo,
-		Amount:    input.Amount.Decimal.String(),
-		Name:      input.Subject,
-		NotifyURL: input.NotifyURL,
-		ReturnURL: returnURL,
-	}
+	native := epusdtNativeInput(cfg, input)
 	result, err := epusdt.CreatePayment(ctx, cfg, native)
 	if err != nil {
 		return nil, mapEpusdtError(err)
@@ -174,4 +208,43 @@ func mapEpusdtError(err error) error {
 	default:
 		return err
 	}
+}
+
+func (a *epusdtAdapter) CandidateSource(raw jsonmap.JSON) (paymentdomain.CandidateSource, bool, error) {
+	cfg, err := epusdt.ParseConfig(raw)
+	if err != nil {
+		return paymentdomain.CandidateSource{}, false, paymentcontract.ErrGatewayConfigInvalid
+	}
+	source, enabled, err := epusdt.CandidateSource(cfg)
+	return source, enabled, mapEpusdtError(err)
+}
+func (a *epusdtAdapter) ListCandidates(ctx context.Context, raw jsonmap.JSON) ([]paymentdomain.TransferCandidate, error) {
+	cfg, err := a.parseConfig(raw)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := epusdt.ListCandidates(ctx, cfg)
+	return rows, mapEpusdtError(err)
+}
+func (a *epusdtAdapter) AcknowledgeCandidates(ctx context.Context, raw jsonmap.JSON, ids []string) error {
+	cfg, err := a.parseConfig(raw)
+	if err != nil {
+		return err
+	}
+	return mapEpusdtError(epusdt.AcknowledgeCandidates(ctx, cfg, ids))
+}
+func (a *epusdtAdapter) PaymentIntentDeadline(intent jsonmap.JSON) (time.Time, error) {
+	return epusdt.IntentDeadline(intent)
+}
+
+func (a *epusdtAdapter) ReadChainExpectation(p paymentdomain.Payment) (paymentdomain.ChainExpectation, error) {
+	return epusdt.ReadChainExpectation(p)
+}
+
+func (a *epusdtAdapter) ScanHealthy(ctx context.Context, raw jsonmap.JSON) (bool, error) {
+	cfg, err := epusdt.ParseConfig(raw)
+	if err != nil {
+		return false, paymentcontract.ErrGatewayConfigInvalid
+	}
+	return epusdt.ScanHealthy(ctx, cfg)
 }

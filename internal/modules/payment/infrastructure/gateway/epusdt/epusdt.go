@@ -17,6 +17,7 @@ import (
 
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/common"
+	"github.com/dujiao-next/internal/shared/jsonmap"
 )
 
 var (
@@ -38,16 +39,19 @@ const (
 
 // Config epusdt（GMPay）配置
 type Config struct {
-	GatewayURL  string `json:"gateway_url"`
-	PID         string `json:"pid"`
-	SecretKey   string `json:"secret_key"`
-	OrderMode   string `json:"order_mode"` // 订单接口模式：transaction/cashier
-	Token       string `json:"token"`
-	Network     string `json:"network"`
-	Currency    string `json:"currency,omitempty"`
-	NotifyURL   string `json:"notify_url"`
-	ReturnURL   string `json:"return_url"`
-	PaymentType string `json:"payment_type,omitempty"`
+	FixedPaymentIntent bool         `json:"fixed_payment_intent"`
+	QuotePolicy        *QuotePolicy `json:"quote_policy,omitempty"`
+	GatewayURL         string       `json:"gateway_url"`
+	PID                string       `json:"pid"`
+	ServiceSecret      string       `json:"service_secret"`
+	SecretKey          string       `json:"secret_key"`
+	OrderMode          string       `json:"order_mode"` // 订单接口模式：transaction/cashier
+	Token              string       `json:"token"`
+	Network            string       `json:"network"`
+	Currency           string       `json:"currency,omitempty"`
+	NotifyURL          string       `json:"notify_url"`
+	ReturnURL          string       `json:"return_url"`
+	PaymentType        string       `json:"payment_type,omitempty"`
 }
 
 // ParseConfig 把 channel.ConfigJSON 反序列化为 Config
@@ -120,7 +124,7 @@ func ValidateConfig(cfg *Config) error {
 			return fmt.Errorf("%w: network is required", ErrConfigInvalid)
 		}
 	}
-	return nil
+	return validateQuotePolicy(cfg)
 }
 
 // Sign 计算签名。算法：剔除 signature 与空值，key 升序，按 key=value 用 & 连接，
@@ -197,9 +201,11 @@ type CreateInput struct {
 
 // CreateResult 创建订单结果
 type CreateResult struct {
-	TradeID    string
-	PaymentURL string // {GatewayURL}/pay/checkout-counter/{TradeID}
-	Raw        map[string]interface{}
+	TradeID       string
+	PaymentURL    string // {GatewayURL}/pay/checkout-counter/{TradeID}
+	Raw           map[string]interface{}
+	PaymentIntent jsonmap.JSON
+	ExpiresAt     time.Time
 }
 
 // CallbackData 回调数据
@@ -238,6 +244,9 @@ func toFloat(v interface{}) float64 {
 func CreatePayment(ctx context.Context, cfg *Config, input CreateInput) (*CreateResult, error) {
 	if cfg == nil {
 		return nil, ErrConfigInvalid
+	}
+	if cfg.FixedPaymentIntent || cfg.QuotePolicy != nil {
+		return nil, fmt.Errorf("%w: fixed payments require persisted authorization", ErrConfigInvalid)
 	}
 	if strings.TrimSpace(input.OrderNo) == "" || strings.TrimSpace(input.Amount) == "" {
 		return nil, fmt.Errorf("%w: order_no and amount are required", ErrConfigInvalid)
@@ -323,6 +332,10 @@ func extractTradeID(raw map[string]interface{}) string {
 }
 
 func postJSON(ctx context.Context, endpoint string, params map[string]interface{}) ([]byte, error) {
+	return postJSONLimit(ctx, endpoint, params, 64<<10)
+}
+
+func postJSONLimit(ctx context.Context, endpoint string, params map[string]interface{}, maxResponseBytes int64) ([]byte, error) {
 	body, err := json.Marshal(params)
 	if err != nil {
 		return nil, err
@@ -334,7 +347,7 @@ func postJSON(ctx context.Context, endpoint string, params map[string]interface{
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := &http.Client{Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
@@ -343,7 +356,14 @@ func postJSON(ctx context.Context, endpoint string, params map[string]interface{
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("http status %d", resp.StatusCode)
 	}
-	return io.ReadAll(resp.Body)
+	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(responseBody)) > maxResponseBytes {
+		return nil, fmt.Errorf("response exceeds limit")
+	}
+	return responseBody, nil
 }
 
 // ParseCallback 解析 epusdt 回调 JSON

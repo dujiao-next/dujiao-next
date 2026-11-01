@@ -14,19 +14,22 @@ const GatewayPayloadFiatCurrencySent = "_dujiao_next_fiat_currency_sent"
 
 // GatewayCreateInput 是统一支付网关创建输入。
 type GatewayCreateInput struct {
-	PaymentID      uint
-	OrderID        uint
-	OrderNo        string
-	Subject        string
-	Amount         money.Amount
-	Currency       string
-	Email          string
-	NotifyURL      string
-	ReturnURL      string
-	ReturnURLQuery map[string]string
-	ClientIP       string
-	ChannelType    string
-	Extra          jsonmap.JSON
+	AutomationRevision uint64 // Local SQL admission; never sent to the gateway.
+	PaymentID          uint
+	OrderID            uint
+	OrderNo            string
+	Subject            string
+	Amount             money.Amount
+	Currency           string
+	Email              string
+	NotifyURL          string
+	ReturnURL          string
+	ReturnURLQuery     map[string]string
+	ClientIP           string
+	ChannelType        string
+	Extra              jsonmap.JSON
+	PaymentIntent      jsonmap.JSON // Merchant authorization persisted before any gateway request.
+	ExpiresAt          *time.Time   // Business order deadline; an intent may never extend it.
 }
 
 // GatewayCreateResult 是统一支付网关创建结果。
@@ -38,6 +41,8 @@ type GatewayCreateResult struct {
 	DisplayChannelType string
 	AmountSent         string
 	CurrencySent       string
+	PaymentIntent      jsonmap.JSON // Validated authorization plus immutable gateway terms.
+	ExpiresAt          *time.Time   // Fixed intent deadline, verified by the adapter.
 }
 
 // GatewayQueryResult 是主动查询网关支付状态的结果。
@@ -76,6 +81,15 @@ type GatewayProvider interface {
 	Type() string
 	ValidateConfig(cfg jsonmap.JSON, channelType string) error
 	CreatePayment(ctx context.Context, cfg jsonmap.JSON, input GatewayCreateInput) (*GatewayCreateResult, error)
+}
+
+// GatewayIntentPreparer performs local validation only, without network calls.
+// A nonempty result must be persisted before CreatePayment and must never enter
+// the ordinary callback settlement path. Existing intents must be preserved.
+type GatewayIntentPreparer interface {
+	RequiresPaymentIntent(jsonmap.JSON) (bool, error)
+	PreparePaymentIntent(cfg jsonmap.JSON, input GatewayCreateInput) (jsonmap.JSON, error)
+	PaymentIntentDeadline(jsonmap.JSON) (time.Time, error)
 }
 
 type GatewayCapturer interface {

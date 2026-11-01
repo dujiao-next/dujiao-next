@@ -1,6 +1,6 @@
 module github.com/dujiao-next
 
-go 1.26.5
+go 1.26.10
 
 require (
 	github.com/casbin/casbin/v3 v3.10.0
@@ -20,8 +20,8 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/wechatpay-apiv3/wechatpay-go v0.2.21
 	go.uber.org/zap v1.27.1
-	golang.org/x/crypto v0.48.0
-	golang.org/x/term v0.43.0
+	golang.org/x/crypto v0.57.0
+	golang.org/x/term v0.46.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/driver/sqlite v1.6.0
@@ -91,10 +91,10 @@ require (
 	golang.org/x/arch v0.22.0 // indirect
 	golang.org/x/exp v0.0.0-20251219203646-944ab1f22d93 // indirect
 	golang.org/x/image v0.23.0 // indirect
-	golang.org/x/net v0.51.0 // indirect
-	golang.org/x/sync v0.21.0 // indirect
-	golang.org/x/sys v0.44.0 // indirect
-	golang.org/x/text v0.39.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
+	golang.org/x/sync v0.23.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/time v0.8.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

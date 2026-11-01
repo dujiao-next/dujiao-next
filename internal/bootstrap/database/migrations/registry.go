@@ -26,6 +26,7 @@ import (
 	orderriskcontract "github.com/dujiao-next/internal/modules/orderrisk/contract"
 	orderriskdomain "github.com/dujiao-next/internal/modules/orderrisk/domain"
 	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
+	"github.com/dujiao-next/internal/modules/payment/infrastructure/gormstore/automation"
 	procurementdomain "github.com/dujiao-next/internal/modules/procurement/domain"
 	promotiondomain "github.com/dujiao-next/internal/modules/promotion/domain"
 	reconciliationdomain "github.com/dujiao-next/internal/modules/reconciliation/domain"
@@ -65,6 +66,16 @@ func AutoMigrate() error {
 		&cartdomain.Item{},
 		&paymentdomain.PaymentChannel{},
 		&paymentdomain.Payment{},
+		&paymentdomain.CandidateReceipt{},
+		&paymentdomain.CandidateSubscription{},
+		&paymentdomain.CandidateEvidence{},
+		&paymentdomain.Allocation{},
+		&paymentdomain.EventConsumption{},
+		&paymentdomain.PaymentEffect{},
+		&paymentdomain.RecipientReceipt{},
+		&paymentdomain.SecurityAlert{},
+		&paymentdomain.AutomationControl{},
+		&paymentdomain.OperatorAudit{},
 		&cardsecretdomain.Secret{},
 		&cardsecretdomain.Batch{},
 		&giftcarddomain.GiftCard{},
@@ -95,6 +106,10 @@ func AutoMigrate() error {
 		&memberleveldomain.MemberLevelPrice{},
 		&contentdomain.Media{},
 	); err != nil {
+		return err
+	}
+
+	if err := automation.Ensure(db); err != nil {
 		return err
 	}
 

@@ -10,6 +10,7 @@ import (
 
 // CreatePaymentResp 创建支付响应
 type CreatePaymentResp struct {
+	FixedPayment     bool         `json:"fixed_payment"`
 	OrderPaid        bool         `json:"order_paid"`
 	WalletPaidAmount money.Amount `json:"wallet_paid_amount"`
 	OnlinePayAmount  money.Amount `json:"online_pay_amount"`
@@ -53,6 +54,7 @@ func NewCreatePaymentResp(result *CreatePaymentResultView) CreatePaymentResp {
 		OnlinePayAmount:  result.OnlinePayAmount,
 	}
 	if result.Payment != nil {
+		resp.FixedPayment = result.Payment.RequiresChainVerification
 		resp.PaymentID = &result.Payment.ID
 		resp.ChannelID = &result.Payment.ChannelID
 		resp.ProviderType = result.Payment.ProviderType
@@ -78,11 +80,15 @@ func NewCreatePaymentResp(result *CreatePaymentResultView) CreatePaymentResp {
 	if result.Channel != nil {
 		resp.ChannelName = result.Channel.Name
 	}
+	if resp.FixedPayment {
+		resp.PayURL, resp.QRCode, resp.WalletAddress, resp.ChainAmount, resp.Chain, resp.TokenID = "", "", "", "", "", ""
+	}
 	return resp
 }
 
 // LatestPaymentResp 最新待支付记录响应
 type LatestPaymentResp struct {
+	FixedPayment    bool         `json:"fixed_payment"`
 	PaymentID       uint         `json:"payment_id"`
 	OrderNo         string       `json:"order_no"`
 	ChannelID       uint         `json:"channel_id"`
@@ -107,7 +113,8 @@ type LatestPaymentResp struct {
 // NewLatestPaymentResp 从 Payment + Order 构造响应
 func NewLatestPaymentResp(payment *paymentdomain.Payment, orderNo string) LatestPaymentResp {
 	info := ExtractCryptoWalletInfo(payment.ProviderType, payment.InteractionMode, payment.ProviderPayload)
-	return LatestPaymentResp{
+	resp := LatestPaymentResp{
+		FixedPayment:    payment.RequiresChainVerification,
 		PaymentID:       payment.ID,
 		OrderNo:         orderNo,
 		ChannelID:       payment.ChannelID,
@@ -127,6 +134,10 @@ func NewLatestPaymentResp(payment *paymentdomain.Payment, orderNo string) Latest
 		FeeAmount:       payment.FeeAmount,
 		FeePolicy:       payment.FeePolicy,
 	}
+	if resp.FixedPayment {
+		resp.PayURL, resp.QRCode, resp.WalletAddress, resp.ChainAmount, resp.Chain, resp.TokenID = "", "", "", "", "", ""
+	}
+	return resp
 	// 排除：OrderID、FeeRate、FixedFee、Currency、Status、
 	// ProviderRef、GatewayOrderNo、ProviderPayload、CreatedAt、UpdatedAt、PaidAt、CallbackAt
 }

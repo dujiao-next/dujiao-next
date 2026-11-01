@@ -1,21 +1,28 @@
 package application
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/dujiao-next/internal/modules/payment/application/cashier"
 	paymentcontract "github.com/dujiao-next/internal/modules/payment/contract"
+	"github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/epusdt"
+	"github.com/dujiao-next/internal/modules/payment/infrastructure/gormstore/automation"
 
 	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
 
 	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
 	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
+	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/shared/jsonmap"
@@ -25,6 +32,210 @@ import (
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
+
+func TestEpusdtFixedIntentPersistsBeforeHTTPAndBlocksCallbackSettlement(t *testing.T) {
+	for _, accepted := range []bool{true, false} {
+		t.Run(map[bool]string{true: "accepted quote", false: "gateway underquote"}[accepted], func(t *testing.T) {
+			svc, db := setupPaymentServiceWalletTest(t)
+			user := &userdomain.User{Email: "quote@example.com", PasswordHash: "test", Status: constants.UserStatusActive}
+			if err := db.Create(user).Error; err != nil {
+				t.Fatal(err)
+			}
+			calls := 0
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				var request map[string]interface{}
+				if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+					t.Error(err)
+					w.WriteHeader(500)
+					return
+				}
+				stored := &paymentdomain.Payment{}
+				if err := db.Where("gateway_order_no = ?", request["order_id"]).First(stored).Error; err != nil {
+					t.Error(err)
+					w.WriteHeader(500)
+					return
+				}
+				if !stored.RequiresChainVerification || len(stored.PaymentIntent) == 0 || stored.PaymentIntent["terms"] != nil {
+					t.Error("HTTP ran before durable authorization")
+				}
+				if request["fixed_payment_intent"] != true {
+					t.Error("fixed flag missing")
+				}
+				now := time.Now().UnixMilli()
+				raw := "14000100000000000000"
+				if !accepted {
+					raw = "1000000000000000000"
+				}
+				_ = json.NewEncoder(w).Encode(map[string]interface{}{"status_code": 200, "data": map[string]interface{}{
+					"trade_id": "bound-quote", "order_id": request["order_id"], "status": 1, "amount": 100, "actual_amount": "14.0001", "currency": "CNY", "token": "USDT",
+					"receive_address": "0x1111111111111111111111111111111111111111", "expiration_time": (now + 600000) / 1000, "payment_url": "https://attacker.example",
+					"payment_terms": map[string]interface{}{"version": 1, "trade_id": "bound-quote", "order_id": request["order_id"], "api_key_id": 7, "network": "binance", "token": "USDT",
+						"contract": "0x55d398326f99059ff775485246999027b3197955", "decimals": 18, "recipient": "0x1111111111111111111111111111111111111111", "raw_amount": raw,
+						"fiat_amount": "100", "request_amount": "100", "currency": "CNY", "rate": "0.14", "created_at_ms": now, "expires_at_ms": now + 600000}}})
+			}))
+			defer srv.Close()
+			channel := &paymentdomain.PaymentChannel{Name: "Fixed Epusdt", ProviderType: constants.PaymentProviderEpusdt, ChannelType: "epusdt", InteractionMode: constants.PaymentInteractionQR, IsActive: true,
+				ConfigJSON: jsonmap.JSON{"gateway_url": srv.URL, "pid": "1000", "secret_key": "test-secret", "notify_url": "https://shop.example/notify", "return_url": "https://shop.example/return",
+					"token": "usdt", "network": "binance", "currency": "cny", "fixed_payment_intent": true,
+					"quote_policy": map[string]interface{}{"version": "test-v1", "rate": "0.14", "precision": 4, "max_tail": "0.0099", "lifetime_seconds": 900, "recipient": "0x1111111111111111111111111111111111111111"}}}
+			if err := db.Create(channel).Error; err != nil {
+				t.Fatal(err)
+			}
+			order := createFixedCashierOrder(t, db, "FIXED-QUOTE", user.ID, 100)
+			result, err := svc.CreatePayment(CreatePaymentInput{OrderID: order.ID, ChannelID: channel.ID, Context: context.Background()})
+			if accepted && err != nil {
+				t.Fatal(err)
+			}
+			if !accepted && err == nil {
+				t.Fatal("untrusted quote accepted")
+			}
+			stored := &paymentdomain.Payment{}
+			if err := db.Where("order_id = ?", order.ID).First(stored).Error; err != nil {
+				t.Fatal(err)
+			}
+			if !stored.RequiresChainVerification || len(stored.PaymentIntent) == 0 || stored.PayURL != "" || stored.QRCode != "" {
+				t.Fatal("lost authorization or exposed gateway cashier")
+			}
+			if accepted {
+				view, readErr := (&cashier.Service{Store: svc.paymentRepo, Registry: svc.paymentProviderRegistry, Enabled: true}).Read(context.Background(), stored.ID, order.ID, user.ID)
+				if readErr != nil || view.State != "ready" || view.Details == nil || view.Details.Amount != "14.0001" {
+					t.Fatalf("created payment has no trusted cashier: %+v %v", view, readErr)
+				}
+				if stored.PaymentIntent["terms"] == nil || stored.ProviderRef != "bound-quote" || stored.Status != constants.PaymentStatusPending || stored.ExpiredAt == nil {
+					t.Fatal("quote not bound durably")
+				}
+				again, err := svc.CreatePayment(CreatePaymentInput{OrderID: order.ID, ChannelID: channel.ID, Context: context.Background()})
+				if err != nil || again.Payment.ID != result.Payment.ID || calls != 1 {
+					t.Fatalf("fixed payment not reused: %v calls=%d", err, calls)
+				}
+				// An expired intent is never offered as an active payment again.
+				past := time.Now().Add(-time.Second)
+				if err := db.Model(stored).Update("expired_at", past).Error; err != nil {
+					t.Fatal(err)
+				}
+				if pending, err := svc.paymentRepo.GetLatestPendingByOrderChannel(order.ID, channel.ID, time.Now()); err != nil || pending != nil {
+					t.Fatalf("expired intent reused: %v", err)
+				}
+			} else if stored.PaymentIntent["terms"] != nil || stored.ProviderRef != "" || stored.Status != constants.PaymentStatusInitiated {
+				t.Fatal("rejected gateway terms became authority")
+			}
+			before, _ := json.Marshal(stored.PaymentIntent)
+			callback := PaymentCallbackInput{PaymentID: stored.ID, OrderNo: stored.GatewayOrderNo, ChannelID: channel.ID, ProviderRef: "forged-success", Status: constants.PaymentStatusSuccess,
+				Amount: stored.Amount, Currency: "CNY", Payload: jsonmap.JSON{"payment_intent": map[string]interface{}{"raw_amount": "1"}, "requires_chain_verification": false}}
+			if _, err := svc.HandleCallback(callback); !errors.Is(err, ErrPaymentInvalid) {
+				t.Fatalf("callback authorized fulfillment: %v", err)
+			}
+			if _, _, paid, err := svc.applyPaymentUpdate(stored, order, constants.PaymentStatusSuccess, callback, time.Now()); err == nil || paid {
+				t.Fatal("transactional callback guard bypassed")
+			}
+			if err := db.First(stored, stored.ID).Error; err != nil {
+				t.Fatal(err)
+			}
+			after, _ := json.Marshal(stored.PaymentIntent)
+			if !bytes.Equal(before, after) || stored.PaidAt != nil || stored.CallbackAt != nil {
+				t.Fatal("callback changed trusted snapshot or payment")
+			}
+			if err := db.First(order, order.ID).Error; err != nil {
+				t.Fatal(err)
+			}
+			if order.Status != constants.OrderStatusPendingPayment || order.PaidAt != nil {
+				t.Fatal("callback paid order")
+			}
+			var benefits int64
+			if err := db.Model(&walletdomain.Transaction{}).Count(&benefits).Error; err != nil {
+				t.Fatal(err)
+			}
+			if benefits != 0 {
+				t.Fatal("callback created wallet benefits")
+			}
+			// A corrupt/missing snapshot must not restore the legacy callback path.
+			if err := db.Model(stored).Update("payment_intent", nil).Error; err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.HandleCallback(callback); !errors.Is(err, ErrPaymentInvalid) {
+				t.Fatal("missing snapshot downgraded callback protection")
+			}
+		})
+	}
+}
+
+func TestEpusdtIntentBindingCannotBeReplacedByCompetingResults(t *testing.T) {
+	svc, db := setupPaymentServiceWalletTest(t)
+	order := createFixedCashierOrder(t, db, "BINDING-RACE", 1, 100)
+	payment := &paymentdomain.Payment{OrderID: order.ID, ChannelID: 1, ProviderType: constants.PaymentProviderEpusdt,
+		ChannelType: "epusdt", InteractionMode: constants.PaymentInteractionQR, Currency: "CNY", Status: constants.PaymentStatusInitiated,
+		Amount: money.FromDecimal(decimal.NewFromInt(100)), FeePolicy: constants.PaymentFeePolicyNone, GatewayOrderNo: "DJP-BINDING"}
+	if err := db.Create(payment).Error; err != nil {
+		t.Fatal(err)
+	}
+	created := time.Now().Add(-time.Second)
+	cfg := &epusdt.Config{FixedPaymentIntent: true, GatewayURL: "https://gateway.example", PID: "1000", SecretKey: "test-only", OrderMode: "transaction", Token: "usdt", Network: "binance", Currency: "cny", NotifyURL: "https://shop.example/notify", ReturnURL: "https://shop.example/return", QuotePolicy: &epusdt.QuotePolicy{Version: "q1", Rate: "0.14", Precision: 4, MaxTail: "0.0099", LifetimeSeconds: 900, Recipient: "0x1111111111111111111111111111111111111111"}}
+	authorized, err := epusdt.PrepareIntent(cfg, epusdt.CreateInput{OrderNo: payment.GatewayOrderNo, Amount: "100", Name: "test"}, payment.ID, order.ID, "CNY", order.ExpiresAt, nil, created)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payment.PaymentIntent = authorized
+	payment.RequiresChainVerification = true
+	payment.AutomationRevision = 2
+	payment.SettlementBasis = paymentdomain.OrderBasis(*payment, *order)
+	if err := db.Save(payment).Error; err != nil {
+		t.Fatal(err)
+	}
+	bound := make([]jsonmap.JSON, 2)
+	for i, trade := range []string{"trade-a", "trade-b"} {
+		b, _ := json.Marshal(authorized)
+		_ = json.Unmarshal(b, &bound[i])
+		bound[i]["terms"] = map[string]interface{}{"version": 1, "trade_id": trade, "order_id": payment.GatewayOrderNo, "api_key_id": 7, "network": "binance", "token": "USDT", "contract": "0x55d398326f99059ff775485246999027b3197955", "decimals": 18, "recipient": cfg.QuotePolicy.Recipient, "raw_amount": "14000100000000000000", "fiat_amount": "100", "request_amount": "100", "currency": "CNY", "rate": "0.14", "created_at_ms": created.UnixMilli() + 1, "expires_at_ms": time.Now().Add(time.Minute).UnixMilli()}
+	}
+	var wg sync.WaitGroup
+	errorsByRequest := make([]error, 2)
+	start := make(chan struct{})
+	for index := range bound {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			<-start
+			copy := *payment
+			copy.ProviderRef = []string{"trade-a", "trade-b"}[index]
+			expires := time.Now().Add(time.Minute)
+			copy.ExpiredAt = &expires
+			errorsByRequest[index] = svc.persistGatewayPaymentIntent(&copy, authorized, bound[index])
+		}(index)
+	}
+	close(start)
+	wg.Wait()
+	if (errorsByRequest[0] == nil) == (errorsByRequest[1] == nil) {
+		t.Fatalf("wanted exactly one durable result: %v", errorsByRequest)
+	}
+	stored, err := svc.paymentRepo.GetByID(payment.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	winner := 0
+	if errorsByRequest[0] != nil {
+		winner = 1
+	}
+	want, _ := json.Marshal(bound[winner])
+	got, _ := json.Marshal(stored.PaymentIntent)
+	if !bytes.Equal(want, got) || !stored.RequiresChainVerification {
+		t.Fatal("binding changed after conflict")
+	}
+	// Recovery of the already-bound result is idempotent.
+	stored.AutomationRevision, err = automation.OpenRevision(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.persistGatewayPaymentIntent(stored, bound[winner], bound[winner]); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&orderdomain.Order{}).Where("id = ?", payment.OrderID).Update("status", constants.OrderStatusCanceled).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.persistGatewayPaymentIntent(stored, bound[winner], bound[winner]); err == nil {
+		t.Fatal("canceled business order accepted a late binding")
+	}
+}
 
 func TestValidateOrderChannelEligibilityUsesPersistedOrderIdentity(t *testing.T) {
 	levelID := uint(2)
@@ -1407,4 +1618,417 @@ func TestSupersededPaymentLateSuccessIsRecordedWithoutDuplicateFulfillment(t *te
 	if duplicate.Status != constants.PaymentStatusSuccess || duplicate.ExceptionCode != constants.PaymentExceptionDuplicateSucceeded {
 		t.Fatalf("duplicate payment was not flagged: %+v", duplicate)
 	}
+}
+
+func TestEpusdtScopeCannotBeWidenedByChannelSettings(t *testing.T) {
+	for _, channel := range []paymentdomain.PaymentChannel{
+		{ProviderType: constants.PaymentProviderEpusdt},
+		{ProviderType: " EPUSDT ", PaymentRoles: jsonslice.Strings{constants.PaymentRoleGuest, constants.PaymentRoleMember}, PaymentTypes: jsonslice.Strings{constants.PaymentTypeOrder, constants.PaymentTypeWallet}},
+	} {
+		if err := validateOrderChannelEligibility(channel, &orderdomain.Order{}); !errors.Is(err, ErrPaymentChannelNotAllowedForProduct) {
+			t.Fatalf("guest accepted: %v", err)
+		}
+		if err := validateOrderChannelEligibility(channel, &orderdomain.Order{UserID: 10}); err != nil {
+			t.Fatalf("member rejected: %v", err)
+		}
+		if err := validateWalletChannelEligibility(channel, &userdomain.User{ID: 10}); !errors.Is(err, ErrPaymentChannelNotAllowedForRecharge) {
+			t.Fatalf("recharge accepted: %v", err)
+		}
+		if matchesChannelRole(channel, &userdomain.User{}) {
+			t.Fatal("zero-ID user counted as a member")
+		}
+	}
+	// The restriction must not spread to official Alipay / other providers.
+	if err := validateOrderChannelEligibility(paymentdomain.PaymentChannel{ProviderType: constants.PaymentProviderOfficial}, &orderdomain.Order{}); err != nil {
+		t.Fatalf("other provider guest flow changed: %v", err)
+	}
+}
+
+func TestEpusdtScopeBlocksWritesBeforeGatewayOrRechargeCreation(t *testing.T) {
+	svc, db := setupPaymentServiceWalletTest(t)
+	user := &userdomain.User{Email: "epusdt-scope@example.com", PasswordHash: "test", Status: constants.UserStatusActive}
+	if err := db.Create(user).Error; err != nil {
+		t.Fatal(err)
+	}
+	channel := &paymentdomain.PaymentChannel{Name: "Epusdt", ProviderType: constants.PaymentProviderEpusdt, ChannelType: "epusdt", InteractionMode: constants.PaymentInteractionQR, IsActive: true}
+	if err := db.Create(channel).Error; err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	registerTestGateway(t, svc, channel.ProviderType, channel.ChannelType, emptyProviderRefProvider{onCreate: func(paymentcontract.GatewayCreateInput) { calls++ }})
+	guest := createUnderpaidOrder(t, db, "GUEST-USDT", 0, 100)
+	if _, err := svc.CreatePayment(CreatePaymentInput{OrderID: guest.ID, ChannelID: channel.ID, Context: context.Background()}); !errors.Is(err, ErrPaymentChannelNotAllowedForProduct) {
+		t.Fatalf("guest write: %v", err)
+	}
+	if _, err := svc.CreateWalletRechargePayment(CreateWalletRechargePaymentInput{UserID: user.ID, ChannelID: channel.ID, Amount: money.FromDecimal(decimal.NewFromInt(100)), Currency: "CNY", Context: context.Background()}); !errors.Is(err, ErrPaymentChannelNotAllowedForRecharge) {
+		t.Fatalf("recharge write: %v", err)
+	}
+	var payments, recharges int64
+	if err := db.Model(&paymentdomain.Payment{}).Count(&payments).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&walletdomain.RechargeOrder{}).Count(&recharges).Error; err != nil {
+		t.Fatal(err)
+	}
+	if calls != 0 || payments != 0 || recharges != 0 {
+		t.Fatalf("rejected request created effects: calls=%d payments=%d recharges=%d", calls, payments, recharges)
+	}
+	member := createUnderpaidOrder(t, db, "MEMBER-USDT", user.ID, 100)
+	if _, err := svc.CreatePayment(CreatePaymentInput{OrderID: member.ID, ChannelID: channel.ID, Context: context.Background()}); err != nil {
+		t.Fatalf("member creation: %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("gateway calls=%d", calls)
+	}
+}
+
+func TestEpusdtScopeFiltersListsAndNormalizesSavedChannel(t *testing.T) {
+	svc, db := setupPaymentServiceWalletTest(t)
+	channel := &paymentdomain.PaymentChannel{Name: "Epusdt", ProviderType: constants.PaymentProviderEpusdt, ChannelType: "epusdt", InteractionMode: constants.PaymentInteractionRedirect, IsActive: true}
+	if err := db.Create(channel).Error; err != nil {
+		t.Fatal(err)
+	}
+	member := &userdomain.User{ID: 10}
+	for _, filter := range []AvailablePaymentChannelFilter{
+		{PaymentType: constants.PaymentTypeOrder},
+		{User: member, PaymentType: constants.PaymentTypeWallet},
+	} {
+		rows, err := svc.GetAvailableChannels(filter)
+		if err != nil || len(rows) != 0 {
+			t.Fatalf("ineligible channel visible: rows=%v err=%v", rows, err)
+		}
+	}
+	rows, err := svc.GetAvailableChannels(AvailablePaymentChannelFilter{User: member, PaymentType: constants.PaymentTypeOrder})
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("member order channel missing: %v", err)
+	}
+	for _, withoutSettings := range []bool{false, true} {
+		if withoutSettings {
+			svc.settingService = nil
+		}
+		rechargeChannels, err := svc.GetWalletRechargeChannels()
+		if err != nil || len(rechargeChannels) != 0 {
+			t.Fatalf("recharge list leaked Epusdt: %v", err)
+		}
+	}
+	registerTestGateway(t, svc, channel.ProviderType, channel.ChannelType, emptyProviderRefProvider{})
+	channel.PaymentRoles = jsonslice.Strings{constants.PaymentRoleGuest}
+	channel.PaymentTypes = jsonslice.Strings{constants.PaymentTypeWallet}
+	if err := svc.ValidateChannel(channel); err != nil {
+		t.Fatal(err)
+	}
+	if len(channel.PaymentRoles) != 1 || channel.PaymentRoles[0] != constants.PaymentRoleMember || len(channel.PaymentTypes) != 1 || channel.PaymentTypes[0] != constants.PaymentTypeOrder {
+		t.Fatal("saved policy was not constrained")
+	}
+	if !channel.MinAmount.Decimal.IsZero() || !channel.MaxAmount.Decimal.IsZero() {
+		t.Fatal("unexpected monetary cap")
+	}
+}
+
+func TestEpusdtScopeRejectsLegacyCallbacksWithoutBenefits(t *testing.T) {
+	svc, db := setupPaymentServiceWalletTest(t)
+	guest := createUnderpaidOrder(t, db, "LEGACY-GUEST-USDT", 0, 100)
+	payment := &paymentdomain.Payment{OrderID: guest.ID, ChannelID: 1, ProviderType: constants.PaymentProviderEpusdt, ChannelType: "epusdt", InteractionMode: constants.PaymentInteractionQR, Status: constants.PaymentStatusPending, Currency: "CNY", Amount: guest.TotalAmount}
+	if err := db.Create(payment).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.HandleCallback(PaymentCallbackInput{PaymentID: payment.ID, OrderNo: guest.OrderNo, ChannelID: 1, Status: constants.PaymentStatusSuccess, Amount: payment.Amount, Currency: "CNY"}); !errors.Is(err, ErrPaymentChannelNotAllowedForProduct) {
+		t.Fatalf("guest callback: %v", err)
+	}
+	stored := &paymentdomain.Payment{}
+	if err := db.First(stored, payment.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.Status != constants.PaymentStatusPending || stored.PaidAt != nil || stored.CallbackAt != nil {
+		t.Fatal("guest callback changed payment")
+	}
+	if err := db.First(guest, guest.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if guest.Status != constants.OrderStatusPendingPayment || guest.PaidAt != nil {
+		t.Fatal("guest callback paid order")
+	}
+	rechargePayment, recharge := createWalletRechargeFixture(t, db, constants.PaymentStatusPending, constants.WalletRechargeStatusPending)
+	if err := db.Model(rechargePayment).Update("provider_type", constants.PaymentProviderEpusdt).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.HandleCallback(buildWalletRechargeCallbackInput(rechargePayment, recharge, constants.PaymentStatusSuccess, rechargePayment.ProviderRef)); !errors.Is(err, ErrPaymentChannelNotAllowedForRecharge) {
+		t.Fatalf("recharge callback: %v", err)
+	}
+	var benefits int64
+	if err := db.Model(&walletdomain.Transaction{}).Count(&benefits).Error; err != nil {
+		t.Fatal(err)
+	}
+	if benefits != 0 {
+		t.Fatal("rejected callback created wallet benefits")
+	}
+	if err := db.First(recharge, recharge.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if recharge.Status != constants.WalletRechargeStatusPending {
+		t.Fatal("rejected callback completed recharge")
+	}
+}
+
+func TestEpusdtFixedCreateLostResponseRecoveryKeepsIdentityAndWallet(t *testing.T) {
+	svc, db := setupPaymentServiceWalletTest(t)
+	user := &userdomain.User{Email: "recovery@example.com", PasswordHash: "test", Status: constants.UserStatusActive}
+	if err := db.Create(user).Error; err != nil {
+		t.Fatal(err)
+	}
+	account := &walletdomain.Account{UserID: user.ID, Balance: money.FromDecimal(decimal.NewFromInt(10))}
+	if err := db.Create(account).Error; err != nil {
+		t.Fatal(err)
+	}
+	order := createFixedCashierOrder(t, db, "LOST-RESPONSE", user.ID, 110)
+	var firstRequest []byte
+	var remoteResponse []byte
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		var request map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Error(err)
+			return
+		}
+		requestBytes, _ := json.Marshal(request)
+		stored := &paymentdomain.Payment{}
+		if err := db.Where("gateway_order_no = ?", request["order_id"]).First(stored).Error; err != nil {
+			t.Error(err)
+			return
+		}
+		if stored.PaymentIntent == nil || stored.ExpiredAt == nil || stored.IntentRetryAt == nil || !stored.RequiresChainVerification {
+			t.Error("request not recoverable before HTTP")
+		}
+		if calls == 1 {
+			firstRequest = requestBytes
+			now := time.Now().UnixMilli()
+			remoteResponse, _ = json.Marshal(map[string]interface{}{"status_code": 200, "data": map[string]interface{}{
+				"trade_id": "remote-created", "order_id": request["order_id"], "status": 1, "amount": 100, "actual_amount": "14.0001", "currency": "CNY", "token": "USDT",
+				"receive_address": "0x1111111111111111111111111111111111111111", "expiration_time": (now + 600000) / 1000,
+				"payment_terms": map[string]interface{}{"version": 1, "trade_id": "remote-created", "order_id": request["order_id"], "api_key_id": 7, "network": "binance", "token": "USDT",
+					"contract": "0x55d398326f99059ff775485246999027b3197955", "decimals": 18, "recipient": "0x1111111111111111111111111111111111111111", "raw_amount": "14000100000000000000",
+					"fiat_amount": "100", "request_amount": "100", "currency": "CNY", "rate": "0.14", "created_at_ms": now, "expires_at_ms": now + 600000}}})
+			// Simulate a committed remote order followed by a dropped TCP response.
+			conn, _, err := w.(http.Hijacker).Hijack()
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			_ = conn.Close()
+			return
+		}
+		if !bytes.Equal(firstRequest, requestBytes) {
+			t.Error("retry changed durable request")
+		}
+		_, _ = w.Write(remoteResponse)
+	}))
+	defer srv.Close()
+	channel := &paymentdomain.PaymentChannel{Name: "Recovery", ProviderType: constants.PaymentProviderEpusdt, ChannelType: "epusdt", InteractionMode: constants.PaymentInteractionQR, IsActive: true,
+		ConfigJSON: jsonmap.JSON{"gateway_url": srv.URL, "pid": "1000", "secret_key": "test-secret", "notify_url": "https://shop.example/notify", "return_url": "https://shop.example/return",
+			"token": "usdt", "network": "binance", "currency": "cny", "fixed_payment_intent": true,
+			"quote_policy": map[string]interface{}{"version": "v1", "rate": "0.14", "precision": 4, "max_tail": "0.0099", "lifetime_seconds": 900, "recipient": "0x1111111111111111111111111111111111111111"}}}
+	if err := db.Create(channel).Error; err != nil {
+		t.Fatal(err)
+	}
+	input := CreatePaymentInput{OrderID: order.ID, ChannelID: channel.ID, UseBalance: true, Context: context.Background()}
+	if _, err := svc.CreatePayment(input); err == nil {
+		t.Fatal("lost response unexpectedly succeeded")
+	}
+	stored := &paymentdomain.Payment{}
+	if err := db.Where("order_id = ?", order.ID).First(stored).Error; err != nil {
+		t.Fatal(err)
+	}
+	paymentID, gatewayNo := stored.ID, stored.GatewayOrderNo
+	if stored.Status != constants.PaymentStatusInitiated || stored.ProviderRef != "" {
+		t.Fatal("uncertain creation marked complete/failed")
+	}
+	if err := db.First(order, order.ID).Error; err != nil || order.WalletPaidAmount.String() != "10.00" {
+		t.Fatalf("wallet reservation released: %v amount=%s", err, order.WalletPaidAmount.String())
+	}
+	if _, err := svc.CreatePayment(input); err == nil || calls != 1 {
+		t.Fatal("active retry lease bypassed")
+	}
+	if _, err := svc.CreatePayment(CreatePaymentInput{OrderID: order.ID, ChannelID: 0, UseBalance: true}); err == nil {
+		t.Fatal("wallet-only switch bypassed live intent")
+	}
+	var count int64
+	if err := db.Model(&paymentdomain.Payment{}).Where("order_id = ?", order.ID).Count(&count).Error; err != nil || count != 1 {
+		t.Fatal("retry created another payment")
+	}
+	past := time.Now().Add(-time.Second)
+	if err := db.Model(stored).Update("intent_retry_at", past).Error; err != nil {
+		t.Fatal(err)
+	}
+	channel.ConfigJSON["quote_policy"].(map[string]interface{})["rate"] = "0.01"
+	channel.IsActive = false // Stop new sales; reconcile existing authorized requests.
+	if err := db.Save(channel).Error; err != nil {
+		t.Fatal(err)
+	}
+	restarted := NewPaymentService(PaymentServiceOptions{OrderStore: svc.orderRepo, PaymentStore: svc.paymentRepo, ChannelStore: svc.channelRepo,
+		UserStore: svc.userRepo, ExternalIdentityStore: svc.userOAuthIdentityRepo, SettingService: svc.settingService, PaymentProviderRegistry: svc.paymentProviderRegistry})
+	if err := restarted.RecoverFixedPaymentIntents(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	stored = &paymentdomain.Payment{} // Read NULL fields into a fresh destination.
+	if err := db.First(stored, paymentID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 || stored.ID != paymentID || stored.GatewayOrderNo != gatewayNo || stored.ProviderRef != "remote-created" || stored.PaymentIntent["terms"] == nil || stored.Status != constants.PaymentStatusPending || stored.IntentRetryAt != nil {
+		t.Fatalf("recovery state calls=%d id=%d ref=%s no_matches=%v terms=%v status=%s retry=%v", calls, stored.ID, stored.ProviderRef, stored.GatewayOrderNo == gatewayNo, stored.PaymentIntent["terms"] != nil, stored.Status, stored.IntentRetryAt)
+	}
+	if err := restarted.RecoverFixedPaymentIntents(context.Background()); err != nil || calls != 2 {
+		t.Fatal("bound intent was retried")
+	}
+	if err := db.First(order, order.ID).Error; err != nil || order.Status != constants.OrderStatusPendingPayment || order.PaidAt != nil {
+		t.Fatal("recovery paid order")
+	}
+	if err := db.First(account, account.ID).Error; err != nil || !account.Balance.Decimal.IsZero() {
+		t.Fatal("recovery refunded/credited wallet")
+	}
+}
+
+func TestFixedCreationFreezeAndOriginalRequestRecovery(t *testing.T) {
+	for _, freezeInHTTP := range []bool{false, true} {
+		t.Run(fmt.Sprint(freezeInHTTP), func(t *testing.T) {
+			svc, db := setupPaymentServiceWalletTest(t)
+			user := userdomain.User{Email: "freeze@example.com", PasswordHash: "test", Status: constants.UserStatusActive}
+			if err := db.Create(&user).Error; err != nil {
+				t.Fatal(err)
+			}
+			account := walletdomain.Account{UserID: user.ID, Balance: money.FromDecimal(decimal.NewFromInt(10))}
+			if err := db.Create(&account).Error; err != nil {
+				t.Fatal(err)
+			}
+			order := createFixedCashierOrder(t, db, "FREEZE-CREATE", user.ID, 110)
+			calls := 0
+			var originalOrder string
+			var originalResponse []byte
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				var req map[string]interface{}
+				if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+					t.Error(err)
+					return
+				}
+				id := fmt.Sprint(req["order_id"])
+				if calls == 1 {
+					originalOrder = id
+					now := time.Now().UnixMilli()
+					originalResponse, _ = json.Marshal(map[string]interface{}{"status_code": 200, "data": map[string]interface{}{
+						"trade_id": "frozen-create", "order_id": id, "status": 1, "amount": 100, "actual_amount": "14.0001", "currency": "CNY", "token": "USDT",
+						"receive_address": "0x1111111111111111111111111111111111111111", "expiration_time": (now + 600000) / 1000,
+						"payment_terms": map[string]interface{}{"version": 1, "trade_id": "frozen-create", "order_id": id, "api_key_id": 7, "network": "binance", "token": "USDT", "contract": "0x55d398326f99059ff775485246999027b3197955", "decimals": 18, "recipient": "0x1111111111111111111111111111111111111111", "raw_amount": "14000100000000000000", "fiat_amount": "100", "request_amount": "100", "currency": "CNY", "rate": "0.14", "created_at_ms": now, "expires_at_ms": now + 600000}}})
+					if freezeInHTTP {
+						if err := automation.SetFrozen(context.Background(), db, true, 2, "synthetic incident"); err != nil {
+							t.Error(err)
+						}
+						if err := automation.SetFrozen(context.Background(), db, false, 3, "synthetic resume"); err != nil {
+							t.Error(err)
+						}
+					}
+				} else if id != originalOrder {
+					t.Error("recovery allocated a different order")
+				}
+				_, _ = w.Write(originalResponse)
+			}))
+			defer srv.Close()
+			channel := paymentdomain.PaymentChannel{Name: "Fixed", ProviderType: constants.PaymentProviderEpusdt, ChannelType: "epusdt", InteractionMode: constants.PaymentInteractionQR, IsActive: true, ConfigJSON: jsonmap.JSON{
+				"gateway_url": srv.URL, "pid": "1000", "secret_key": "test-only", "notify_url": "https://shop.example/notify", "return_url": "https://shop.example/return", "token": "usdt", "network": "binance", "currency": "cny", "fixed_payment_intent": true,
+				"quote_policy": map[string]interface{}{"version": "test-v1", "rate": "0.14", "precision": 4, "max_tail": "0.0099", "lifetime_seconds": 900, "recipient": "0x1111111111111111111111111111111111111111"}}}
+			if err := db.Create(&channel).Error; err != nil {
+				t.Fatal(err)
+			}
+			if !freezeInHTTP {
+				if err := automation.SetFrozen(context.Background(), db, true, 2, "synthetic incident"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			_, err := svc.CreatePayment(CreatePaymentInput{OrderID: order.ID, ChannelID: channel.ID, UseBalance: true, Context: context.Background()})
+			if !errors.Is(err, paymentdomain.ErrAutomationFrozen) {
+				t.Fatalf("frozen create: %v", err)
+			}
+			var count int64
+			if err := db.Model(&paymentdomain.Allocation{}).Count(&count).Error; err != nil || count != 0 {
+				t.Fatal("bound a response across freeze", err)
+			}
+			if !freezeInHTTP {
+				if calls != 0 || walletBalance(t, db, user.ID) != "10.00" {
+					t.Fatal("frozen creation called gateway or reserved funds")
+				}
+				if err := db.Model(&paymentdomain.Payment{}).Count(&count).Error; err != nil || count != 0 {
+					t.Fatal("frozen creation wrote a payment")
+				}
+				return
+			}
+			var p paymentdomain.Payment
+			if err := db.Where("order_id = ?", order.ID).First(&p).Error; err != nil {
+				t.Fatal(err)
+			}
+			if p.ProviderRef != "" || p.PaymentIntent["terms"] != nil || walletBalance(t, db, user.ID) != "0.00" {
+				t.Fatal("lost original unbound intent or wallet reservation")
+			}
+			if err := automation.SetFrozen(context.Background(), db, true, 4, "hold recovery"); err != nil {
+				t.Fatal(err)
+			}
+			if err := db.Model(&p).Update("intent_retry_at", time.Now().Add(-time.Minute)).Error; err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.RecoverFixedPaymentIntents(context.Background()); err != nil || calls != 1 {
+				t.Fatal("frozen recovery called gateway", err)
+			}
+			if err := automation.SetFrozen(context.Background(), db, false, 5, "review complete"); err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.RecoverFixedPaymentIntents(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			var recovered paymentdomain.Payment
+			if err := db.First(&recovered, p.ID).Error; err != nil {
+				t.Fatal(err)
+			}
+			if calls != 2 || recovered.ProviderRef != "frozen-create" || recovered.IntentRetryAt != nil || walletBalance(t, db, user.ID) != "0.00" {
+				t.Fatal("original request was not recovered")
+			}
+			if err := db.Model(&paymentdomain.Payment{}).Count(&count).Error; err != nil || count != 1 {
+				t.Fatal("recovery minted another payment")
+			}
+		})
+	}
+}
+
+func TestFixedPaymentRejectsUpstreamBeforeCollectingFunds(t *testing.T) {
+	svc, db := setupPaymentServiceWalletTest(t)
+	order := createFixedCashierOrder(t, db, "UPSTREAM-U", 1, 100)
+	item := orderdomain.OrderItem{OrderID: order.ID, ProductID: 1, SKUID: 1, Quantity: 1, TitleJSON: jsonmap.JSON{"en": "test"}, FulfillmentType: constants.FulfillmentTypeUpstream}
+	if err := db.Create(&item).Error; err != nil {
+		t.Fatal(err)
+	}
+	channel := paymentdomain.PaymentChannel{Name: "Fixed", ProviderType: constants.PaymentProviderEpusdt, ChannelType: "epusdt", IsActive: true, ConfigJSON: jsonmap.JSON{"fixed_payment_intent": true}}
+	if err := db.Create(&channel).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.CreatePayment(CreatePaymentInput{OrderID: order.ID, ChannelID: channel.ID}); !errors.Is(err, ErrPaymentChannelNotAllowedForProduct) {
+		t.Fatalf("upstream accepted: %v", err)
+	}
+	var count int64
+	if err := db.Model(&paymentdomain.Payment{}).Count(&count).Error; err != nil || count != 0 {
+		t.Fatal("upstream collection created")
+	}
+}
+
+func createFixedCashierOrder(t *testing.T, db *gorm.DB, orderNo string, userID uint, total int64) *orderdomain.Order {
+	t.Helper()
+	order := createUnderpaidOrder(t, db, orderNo, userID, total)
+	expires := time.Now().Add(30 * time.Minute)
+	order.ExpiresAt = &expires
+	if err := db.Save(order).Error; err != nil {
+		t.Fatal(err)
+	}
+	item := orderdomain.OrderItem{OrderID: order.ID, ProductID: 1, SKUID: 1, Quantity: 1, TitleJSON: jsonmap.JSON{"en": "test"}, UnitPrice: order.TotalAmount, TotalPrice: order.TotalAmount, FulfillmentType: constants.FulfillmentTypeManual}
+	if err := db.Create(&item).Error; err != nil {
+		t.Fatal(err)
+	}
+	order.Items = []orderdomain.OrderItem{item}
+	return order
 }

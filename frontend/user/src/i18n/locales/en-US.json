@@ -1211,6 +1211,27 @@
     }
   },
   "payment": {
+    "fixed": {
+      "title": "Pay with USDT",
+      "guide": "Check the network and send the exact amount shown here.",
+      "amountDue": "USDT due for this payment",
+      "fiatOnlineAmount": "Online order amount before conversion",
+      "exactAmountTip": "The final digits identify this order. Do not round the amount; ensure the recipient receives the full amount after any fees.",
+      "qrAlt": "USDT receiving address QR code",
+      "qrAddressOnly": "This QR code contains the address only. Select the network above and enter the exact amount in your wallet.",
+      "copyAmount": "Copy amount",
+      "contract": "Token contract",
+      "waitForConfirmation": "Your order updates after payment confirmation. Do not pay again.",
+      "latePayment": "Do not transfer after expiry. Contact the merchant for a missing update, late transfer, or an incorrect amount.",
+      "doNotPay": "Payment details are unavailable. Do not transfer yet; refresh later.",
+      "states": {
+        "preparing": "Preparing payment details",
+        "paused": "USDT payments are paused",
+        "expired": "This payment has expired",
+        "closed": "This payment has closed",
+        "unavailable": "Unable to confirm payment details"
+      }
+    },
     "title": "Payment",
     "subtitle": "Choose payment method and proceed",
     "backToOrders": "Back to orders",

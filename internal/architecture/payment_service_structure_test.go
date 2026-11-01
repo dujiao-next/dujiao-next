@@ -14,7 +14,7 @@ func TestPaymentServiceImplementationIsSplitByResponsibility(t *testing.T) {
 	expected := map[string][]string{
 		"payment_service.go": {
 			"SetProcurementService", "SetDownstreamCallbackService", "SetMemberLevelService",
-			"NewPaymentService", "ListPayments", "GetPayment", "ListChannels", "GetChannel",
+			"NewPaymentService", "ListPayments", "GetPayment", "ListChannels", "GetChannel", "WithEffectDelivery",
 			"paymentLogger",
 		},
 		"payment_service_create.go": {"hasProviderResult", "CreatePayment"},
@@ -27,7 +27,8 @@ func TestPaymentServiceImplementationIsSplitByResponsibility(t *testing.T) {
 			"shouldUseGatewayOrderNo", "buildGatewayOrderNo", "resolveGatewayOrderNo",
 			"resolveProviderOrderNo", "matchesBusinessOrderNo", "buildPaymentReturnQuery",
 			"applyProviderPayment", "TestChannelSecurity", "ValidateChannel", "resolveTenantReturnURL",
-			"tenantReturnPath", "resolveTokenPayOrderUserKey",
+			"prepareGatewayPaymentIntent", "prepareGatewayPaymentIntentTx", "persistGatewayPaymentIntent", "RecoverFixedPaymentIntents",
+			"tenantReturnPath", "resolveTokenPayOrderUserKey", "lockPaymentCreation", "validateFixedPaymentItems",
 		},
 		"payment_service_rules.go": {
 			"normalizeOrderAmount", "calculatePaymentAmounts", "paymentCoveredOrderAmount", "paymentExchangeRate", "pickFirstNonEmpty",
@@ -40,7 +41,7 @@ func TestPaymentServiceImplementationIsSplitByResponsibility(t *testing.T) {
 			"computeProductChannelIntersection",
 			"validateProductPaymentChannel", "validateWalletRechargeChannel",
 			"GetAllowedChannelsForProducts", "GetWalletRechargeChannels", "GetAllowedChannelIDsForOrder",
-			"GetAvailableChannels", "matchesChannelAmount", "matchesChannelRole",
+			"GetAvailableChannels", "matchesChannelAmount", "matchesChannelRole", "isEpusdtProvider",
 			"matchesChannelMemberLevel", "matchesChannelPaymentType",
 			"validateOrderChannelEligibility", "validateWalletChannelEligibility",
 		},

@@ -118,7 +118,21 @@ func (s *Service) CreateManual(input CreateManualInput) (*fulfillmentdomain.Fulf
 	}
 
 	var created *fulfillmentdomain.Fulfillment
+	durablePayment := false
 	err = s.orderStore.WithinTransaction(func(tx ordercontract.Transaction) error {
+		guard, ok := tx.Fulfillments().(fulfillmentcontract.PaymentDeliveryGuard)
+		if !ok {
+			return ErrFulfillmentCreateFailed
+		}
+		rootID := order.ID
+		if order.ParentID != nil {
+			rootID = *order.ParentID
+		}
+		fixed, err := guard.LockPaymentDelivery(rootID, false)
+		if err != nil {
+			return err
+		}
+		durablePayment = fixed
 		if _, found, err := tx.Fulfillments().FindByOrderIDForUpdate(input.OrderID); err != nil {
 			return err
 		} else if found {
@@ -157,6 +171,9 @@ func (s *Service) CreateManual(input CreateManualInput) (*fulfillmentdomain.Fulf
 			return nil, ErrOrderUpdateFailed
 		}
 		return nil, ErrFulfillmentCreateFailed
+	}
+	if durablePayment {
+		return created, nil
 	}
 	if s.orderQueue != nil {
 		if order.ParentID != nil {
@@ -209,6 +226,16 @@ func (s *Service) CreateManual(input CreateManualInput) (*fulfillmentdomain.Fulf
 
 // CreateAuto 自动交付
 func (s *Service) CreateAuto(orderID uint) (*fulfillmentdomain.Fulfillment, error) {
+	return s.createAuto(orderID, true)
+}
+
+// CreateAutoWithDurableEffects leaves post-commit notifications to payment's
+// persisted outbox, which exists before delivery and survives worker death.
+func (s *Service) CreateAutoWithDurableEffects(orderID uint) (*fulfillmentdomain.Fulfillment, error) {
+	return s.createAuto(orderID, false)
+}
+
+func (s *Service) createAuto(orderID uint, notify bool) (*fulfillmentdomain.Fulfillment, error) {
 	if orderID == 0 {
 		return nil, ErrFulfillmentInvalid
 	}
@@ -239,6 +266,46 @@ func (s *Service) CreateAuto(orderID uint) (*fulfillmentdomain.Fulfillment, erro
 	now := time.Now()
 	var fulfillment *fulfillmentdomain.Fulfillment
 	err = s.orderStore.WithinTransaction(func(tx ordercontract.Transaction) error {
+		guard, ok := tx.Fulfillments().(fulfillmentcontract.PaymentDeliveryGuard)
+		if !ok {
+			return ErrFulfillmentCreateFailed
+		}
+		rootID := order.ID
+		if order.ParentID != nil {
+			rootID = *order.ParentID
+		}
+		fixed, err := guard.LockPaymentDelivery(rootID, !notify)
+		if err != nil {
+			return err
+		}
+		if fixed {
+			notify = false
+		}
+		if order.ParentID != nil {
+			parent, err := tx.Orders().GetByIDForUpdate(*order.ParentID)
+			if err != nil {
+				return err
+			}
+			if parent == nil || parent.Status == constants.OrderStatusCanceled || !parent.RefundedAmount.Decimal.IsZero() {
+				return ErrOrderStatusInvalid
+			}
+		}
+		locked, err := tx.Orders().GetByIDForUpdateWithChildren(orderID)
+		if err != nil {
+			return err
+		}
+		if locked == nil || len(locked.Items) == 0 || locked.Status != constants.OrderStatusPaid || locked.CanceledAt != nil || !locked.RefundedAmount.Decimal.IsZero() {
+			return ErrOrderStatusInvalid
+		}
+		if (locked.ParentID == nil) != (order.ParentID == nil) || (locked.ParentID != nil && *locked.ParentID != *order.ParentID) {
+			return ErrOrderStatusInvalid
+		}
+		for _, item := range locked.Items {
+			if strings.TrimSpace(item.FulfillmentType) != constants.FulfillmentTypeAuto {
+				return ErrFulfillmentNotAuto
+			}
+		}
+		order = locked
 		if _, found, err := tx.Fulfillments().FindByOrderIDForUpdate(orderID); err != nil {
 			return err
 		} else if found {
@@ -324,6 +391,8 @@ func (s *Service) CreateAuto(orderID uint) (*fulfillmentdomain.Fulfillment, erro
 	})
 	if err != nil {
 		switch {
+		case errors.Is(err, ErrOrderStatusInvalid):
+			return nil, ErrOrderStatusInvalid
 		case errors.Is(err, ErrFulfillmentExists):
 			return nil, ErrFulfillmentExists
 		case errors.Is(err, ErrCardSecretInsufficient):
@@ -335,6 +404,9 @@ func (s *Service) CreateAuto(orderID uint) (*fulfillmentdomain.Fulfillment, erro
 		default:
 			return nil, ErrFulfillmentCreateFailed
 		}
+	}
+	if !notify {
+		return fulfillment, nil
 	}
 	if s.orderQueue != nil {
 		if order.ParentID != nil {

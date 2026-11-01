@@ -2,6 +2,9 @@ package contract
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"time"
 
 	dashboardcontract "github.com/dujiao-next/internal/modules/dashboard/contract"
@@ -100,4 +103,18 @@ type TestSendInput struct {
 
 type TestSender interface {
 	SendTest(context.Context, TestSendInput) error
+}
+
+// RecipientDelivery identifies a destination without persisting its address or
+// message content in the payment receipt ledger. Send must return actual IO status.
+type RecipientDelivery struct {
+	Key  string
+	Send func(context.Context) error
+}
+type DeliverBatch func(context.Context, []RecipientDelivery) error
+
+func RecipientKey(parts ...string) string {
+	b, _ := json.Marshal(parts)
+	h := sha256.Sum256(b)
+	return hex.EncodeToString(h[:])
 }

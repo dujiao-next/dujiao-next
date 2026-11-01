@@ -1211,6 +1211,27 @@
     }
   },
   "payment": {
+    "fixed": {
+      "title": "USDT 付款",
+      "guide": "請核對網路，並按本頁金額準確轉帳。",
+      "amountDue": "本次應付",
+      "fiatOnlineAmount": "商品線上金額（換算前）",
+      "exactAmountTip": "金額包含用於識別本次訂單的尾數，請勿取整；請確保收款地址實際收到完整金額。",
+      "qrAlt": "本次 USDT 收款地址二維碼",
+      "qrAddressOnly": "二維碼僅包含收款地址，請在錢包中選擇上方網路並填寫精確金額。",
+      "copyAmount": "複製金額",
+      "contract": "代幣合約",
+      "waitForConfirmation": "到帳確認後自動更新訂單，請勿重複付款。",
+      "latePayment": "過期後請勿轉帳。已轉帳但未更新、遲到或金額不符的款項，請聯絡商家人工核對。",
+      "doNotPay": "目前不提供付款資訊，請暫勿轉帳，稍後重新整理。",
+      "states": {
+        "preparing": "正在準備付款資訊",
+        "paused": "USDT 付款暫時停用",
+        "expired": "本次付款已過期",
+        "closed": "本次付款已結束",
+        "unavailable": "暫時無法確認付款資訊"
+      }
+    },
     "title": "發起支付",
     "subtitle": "選擇支付方式並完成支付",
     "backToOrders": "返回訂單",

@@ -8,5 +8,5 @@
   "production_platform": "linux/amd64",
   "node_version": "24.11.1",
   "pnpm_version": "10.34.3",
-  "go_version": "1.26.5"
+  "go_version": "1.26.10"
 }

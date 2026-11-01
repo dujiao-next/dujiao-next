@@ -16,7 +16,7 @@ func TestPaymentCallbackImplementationIsSplitByResponsibility(t *testing.T) {
 			"HandleCallback", "updateCallbackMeta", "applyPaymentUpdate",
 			"mergeProviderPayload", "markOrderPaid", "validateCallbackPaymentFacts",
 			"updateCallbackMetaWithRepo", "canAdoptVerifiedLegacyDujiaoPayCurrency",
-			"adoptVerifiedLegacyDujiaoPayCurrency", "creditUnderpaidToWallet",
+			"adoptVerifiedLegacyDujiaoPayCurrency", "creditUnderpaidToWallet", "ApplyChainSettlement",
 		},
 		"payment_service_callback_wallet.go": {
 			"handleWalletRechargeCallback", "applyWalletRechargePaymentUpdate", "canApplyWalletRechargeCallback",
@@ -26,7 +26,7 @@ func TestPaymentCallbackImplementationIsSplitByResponsibility(t *testing.T) {
 			"enqueueOrderPaidAsync", "enqueueProcurementAsync", "enqueueDownstreamCallbackAsync",
 			"enqueueOrderPaidNotificationAsync", "enqueueWalletRechargeSuccessAsync",
 			"enqueueOrderPaidBotNotifyAsync", "enqueueWalletRechargeBotNotifyAsync",
-			"hasManualFulfillmentItems", "enqueueManualFulfillmentPendingAsync",
+			"hasManualFulfillmentItems", "enqueueManualFulfillmentPendingAsync", "HandlePaymentEffect",
 		},
 		"payment_service_notification_payload.go": {
 			"buildOrderNotificationPayload", "buildWalletRechargeNotificationPayload",

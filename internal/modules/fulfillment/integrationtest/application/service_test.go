@@ -2,6 +2,7 @@ package application_test
 
 import (
 	"fmt"
+	pd "github.com/dujiao-next/internal/modules/payment/domain"
 	"strings"
 	"testing"
 	"time"
@@ -33,6 +34,7 @@ func setupFulfillmentServiceTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("open sqlite failed: %v", err)
 	}
 	if err := db.AutoMigrate(
+		&pd.Payment{}, &pd.EventConsumption{}, &pd.Allocation{}, &pd.AutomationControl{},
 		&orderdomain.Order{},
 		&orderdomain.OrderItem{},
 		&fulfillmentdomain.Fulfillment{},

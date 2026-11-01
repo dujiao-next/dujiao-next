@@ -14,6 +14,7 @@ import (
 
 	"github.com/dujiao-next/internal/logger"
 	channelclientapp "github.com/dujiao-next/internal/modules/channelclient/application"
+	paymentcontract "github.com/dujiao-next/internal/modules/payment/contract"
 	"github.com/dujiao-next/internal/queue"
 	"github.com/dujiao-next/internal/upstream"
 
@@ -21,7 +22,7 @@ import (
 )
 
 // handleBotNotify 处理 Telegram Bot 事件回调任务。
-func (c *Consumer) handleBotNotify(_ context.Context, task *asynq.Task) error {
+func (c *Consumer) handleBotNotify(ctx context.Context, task *asynq.Task) error {
 	if c == nil || task == nil {
 		return nil
 	}
@@ -29,6 +30,18 @@ func (c *Consumer) handleBotNotify(_ context.Context, task *asynq.Task) error {
 	if err := json.Unmarshal(task.Payload(), &payload); err != nil {
 		logger.Warnw("worker_bot_notify_unmarshal_failed", "error", err)
 		return fmt.Errorf("unmarshal bot notify payload: %w", err)
+	}
+	if fixed, err := c.usesFixedPaymentEffects(payload.OrderID); err != nil {
+		return err
+	} else if fixed {
+		return nil
+	}
+	return c.sendBotNotify(ctx, payload, nil)
+}
+
+func (c *Consumer) sendBotNotify(ctx context.Context, payload queue.BotNotifyPayload, admit func(context.Context) error) error {
+	if c == nil || c.Container == nil || c.ChannelClientService == nil {
+		return fmt.Errorf("bot endpoint reader unavailable")
 	}
 	if strings.TrimSpace(payload.TelegramUserID) == "" {
 		logger.Debugw("worker_bot_notify_skip_invalid", "event_type", payload.EventType, "order_id", payload.OrderID, "telegram_user_id", payload.TelegramUserID, "recharge_no", payload.RechargeNo)
@@ -92,7 +105,7 @@ func (c *Consumer) handleBotNotify(_ context.Context, task *asynq.Task) error {
 		return fmt.Errorf("build bot notify request url: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", requestURL, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, "POST", requestURL, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("create bot notify request: %w", err)
 	}
@@ -101,7 +114,12 @@ func (c *Consumer) handleBotNotify(_ context.Context, task *asynq.Task) error {
 	req.Header.Set("Dujiao-Next-Channel-Timestamp", strconv.FormatInt(timestamp, 10))
 	req.Header.Set("Dujiao-Next-Channel-Signature", signature)
 
-	httpClient := &http.Client{Timeout: 10 * time.Second}
+	httpClient := &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	if admit != nil {
+		if err := admit(ctx); err != nil {
+			return err
+		}
+	}
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		logger.Warnw("worker_bot_notify_request_failed",
@@ -116,6 +134,13 @@ func (c *Consumer) handleBotNotify(_ context.Context, task *asynq.Task) error {
 		return nil
 	}
 
+	// Durable sends retain retryable failures and surface permanent rejection.
+	if admit != nil && resp.StatusCode >= 400 && resp.StatusCode < 500 && resp.StatusCode != 408 && resp.StatusCode != 429 {
+		return paymentcontract.ErrEffectPermanent
+	}
+	if admit != nil {
+		return fmt.Errorf("bot delivery failed status %d", resp.StatusCode)
+	}
 	// 4xx 客户端错误不重试
 	if resp.StatusCode >= 400 && resp.StatusCode < 500 {
 		logger.Warnw("worker_bot_notify_client_error",

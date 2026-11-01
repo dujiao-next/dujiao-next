@@ -3,6 +3,7 @@ package jobs
 import (
 	"context"
 	"errors"
+	"time"
 
 	jobconsumer "github.com/dujiao-next/internal/app/jobs/consumer"
 	"github.com/dujiao-next/internal/config"
@@ -51,6 +52,33 @@ func NewService(cfg *config.QueueConfig, consumer *jobconsumer.Consumer) (*Servi
 func registerPeriodicTasks(scheduler *asynq.Scheduler, consumer *jobconsumer.Consumer, cfg *config.QueueConfig) {
 	if scheduler == nil || consumer == nil {
 		return
+	}
+	if consumer.PaymentSettlementService != nil {
+		if _, err := scheduler.Register("@every 1m", queue.NewPaymentChainSettleTask(), asynq.Queue(queue.DefaultQueue), asynq.Unique(time.Minute), asynq.Timeout(4*time.Minute), asynq.MaxRetry(0)); err != nil {
+			logger.Warnw("scheduler_register_payment_settlement_failed", "error", err)
+		}
+	}
+	if consumer.PaymentSecurityAlertsService != nil {
+		if _, err := scheduler.Register("@every 1m", queue.NewPaymentSecurityAlertsTask(), asynq.Queue(queue.DefaultQueue), asynq.Unique(time.Minute), asynq.Timeout(time.Minute), asynq.MaxRetry(0)); err != nil {
+			logger.Warnw("scheduler_register_payment_security_alerts_failed", "error", err)
+		}
+	}
+	if consumer.PaymentEffectsService != nil {
+		if _, err := scheduler.Register("@every 1m", queue.NewPaymentEffectsTask(), asynq.Queue(queue.DefaultQueue), asynq.Unique(time.Minute), asynq.Timeout(2*time.Minute), asynq.MaxRetry(0)); err != nil {
+			logger.Warnw("scheduler_register_payment_effects_failed", "error", err)
+		}
+	}
+	if consumer.PaymentChainVerificationService != nil {
+		_, err := scheduler.Register("@every 1m", queue.NewPaymentChainVerifyTask(), asynq.Queue(queue.DefaultQueue), asynq.Unique(time.Minute), asynq.Timeout(4*time.Minute), asynq.MaxRetry(0))
+		if err != nil {
+			logger.Warnw("scheduler_register_payment_chain_verification_failed", "error", err)
+		}
+	}
+	if consumer.PaymentCandidateService != nil {
+		_, err := scheduler.Register("@every 1m", queue.NewPaymentCandidateSyncTask(), asynq.Queue(queue.DefaultQueue), asynq.Unique(time.Minute), asynq.Timeout(2*time.Minute), asynq.MaxRetry(0))
+		if err != nil {
+			logger.Warnw("scheduler_register_payment_candidate_failed", "error", err)
+		}
 	}
 	if consumer.AffiliateService != nil {
 		task := queue.NewAffiliateConfirmCommissionsTask()

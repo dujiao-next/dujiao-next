@@ -1,8 +1,13 @@
 package application
 
 import (
+	"context"
 	"errors"
+	memberlevelcontract "github.com/dujiao-next/internal/modules/memberlevel/contract"
+	ordercontract "github.com/dujiao-next/internal/modules/order/contract"
+	"github.com/dujiao-next/internal/modules/payment/application/settlement"
 	"strings"
+	"time"
 
 	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
 
@@ -259,5 +264,265 @@ func (s *PaymentService) enqueueManualFulfillmentPendingAsync(order *orderdomain
 			"order_no", order.OrderNo,
 			"error", err,
 		)
+	}
+}
+
+// HandlePaymentEffect retries one responsibility, never the legacy combined
+// dispatcher. Monetary increments must not be invoked from this method.
+func (s *PaymentService) HandlePaymentEffect(ctx context.Context, effect paymentdomain.PaymentEffect) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	control, ok := s.paymentRepo.(interface {
+		OpenAutomationRevision(context.Context) (uint64, error)
+	})
+	if !ok {
+		return false, paymentdomain.ErrAutomationFrozen
+	}
+	revision, err := control.OpenAutomationRevision(ctx)
+	if err != nil {
+		return false, err
+	}
+	if effect.AutomationRevision != 0 && effect.AutomationRevision != revision {
+		return false, paymentdomain.ErrAutomationFrozen
+	}
+	order, err := s.orderRepo.GetByID(effect.OrderID)
+	if err != nil {
+		return false, err
+	}
+	if order == nil {
+		return false, ErrPaymentInvalid
+	}
+	payment, err := s.paymentRepo.GetByID(effect.PaymentID)
+	if err != nil {
+		return false, err
+	}
+	if payment == nil || !payment.RequiresChainVerification || payment.Status != constants.PaymentStatusSuccess || order.PaidAt == nil {
+		return false, ErrPaymentInvalid
+	}
+	if strings.HasPrefix(effect.Kind, "paid_") || strings.HasPrefix(effect.Kind, "delivery_") || effect.Kind == "manual_notice" || effect.Kind == "downstream" {
+		if !order.RefundedAmount.Decimal.IsZero() || order.Status == constants.OrderStatusCanceled || order.Status == constants.OrderStatusRefunded || order.Status == constants.OrderStatusPartiallyRefunded {
+			// A delayed success/delivery message cannot describe a newer refund.
+			// Refund notifications remain owned by the existing refund workflow.
+			return false, paymentcontract.ErrEffectPermanent
+		}
+	}
+	if strings.HasPrefix(effect.Kind, "delivery_") {
+		leaves := order.Children
+		if len(leaves) == 0 {
+			leaves = []orderdomain.Order{*order}
+		}
+		for _, leaf := range leaves {
+			if (leaf.Status != constants.OrderStatusCompleted && leaf.Status != constants.OrderStatusDelivered) || leaf.Fulfillment == nil || leaf.Fulfillment.Status != constants.FulfillmentStatusDelivered {
+				return false, nil
+			}
+		}
+		if len(order.Children) > 0 {
+			if _, err := orderapp.SyncParentStatus(s.orderRepo, order.ID, time.Now()); err != nil {
+				return false, err
+			}
+		}
+	}
+	admit := func(ctx context.Context) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		store, ok := s.paymentRepo.(interface {
+			AdmitPaymentEffect(context.Context, paymentdomain.PaymentEffect) error
+		})
+		if !ok {
+			return ErrPaymentInvalid
+		}
+		return store.AdmitPaymentEffect(ctx, effect)
+	}
+	switch effect.Kind {
+	case "member_level":
+		if s.memberLevelSvc == nil {
+			return true, nil
+		}
+		checker, ok := s.memberLevelSvc.(interface {
+			PrepareUpgrade(uint) (func(memberlevelcontract.UserRepository) error, error)
+		})
+		if !ok {
+			return false, ErrPaymentInvalid
+		}
+		apply, err := checker.PrepareUpgrade(order.UserID)
+		if err != nil {
+			return false, err
+		}
+		err = s.paymentRepo.WithinTransaction(func(base paymentcontract.Transaction) error {
+			tx, ok := base.(paymentcontract.SettlementTransaction)
+			if !ok {
+				return ErrPaymentInvalid
+			}
+			if err := tx.LockAutomation(revision); err != nil {
+				return err
+			}
+			locked, err := tx.Orders().GetByIDForUpdateWithChildren(order.ID)
+			if err != nil {
+				return err
+			}
+			if locked == nil || locked.UserID != order.UserID || locked.PaidAt == nil || locked.ParentID != nil {
+				return ErrPaymentInvalid
+			}
+			p, err := tx.Payments().GetByIDForUpdate(payment.ID)
+			if err != nil {
+				return err
+			}
+			if p == nil || p.OrderID != locked.ID || !p.RequiresChainVerification || p.Status != constants.PaymentStatusSuccess {
+				return ErrPaymentInvalid
+			}
+			a, err := tx.Allocation(p.ID)
+			if err != nil {
+				return err
+			}
+			if a == nil || a.OrderID != locked.ID || a.Snapshot != paymentdomain.SettlementSnapshot(*p, *locked) {
+				return ErrPaymentInvalid
+			}
+			claimed, err := tx.CompletePaymentEffect(effect)
+			if err != nil {
+				return err
+			}
+			if !claimed {
+				return ErrPaymentInvalid
+			}
+			if !locked.RefundedAmount.Decimal.IsZero() || locked.Status == constants.OrderStatusCanceled || locked.Status == constants.OrderStatusRefunded || locked.Status == constants.OrderStatusPartiallyRefunded {
+				return nil
+			}
+			return apply(tx.Users())
+		})
+		return true, err
+	case "affiliate":
+		if s.affiliateSvc == nil {
+			return true, nil
+		}
+		preparer, ok := s.affiliateSvc.(interface {
+			PrepareOrderPaid() (func(ordercontract.Transaction, *orderdomain.Order) error, error)
+		})
+		if !ok {
+			return false, ErrPaymentInvalid
+		}
+		apply, err := preparer.PrepareOrderPaid()
+		if err != nil {
+			return false, err
+		}
+		err = s.paymentRepo.WithinTransaction(func(tx paymentcontract.Transaction) error {
+			t, ok := tx.(paymentcontract.SettlementTransaction)
+			if !ok {
+				return ErrPaymentInvalid
+			}
+			if err := t.LockAutomation(revision); err != nil {
+				return err
+			}
+			locked, err := tx.Orders().GetByIDForUpdateWithChildren(order.ID)
+			if err != nil {
+				return err
+			}
+			if locked == nil {
+				return ErrPaymentInvalid
+			}
+			claimed, err := t.CompletePaymentEffect(effect)
+			if err != nil || !claimed {
+				return err
+			}
+			if locked.PaidAt == nil || !locked.RefundedAmount.Decimal.IsZero() || locked.Status == constants.OrderStatusCanceled {
+				return nil
+			}
+			a, err := t.Allocation(payment.ID)
+			if err != nil {
+				return err
+			}
+			if a == nil || a.Snapshot != paymentdomain.SettlementSnapshot(*payment, *locked) {
+				return ErrPaymentInvalid
+			}
+			return apply(tx, locked)
+		})
+		return true, err
+	case "auto_fulfill":
+		if order.Status == constants.OrderStatusCompleted && order.Fulfillment != nil && order.Fulfillment.Status == constants.FulfillmentStatusDelivered {
+			if order.ParentID != nil {
+				_, err := orderapp.SyncParentStatus(s.orderRepo, *order.ParentID, time.Now())
+				return true, err
+			}
+			return true, nil
+		}
+		if order.Status != constants.OrderStatusPaid || !order.RefundedAmount.Decimal.IsZero() {
+			return false, ErrPaymentInvalid
+		}
+		if s.queue == nil || !s.queue.Enabled() {
+			return false, ErrQueueUnavailable
+		}
+		// SQL remains pending even if Redis accepts the task. Actual delivery
+		// is the acknowledgment; Redis loss and exhausted retries are recoverable.
+		queue, ok := s.queue.(interface{ EnqueueVerifiedOrderAutoFulfill(uint) error })
+		if !ok {
+			return false, ErrQueueUnavailable
+		}
+		return false, queue.EnqueueVerifiedOrderAutoFulfill(order.ID)
+	case "downstream", "delivery_downstream":
+		if s.downstreamCallbackSvc == nil {
+			return true, nil
+		}
+		dispatcher, ok := s.downstreamCallbackSvc.(interface {
+			SendCallbackDurable(context.Context, uint, func(context.Context) error) error
+		})
+		if !ok {
+			return false, ErrPaymentInvalid
+		}
+		return true, dispatcher.SendCallbackDurable(ctx, order.ID, admit)
+	case "paid_email", "delivery_email":
+		if effect.Kind == "paid_email" && isOrderFullyAutoFulfill(order) {
+			return true, nil
+		}
+		if s.effectDelivery == nil {
+			return false, ErrQueueUnavailable
+		}
+		status := constants.OrderStatusPaid
+		if effect.Kind == "delivery_email" {
+			status = constants.OrderStatusCompleted
+		}
+		return true, s.effectDelivery.SendPaymentStatusEmail(ctx, order.ID, status, admit)
+	case "paid_notification", "manual_notice":
+		if s.notificationSvc == nil {
+			return true, nil
+		}
+		payload := s.buildOrderNotificationPayload(order, payment)
+		event := constants.NotificationEventOrderPaidSuccess
+		if effect.Kind == "manual_notice" {
+			event = constants.NotificationEventManualFulfillmentPending
+			payload = s.buildManualFulfillmentNotificationPayload(order, nil)
+		}
+		sender, ok := s.notificationSvc.(interface {
+			DispatchRecipients(context.Context, notificationcontract.EnqueueInput, notificationcontract.DeliverBatch) error
+		})
+		if !ok {
+			return false, ErrQueueUnavailable
+		}
+		store, ok := s.paymentRepo.(settlement.RecipientStore)
+		if !ok {
+			return false, ErrPaymentInvalid
+		}
+		return true, sender.DispatchRecipients(ctx, notificationcontract.EnqueueInput{EventType: event, BizType: constants.NotificationBizTypeOrder, BizID: order.ID, Data: payload}, settlement.RecipientBatch(store, effect))
+	case "paid_bot", "delivery_bot":
+		if s.userOAuthIdentityRepo == nil {
+			return true, nil
+		}
+		identity, err := s.userOAuthIdentityRepo.GetByUserProvider(order.UserID, constants.UserOAuthProviderTelegram)
+		if err != nil {
+			return false, err
+		}
+		if identity == nil || strings.TrimSpace(identity.ProviderUserID) == "" {
+			return true, nil
+		}
+		if s.effectDelivery == nil {
+			return false, ErrQueueUnavailable
+		}
+		event := paymentcontract.BotNotificationOrderPaid
+		if effect.Kind == "delivery_bot" {
+			event = paymentcontract.BotNotificationOrderFulfilled
+		}
+		return true, s.effectDelivery.SendPaymentBot(ctx, paymentcontract.BotNotification{EventType: event, OrderID: order.ID, TelegramUserID: identity.ProviderUserID}, admit)
+	default:
+		return false, ErrPaymentInvalid
 	}
 }
