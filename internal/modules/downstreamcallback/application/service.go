@@ -147,6 +147,12 @@ func (s *Service) SendCallback(ctx context.Context, refID uint) error {
 		logger.Warnw("downstream_callback_credential_not_found", "ref_id", ref.ID, "credential_id", ref.ApiCredentialID)
 		return fmt.Errorf("credential not found for ref %d", ref.ID)
 	}
+	// 每次发送（含重试）都重新校验：凭证被禁用/撤销审批或用户被封后不能再把卡密推给回调地址。
+	if !credential.Active {
+		logger.Warnw("downstream_callback_skip_credential_inactive", "ref_id", ref.ID, "order_id", ref.OrderID, "credential_id", ref.ApiCredentialID)
+		ref.CallbackStatus = downstreamdomain.StatusFailed
+		return s.references.Update(ref)
+	}
 
 	event := "order.status_changed"
 	if order.Status == constants.OrderStatusDelivered || order.Status == constants.OrderStatusCompleted {
