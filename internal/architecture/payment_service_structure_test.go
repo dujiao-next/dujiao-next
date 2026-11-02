@@ -17,10 +17,10 @@ func TestPaymentServiceImplementationIsSplitByResponsibility(t *testing.T) {
 			"NewPaymentService", "ListPayments", "GetPayment", "ListChannels", "GetChannel",
 			"paymentLogger",
 		},
-		"payment_service_create.go": {"hasProviderResult", "CreatePayment"},
+		"payment_service_create.go": {"hasProviderResult", "CreatePayment", "lockPaymentAttempt", "newerActivePaymentID", "takenOverResult"},
 		"payment_service_recharge.go": {
 			"CreateWalletRechargePayment", "generateWalletRechargeNo",
-			"ExpireWalletRechargePayment", "canExpireWalletRechargePayment",
+			"ExpireWalletRechargePayment", "canExpireWalletRechargePayment", "failRechargeAttempt",
 		},
 		"payment_service_provider.go": {
 			"detachOutboundRequestContext",

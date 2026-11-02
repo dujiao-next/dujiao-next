@@ -254,19 +254,20 @@ func (s *PaymentService) applyPaymentUpdate(payment *paymentdomain.Payment, orde
 
 	err := s.paymentRepo.WithinTransaction(func(tx paymentcontract.Transaction) error {
 		paymentRepo := tx.Payments()
-		lockedPayment, err := paymentRepo.GetByIDForUpdate(payment.ID)
-		if err != nil {
-			return ErrPaymentUpdateFailed
-		}
-		if lockedPayment == nil {
-			return ErrPaymentNotFound
-		}
+		// 先订单后支付，与创建支付、钱包支付的加锁顺序一致，避免 PostgreSQL 死锁。
 		lockedOrder, err := tx.Orders().GetByIDForUpdateWithChildren(order.ID)
 		if err != nil {
 			return orderapp.ErrOrderFetchFailed
 		}
 		if lockedOrder == nil {
 			return orderapp.ErrOrderNotFound
+		}
+		lockedPayment, err := paymentRepo.GetByIDForUpdate(payment.ID)
+		if err != nil {
+			return ErrPaymentUpdateFailed
+		}
+		if lockedPayment == nil {
+			return ErrPaymentNotFound
 		}
 		if err := validateCallbackPaymentFacts(lockedPayment, lockedOrder.OrderNo, status, input); err != nil {
 			return err
@@ -396,9 +397,16 @@ func (s *PaymentService) applyPaymentUpdate(payment *paymentdomain.Payment, orde
 				return err
 			}
 		}
-		if (status == constants.PaymentStatusFailed || status == constants.PaymentStatusExpired) && lockedOrder.Status == constants.OrderStatusPendingPayment && s.walletSvc != nil {
-			if _, err := orderapp.ReleaseWalletBalance(s.walletSvc, tx, lockedOrder, constants.WalletTxnTypeOrderRefund, "在线支付失败，退回余额"); err != nil {
-				return err
+		// 已被替代或已有更新尝试时，钱包占款归更新的尝试所有，旧链接的失败/过期回调不能退还。
+		if (status == constants.PaymentStatusFailed || status == constants.PaymentStatusExpired) && lockedOrder.Status == constants.OrderStatusPendingPayment && s.walletSvc != nil && lockedPayment.SupersededAt == nil {
+			payments, err := paymentRepo.ListByOrderID(lockedOrder.ID)
+			if err != nil {
+				return ErrPaymentUpdateFailed
+			}
+			if newerActivePaymentID(payments, lockedPayment.ID) == 0 {
+				if _, err := orderapp.ReleaseWalletBalance(s.walletSvc, tx, lockedOrder, constants.WalletTxnTypeOrderRefund, "在线支付失败，退回余额"); err != nil {
+					return err
+				}
 			}
 		}
 

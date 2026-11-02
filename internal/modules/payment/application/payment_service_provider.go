@@ -221,10 +221,20 @@ func (s *PaymentService) applyProviderPayment(input CreatePaymentInput, order *o
 	payment.Status = constants.PaymentStatusPending
 	payment.UpdatedAt = time.Now()
 
-	if err := s.paymentRepo.Update(payment); err != nil {
-		return ErrPaymentUpdateFailed
-	}
-	return nil
+	// 网关请求期间该支付可能已被钱包支付替代、回调或过期；只有仍是 initiated 才写回，避免旧快照覆盖新状态。
+	return s.paymentRepo.WithinTransaction(func(tx paymentcontract.Transaction) error {
+		current, err := tx.Payments().GetByIDForUpdate(payment.ID)
+		if err != nil {
+			return ErrPaymentUpdateFailed
+		}
+		if current == nil || current.Status != constants.PaymentStatusInitiated {
+			return ErrPaymentStatusInvalid
+		}
+		if err := tx.Payments().Update(payment); err != nil {
+			return ErrPaymentUpdateFailed
+		}
+		return nil
+	})
 }
 
 // TestChannelSecurity 对已保存的微信支付渠道执行官方非交易安全诊断。
