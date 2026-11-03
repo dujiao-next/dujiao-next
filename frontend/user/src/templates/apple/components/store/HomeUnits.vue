@@ -150,8 +150,9 @@ defineProps<{
   color: inherit;
   font-family: var(--st-font-display);
   font-size: clamp(40px, 4.6vw, 56px);
-  line-height: 1.05;
-  letter-spacing: -0.015em;
+  /* 苹果首页实测：56px / 行高 60px / 字距 normal */
+  line-height: 1.07;
+  letter-spacing: normal;
   font-weight: 600;
 }
 .hu .hu-title--sm {
@@ -186,10 +187,10 @@ defineProps<{
   align-items: center;
   justify-content: center;
   min-height: 44px;
-  padding: 0 22px;
+  padding: 11px 21px;
   border-radius: 980px;
   font-size: 17px;
-  line-height: 1.2;
+  line-height: 20px;
   text-decoration: none;
   transition: background 240ms ease, color 240ms ease, border-color 240ms ease;
 }

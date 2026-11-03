@@ -6,6 +6,9 @@
 
 .vault-scope,
 body.vault-tokens {
+  /* 苹果基准：正文 17px / 行高 25px */
+  font-size: 17px;
+  line-height: 1.47;
   /* 字体：苹果自托管 SF Pro，我们不能用（授权限制），走系统栈：
      iPhone / Mac 上就是 SF，中文自动落 PingFang SC。 */
   --st-font: "SF Pro SC", "SF Pro Display", "SF Pro Icons", "PingFang SC", "Helvetica Neue", Helvetica, Arial, sans-serif;
@@ -118,14 +121,15 @@ body.vault-tokens {
   .st-page-title {
     margin: 0;
     font-family: var(--st-font-display);
-    font-size: 40px;
-    line-height: 1.08;
+    /* 苹果商店页实测：80px / 行高 87px */
+    font-size: 48px;
+    line-height: 1.09;
     font-weight: 600;
     letter-spacing: -0.01em;
   }
   @media (min-width: 735px) {
     .st-page-title {
-      font-size: 56px;
+      font-size: 80px;
       letter-spacing: -0.015em;
     }
   }
@@ -372,7 +376,12 @@ body.vault-tokens {
   .st-header.is-home .st-brand,
   .st-header.is-home .st-nav-link,
   .st-header.is-home .st-icon {
-    color: #f5f5f7;
+    color: rgba(255, 255, 255, 0.8);
+  }
+  .st-header.is-home .st-nav-link:hover,
+  .st-header.is-home .st-brand:hover,
+  .st-header.is-home .st-icon:hover {
+    color: #fff;
   }
   .st-header.is-home .st-action-pill,
   .st-header.is-home .st-cart-count {
@@ -402,18 +411,13 @@ body.vault-tokens {
     align-items: center;
     gap: 16px;
     height: 48px;
+    max-width: 1024px;
+    margin-inline: auto;
     padding-inline: 22px;
   }
-  @media (min-width: 1024px) and (max-width: 1439px) {
+  @media (min-width: 1024px) {
     .st-header-inner {
       height: 44px;
-      padding-inline: calc(-268.46154px + 28.36538vw);
-    }
-  }
-  @media (min-width: 1440px) {
-    .st-header-inner {
-      height: 44px;
-      padding-inline: 140px;
     }
   }
 
@@ -421,7 +425,7 @@ body.vault-tokens {
     display: inline-flex;
     align-items: center;
     min-width: 0;
-    font-size: 19px;
+    font-size: 17px;
     font-weight: 600;
     letter-spacing: -0.01em;
     color: var(--st-text);
@@ -674,8 +678,9 @@ body.vault-tokens {
   }
   @media (min-width: 735px) {
     .st-h1 {
-      font-size: 48px;
-      line-height: 1.05;
+      /* 苹果商店页大标题实测：80px / 行高 87px */
+      font-size: 80px;
+      line-height: 1.09;
       letter-spacing: -0.015em;
     }
   }
@@ -828,16 +833,18 @@ body.vault-tokens {
   }
   .st-shelf-title {
     font-family: var(--st-font-display);
-    font-size: 24px;
-    line-height: 1.29;
+    /* 苹果区块小标题实测：28px / 行高 35px */
+    font-size: 28px;
+    line-height: 1.25;
     font-weight: 600;
     color: var(--st-text);
     margin: 0;
   }
   @media (min-width: 735px) {
     .st-shelf-title {
+      /* 苹果实测：28px / 行高 35px */
       font-size: 28px;
-      line-height: 1.14;
+      line-height: 1.25;
     }
   }
   .st-shelf-sub {

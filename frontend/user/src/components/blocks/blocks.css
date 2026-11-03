@@ -65,8 +65,9 @@
 }
 @media (min-width: 735px) {
   .blk-h2 {
-    font-size: 48px;
-    line-height: 1.08;
+    /* 苹果长页区块标题实测：56px / 行高 60px */
+    font-size: 56px;
+    line-height: 1.07;
   }
 }
 
