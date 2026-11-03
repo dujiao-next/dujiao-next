@@ -1,7 +1,7 @@
 <template>
   <div class="bd">
     <!-- 苹果式悬浮胶囊：文章标题 + 探索 / 购买（介绍页专用） -->
-    <div v-if="post" class="bd-nav-wrap">
+    <div v-if="post" class="bd-nav-wrap" :class="{ 'is-revealed': revealed }">
       <div class="bd-nav">
         <span class="bd-nav-title">{{ getLocalizedText(post.title) }}</span>
         <div class="bd-nav-actions">
@@ -100,7 +100,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { ArrowLeft, AlertCircle, ChevronRight } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -116,6 +116,19 @@ const buyLink = computed(() => {
   const first = (relatedProducts.value || [])[0]
   return first ? `/products/${first.slug}` : '/products'
 })
+
+// 苹果实测：胶囊默认上移 72px 藏起来，滚过首屏后以 0.23s 滑下
+const revealed = ref(false)
+const onScroll = () => {
+  const first = document.querySelector('.bd .blk-reveal') as HTMLElement | null
+  const threshold = first ? first.getBoundingClientRect().height : window.innerHeight * 0.85
+  revealed.value = window.scrollY > threshold - 60
+}
+onMounted(() => {
+  onScroll()
+  window.addEventListener('scroll', onScroll, { passive: true })
+})
+onUnmounted(() => window.removeEventListener('scroll', onScroll))
 
 const scrollToContent = () => {
   const second = document.querySelectorAll('.blk-reveal')[1]
@@ -151,9 +164,11 @@ const blockContent = computed(() => {
    标题 19/600，按钮 28 高、12px、圆角 120、内边距 6×10。 */
 .bd-nav-wrap {
   position: sticky;
-  top: 44px;
+  top: 0;
   z-index: 30;
-  padding: 6px 0;
+  display: flex;
+  align-items: center;
+  height: 65px;
   pointer-events: none;
 }
 .bd-nav {
@@ -168,7 +183,13 @@ const blockContent = computed(() => {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   box-shadow: 0 0 0 1px rgb(230, 230, 232);
+  transform: translateY(-72px);
+  transition: transform 0.23s;
   pointer-events: auto;
+}
+
+.bd-nav-wrap.is-revealed .bd-nav {
+  transform: none;
 }
 .bd-nav-title {
   flex: 1;
@@ -212,7 +233,7 @@ const blockContent = computed(() => {
 }
 @media (max-width: 734px) {
   .bd-nav-wrap {
-    top: 48px;
+    height: 57px;
   }
   .bd-nav {
     width: calc(100vw - 20px);

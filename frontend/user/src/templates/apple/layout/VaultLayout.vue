@@ -1,7 +1,14 @@
 <template>
   <div class="vault-scope">
     <!-- 顶栏（Apple Store 风格：44px / 移动 48px） -->
-    <header class="st-header" :class="{ 'is-scrolled': scrolled }">
+    <header
+      class="st-header"
+      :class="{
+        'is-scrolled': scrolled,
+        'is-home': isHome,
+        'is-article': isArticle,
+      }"
+    >
       <div class="st-header-inner">
         <RouterLink class="st-brand" to="/" :title="brandName">
           <img v-if="brandLogo" :src="brandLogo" :alt="brandName" class="st-brand-logo" />
@@ -169,6 +176,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import {
   Search, Moon, Sun, ShoppingCart, Languages, Menu, X, User, LogOut, LayoutGrid,
 } from 'lucide-vue-next'
@@ -260,6 +268,9 @@ const changeLanguage = (code: string) => {
   langOpen.value = false
 }
 
+const route = useRoute()
+const isHome = computed(() => route.path === '/')
+const isArticle = computed(() => /^\/blog\/[^/]+$/.test(route.path))
 const scrolled = ref(false)
 
 /* ---------- 桌面端下拉面板 ---------- */
