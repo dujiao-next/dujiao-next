@@ -186,6 +186,26 @@ export const blockDefs: BlockDef[] = [
     ],
   },
   {
+    type: 'story',
+    labelKey: 'story',
+    fields: [
+      themeField,
+      { key: 'title', labelKey: 'title', kind: 'i18n' },
+      {
+        key: 'steps',
+        labelKey: 'storySteps',
+        kind: 'list',
+        itemDefault: () => ({ label: i18nEmpty(), title: i18nEmpty(), body: i18nEmpty(), media: { kind: 'image', src: '', poster: '', mobileSrc: '' } }),
+        fields: [
+          { key: 'label', labelKey: 'storyStepLabel', kind: 'i18n' },
+          { key: 'title', labelKey: 'title', kind: 'i18n' },
+          { key: 'body', labelKey: 'body', kind: 'textarea' },
+          mediaWith('hintStory'),
+        ],
+      },
+    ],
+  },
+  {
     type: 'video',
     labelKey: 'video',
     fields: [

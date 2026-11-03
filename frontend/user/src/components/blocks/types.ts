@@ -126,6 +126,15 @@ export interface CtaBlock extends BlockBase {
   }
 }
 
+export interface StoryBlock extends BlockBase {
+  type: 'story'
+  props: {
+    theme?: 'dark' | 'light'
+    title?: I18nText
+    steps: Array<{ label?: I18nText; title: I18nText; body?: I18nText; media: BlockMedia }>
+  }
+}
+
 export interface RichTextBlock extends BlockBase {
   type: 'richText'
   props: { html: Record<string, string> }
@@ -133,7 +142,7 @@ export interface RichTextBlock extends BlockBase {
 
 export type PageBlock =
   | HeroBlock | PromoBlock | SectionHeaderBlock | FeatureGridBlock
-  | CardScrollerBlock | GalleryBlock | VideoBlock | SpecsBlock | CtaBlock | RichTextBlock
+  | CardScrollerBlock | GalleryBlock | VideoBlock | SpecsBlock | CtaBlock | StoryBlock | RichTextBlock
 
 export interface PageContent {
   version: number

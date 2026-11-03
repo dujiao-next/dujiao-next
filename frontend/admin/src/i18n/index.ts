@@ -490,6 +490,7 @@ const messages = {
     admin: {
       blocks: {
         typeDescs: {
+          story: '媒体固定，文案随滚动切换，适合讲一段过程',
           hero: '开场大图，放主推商品或活动',
           promo: '左文右图，讲一个卖点',
           sectionHeader: '居中大标题，用来分章',
@@ -502,6 +503,7 @@ const messages = {
           richText: '富文本长文',
         },
         hints: {
+          hintStory: '建议 1600×1200（4:3），或 1920×1080 视频，≤50MB',
           hintHero: '桌面 2560×1200，手机 1290×1600；主体居中，四周留 120px 安全区',
           hintPromo: '1280×720（16:9），左右各留 8% 空白',
           hintCard: '640×480（4:3），图里不要放文字',
@@ -509,6 +511,7 @@ const messages = {
           hintVideo: '1920×1080（16:9），mp4/webm，≤50MB',
         },
         recipes: {
+          recipeStory: '长页叙事', recipeStoryDesc: '章节头 + 钉住媒体 + 三段文案',
           recipeLaunch: '新品发布页',
           recipeLaunchDesc: '大图 + 章节头 + 三宫格 + 图库 + 购买',
           recipeUpdate: '功能更新页',
@@ -519,10 +522,12 @@ const messages = {
           recipeBlankDesc: '从零开始拼',
         },
         types: {
+          story: '钉住叙事',
           hero: '大横幅', promo: '双栏推广', sectionHeader: '章节头', featureGrid: '特性网格',
           cardScroller: '横滑卡片', gallery: '图库', video: '影片', specs: '参数', cta: '购买区', richText: '富文本',
         },
         fields: {
+          storySteps: '分镜', storyStepLabel: '小标签',
           image: '图片', video: '视频', poster: '封面帧', mobileSrc: '手机端图片',
           theme: '主题', themeDark: '深色', themeLight: '浅色',
           variant: '版式', variantStacked: '文字在上', variantOverlay: '文字压图',
@@ -2481,6 +2486,7 @@ const messages = {
           unverified: '未验证',
         },
         fields: {
+          storySteps: '分鏡', storyStepLabel: '小標籤',
           image: '圖片', video: '影片', poster: '封面影格', mobileSrc: '手機端圖片',
           id: '用户ID',
           email: '邮箱',
@@ -2575,6 +2581,7 @@ const messages = {
             createdAt: '创建时间',
           },
           types: {
+          story: '釘住敘事',
             recharge: '余额充值',
             order_pay: '订单支付',
             order_refund: '订单退款',
@@ -3046,6 +3053,7 @@ const messages = {
             maxReached: '已达到最大数量',
             empty: '暂无自定义导航项',
             fields: {
+          storySteps: 'Steps', storyStepLabel: 'Step label',
           image: 'Image', video: 'Video', poster: 'Poster frame', mobileSrc: 'Mobile image',
               icon: '图标',
               title: '标题',
@@ -3686,6 +3694,7 @@ const messages = {
           createdAt: '创建时间',
         },
         types: {
+          story: 'Pinned story',
           order_profit: '订单收益',
           refund_deduct: '退款扣回',
           manual_adjust: '手动调整',
@@ -5122,6 +5131,7 @@ const messages = {
     admin: {
       blocks: {
         typeDescs: {
+          story: '媒體固定，文案隨滾動切換，適合講一段過程',
           hero: '開場大圖，放主推商品或活動',
           promo: '左文右圖，講一個賣點',
           sectionHeader: '居中大標題，用來分章',
@@ -5134,6 +5144,7 @@ const messages = {
           richText: '富文字長文',
         },
         hints: {
+          hintStory: '建議 1600×1200（4:3），或 1920×1080 影片，≤50MB',
           hintHero: '桌面 2560×1200，手機 1290×1600；主體居中，四周留 120px 安全區',
           hintPromo: '1280×720（16:9），左右各留 8% 空白',
           hintCard: '640×480（4:3），圖裡不要放文字',
@@ -5141,6 +5152,7 @@ const messages = {
           hintVideo: '1920×1080（16:9），mp4/webm，≤50MB',
         },
         recipes: {
+          recipeStory: '長頁敘事', recipeStoryDesc: '章節頭 + 釘住媒體 + 三段文案',
           recipeLaunch: '新品發布頁',
           recipeLaunchDesc: '大圖 + 章節頭 + 三宮格 + 圖庫 + 購買',
           recipeUpdate: '功能更新頁',
@@ -9747,6 +9759,7 @@ const messages = {
     admin: {
       blocks: {
         typeDescs: {
+          story: 'Media stays pinned while copy changes on scroll',
           hero: 'Opening visual for a hero product',
           promo: 'Text beside an image, one selling point',
           sectionHeader: 'Centered heading that splits sections',
@@ -9759,6 +9772,7 @@ const messages = {
           richText: 'Rich text body',
         },
         hints: {
+          hintStory: '1600×1200 (4:3), or 1920×1080 video up to 50MB',
           hintHero: '2560×1200 desktop, 1290×1600 mobile; 120px safe margin',
           hintPromo: '1280×720 (16:9), 8% empty on both sides',
           hintCard: '640×480 (4:3), no baked-in text',
@@ -9766,6 +9780,7 @@ const messages = {
           hintVideo: '1920×1080 (16:9), mp4/webm, up to 50MB',
         },
         recipes: {
+          recipeStory: 'Long-form story', recipeStoryDesc: 'Section header + pinned media + 3 steps',
           recipeLaunch: 'Product launch',
           recipeLaunchDesc: 'Hero + header + 3-up grid + gallery + buy',
           recipeUpdate: 'Feature update',

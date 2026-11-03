@@ -104,6 +104,23 @@
       </div>
     </template>
 
+    <!-- 钉住叙事 -->
+    <template v-else-if="type === 'story'">
+      <div class="bp-story">
+        <div class="bp-media-box sm">
+          <img v-if="p.steps?.[0]?.media?.src && variant === 'full'" :src="p.steps[0].media.src" alt="" />
+          <span v-else-if="variant === 'full'">媒体</span>
+        </div>
+        <div class="bp-story-copy">
+          <span class="bp-title sm">{{ txt(p.steps?.[0]?.title) || '分镜标题' }}</span>
+          <span class="bp-line">{{ txt(p.steps?.[0]?.body) || '随滚动切换的说明文字' }}</span>
+          <div class="bp-story-pips">
+            <i v-for="(_, i) in (p.steps?.length || 3)" :key="i" :class="{ on: i === 0 }" />
+          </div>
+        </div>
+      </div>
+    </template>
+
     <!-- 富文本 -->
     <template v-else-if="type === 'richText'">
       <div class="bp-rich">
@@ -246,6 +263,38 @@ const txt = (value: any): string => {
 
 .bp-cta { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 0; text-align: center; }
 .bp-cta .bp-title { color: #1d1d1f; }
+
+.bp-story {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  align-items: center;
+}
+.bp-story-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.bp-story-pips {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+.bp-story-pips i {
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  background: #d2d2d7;
+}
+.bp-story-pips i.on {
+  background: #1d1d1f;
+}
+.bp--thumb .bp-story {
+  gap: 6px;
+}
+.bp--thumb .bp-story-pips {
+  display: none;
+}
 
 .bp-rich { display: flex; flex-direction: column; gap: 7px; padding: 4px 0; }
 .bp-rich .bp-line { display: block; height: 8px; border-radius: 4px; background: #e8e8ed; }

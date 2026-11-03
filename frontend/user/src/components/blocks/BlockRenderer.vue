@@ -17,6 +17,7 @@ import CardScrollerBlock from './CardScrollerBlock.vue'
 import GalleryBlock from './GalleryBlock.vue'
 import CtaBlock from './CtaBlock.vue'
 import VideoBlock from './VideoBlock.vue'
+import StoryBlock from './StoryBlock.vue'
 import SpecsBlock from './SpecsBlock.vue'
 import RichTextBlock from './RichTextBlock.vue'
 import './blocks.css'
@@ -32,6 +33,7 @@ const registry: Record<string, any> = {
   gallery: GalleryBlock,
   cta: CtaBlock,
   video: VideoBlock,
+  story: StoryBlock,
   specs: SpecsBlock,
   richText: RichTextBlock,
 }

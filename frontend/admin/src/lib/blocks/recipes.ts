@@ -75,6 +75,22 @@ export const blockRecipes: BlockRecipe[] = [
     ].filter(Boolean),
   },
   {
+    key: 'storyPage',
+    labelKey: 'recipeStory',
+    descKey: 'recipeStoryDesc',
+    build: () => [
+      block('sectionHeader', { eyebrow: { 'zh-CN': '故事' } }),
+      block('story', {
+        theme: 'dark',
+        steps: [
+          { label: { 'zh-CN': '第一步' }, title: { 'zh-CN': '第一步标题' }, body: { 'zh-CN': '这一步的说明。' }, media: { kind: 'image', src: '', poster: '', mobileSrc: '' } },
+          { label: { 'zh-CN': '第二步' }, title: { 'zh-CN': '第二步标题' }, body: { 'zh-CN': '这一步的说明。' }, media: { kind: 'image', src: '', poster: '', mobileSrc: '' } },
+          { label: { 'zh-CN': '第三步' }, title: { 'zh-CN': '第三步标题' }, body: { 'zh-CN': '这一步的说明。' }, media: { kind: 'image', src: '', poster: '', mobileSrc: '' } },
+        ],
+      }),
+    ].filter(Boolean),
+  },
+  {
     key: 'blank',
     labelKey: 'recipeBlank',
     descKey: 'recipeBlankDesc',
