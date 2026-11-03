@@ -1727,7 +1727,8 @@
     "addCartStockExceeded": "该规格库存不足，最多可购买 {count} 件",
     "addCartStockExceededWithCart": "该规格库存不足，最多可购买 {count} 件（购物车中已有 {cartCount} 件）",
     "addCartLimitExceeded": "当前商品单次最多可购买 {count} 件",
-    "addCartLimitExceededWithCart": "当前商品单次最多可购买 {count} 件（购物车中已有 {cartCount} 件）"
+    "addCartLimitExceededWithCart": "当前商品单次最多可购买 {count} 件（购物车中已有 {cartCount} 件）",
+    "explore": "探索"
   },
   "quickBuy": {
     "title": "快速购买",

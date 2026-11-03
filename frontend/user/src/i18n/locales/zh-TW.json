@@ -223,7 +223,8 @@
     "addCartStockExceeded": "該規格庫存不足，最多可購買 {count} 件",
     "addCartStockExceededWithCart": "該規格庫存不足，最多可購買 {count} 件（購物車中已有 {cartCount} 件）",
     "addCartLimitExceeded": "當前商品單次最多可購買 {count} 件",
-    "addCartLimitExceededWithCart": "當前商品單次最多可購買 {count} 件（購物車中已有 {cartCount} 件）"
+    "addCartLimitExceededWithCart": "當前商品單次最多可購買 {count} 件（購物車中已有 {cartCount} 件）",
+    "explore": "探索"
   },
   "quickBuy": {
     "title": "快速購買",

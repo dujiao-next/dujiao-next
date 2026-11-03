@@ -223,7 +223,8 @@
     "addCartStockExceeded": "Insufficient stock for this SKU. You can purchase up to {count}",
     "addCartStockExceededWithCart": "Insufficient stock for this SKU. You can purchase up to {count} ({cartCount} already in cart)",
     "addCartLimitExceeded": "This product can be purchased up to {count} per order",
-    "addCartLimitExceededWithCart": "This product can be purchased up to {count} per order ({cartCount} already in cart)"
+    "addCartLimitExceededWithCart": "This product can be purchased up to {count} per order ({cartCount} already in cart)",
+    "explore": "Explore"
   },
   "quickBuy": {
     "title": "Quick Buy",
