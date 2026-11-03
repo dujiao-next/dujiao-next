@@ -146,32 +146,28 @@ const blockContent = computed(() => {
 </script>
 
 <style scoped>
-/* 苹果式悬浮胶囊：文章标题 + 探索 / 购买 */
+/* 数值照抄 apple.com.cn/iphone-duo 的 .localnav-wrap（实测）：
+   1024×53、圆角 18、白 80% + blur(20px)、外圈 1px #e6e6e8；
+   标题 19/600，按钮 28 高、12px、圆角 120、内边距 6×10。 */
 .bd-nav-wrap {
   position: sticky;
-  top: 56px;
+  top: 44px;
   z-index: 30;
-  padding: 10px 22px;
+  padding: 6px 0;
   pointer-events: none;
-}
-@media (min-width: 1068px) {
-  .bd-nav-wrap {
-    max-width: 1040px;
-    margin-inline: auto;
-  }
 }
 .bd-nav {
   display: flex;
   align-items: center;
-  gap: 16px;
-  height: 56px;
-  padding: 0 10px 0 24px;
-  border-radius: 28px;
-  background: var(--st-material);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border: 1px solid color-mix(in srgb, var(--st-text) 8%, transparent);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.06);
+  width: min(1024px, calc(100vw - 20px));
+  height: 53px;
+  margin-inline: auto;
+  padding: 0 20px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 0 0 1px rgb(230, 230, 232);
   pointer-events: auto;
 }
 .bd-nav-title {
@@ -180,64 +176,47 @@ const blockContent = computed(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: var(--st-font-display);
   font-size: 19px;
   font-weight: 600;
-  color: var(--st-text);
+  letter-spacing: 0.228px;
+  line-height: 26px;
+  color: #1d1d1f;
 }
 .bd-nav-actions {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   flex: none;
 }
 .bd-nav-btn {
   display: inline-flex;
   align-items: center;
-  height: 36px;
-  padding: 0 16px;
-  border: 1px solid color-mix(in srgb, var(--st-text) 22%, transparent);
-  border-radius: 980px;
-  background: transparent;
-  color: var(--st-text);
-  font-size: 14px;
+  justify-content: center;
+  height: 28px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 120px;
+  background: rgba(255, 255, 255, 0.8);
+  color: #1d1d1f;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
   text-decoration: none;
   cursor: pointer;
-  transition: background 240ms var(--st-ease), border-color 240ms var(--st-ease);
-}
-.bd-nav-btn:hover {
-  background: color-mix(in srgb, var(--st-text) 6%, transparent);
 }
 .bd-nav-btn--primary {
-  border-color: var(--st-blue);
-  background: var(--st-blue);
+  background: #0071e3;
   color: #fff;
 }
 .bd-nav-btn--primary:hover {
-  border-color: var(--st-blue-hover);
-  background: var(--st-blue-hover);
+  background: #0077ed;
 }
 @media (max-width: 734px) {
   .bd-nav-wrap {
-    top: 52px;
-    padding: 8px 12px;
+    top: 48px;
   }
   .bd-nav {
-    height: 48px;
-    padding: 0 8px 0 16px;
-    border-radius: 24px;
-  }
-  .bd-nav-title {
-    font-size: 15px;
-  }
-  .bd-nav-btn {
-    height: 32px;
+    width: calc(100vw - 20px);
     padding: 0 12px;
-    font-size: 12px;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .bd-nav-btn {
-    transition: none;
   }
 }
 </style>
