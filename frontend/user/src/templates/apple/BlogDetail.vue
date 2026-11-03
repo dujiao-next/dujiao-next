@@ -1,4 +1,20 @@
 <template>
+  <div class="bd">
+    <!-- 苹果式悬浮胶囊：文章标题 + 探索 / 购买（介绍页专用） -->
+    <div v-if="post" class="bd-nav-wrap">
+      <div class="bd-nav">
+        <span class="bd-nav-title">{{ getLocalizedText(post.title) }}</span>
+        <div class="bd-nav-actions">
+          <button type="button" class="bd-nav-btn" @click="scrollToContent">
+            {{ t('productDetail.explore') }}
+          </button>
+          <RouterLink class="bd-nav-btn bd-nav-btn--primary" :to="buyLink">
+            {{ t('productDetail.buyNow') }}
+          </RouterLink>
+        </div>
+      </div>
+    </div>
+
   <!-- 后台用积木编辑器拼的页面：直接按区块渲染 -->
   <BlockRenderer v-if="blockContent" :blocks="blockContent.blocks" />
 
@@ -79,6 +95,7 @@
       </Button>
     </div>
   </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -95,6 +112,25 @@ import BlockRenderer from '../../components/blocks/BlockRenderer.vue'
 
 const { t } = useI18n()
 
+const buyLink = computed(() => {
+  const first = (relatedProducts.value || [])[0]
+  return first ? `/products/${first.slug}` : '/products'
+})
+
+const scrollToContent = () => {
+  const second = document.querySelectorAll('.blk-reveal')[1]
+  if (second) {
+    second.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    return
+  }
+  const article = document.querySelector('.bd article') || document.querySelector('.bd section')
+  if (article) {
+    article.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    return
+  }
+  window.scrollBy({ top: window.innerHeight * 0.9, behavior: 'smooth' })
+}
+
 const {
   loading, post, relatedProducts, getLocalizedText, formatDate, formatPrice, backLink, backText,
 } = useBlogDetail()
@@ -108,3 +144,100 @@ const blockContent = computed(() => {
   return Array.isArray(blocks) && blocks.length ? { blocks } : null
 })
 </script>
+
+<style scoped>
+/* 苹果式悬浮胶囊：文章标题 + 探索 / 购买 */
+.bd-nav-wrap {
+  position: sticky;
+  top: 56px;
+  z-index: 30;
+  padding: 10px 22px;
+  pointer-events: none;
+}
+@media (min-width: 1068px) {
+  .bd-nav-wrap {
+    max-width: 1040px;
+    margin-inline: auto;
+  }
+}
+.bd-nav {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 56px;
+  padding: 0 10px 0 24px;
+  border-radius: 28px;
+  background: var(--st-material);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border: 1px solid color-mix(in srgb, var(--st-text) 8%, transparent);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.06);
+  pointer-events: auto;
+}
+.bd-nav-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--st-font-display);
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--st-text);
+}
+.bd-nav-actions {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+.bd-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 16px;
+  border: 1px solid color-mix(in srgb, var(--st-text) 22%, transparent);
+  border-radius: 980px;
+  background: transparent;
+  color: var(--st-text);
+  font-size: 14px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 240ms var(--st-ease), border-color 240ms var(--st-ease);
+}
+.bd-nav-btn:hover {
+  background: color-mix(in srgb, var(--st-text) 6%, transparent);
+}
+.bd-nav-btn--primary {
+  border-color: var(--st-blue);
+  background: var(--st-blue);
+  color: #fff;
+}
+.bd-nav-btn--primary:hover {
+  border-color: var(--st-blue-hover);
+  background: var(--st-blue-hover);
+}
+@media (max-width: 734px) {
+  .bd-nav-wrap {
+    top: 52px;
+    padding: 8px 12px;
+  }
+  .bd-nav {
+    height: 48px;
+    padding: 0 8px 0 16px;
+    border-radius: 24px;
+  }
+  .bd-nav-title {
+    font-size: 15px;
+  }
+  .bd-nav-btn {
+    height: 32px;
+    padding: 0 12px;
+    font-size: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bd-nav-btn {
+    transition: none;
+  }
+}
+</style>

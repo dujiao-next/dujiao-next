@@ -1,18 +1,13 @@
 <template>
   <div class="st-root pd">
     <!-- 吸顶二级导航（Apple localnav：产品名 + 价格 + 购买） -->
-    <!-- 苹果式悬浮胶囊导航（localnav） -->
-    <div v-if="product" class="pd-nav-wrap">
-      <div class="pd-nav">
-        <span class="pd-nav-title">{{ getLocalizedText(product.title) }}</span>
-        <div class="pd-nav-actions">
-          <button type="button" class="pd-nav-btn" @click="scrollToDetails">
-            {{ t('productDetail.explore') }}
-          </button>
-          <button type="button" class="pd-nav-btn pd-nav-btn--primary" @click="scrollToBuy">
-            {{ t('productDetail.buyNow') }}
-          </button>
-        </div>
+    <div v-if="product" class="pd-localnav">
+      <div class="st-container pd-localnav-inner">
+        <span class="pd-localnav-title">{{ getLocalizedText(product.title) }}</span>
+        <span class="pd-localnav-price">{{ formatPrice(product.price_amount, siteCurrency) }}</span>
+        <button type="button" class="pd-localnav-cta" @click="scrollToBuy">
+          {{ t('productDetail.buyNow') }}
+        </button>
       </div>
     </div>
 
@@ -184,7 +179,7 @@
       </div>
 
       <!-- 商品详情 -->
-      <section ref="detailsPanel" v-if="getLocalizedText(product.description) || product.content" class="st-container pd-section">
+      <section v-if="getLocalizedText(product.description) || product.content" class="st-container pd-section">
         <h2 class="pd-section-title">{{ t('productDetail.details') }}</h2>
         <div class="prose pd-prose">
           <p v-if="getLocalizedText(product.description)">{{ getLocalizedText(product.description) }}</p>
@@ -273,15 +268,6 @@ const setupMobileBarObserver = () => {
 }
 
 const buyPanel = ref<HTMLElement | null>(null)
-const detailsPanel = ref<HTMLElement | null>(null)
-const scrollToDetails = () => {
-  const el = detailsPanel.value
-  if (el) {
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  } else {
-    window.scrollBy({ top: window.innerHeight * 0.8, behavior: 'smooth' })
-  }
-}
 const scrollToBuy = () => {
   buyPanel.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
@@ -321,35 +307,28 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.pd-nav-wrap {
+.pd-localnav {
   position: sticky;
-  top: 56px;
+  top: 48px;
   z-index: 40;
-  padding: 10px 22px;
-  pointer-events: none;
-}
-@media (min-width: 1068px) {
-  .pd-nav-wrap {
-    top: 56px;
-    max-width: 1040px;
-    margin-inline: auto;
-  }
-}
-.pd-nav {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  height: 56px;
-  padding: 0 10px 0 24px;
-  border-radius: 28px;
+  height: 52px;
   background: var(--st-material);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border: 1px solid color-mix(in srgb, var(--st-text) 8%, transparent);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.06);
-  pointer-events: auto;
+  border-bottom: 1px solid color-mix(in srgb, var(--st-text) 10%, transparent);
 }
-.pd-nav-title {
+@media (min-width: 1024px) {
+  .pd-localnav {
+    top: 44px;
+  }
+}
+.pd-localnav-inner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 52px;
+}
+.pd-localnav-title {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -360,55 +339,29 @@ onUnmounted(() => {
   font-weight: 600;
   color: var(--st-text);
 }
-.pd-nav-actions {
-  display: flex;
-  gap: 8px;
+.pd-localnav-price {
   flex: none;
-}
-.pd-nav-btn {
-  height: 36px;
-  padding: 0 16px;
-  border: 1px solid color-mix(in srgb, var(--st-text) 22%, transparent);
-  border-radius: 980px;
-  background: transparent;
-  color: var(--st-text);
   font-size: 14px;
-  cursor: pointer;
-  transition: background 240ms var(--st-ease), border-color 240ms var(--st-ease);
+  color: var(--st-text-2);
+  font-variant-numeric: tabular-nums;
 }
-.pd-nav-btn:hover {
-  background: color-mix(in srgb, var(--st-text) 6%, transparent);
-}
-.pd-nav-btn--primary {
-  border-color: var(--st-blue);
+.pd-localnav-cta {
+  flex: none;
+  height: 30px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 980px;
   background: var(--st-blue);
   color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 320ms var(--st-ease);
 }
-.pd-nav-btn--primary:hover {
-  border-color: var(--st-blue-hover);
+.pd-localnav-cta:hover {
   background: var(--st-blue-hover);
 }
-@media (max-width: 734px) {
-  .pd-nav-wrap {
-    top: 52px;
-    padding: 8px 12px;
-  }
-  .pd-nav {
-    height: 48px;
-    padding: 0 8px 0 16px;
-    border-radius: 24px;
-  }
-  .pd-nav-title {
-    font-size: 15px;
-  }
-  .pd-nav-btn {
-    height: 32px;
-    padding: 0 12px;
-    font-size: 12px;
-  }
-}
 @media (prefers-reduced-motion: reduce) {
-  .pd-nav-btn {
+  .pd-localnav-cta {
     transition: none;
   }
 }
