@@ -383,6 +383,12 @@ body.vault-tokens {
   .st-header.is-home .st-icon:hover {
     color: #fff;
   }
+  /* 滚动后保持深底，否则白字会压在浅底上看不见 */
+  .st-header.is-home.is-scrolled {
+    background: rgba(29, 29, 31, 0.8);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+  }
   .st-header.is-home .st-action-pill,
   .st-header.is-home .st-cart-count {
     color: #f5f5f7;

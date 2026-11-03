@@ -468,14 +468,20 @@
   z-index: 2;
   display: none;
   place-items: center;
+  /* 苹果 paddlenav：直径 36，圆形，箭头色 rgba(0,0,0,.56) */
   width: 36px;
   height: 36px;
   border: 0;
-  border-radius: 999px;
-  background: rgba(210, 210, 215, 0.75);
-  color: #1d1d1f;
+  border-radius: 36px;
+  background: rgba(210, 210, 215, 0.64);
+  color: rgba(0, 0, 0, 0.56);
   cursor: pointer;
-  backdrop-filter: blur(8px);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  transition: background 100ms linear, color 100ms linear, opacity 100ms linear;
+}
+.blk-arrow:hover {
+  color: rgba(0, 0, 0, 0.64);
 }
 .blk-arrow:disabled {
   opacity: 0;
@@ -710,48 +716,49 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 12px;
   margin-top: 20px;
 }
 
 .blk-dock {
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 36px;
-  padding: 0 14px;
-  border-radius: 980px;
-  background: color-mix(in srgb, var(--st-bg) 78%, transparent);
+  gap: 16px;
+  height: 56px;
+  padding: 0 20px;
+  border-radius: 999px;
+  background: rgba(210, 210, 215, 0.64);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border: 1px solid color-mix(in srgb, var(--st-text) 8%, transparent);
+  border: 0;
 }
 
 .blk-dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   padding: 0;
   border: 0;
-  border-radius: 980px;
-  background: color-mix(in srgb, var(--st-text) 28%, transparent);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.42);
   cursor: pointer;
   transition: width 260ms cubic-bezier(0.4, 0, 0.6, 1), background 260ms;
 }
 
 .blk-dot.is-active {
-  width: 26px;
-  background: color-mix(in srgb, var(--st-text) 70%, transparent);
+  width: 22px;
+  background: rgba(0, 0, 0, 0.8);
 }
 
 .blk-dock-btn {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--st-text) 8%, transparent);
-  background: color-mix(in srgb, var(--st-bg) 78%, transparent);
+  border: 0;
+  background: rgba(210, 210, 215, 0.64);
   backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
   cursor: pointer;
 }
 

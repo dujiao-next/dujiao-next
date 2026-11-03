@@ -27,8 +27,12 @@
         </component>
       </div>
 
-      <button class="blk-arrow blk-arrow--prev" type="button" :disabled="atStart" @click="page(-1)">‹</button>
-      <button class="blk-arrow blk-arrow--next" type="button" :disabled="atEnd" @click="page(1)">›</button>
+      <button class="blk-arrow blk-arrow--prev" type="button" :disabled="atStart" aria-label="上一张" @click="page(-1)">
+        <svg viewBox="0 0 36 36" aria-hidden="true"><path d="M21 10l-8 8 8 8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="blk-arrow blk-arrow--next" type="button" :disabled="atEnd" aria-label="下一张" @click="page(1)">
+        <svg viewBox="0 0 36 36" aria-hidden="true"><path d="M15 10l8 8-8 8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
     </div>
 
     <!-- 底部控制条：进度点 + 播放/暂停（苹果「先刷重点」那种） -->
