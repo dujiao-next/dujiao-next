@@ -78,7 +78,11 @@ const fetchFilterOptions = async () => {
         label: providerTypeLabel(type)
       }))
   } catch (error) {
-    console.error('Failed to fetch filter options:', error)
+    // compliance_required 是超管未确认合规时的正常拦截（会弹合规弹窗），不必污染控制台
+    const message = String((error as Error)?.message || '')
+    if (!message.includes('compliance_required')) {
+      console.error('Failed to fetch filter options:', error)
+    }
   }
 }
 

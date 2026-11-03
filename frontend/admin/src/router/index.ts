@@ -143,10 +143,16 @@ const routes = [
         redirect: '/posts/blog',
       },
       {
-        path: 'posts/:type(blog|notice)',
+        path: 'posts/:type(blog|notice|page)',
         name: 'posts',
         component: () => import('@/views/admin/Posts.vue'),
         meta: { permission: 'GET:/admin/posts' },
+      },
+      {
+        path: 'homepage',
+        name: 'homepage',
+        component: () => import('@/views/admin/Homepage.vue'),
+        meta: { permission: 'GET:/admin/settings' },
       },
       {
         path: 'banners',

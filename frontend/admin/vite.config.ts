@@ -39,9 +39,11 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5174,
+    // 允许用 .local / 自定义域名访问开发服务器（换网络后 IP 变化也能用主机名）
+    allowedHosts: true,
     strictPort: true,
     proxy: {
-      '/api': {
+      '/api/': {
         target: 'http://localhost:8080',
         changeOrigin: true,
       },

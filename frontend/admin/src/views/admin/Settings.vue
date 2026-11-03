@@ -220,7 +220,8 @@ const form = reactive({
   },
   scripts: [] as SiteScriptItem[],
   footer_links: [] as FooterLinkItem[],
-  storefront_template: 'classic' as 'classic' | 'vault',
+  storefront_template: 'classic' as 'classic' | 'vault' | 'apple',
+  home_tiles_tone: 'dark' as 'dark' | 'light',
   template_mode: 'card' as 'card' | 'list',
 })
 
@@ -458,8 +459,10 @@ const fetchSettings = async () => {
       const rawTemplateMode = String(data.template_mode || 'card').trim()
       form.template_mode = rawTemplateMode === 'list' ? 'list' : 'card'
 
+      form.home_tiles_tone = String(data.home_tiles_tone || 'dark') === 'light' ? 'light' : 'dark'
       const rawStorefrontTemplate = String(data.storefront_template || 'classic').trim()
-      form.storefront_template = rawStorefrontTemplate === 'vault' ? 'vault' : 'classic'
+      form.storefront_template =
+        rawStorefrontTemplate === 'vault' || rawStorefrontTemplate === 'apple' ? rawStorefrontTemplate : 'classic'
     }
 
     if (orderRes.data && orderRes.data.data) {
@@ -621,6 +624,7 @@ const saveSiteSettings = async () => {
       scripts: form.scripts,
       footer_links: form.footer_links,
       storefront_template: form.storefront_template,
+      home_tiles_tone: form.home_tiles_tone,
       template_mode: form.template_mode,
     },
   }
@@ -1201,7 +1205,31 @@ onMounted(() => {
                 </svg>
               </div>
             </Label>
-          </RadioGroup>
+
+            <!-- Apple -->
+            <Label
+              class="relative flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 p-6 transition-all"
+              :class="form.storefront_template === 'apple'
+                ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
+                : 'border-border hover:border-muted-foreground/30'"
+            >
+              <RadioGroupItem value="apple" class="sr-only" />
+              <div class="flex h-16 w-16 items-center justify-center rounded-xl" :class="form.storefront_template === 'apple' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'">
+                <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h10M4 18h16" />
+                  <circle cx="18" cy="12" r="2" />
+                </svg>
+              </div>
+              <div class="text-center">
+                <div class="font-semibold" :class="form.storefront_template === 'apple' ? 'text-primary' : ''">{{ t('admin.settings.template.appleMode') }}</div>
+                <div class="mt-1 text-xs text-muted-foreground">{{ t('admin.settings.template.appleModeDesc') }}</div>
+              </div>
+              <div v-if="form.storefront_template === 'apple'" class="absolute right-3 top-3">
+                <svg class="h-5 w-5 text-primary" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                </svg>
+              </div>
+            </Label>          </RadioGroup>
         </div>
       </div>
 
@@ -1269,6 +1297,21 @@ onMounted(() => {
               </div>
             </Label>
           </RadioGroup>
+
+          <div class="mt-4 flex flex-col gap-2 rounded-xl border border-border p-4">
+            <div class="text-sm font-semibold">{{ t('admin.settings.template.tilesTone') }}</div>
+            <p class="text-xs text-muted-foreground">{{ t('admin.settings.template.tilesToneDesc') }}</p>
+            <div class="flex gap-2">
+              <button
+                v-for="opt in [{ value: 'dark', label: t('admin.settings.template.tilesToneDark') }, { value: 'light', label: t('admin.settings.template.tilesToneLight') }]"
+                :key="opt.value"
+                type="button"
+                class="h-9 rounded-lg border px-4 text-sm"
+                :class="form.home_tiles_tone === opt.value ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground'"
+                @click="form.home_tiles_tone = opt.value as 'dark' | 'light'"
+              >{{ opt.label }}</button>
+            </div>
+          </div>
         </div>
       </div>
       </TabsContent>

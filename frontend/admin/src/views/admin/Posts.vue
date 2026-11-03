@@ -6,6 +6,7 @@ import { adminAPI } from '@/api/admin'
 import type { AdminPost, AdminProduct, LocalizedText } from '@/api/types'
 import MediaPicker from '@/components/admin/MediaPicker.vue'
 import RichEditor from '@/components/RichEditor.vue'
+import BlockEditor from '@/components/admin/BlockEditor.vue'
 import IdCell from '@/components/IdCell.vue'
 import { getImageUrl } from '@/utils/image'
 import { formatDate, getLocalizedText } from '@/utils/format'
@@ -43,7 +44,9 @@ const router = useRouter()
 const loading = ref(false)
 const showModal = ref(false)
 const isEditing = ref(false)
-const currentTab = ref(route.params.type === 'notice' ? 'notice' : 'blog')
+const currentTab = ref(
+  route.params.type === 'notice' || route.params.type === 'page' ? String(route.params.type) : 'blog',
+)
 const currentLang = ref('zh-CN')
 const submitting = ref(false)
 
@@ -75,6 +78,8 @@ const form = reactive({
   slug: '',
   summary: { 'zh-CN': '', 'zh-TW': '', 'en-US': '' } as Record<string, string>,
   content: { 'zh-CN': '', 'zh-TW': '', 'en-US': '' } as Record<string, string>,
+  layout: 'article' as 'article' | 'blocks',
+  content_blocks: { version: 1, blocks: [] as any[] } as any,
   type: 'blog',
   thumbnail: '',
   is_published: true,
@@ -256,6 +261,8 @@ const openCreateModal = () => {
     slug: '',
     summary: { 'zh-CN': '', 'zh-TW': '', 'en-US': '' },
     content: { 'zh-CN': '', 'zh-TW': '', 'en-US': '' },
+    layout: 'article',
+    content_blocks: { version: 1, blocks: [] },
     type: currentTab.value,
     thumbnail: '',
     is_published: true,
@@ -275,6 +282,8 @@ const openEditModal = (post: AdminPost) => {
     slug: post.slug,
     summary: post.summary || { 'zh-CN': '', 'zh-TW': '', 'en-US': '' },
     content: post.content || { 'zh-CN': '', 'zh-TW': '', 'en-US': '' },
+    layout: ((post as any).layout === 'blocks' ? 'blocks' : 'article') as 'article' | 'blocks',
+    content_blocks: (post as any).content_blocks || { version: 1, blocks: [] },
     type: post.type,
     thumbnail: post.thumbnail,
     is_published: post.is_published,
@@ -379,6 +388,7 @@ watch(
       <TabsList>
         <TabsTrigger value="blog">{{ t('admin.posts.tabs.blog') }}</TabsTrigger>
         <TabsTrigger value="notice">{{ t('admin.posts.tabs.notice') }}</TabsTrigger>
+        <TabsTrigger value="page">{{ t('admin.posts.tabs.page') }}</TabsTrigger>
       </TabsList>
     </Tabs>
 
@@ -507,6 +517,7 @@ watch(
                 <SelectContent>
                   <SelectItem value="blog">{{ t('admin.posts.form.typeBlog') }}</SelectItem>
                   <SelectItem value="notice">{{ t('admin.posts.form.typeNotice') }}</SelectItem>
+                  <SelectItem value="page">{{ t('admin.posts.form.typePage') }}</SelectItem>
                 </SelectContent>
               </Select>
               <p v-if="errors.type" class="text-xs text-destructive mt-1">{{ errors.type }}</p>
@@ -538,6 +549,29 @@ watch(
             </div>
 
             <div class="col-span-1 md:col-span-2">
+              <label class="mb-1.5 block text-xs font-medium text-muted-foreground">
+                {{ t('admin.blocks.editor.layout') }}
+              </label>
+              <div class="flex gap-2">
+                <button
+                  v-for="opt in [
+                    { value: 'article', label: t('admin.blocks.editor.layoutArticle') },
+                    { value: 'blocks', label: t('admin.blocks.editor.layoutBlocks') },
+                  ]"
+                  :key="opt.value"
+                  type="button"
+                  class="h-9 rounded-lg border px-4 text-sm"
+                  :class="form.layout === opt.value ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground'"
+                  @click="form.layout = opt.value as 'article' | 'blocks'"
+                >{{ opt.label }}</button>
+              </div>
+            </div>
+
+            <div v-if="form.layout === 'blocks'" class="col-span-1 md:col-span-2">
+              <BlockEditor v-model="form.content_blocks" />
+            </div>
+
+            <div v-else class="col-span-1 md:col-span-2">
               <label class="mb-1.5 block text-xs font-medium text-muted-foreground">
                 {{ t('admin.posts.form.content', { lang: getCurrentLangName() }) }}
               </label>

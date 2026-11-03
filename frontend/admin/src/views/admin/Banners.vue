@@ -70,6 +70,10 @@ const form = reactive({
   position: 'home_hero',
   title: { 'zh-CN': '', 'zh-TW': '', 'en-US': '' } as LocalizedText,
   subtitle: { 'zh-CN': '', 'zh-TW': '', 'en-US': '' } as LocalizedText,
+  cta_text: { 'zh-CN': '', 'zh-TW': '', 'en-US': '' } as LocalizedText,
+  buy_text: { 'zh-CN': '', 'zh-TW': '', 'en-US': '' } as LocalizedText,
+  buy_link: '',
+  tone: 'auto' as 'auto' | 'dark' | 'light',
   image: '',
   mobile_image: '',
   link_type: 'none',
@@ -175,6 +179,10 @@ const resetForm = () => {
     position: 'home_hero',
     title: { 'zh-CN': '', 'zh-TW': '', 'en-US': '' },
     subtitle: { 'zh-CN': '', 'zh-TW': '', 'en-US': '' },
+    cta_text: { 'zh-CN': '', 'zh-TW': '', 'en-US': '' },
+    buy_text: { 'zh-CN': '', 'zh-TW': '', 'en-US': '' },
+    buy_link: '',
+    tone: 'auto',
     image: '',
     mobile_image: '',
     link_type: 'none',
@@ -211,6 +219,18 @@ const openEditModal = (banner: AdminBanner) => {
       'zh-TW': banner.subtitle?.['zh-TW'] || '',
       'en-US': banner.subtitle?.['en-US'] || '',
     },
+    cta_text: {
+      'zh-CN': (banner as any).cta_text?.['zh-CN'] || '',
+      'zh-TW': (banner as any).cta_text?.['zh-TW'] || '',
+      'en-US': (banner as any).cta_text?.['en-US'] || '',
+    },
+    buy_text: {
+      'zh-CN': (banner as any).buy_text?.['zh-CN'] || '',
+      'zh-TW': (banner as any).buy_text?.['zh-TW'] || '',
+      'en-US': (banner as any).buy_text?.['en-US'] || '',
+    },
+    buy_link: (banner as any).buy_link || '',
+    tone: ((banner as any).tone === 'dark' || (banner as any).tone === 'light' ? (banner as any).tone : 'auto') as 'auto' | 'dark' | 'light',
     image: banner.image || '',
     mobile_image: banner.mobile_image || '',
     link_type: banner.link_type || 'none',
@@ -234,6 +254,10 @@ const buildPayload = () => ({
   position: form.position,
   title: form.title,
   subtitle: form.subtitle,
+  cta_text: form.cta_text,
+  buy_text: form.buy_text,
+  buy_link: form.buy_link,
+  tone: form.tone === 'auto' ? '' : form.tone,
   image: form.image,
   mobile_image: form.mobile_image,
   link_type: form.link_type,
@@ -450,6 +474,34 @@ watch(
             <div class="md:col-span-2">
               <label class="mb-1.5 block text-xs font-medium text-muted-foreground">{{ t('admin.banners.form.subtitle', { lang: getCurrentLangName() }) }}</label>
               <Input v-model="form.subtitle[currentLang]" :placeholder="t('admin.banners.form.subtitlePlaceholder')" />
+            </div>
+
+            <div>
+              <label class="mb-1.5 block text-xs font-medium text-muted-foreground">{{ t('admin.banners.form.ctaText', { lang: getCurrentLangName() }) }}</label>
+              <Input v-model="form.cta_text[currentLang]" :placeholder="t('admin.banners.form.ctaTextPlaceholder')" />
+            </div>
+
+            <div>
+              <label class="mb-1.5 block text-xs font-medium text-muted-foreground">{{ t('admin.banners.form.buyText', { lang: getCurrentLangName() }) }}</label>
+              <Input v-model="form.buy_text[currentLang]" :placeholder="t('admin.banners.form.buyTextPlaceholder')" />
+            </div>
+
+            <div>
+              <label class="mb-1.5 block text-xs font-medium text-muted-foreground">{{ t('admin.banners.form.buyLink') }}</label>
+              <Input v-model="form.buy_link" :placeholder="t('admin.banners.form.buyLinkPlaceholder')" />
+            </div>
+
+            <div>
+              <label class="mb-1.5 block text-xs font-medium text-muted-foreground">{{ t('admin.banners.form.tone') }}</label>
+              <Select v-model="form.tone">
+                <SelectTrigger class="h-9 w-full"><SelectValue :placeholder="t('admin.banners.form.toneAuto')" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">{{ t('admin.banners.form.toneAuto') }}</SelectItem>
+                  <SelectItem value="dark">{{ t('admin.banners.form.toneDark') }}</SelectItem>
+                  <SelectItem value="light">{{ t('admin.banners.form.toneLight') }}</SelectItem>
+                </SelectContent>
+              </Select>
+              <p class="mt-1 text-xs text-muted-foreground">{{ t('admin.banners.form.toneHint') }}</p>
             </div>
 
             <div class="md:col-span-2">

@@ -46,6 +46,7 @@ import {
   Crown,
   Bell,
   ImageIcon,
+  LayoutGrid,
 } from 'lucide-vue-next'
 import { Menu } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -274,6 +275,12 @@ const navGroups = computed<NavGroup[]>(() => {
       label: t('admin.navGroups.contentManagement'),
       icon: FileText,
       items: [
+        {
+          label: t('admin.navItems.homepage'),
+          to: '/homepage',
+          icon: LayoutGrid,
+          permission: 'GET:/admin/settings',
+        },
         {
           label: t('admin.navItems.banners'),
           to: '/banners',

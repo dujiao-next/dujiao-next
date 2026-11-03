@@ -100,3 +100,10 @@
     font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
   }
 }
+
+/* 嵌套弹窗（如 Banner 编辑弹窗里再开素材库）时，body 会被外层设为 pointer-events: none，
+   内层弹窗是 portal 到 body 的，会一起失去点击。这里强制弹窗自身可交互。 */
+[role='dialog'] {
+  /* !important：内层弹窗被 reka-ui 写成行内 pointer-events:none，行内非 important 会被它覆盖 */
+  pointer-events: auto !important;
+}
