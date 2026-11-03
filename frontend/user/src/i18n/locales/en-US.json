@@ -48,7 +48,7 @@
   "nav": {
     "home": "Home",
     "products": "Products",
-    "blog": "Blog",
+    "blog": "Explore",
     "notice": "Notice",
     "about": "About"
   },
@@ -188,7 +188,10 @@
     "promotionBadge": "Promo",
     "searchBoxPlaceholder": "Search products by name or keyword...",
     "viewDetails": "View Details",
-    "quickBuy": "Buy"
+    "quickBuy": "Buy",
+    "lead": "Every one of them, hand-picked.",
+    "count": "{n} products",
+    "allCats": "All"
   },
   "productDetail": {
     "description": "Description",
@@ -271,7 +274,8 @@
     "service3": "Responsive Customer Support",
     "service4": "Regular Product Updates",
     "contactUs": "Contact Us",
-    "contactText": "If you have any questions about our products or services, please feel free to contact us via:"
+    "contactText": "If you have any questions about our products or services, please feel free to contact us via:",
+    "fallback": "This page is still being put together. Check back soon."
   },
   "navbar": {
     "cart": "Cart",
@@ -1740,5 +1744,28 @@
     "authInvalid": "Credentials mismatch, please try again",
     "authSubmit": "Save and search",
     "authClear": "Clear saved info"
+  },
+  "storefront": {
+    "heroTitle": "Store",
+    "heroSub": "The best place to find what you love.",
+    "allProducts": "All products",
+    "contact": "Contact support",
+    "newTitle": "New arrivals,",
+    "newSub": "be first to see.",
+    "helpTitle": "Help is here,",
+    "helpSub": "whenever you need it.",
+    "newsTitle": "Latest news,",
+    "newsSub": "what's new lately.",
+    "priceFrom": "From {price}",
+    "tileBuyTitle": "How to buy",
+    "tileBuyDesc": "Pick a product, add to cart, check out in a few steps.",
+    "tileDeliveryTitle": "Delivery time",
+    "tileDeliveryDesc": "Auto-delivered products arrive right after payment.",
+    "tileRefundTitle": "Returns",
+    "tileRefundDesc": "Everything about digital goods returns lives here.",
+    "tileContactTitle": "Contact us",
+    "tileContactDesc": "Stuck on something? Talk to a human.",
+    "learnMore": "Learn more",
+    "buyNow": "Buy"
   }
 }

@@ -333,14 +333,37 @@ const router = createRouter({
 })
 
 // Navigation Guard
+// 懒加载页面（chunk）失效时——部署更新、dev 服务器重启、网络抖动——
+// 路由会抛错并且整站点击都没反应，只剩外壳。这里自动整页刷新一次自愈。
+const CHUNK_RELOAD_KEY = 'dj-chunk-reload-at'
+router.onError((error: any) => {
+  const message = String(error?.message || error || '')
+  const isChunkError =
+    /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk|ChunkLoadError|dynamically imported module/i.test(
+      message,
+    )
+  if (!isChunkError) return
+  try {
+    const last = Number(sessionStorage.getItem(CHUNK_RELOAD_KEY) || 0)
+    // 10 秒内只自动刷新一次，避免真坏了导致无限刷新
+    if (last && Date.now() - last < 10_000) return
+    sessionStorage.setItem(CHUNK_RELOAD_KEY, String(Date.now()))
+  } catch {
+    /* 隐私模式下 sessionStorage 不可用时直接刷新 */
+  }
+  window.location.reload()
+})
+
 router.beforeEach(async (to, _from, next) => {
     const userAuthStore = useUserAuthStore()
     const appStore = useAppStore()
     void captureAffiliateFromRoute(to)
 
-    // Ensure config is loaded before checking template mode
+    // 配置优先用本地缓存渲染（回访用户秒进），缓存命中时后台静默刷新
     if (!appStore.config) {
         await appStore.loadConfig()
+    } else if (appStore.configFromCache) {
+        void appStore.loadConfig(true)
     }
 
     if (to.meta.requiresUserAuth) {

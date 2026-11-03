@@ -13,7 +13,7 @@
         class="fixed inset-0 z-[110] flex items-center justify-center p-4"
         @click.self="handleCancel"
       >
-        <div class="fixed inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" />
+        <div class="fixed inset-0 bg-black/40 backdrop-blur-[var(--modal-scrim-blur,4px)]" aria-hidden="true" />
         <Transition
           enter-active-class="transition duration-200 ease-out"
           enter-from-class="opacity-0 scale-95 translate-y-2"

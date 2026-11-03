@@ -119,7 +119,7 @@ onBeforeUnmount(() => {
         class="fixed inset-0 z-[120] flex items-center justify-center p-4 sm:p-6"
         @click.self="handleClose"
       >
-        <div class="fixed inset-0 bg-black/55 backdrop-blur-md" aria-hidden="true" />
+        <div class="fixed inset-0 bg-black/55 backdrop-blur-[var(--modal-scrim-blur,12px)]" aria-hidden="true" />
         <Transition
           enter-active-class="transition duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
           enter-from-class="opacity-0 scale-95 translate-y-3"

@@ -1,80 +1,84 @@
 <template>
-  <transition name="fade">
-    <div v-if="loading"
-      class="fixed inset-0 z-50 flex items-center justify-center theme-overlay backdrop-blur-xl transition-all duration-500">
-      <div class="relative flex flex-col items-center gap-8">
-        <div class="relative w-20 h-20">
-          <div class="absolute inset-0 rounded-full border"></div>
-          <div
-            class="absolute inset-0 rounded-full border-2 border-transparent border-t-current animate-spin text-foreground">
-          </div>
-          <div
-            class="absolute inset-[10px] rounded-full bg-secondary border flex items-center justify-center">
-            <div
-              class="w-2 h-2 rounded-full bg-current text-muted-foreground">
-            </div>
-          </div>
-          <div
-            class="absolute inset-[-8px] rounded-full border border-transparent border-b-gray-300 dark:border-b-white/20 animate-spin-reverse">
-          </div>
-        </div>
-
-        <!-- Text -->
-        <div class="flex flex-col items-center gap-2">
-          <div class="text-xl font-bold tracking-[0.2em] text-foreground animate-pulse">
-            LOADING
-          </div>
-          <div class="flex gap-1 h-1">
-            <div class="w-1 h-1 bg-current text-muted-foreground rounded-full animate-bounce delay-100"></div>
-            <div class="w-1 h-1 bg-current text-muted-foreground rounded-full animate-bounce delay-200"></div>
-            <div class="w-1 h-1 bg-current text-muted-foreground rounded-full animate-bounce delay-300"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </transition>
+  <div
+    v-if="visible"
+    class="st-topbar-loader"
+    role="progressbar"
+    aria-label="loading"
+    aria-valuetext="loading"
+  >
+    <span class="st-topbar-loader-bar" />
+  </div>
 </template>
 
 <script setup lang="ts">
-defineProps<{
-  loading: boolean
-}>()
+import { onUnmounted, ref, watch } from 'vue'
+
+/**
+ * 全局加载指示：顶部 2px 进度条（Safari / 苹果站点的做法）。
+ * 不用全屏遮罩——苹果的页面加载是「内容直接出现」，慢的地方用骨架屏，
+ * 全屏转圈既挡操作又显得旧。
+ */
+const props = defineProps<{ loading: boolean }>()
+
+const visible = ref(false)
+let timer: ReturnType<typeof setTimeout> | null = null
+
+watch(
+  () => props.loading,
+  (loading) => {
+    if (timer) {
+      clearTimeout(timer)
+      timer = null
+    }
+    if (loading) {
+      // 120ms 内结束的请求不显示，避免闪一下
+      timer = setTimeout(() => { visible.value = true }, 120)
+    } else {
+      visible.value = false
+    }
+  },
+  // 首次渲染时 loading 可能已经是 true（配置还没回来），必须立即求值一次
+  { immediate: true },
+)
+
+onUnmounted(() => {
+  if (timer) clearTimeout(timer)
+})
 </script>
 
 <style scoped>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
+.st-topbar-loader {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 100;
+  height: 2px;
+  overflow: hidden;
+  pointer-events: none;
 }
 
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
+.st-topbar-loader-bar {
+  position: absolute;
+  inset-block: 0;
+  width: 40%;
+  border-radius: 2px;
+  background: #0071e3;
+  animation: st-topbar-slide 1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
-.animate-spin-reverse {
-  animation: spin-reverse 3s linear infinite;
-}
-
-@keyframes spin-reverse {
-  from {
-    transform: rotate(360deg);
+@keyframes st-topbar-slide {
+  0% {
+    left: -40%;
   }
-
-  to {
-    transform: rotate(0deg);
+  100% {
+    left: 100%;
   }
 }
 
-.delay-100 {
-  animation-delay: 0.1s;
-}
-
-.delay-200 {
-  animation-delay: 0.2s;
-}
-
-.delay-300 {
-  animation-delay: 0.3s;
+@media (prefers-reduced-motion: reduce) {
+  .st-topbar-loader-bar {
+    animation: none;
+    width: 100%;
+    opacity: 0.6;
+  }
 }
 </style>

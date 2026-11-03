@@ -48,7 +48,7 @@
   "nav": {
     "home": "首頁",
     "products": "商品中心",
-    "blog": "部落格",
+    "blog": "探索",
     "notice": "公告",
     "about": "關於"
   },
@@ -188,7 +188,10 @@
     "promotionBadge": "有活動",
     "searchBoxPlaceholder": "搜尋商品名稱或關鍵詞...",
     "viewDetails": "查看詳情",
-    "quickBuy": "購買"
+    "quickBuy": "購買",
+    "lead": "每一款都經過精挑細選。",
+    "count": "共 {n} 件商品",
+    "allCats": "全部"
   },
   "productDetail": {
     "description": "商品描述",
@@ -271,7 +274,8 @@
     "service3": "快速回應的客戶支援",
     "service4": "定期更新的產品資訊",
     "contactUs": "聯絡我們",
-    "contactText": "如果您對我們的產品或服務有任何疑問，歡迎透過以下方式聯絡我們："
+    "contactText": "如果您對我們的產品或服務有任何疑問，歡迎透過以下方式聯絡我們：",
+    "fallback": "這個頁面還在整理中，稍後再來看看。"
   },
   "navbar": {
     "cart": "購物車",
@@ -1740,5 +1744,28 @@
     "authInvalid": "資訊不匹配，請重新輸入",
     "authSubmit": "保存並查詢",
     "authClear": "清除已保存資訊"
+  },
+  "storefront": {
+    "heroTitle": "商店",
+    "heroSub": "產品都稱心，體驗更如意。",
+    "allProducts": "全部商品",
+    "contact": "聯絡客服",
+    "newTitle": "新品上架，",
+    "newSub": "先睹為快。",
+    "helpTitle": "幫手在此，",
+    "helpSub": "隨時待命。",
+    "newsTitle": "最新動態，",
+    "newsSub": "看看最近有什麼。",
+    "priceFrom": "{price} 起",
+    "tileBuyTitle": "怎麼買",
+    "tileBuyDesc": "挑好商品加入購物車，幾步就能下單。",
+    "tileDeliveryTitle": "多久出貨",
+    "tileDeliveryDesc": "自動出貨的商品，付款後憑證立即送達。",
+    "tileRefundTitle": "售後政策",
+    "tileRefundDesc": "數位商品的退換規則都寫在這裡。",
+    "tileContactTitle": "聯絡客服",
+    "tileContactDesc": "遇到問題直接找我們，不用自己憋著。",
+    "learnMore": "進一步了解",
+    "buyNow": "購買"
   }
 }

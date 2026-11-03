@@ -48,7 +48,7 @@
   "nav": {
     "home": "首页",
     "products": "商品中心",
-    "blog": "博客",
+    "blog": "探索",
     "notice": "公告",
     "about": "关于"
   },
@@ -188,7 +188,10 @@
     "promotionBadge": "有活动",
     "searchBoxPlaceholder": "搜索商品名称或关键词...",
     "viewDetails": "查看详情",
-    "quickBuy": "购买"
+    "quickBuy": "购买",
+    "lead": "每一款都经过精挑细选。",
+    "count": "共 {n} 件商品",
+    "allCats": "全部"
   },
   "blog": {
     "subtitle": "最新文章和动态",
@@ -223,7 +226,8 @@
     "service3": "快速响应的客户支持",
     "service4": "定期更新的产品信息",
     "contactUs": "联系我们",
-    "contactText": "如果您对我们的产品或服务有任何疑问，欢迎通过以下方式联系我们："
+    "contactText": "如果您对我们的产品或服务有任何疑问，欢迎通过以下方式联系我们：",
+    "fallback": "这个页面还在整理中，稍后再来看看。"
   },
   "navbar": {
     "cart": "购物车",
@@ -1740,5 +1744,28 @@
     "label": "购买身份",
     "member": "会员购买",
     "guest": "游客可购"
+  },
+  "storefront": {
+    "heroTitle": "商店",
+    "heroSub": "产品都称心，体验更如意。",
+    "allProducts": "全部商品",
+    "contact": "联系客服",
+    "newTitle": "上新了，",
+    "newSub": "一睹为快。",
+    "helpTitle": "帮手在此，",
+    "helpSub": "随时待命。",
+    "newsTitle": "最新动态，",
+    "newsSub": "看看最近有什么。",
+    "priceFrom": "{price} 起",
+    "tileBuyTitle": "怎么买",
+    "tileBuyDesc": "挑好商品加入购物车，几步就能下单。",
+    "tileDeliveryTitle": "多久发货",
+    "tileDeliveryDesc": "自动发货的商品，付款后凭证立即送达。",
+    "tileRefundTitle": "售后政策",
+    "tileRefundDesc": "数字商品的退换规则都写在这里。",
+    "tileContactTitle": "联系客服",
+    "tileContactDesc": "遇到问题直接找我们，不用自己憋着。",
+    "learnMore": "进一步了解",
+    "buyNow": "购买"
   }
 }

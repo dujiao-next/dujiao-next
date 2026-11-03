@@ -21,6 +21,10 @@ const applyTheme = (newTheme: Theme) => {
     } else {
         root.classList.remove('dark')
     }
+    // 关键：声明「配色由站点自己处理」。
+    // 不声明的话，安卓上的小米浏览器 / 微信 / UC 的「强制深色」会把浅色页面整体反色，
+    // 表现为原本黑字的地方变白。声明后浏览器不再强制反色。
+    root.style.colorScheme = newTheme
     localStorage.setItem(TEA_THEME_KEY, newTheme)
 }
 

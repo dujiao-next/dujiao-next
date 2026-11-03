@@ -7,7 +7,8 @@ export const productAPI = {
 
 export const postAPI = {
     list: (params?: any) => api.get('/public/posts', { params }),
-    detail: (slug: string) => api.get(`/public/posts/${slug}`),
+    // opts 可传 { silentBusinessError: true }，用于「没有这个页面」这类预期内的 404
+    detail: (slug: string, opts?: Record<string, unknown>) => api.get(`/public/posts/${slug}`, opts),
 }
 
 export const bannerAPI = {

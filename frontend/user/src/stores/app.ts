@@ -11,7 +11,28 @@ export const useAppStore = defineStore('app', () => {
     // 与 vue-i18n 复用同一套语言检测逻辑，避免首次访问时
     // UI 语言（vue-i18n）与商品多语言取值（appStore.locale）不一致
     const locale = ref(detectLocale())
-    const config = ref<any>(null)
+
+    // 站点配置缓存：让回访用户首屏直接渲染，不再等接口。
+    // （苹果那种「秒进」靠服务端直出；SPA 只能把上一次的配置先画出来，再后台刷新）
+    const CONFIG_CACHE_KEY = 'dj-site-config-cache'
+    const CONFIG_CACHE_TTL = 7 * 24 * 3600 * 1000
+    const readCachedConfig = (): any | null => {
+        try {
+            const raw = localStorage.getItem(CONFIG_CACHE_KEY)
+            if (!raw) return null
+            const parsed = JSON.parse(raw)
+            if (!parsed?.data || typeof parsed.at !== 'number') return null
+            if (Date.now() - parsed.at > CONFIG_CACHE_TTL) return null
+            return parsed.data
+        } catch {
+            return null
+        }
+    }
+    const cachedConfig = readCachedConfig()
+
+    const config = ref<any>(cachedConfig)
+    /** true 表示当前渲染的是缓存配置，调用方应后台刷新一次 */
+    const configFromCache = ref(!!cachedConfig)
     const loading = ref(false)
     // 服务器与客户端的时间偏移量（毫秒），serverTime = clientTime + offset
     const serverTimeOffset = ref(0)
@@ -80,6 +101,12 @@ export const useAppStore = defineStore('app', () => {
             const requestTime = Date.now()
             const response = await configAPI.get()
             config.value = response.data.data
+            configFromCache.value = false
+            try {
+                localStorage.setItem(CONFIG_CACHE_KEY, JSON.stringify({ at: Date.now(), data: config.value }))
+            } catch {
+                /* 隐私模式/超额时忽略 */
+            }
             // 计算服务器与客户端的时间偏移量
             if (config.value?.server_time) {
                 const responseTime = Date.now()
@@ -114,6 +141,7 @@ export const useAppStore = defineStore('app', () => {
     return {
         locale,
         config,
+        configFromCache,
         loading,
         serverTimeOffset,
         isResellerTenant,

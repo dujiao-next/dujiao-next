@@ -207,6 +207,12 @@
 html {
   overflow-y: scroll;
   scrollbar-gutter: stable;
+  /* 站点自己处理深浅色：声明后安卓浏览器不会再强制反色（小米/微信/UC 的强制深色） */
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
 }
 
 html,
