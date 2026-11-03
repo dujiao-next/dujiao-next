@@ -23,8 +23,8 @@
 /* ---------- Tokens: 亮色（默认） ---------- */
 .vault-scope,
 body.vault-tokens {
-  --font-head: "Rubik", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-body: "Nunito Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-head: "SF Pro Display", "SF Pro SC", "PingFang SC", -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-body: "SF Pro SC", "SF Pro Display", "PingFang SC", -apple-system, "Helvetica Neue", Arial, sans-serif;
 
   --bg: #f6f6fb;
   --bg-warm: #edecf6;

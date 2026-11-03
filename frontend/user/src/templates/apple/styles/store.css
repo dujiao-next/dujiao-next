@@ -8,10 +8,10 @@
 body.vault-tokens {
   /* 字体：苹果自托管 SF Pro，我们不能用（授权限制），走系统栈：
      iPhone / Mac 上就是 SF，中文自动落 PingFang SC。 */
-  --st-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
-    "Helvetica Neue", "Microsoft YaHei", Arial, sans-serif;
-  --st-font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display",
-    "PingFang SC", "Helvetica Neue", "Microsoft YaHei", Arial, sans-serif;
+  --st-font: "SF Pro SC", "SF Pro Display", "SF Pro Icons", "PingFang SC", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --st-font-display: "SF Pro SC", "SF Pro Display", "SF Pro Icons", "PingFang SC", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  /* 苹果模板不使用 vault 的 Rubik 标题字体 */
+  --font-head: "SF Pro SC", "SF Pro Display", "SF Pro Icons", "PingFang SC", "Helvetica Neue", Helvetica, Arial, sans-serif;
 
   --st-text: #1d1d1f;
   --st-text-2: #6e6e73;
