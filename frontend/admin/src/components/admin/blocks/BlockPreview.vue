@@ -104,6 +104,17 @@
       </div>
     </template>
 
+    <!-- 对比表 -->
+    <template v-else-if="type === 'compare'">
+      <div class="bp-compare">
+        <div v-for="(col, i) in (p.columns?.length ? p.columns.slice(0,3) : fill(3))" :key="i" class="bp-compare-col">
+          <div class="bp-media-box sm"><span v-if="variant === 'full'">图</span></div>
+          <span class="bp-card-title">{{ txt(col.title) || '版本' }}</span>
+          <span class="bp-card-body">{{ col.price || '价格' }}</span>
+        </div>
+      </div>
+    </template>
+
     <!-- 钉住叙事 -->
     <template v-else-if="type === 'story'">
       <div class="bp-story">
@@ -264,6 +275,22 @@ const txt = (value: any): string => {
 .bp-cta { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 0; text-align: center; }
 .bp-cta .bp-title { color: #1d1d1f; }
 
+.bp-compare {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.bp-compare-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  text-align: center;
+}
+.bp--thumb .bp-compare-col .bp-card-body {
+  display: none;
+}
+
 .bp-story {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -289,7 +316,23 @@ const txt = (value: any): string => {
 .bp-story-pips i.on {
   background: #1d1d1f;
 }
-.bp--thumb .bp-story {
+.bp--thumb .bp-compare {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.bp-compare-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  text-align: center;
+}
+.bp--thumb .bp-compare-col .bp-card-body {
+  display: none;
+}
+
+.bp-story {
   gap: 6px;
 }
 .bp--thumb .bp-story-pips {

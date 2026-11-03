@@ -18,6 +18,7 @@ import GalleryBlock from './GalleryBlock.vue'
 import CtaBlock from './CtaBlock.vue'
 import VideoBlock from './VideoBlock.vue'
 import StoryBlock from './StoryBlock.vue'
+import CompareBlock from './CompareBlock.vue'
 import SpecsBlock from './SpecsBlock.vue'
 import RichTextBlock from './RichTextBlock.vue'
 import './blocks.css'
@@ -34,6 +35,7 @@ const registry: Record<string, any> = {
   cta: CtaBlock,
   video: VideoBlock,
   story: StoryBlock,
+  compare: CompareBlock,
   specs: SpecsBlock,
   richText: RichTextBlock,
 }

@@ -3,7 +3,7 @@
  * 字段 label 走 admin i18n（admin.blocks.fields.*），区块名走 admin.blocks.types.*。
  */
 
-export type FieldKind = 'text' | 'textarea' | 'i18n' | 'url' | 'select' | 'media' | 'list'
+export type FieldKind = 'text' | 'textarea' | 'i18n' | 'url' | 'select' | 'media' | 'list' | 'strings'
 
 export interface FieldDef {
   key: string
@@ -182,6 +182,38 @@ export const blockDefs: BlockDef[] = [
         kind: 'list',
         itemDefault: () => ({ caption: i18nEmpty() }),
         fields: [mediaWith('hintGallery'), { key: 'caption', labelKey: 'caption', kind: 'i18n' }],
+      },
+    ],
+  },
+  {
+    type: 'compare',
+    labelKey: 'compare',
+    fields: [
+      { key: 'title', labelKey: 'title', kind: 'i18n' },
+      { key: 'subtitle', labelKey: 'lead', kind: 'i18n' },
+      {
+        key: 'columns',
+        labelKey: 'compareColumns',
+        kind: 'list',
+        itemDefault: () => ({ media: { kind: 'image', src: '', poster: '', mobileSrc: '' }, title: i18nEmpty(), subtitle: i18nEmpty(), price: '', ctaLabel: i18nEmpty(), ctaUrl: '' }),
+        fields: [
+          mediaWith('hintCard'),
+          { key: 'title', labelKey: 'title', kind: 'i18n' },
+          { key: 'subtitle', labelKey: 'caption', kind: 'i18n' },
+          { key: 'price', labelKey: 'priceLabel', kind: 'text' },
+          { key: 'ctaLabel', labelKey: 'ctaLabel', kind: 'i18n' },
+          { key: 'ctaUrl', labelKey: 'ctaUrl', kind: 'url' },
+        ],
+      },
+      {
+        key: 'rows',
+        labelKey: 'compareRows',
+        kind: 'list',
+        itemDefault: () => ({ label: i18nEmpty(), values: [] }),
+        fields: [
+          { key: 'label', labelKey: 'compareRowLabel', kind: 'i18n' },
+          { key: 'values', labelKey: 'compareRowValues', kind: 'strings' },
+        ],
       },
     ],
   },

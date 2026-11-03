@@ -964,3 +964,117 @@
     animation: none;
   }
 }
+
+/* ---------- 对比表 ---------- */
+.blk-compare {
+  background: var(--st-bg-alt);
+  color: var(--st-text);
+  padding-block: 72px;
+}
+
+.blk-compare-head {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.blk-compare-scroll {
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.blk-compare-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.blk-compare-grid {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.7fr) repeat(var(--cols, 2), minmax(200px, 1fr));
+  gap: 0;
+  align-items: start;
+  min-width: calc(120px + var(--cols, 2) * 200px);
+}
+
+.blk-compare-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 0 20px 28px;
+  text-align: center;
+}
+
+.blk-compare-media {
+  width: 100%;
+  max-width: 200px;
+  margin-bottom: 6px;
+}
+
+.blk-compare-media :deep(img),
+.blk-compare-media :deep(video) {
+  width: 100%;
+  display: block;
+  border-radius: 18px;
+}
+
+.blk-compare-title {
+  margin: 0;
+  font-family: var(--st-font-display);
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.blk-compare-sub {
+  margin: 0;
+  font-size: 14px;
+  color: var(--st-text-2);
+}
+
+.blk-compare-price {
+  margin: 4px 0 8px;
+  font-size: 17px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.blk-compare-cta {
+  padding-inline: 20px;
+}
+
+.blk-compare-label,
+.blk-compare-value {
+  padding: 16px 20px;
+  border-top: 1px solid color-mix(in srgb, var(--st-text) 10%, transparent);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.blk-compare-label {
+  color: var(--st-text-2);
+}
+
+.blk-compare-value {
+  text-align: center;
+}
+
+@media (max-width: 734px) {
+  .blk-compare {
+    padding-block: 48px;
+  }
+  .blk-compare-grid {
+    grid-template-columns: minmax(118px, 0.6fr) repeat(var(--cols, 2), minmax(170px, 1fr));
+    min-width: calc(118px + var(--cols, 2) * 170px);
+  }
+  .blk-compare-col {
+    padding-inline: 12px;
+  }
+  .blk-compare-title {
+    font-size: 17px;
+  }
+  .blk-compare-label,
+  .blk-compare-value {
+    padding: 14px 12px;
+    font-size: 13px;
+  }
+}

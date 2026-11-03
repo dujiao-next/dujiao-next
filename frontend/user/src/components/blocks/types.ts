@@ -135,6 +135,23 @@ export interface StoryBlock extends BlockBase {
   }
 }
 
+export interface CompareBlock extends BlockBase {
+  type: 'compare'
+  props: {
+    title?: I18nText
+    subtitle?: I18nText
+    columns: Array<{
+      media?: BlockMedia
+      title: I18nText
+      subtitle?: I18nText
+      price?: string
+      ctaLabel?: I18nText
+      ctaUrl?: string
+    }>
+    rows: Array<{ label: I18nText; values: string[] }>
+  }
+}
+
 export interface RichTextBlock extends BlockBase {
   type: 'richText'
   props: { html: Record<string, string> }
@@ -142,7 +159,7 @@ export interface RichTextBlock extends BlockBase {
 
 export type PageBlock =
   | HeroBlock | PromoBlock | SectionHeaderBlock | FeatureGridBlock
-  | CardScrollerBlock | GalleryBlock | VideoBlock | SpecsBlock | CtaBlock | StoryBlock | RichTextBlock
+  | CardScrollerBlock | GalleryBlock | VideoBlock | SpecsBlock | CtaBlock | StoryBlock | CompareBlock | RichTextBlock
 
 export interface PageContent {
   version: number

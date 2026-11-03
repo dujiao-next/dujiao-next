@@ -490,6 +490,7 @@ const messages = {
     admin: {
       blocks: {
         typeDescs: {
+          compare: '多版本并排对照，标出差异',
           story: '媒体固定，文案随滚动切换，适合讲一段过程',
           hero: '开场大图，放主推商品或活动',
           promo: '左文右图，讲一个卖点',
@@ -522,11 +523,13 @@ const messages = {
           recipeBlankDesc: '从零开始拼',
         },
         types: {
+          compare: '对比表',
           story: '钉住叙事',
           hero: '大横幅', promo: '双栏推广', sectionHeader: '章节头', featureGrid: '特性网格',
           cardScroller: '横滑卡片', gallery: '图库', video: '影片', specs: '参数', cta: '购买区', richText: '富文本',
         },
         fields: {
+          compareColumns: '对比列', compareRows: '对比行', compareRowLabel: '行标题', compareRowValues: '各列的值（每行一个）', compareRowValuesHint: '每行一个值，按列顺序填，例如：\n支持\n不支持', priceLabel: '价格文字',
           storySteps: '分镜', storyStepLabel: '小标签',
           image: '图片', video: '视频', poster: '封面帧', mobileSrc: '手机端图片',
           theme: '主题', themeDark: '深色', themeLight: '浅色',
@@ -2486,6 +2489,7 @@ const messages = {
           unverified: '未验证',
         },
         fields: {
+          compareColumns: '對照列', compareRows: '對照行', compareRowLabel: '列標題', compareRowValues: '各欄的值（每行一個）', compareRowValuesHint: '每行一個值，依欄位順序填，例如：\n支援\n不支援', priceLabel: '價格文字',
           storySteps: '分鏡', storyStepLabel: '小標籤',
           image: '圖片', video: '影片', poster: '封面影格', mobileSrc: '手機端圖片',
           id: '用户ID',
@@ -2581,6 +2585,7 @@ const messages = {
             createdAt: '创建时间',
           },
           types: {
+          compare: '對照表',
           story: '釘住敘事',
             recharge: '余额充值',
             order_pay: '订单支付',
@@ -3053,6 +3058,7 @@ const messages = {
             maxReached: '已达到最大数量',
             empty: '暂无自定义导航项',
             fields: {
+          compareColumns: 'Columns', compareRows: 'Rows', compareRowLabel: 'Row label', compareRowValues: 'Values (one per line)', compareRowValuesHint: 'One value per line, one per column', priceLabel: 'Price text',
           storySteps: 'Steps', storyStepLabel: 'Step label',
           image: 'Image', video: 'Video', poster: 'Poster frame', mobileSrc: 'Mobile image',
               icon: '图标',
@@ -3694,6 +3700,7 @@ const messages = {
           createdAt: '创建时间',
         },
         types: {
+          compare: 'Comparison',
           story: 'Pinned story',
           order_profit: '订单收益',
           refund_deduct: '退款扣回',
@@ -5131,6 +5138,7 @@ const messages = {
     admin: {
       blocks: {
         typeDescs: {
+          compare: '多版本並排對照，標出差異',
           story: '媒體固定，文案隨滾動切換，適合講一段過程',
           hero: '開場大圖，放主推商品或活動',
           promo: '左文右圖，講一個賣點',
@@ -9759,6 +9767,7 @@ const messages = {
     admin: {
       blocks: {
         typeDescs: {
+          compare: 'Side-by-side comparison of versions',
           story: 'Media stays pinned while copy changes on scroll',
           hero: 'Opening visual for a hero product',
           promo: 'Text beside an image, one selling point',

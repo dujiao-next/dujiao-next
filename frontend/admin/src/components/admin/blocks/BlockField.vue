@@ -55,6 +55,14 @@
       <MediaPicker :model-value="media.mobileSrc || ''" scene="product" @update:model-value="(v) => setMedia('mobileSrc', String(v || ''))" />
     </div>
 
+    <Textarea
+      v-else-if="field.kind === 'strings'"
+      rows="3"
+      :model-value="Array.isArray(modelValue) ? modelValue.join('\n') : ''"
+      :placeholder="t('admin.blocks.fields.compareRowValuesHint')"
+      @update:model-value="(v) => emit('update:modelValue', String(v).split('\n').map((x) => x.trim()).filter((x) => x !== ''))"
+    />
+
     <div v-else-if="field.kind === 'list'" class="bf-list">
       <div v-for="(row, index) in listValue" :key="index" class="bf-item">
         <div class="bf-item-head">
