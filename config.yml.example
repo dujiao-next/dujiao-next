@@ -93,12 +93,14 @@ queue:
   upstream_sync_interval: "5m"  # 上游库存同步间隔（如 1m、5m、10m）
 
 upload:
-  max_size: 10485760  # 最大上传文件大小（字节，默认 10MB）
+  max_size: 52428800  # 最大上传文件大小（字节，默认 50MB；视频按同值上限）
   allowed_types:
     - image/jpeg
     - image/png
     - image/gif
     - image/webp
+    - video/mp4   # 区块化页面的循环短片
+    - video/webm
     # - image/svg+xml  # SVG 可携带脚本，默认关闭；如需开启请同时放开下方 .svg 扩展名
   allowed_extensions:
     - .jpg
@@ -106,6 +108,8 @@ upload:
     - .png
     - .gif
     - .webp
+    - .mp4
+    - .webm
     # - .svg
   max_width: 4096
   max_height: 4096

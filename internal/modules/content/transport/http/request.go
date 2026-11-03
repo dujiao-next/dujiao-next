@@ -8,28 +8,32 @@ import (
 
 // CreatePostRequest 创建或更新文章的 HTTP 请求。
 type CreatePostRequest struct {
-	Slug        string                 `json:"slug" binding:"required"`
-	Type        string                 `json:"type" binding:"required"`
-	TitleJSON   map[string]interface{} `json:"title" binding:"required"`
-	SummaryJSON map[string]interface{} `json:"summary"`
-	ContentJSON map[string]interface{} `json:"content"`
-	Thumbnail   string                 `json:"thumbnail"`
-	IsPublished *bool                  `json:"is_published"`
-	ProductIDs  *[]uint                `json:"product_ids"`
-	CategoryID  *uint                  `json:"category_id"`
+	Slug          string                 `json:"slug" binding:"required"`
+	Type          string                 `json:"type" binding:"required"`
+	TitleJSON     map[string]interface{} `json:"title" binding:"required"`
+	SummaryJSON   map[string]interface{} `json:"summary"`
+	ContentJSON   map[string]interface{} `json:"content"`
+	Layout        string                 `json:"layout"`
+	ContentBlocks map[string]interface{} `json:"content_blocks"`
+	Thumbnail     string                 `json:"thumbnail"`
+	IsPublished   *bool                  `json:"is_published"`
+	ProductIDs    *[]uint                `json:"product_ids"`
+	CategoryID    *uint                  `json:"category_id"`
 }
 
 func (request CreatePostRequest) toInput() contentapp.CreatePostInput {
 	return contentapp.CreatePostInput{
-		Slug:        request.Slug,
-		Type:        request.Type,
-		TitleJSON:   request.TitleJSON,
-		SummaryJSON: request.SummaryJSON,
-		ContentJSON: request.ContentJSON,
-		Thumbnail:   request.Thumbnail,
-		IsPublished: request.IsPublished,
-		ProductIDs:  request.ProductIDs,
-		CategoryID:  request.CategoryID,
+		Slug:          request.Slug,
+		Type:          request.Type,
+		TitleJSON:     request.TitleJSON,
+		SummaryJSON:   request.SummaryJSON,
+		ContentJSON:   request.ContentJSON,
+		Layout:        request.Layout,
+		ContentBlocks: request.ContentBlocks,
+		Thumbnail:     request.Thumbnail,
+		IsPublished:   request.IsPublished,
+		ProductIDs:    request.ProductIDs,
+		CategoryID:    request.CategoryID,
 	}
 }
 
@@ -72,6 +76,10 @@ type BannerUpsertRequest struct {
 	Position     string                 `json:"position"`
 	TitleJSON    map[string]interface{} `json:"title"`
 	SubtitleJSON map[string]interface{} `json:"subtitle"`
+	CTATextJSON  map[string]interface{} `json:"cta_text"`
+	BuyTextJSON  map[string]interface{} `json:"buy_text"`
+	BuyLink      string                 `json:"buy_link"`
+	Tone         string                 `json:"tone"`
 	Image        string                 `json:"image" binding:"required"`
 	MobileImage  string                 `json:"mobile_image"`
 	LinkType     string                 `json:"link_type"`
@@ -98,6 +106,10 @@ func buildBannerInputFromRequest(request BannerUpsertRequest) (contentapp.Banner
 		Position:     request.Position,
 		TitleJSON:    request.TitleJSON,
 		SubtitleJSON: request.SubtitleJSON,
+		CTATextJSON:  request.CTATextJSON,
+		BuyTextJSON:  request.BuyTextJSON,
+		BuyLink:      request.BuyLink,
+		Tone:         request.Tone,
 		Image:        request.Image,
 		MobileImage:  request.MobileImage,
 		LinkType:     request.LinkType,

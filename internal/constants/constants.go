@@ -224,6 +224,7 @@ const (
 const (
 	PostTypeBlog   = "blog"
 	PostTypeNotice = "notice"
+	PostTypePage   = "page"
 )
 
 // 商品购买身份常量
@@ -465,6 +466,7 @@ const (
 
 // 设置键常量
 const (
+	SettingKeyHomeLayout               = "home_layout"
 	SettingKeySiteConfig               = "site_config"
 	SettingKeyOrderConfig              = "order_config"
 	SettingKeySMTPConfig               = "smtp_config"
@@ -532,6 +534,7 @@ const (
 const (
 	StorefrontTemplateClassic = "classic"
 	StorefrontTemplateVault   = "vault"
+	StorefrontTemplateApple   = "apple"
 	StorefrontTemplateDefault = StorefrontTemplateClassic
 )
 

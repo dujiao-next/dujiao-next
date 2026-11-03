@@ -90,8 +90,9 @@ func TestMediaServiceDeletesMetadataBeforeBestEffortFileRemoval(t *testing.T) {
 }
 
 type postStoreStub struct {
-	created *domain.Post
-	post    *domain.Post
+	created   *domain.Post
+	post      *domain.Post
+	lastQuery contract.PostQuery
 }
 
 var (
@@ -99,7 +100,8 @@ var (
 	_ contract.PostProductRelationStore = (*postStoreStub)(nil)
 )
 
-func (s *postStoreStub) List(context.Context, contract.PostQuery) ([]domain.Post, int64, error) {
+func (s *postStoreStub) List(_ context.Context, query contract.PostQuery) ([]domain.Post, int64, error) {
+	s.lastQuery = query
 	return nil, 0, nil
 }
 func (s *postStoreStub) WithinPostWriteTransaction(_ context.Context, operation func(contract.PostStore, contract.PostProductRelationStore) error) error {

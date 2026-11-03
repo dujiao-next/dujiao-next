@@ -51,6 +51,9 @@ func (s *PostStore) List(ctx context.Context, query contract.PostQuery) ([]domai
 	if query.Type != "" {
 		statement = statement.Where("type = ?", query.Type)
 	}
+	if len(query.ExcludeTypes) > 0 {
+		statement = statement.Where("type NOT IN ?", query.ExcludeTypes)
+	}
 	if search := strings.TrimSpace(query.Search); search != "" {
 		like := "%" + search + "%"
 		condition, argCount := gormutil.BuildLocalizedLikeCondition(db, []string{"slug"}, []string{"title_json"})

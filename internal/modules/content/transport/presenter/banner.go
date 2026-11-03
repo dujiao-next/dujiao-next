@@ -16,6 +16,10 @@ type BannerResp struct {
 	LinkType     string       `json:"link_type"`
 	LinkValue    string       `json:"link_value,omitempty"`
 	OpenInNewTab bool         `json:"open_in_new_tab"`
+	CTAText      jsonmap.JSON `json:"cta_text"`
+	BuyText      jsonmap.JSON `json:"buy_text"`
+	BuyLink      string       `json:"buy_link"`
+	Tone         string       `json:"tone"`
 }
 
 // NewBannerResp 从 Content 横幅领域对象构造响应。
@@ -25,6 +29,10 @@ func NewBannerResp(b *contentdomain.Banner) BannerResp {
 		Position:     b.Position,
 		Title:        b.TitleJSON,
 		Subtitle:     b.SubtitleJSON,
+		CTAText:      b.CTATextJSON,
+		BuyText:      b.BuyTextJSON,
+		BuyLink:      b.BuyLink,
+		Tone:         b.Tone,
 		Image:        b.Image,
 		MobileImage:  b.MobileImage,
 		LinkType:     b.LinkType,

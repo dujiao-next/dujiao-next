@@ -13,6 +13,7 @@ type PostQuery struct {
 	Page          int
 	PageSize      int
 	Type          string
+	ExcludeTypes  []string
 	Search        string
 	OnlyPublished bool
 	Order         PostOrder

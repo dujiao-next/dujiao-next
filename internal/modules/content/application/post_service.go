@@ -11,15 +11,17 @@ import (
 
 // CreatePostInput 描述文章创建和更新所需字段。
 type CreatePostInput struct {
-	Slug        string
-	Type        string
-	TitleJSON   map[string]interface{}
-	SummaryJSON map[string]interface{}
-	ContentJSON map[string]interface{}
-	Thumbnail   string
-	IsPublished *bool
-	ProductIDs  *[]uint
-	CategoryID  *uint
+	Slug          string
+	Type          string
+	TitleJSON     map[string]interface{}
+	SummaryJSON   map[string]interface{}
+	ContentJSON   map[string]interface{}
+	Layout        string
+	ContentBlocks map[string]interface{}
+	Thumbnail     string
+	IsPublished   *bool
+	ProductIDs    *[]uint
+	CategoryID    *uint
 }
 
 // PublicPostQuery 描述公开文章列表查询。
@@ -61,10 +63,16 @@ func NewPostService(posts contract.PostStore, relations contract.PostProductRela
 
 // ListPublic 获取公开文章列表。
 func (s *PostService) ListPublic(ctx context.Context, query PublicPostQuery) ([]domain.Post, int64, error) {
+	exclude := []string(nil)
+	if query.Type == "" {
+		// 页面型内容（首页等）不进入文章列表
+		exclude = []string{constants.PostTypePage}
+	}
 	return s.posts.List(ctx, contract.PostQuery{
 		Page:          query.Page,
 		PageSize:      query.PageSize,
 		Type:          query.Type,
+		ExcludeTypes:  exclude,
 		Search:        query.Search,
 		OnlyPublished: true,
 		Order:         contract.PostOrderPublishedDesc,
@@ -117,14 +125,16 @@ func (s *PostService) Create(ctx context.Context, input CreatePostInput) (*domai
 		isPublished = *input.IsPublished
 	}
 	post := domain.Post{
-		Slug:        input.Slug,
-		Type:        input.Type,
-		TitleJSON:   jsonmap.JSON(input.TitleJSON),
-		SummaryJSON: jsonmap.JSON(input.SummaryJSON),
-		ContentJSON: jsonmap.JSON(input.ContentJSON),
-		Thumbnail:   input.Thumbnail,
-		IsPublished: isPublished,
-		CategoryID:  categoryID,
+		Slug:          input.Slug,
+		Type:          input.Type,
+		TitleJSON:     jsonmap.JSON(input.TitleJSON),
+		SummaryJSON:   jsonmap.JSON(input.SummaryJSON),
+		ContentJSON:   jsonmap.JSON(input.ContentJSON),
+		Layout:        normalizePostLayout(input.Layout),
+		ContentBlocks: jsonmap.JSON(input.ContentBlocks),
+		Thumbnail:     input.Thumbnail,
+		IsPublished:   isPublished,
+		CategoryID:    categoryID,
 	}
 	if isPublished {
 		now := s.clock.Now()
@@ -176,6 +186,8 @@ func (s *PostService) Update(ctx context.Context, id string, input CreatePostInp
 	post.TitleJSON = jsonmap.JSON(input.TitleJSON)
 	post.SummaryJSON = jsonmap.JSON(input.SummaryJSON)
 	post.ContentJSON = jsonmap.JSON(input.ContentJSON)
+	post.Layout = normalizePostLayout(input.Layout)
+	post.ContentBlocks = jsonmap.JSON(input.ContentBlocks)
 	post.Thumbnail = input.Thumbnail
 	post.CategoryID = categoryID
 	if input.IsPublished != nil {
@@ -229,7 +241,17 @@ func (s *PostService) Delete(ctx context.Context, id string) error {
 }
 
 func isAllowedPostType(postType string) bool {
-	return postType == constants.PostTypeBlog || postType == constants.PostTypeNotice
+	return postType == constants.PostTypeBlog ||
+		postType == constants.PostTypeNotice ||
+		postType == constants.PostTypePage
+}
+
+// normalizePostLayout 归一化页面形态，默认 article（兼容旧数据）。
+func normalizePostLayout(layout string) string {
+	if layout == "blocks" {
+		return "blocks"
+	}
+	return "article"
 }
 
 func (s *PostService) validateCategoryAssignment(ctx context.Context, postType string, categoryID, currentCategoryID *uint) error {

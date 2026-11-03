@@ -3,6 +3,7 @@ package settingsapp
 import (
 	settingsvalue "github.com/dujiao-next/internal/modules/settings/schema/value"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/dujiao-next/internal/constants"
@@ -47,6 +48,8 @@ func normalizeSiteSetting(value map[string]interface{}) jsonmap.JSON {
 	normalized[constants.SettingFieldSiteCurrency] = normalizeSiteCurrency(value[constants.SettingFieldSiteCurrency])
 	normalized["template_mode"] = normalizeSiteTemplateMode(value["template_mode"])
 	normalized[constants.SettingFieldStorefrontTemplate] = normalizeStorefrontTemplate(value[constants.SettingFieldStorefrontTemplate])
+	normalized["home_tiles_tone"] = normalizeHomeTilesTone(value["home_tiles_tone"])
+	normalized["home_tiles"] = normalizeHomeTiles(value["home_tiles"])
 
 	if raw, ok := value["languages"]; ok {
 		normalized["languages"] = normalizeSiteLanguages(raw)
@@ -332,12 +335,16 @@ func normalizeSiteTemplateMode(raw interface{}) string {
 	return "card"
 }
 
-// normalizeStorefrontTemplate 归一化店面模板，允许 "classic" 或 "vault"，默认 "classic"。
+// normalizeStorefrontTemplate 归一化店面模板，允许 "classic" / "vault" / "apple"，默认 "classic"。
 func normalizeStorefrontTemplate(raw interface{}) string {
-	if normalizeSettingText(raw) == constants.StorefrontTemplateVault {
+	switch normalizeSettingText(raw) {
+	case constants.StorefrontTemplateVault:
 		return constants.StorefrontTemplateVault
+	case constants.StorefrontTemplateApple:
+		return constants.StorefrontTemplateApple
+	default:
+		return constants.StorefrontTemplateDefault
 	}
-	return constants.StorefrontTemplateDefault
 }
 
 func normalizeNavConfig(value map[string]interface{}) jsonmap.JSON {
@@ -517,4 +524,107 @@ func normalizeRegistrationSetting(value map[string]interface{}) jsonmap.JSON {
 	normalized[constants.SettingFieldRegistrationInviteOnly] = settingsvalue.ParseBool(value[constants.SettingFieldRegistrationInviteOnly])
 
 	return normalized
+}
+
+// normalizeHomeTilesTone 首页商品宫格底色，只允许 dark / light，默认 dark。
+func normalizeHomeTilesTone(raw interface{}) string {
+	switch strings.ToLower(normalizeSettingText(raw)) {
+	case "light":
+		return "light"
+	default:
+		return "dark"
+	}
+}
+
+// normalizeHomeTiles 首页商品版图配置：最多 8 条，每条 {product_id, tone}。
+func normalizeHomeTiles(raw interface{}) []interface{} {
+	list, ok := raw.([]interface{})
+	if !ok {
+		return []interface{}{}
+	}
+	result := make([]interface{}, 0, len(list))
+	for _, item := range list {
+		if len(result) >= 8 {
+			break
+		}
+		entry, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		id := 0
+		switch v := entry["product_id"].(type) {
+		case float64:
+			id = int(v)
+		case int:
+			id = v
+		case string:
+			if parsed, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
+				id = parsed
+			}
+		}
+		if id <= 0 {
+			continue
+		}
+		tone := "dark"
+		if strings.EqualFold(normalizeSettingText(entry["tone"]), "light") {
+			tone = "light"
+		}
+		entryOut := map[string]interface{}{"product_id": id, "tone": tone}
+		if img := strings.TrimSpace(normalizeSettingText(entry["image"])); img != "" {
+			entryOut["image"] = truncateRunes(img, 1000)
+		}
+		if mobile := strings.TrimSpace(normalizeSettingText(entry["mobile_image"])); mobile != "" {
+			entryOut["mobile_image"] = truncateRunes(mobile, 1000)
+		}
+		if eyebrow := strings.TrimSpace(normalizeSettingText(entry["eyebrow_text"])); eyebrow != "" {
+			entryOut["eyebrow_text"] = truncateRunes(eyebrow, 60)
+		}
+		if color := strings.TrimSpace(normalizeSettingText(entry["eyebrow_color"])); isHexColor(color) {
+			entryOut["eyebrow_color"] = color
+		}
+		for _, key := range []string{"cta_text", "buy_text", "cta_link", "buy_link"} {
+			if val := strings.TrimSpace(normalizeSettingText(entry[key])); val != "" {
+				entryOut[key] = truncateRunes(val, 1000)
+			}
+		}
+		result = append(result, entryOut)
+	}
+	return result
+}
+
+// NormalizeHomeLayout 首页装修配置（独立设置键，避免被站点配置保存覆盖）。
+func NormalizeHomeLayout(value jsonmap.JSON) jsonmap.JSON {
+	result := make(jsonmap.JSON, 2)
+	result["tiles"] = normalizeHomeTiles(value["tiles"])
+	// 只有显式传了 tone 才写入，否则交给站点设置里的「宫格默认底色」兜底
+	if raw, ok := value["tone"]; ok {
+		if text := strings.ToLower(normalizeSettingText(raw)); text == "dark" || text == "light" {
+			result["tone"] = text
+		}
+	}
+	return result
+}
+
+func truncateRunes(value string, limit int) string {
+	runes := []rune(value)
+	if len(runes) <= limit {
+		return value
+	}
+	return string(runes[:limit])
+}
+
+// isHexColor 只接受 #rgb / #rrggbb，避免把任意字符串写进样式。
+func isHexColor(value string) bool {
+	if len(value) != 4 && len(value) != 7 {
+		return false
+	}
+	if value[0] != '#' {
+		return false
+	}
+	for _, r := range value[1:] {
+		if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')) {
+			return false
+		}
+	}
+	return true
 }

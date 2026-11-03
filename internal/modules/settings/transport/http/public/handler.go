@@ -161,6 +161,10 @@ func (h *Handler) GetConfig(c *gin.Context) {
 	}
 	data["payment_channels"] = publicChannels
 
+	if layout, layoutErr := h.settings.GetByKey(constants.SettingKeyHomeLayout); layoutErr == nil && layout != nil {
+		data["home_layout"] = layout
+	}
+
 	walletRechargeChannelIDs := h.settings.GetWalletRechargeChannelIDs()
 	if len(walletRechargeChannelIDs) > 0 {
 		data["wallet_recharge_channel_ids"] = walletRechargeChannelIDs

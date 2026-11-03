@@ -360,12 +360,15 @@ func Load() *Config {
 		"default":  10,
 		"critical": 5,
 	})
-	viper.SetDefault("upload.max_size", 10485760)
+	// 默认 50MB：区块化页面需要上传短视频（mp4/webm），图片仍受 max_width/max_height 约束
+	viper.SetDefault("upload.max_size", 52428800)
 	viper.SetDefault("upload.allowed_types", []string{
 		"image/jpeg",
 		"image/png",
 		"image/gif",
 		"image/webp",
+		"video/mp4",
+		"video/webm",
 	})
 	viper.SetDefault("upload.allowed_extensions", []string{
 		".jpg",
@@ -373,6 +376,8 @@ func Load() *Config {
 		".png",
 		".gif",
 		".webp",
+		".mp4",
+		".webm",
 	})
 	viper.SetDefault("upload.max_width", 4096)
 	viper.SetDefault("upload.max_height", 4096)

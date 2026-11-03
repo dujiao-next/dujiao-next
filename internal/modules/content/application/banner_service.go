@@ -17,6 +17,10 @@ type BannerInput struct {
 	Position     string
 	TitleJSON    map[string]interface{}
 	SubtitleJSON map[string]interface{}
+	CTATextJSON  map[string]interface{}
+	BuyTextJSON  map[string]interface{}
+	BuyLink      string
+	Tone         string
 	Image        string
 	MobileImage  string
 	LinkType     string
@@ -162,6 +166,10 @@ func buildBannerEntity(input BannerInput, existing *domain.Banner) (*domain.Bann
 			Position:     position,
 			TitleJSON:    normalizeMultiLangJSON(input.TitleJSON),
 			SubtitleJSON: normalizeMultiLangJSON(input.SubtitleJSON),
+			CTATextJSON:  normalizeMultiLangJSON(input.CTATextJSON),
+			BuyTextJSON:  normalizeMultiLangJSON(input.BuyTextJSON),
+			BuyLink:      strings.TrimSpace(input.BuyLink),
+			Tone:         normalizeBannerTone(input.Tone),
 			Image:        image,
 			MobileImage:  strings.TrimSpace(input.MobileImage),
 			LinkType:     linkType,
@@ -185,6 +193,10 @@ func buildBannerEntity(input BannerInput, existing *domain.Banner) (*domain.Bann
 	existing.Position = position
 	existing.TitleJSON = normalizeMultiLangJSON(input.TitleJSON)
 	existing.SubtitleJSON = normalizeMultiLangJSON(input.SubtitleJSON)
+	existing.CTATextJSON = normalizeMultiLangJSON(input.CTATextJSON)
+	existing.BuyTextJSON = normalizeMultiLangJSON(input.BuyTextJSON)
+	existing.BuyLink = strings.TrimSpace(input.BuyLink)
+	existing.Tone = normalizeBannerTone(input.Tone)
 	existing.Image = image
 	existing.MobileImage = strings.TrimSpace(input.MobileImage)
 	existing.LinkType = linkType
@@ -237,4 +249,16 @@ func normalizeMultiLangJSON(raw map[string]interface{}) jsonmap.JSON {
 		result[key] = ""
 	}
 	return result
+}
+
+// normalizeBannerTone 只允许 dark / light，其余视为自动（空）。
+func normalizeBannerTone(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "dark":
+		return "dark"
+	case "light":
+		return "light"
+	default:
+		return ""
+	}
 }

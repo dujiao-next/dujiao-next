@@ -13,6 +13,10 @@ type Banner struct {
 	Position     string       `gorm:"type:varchar(60);not null;index" json:"position"`           // 投放位置
 	TitleJSON    jsonmap.JSON `gorm:"type:json" json:"title"`                                    // 多语言标题
 	SubtitleJSON jsonmap.JSON `gorm:"type:json" json:"subtitle"`                                 // 多语言副标题
+	CTATextJSON  jsonmap.JSON `gorm:"type:json" json:"cta_text"`                                 // 主按钮文字（多语言，可留空）
+	BuyTextJSON  jsonmap.JSON `gorm:"type:json" json:"buy_text"`                                 // 购买按钮文字（多语言，可留空）
+	BuyLink      string       `gorm:"type:varchar(1000)" json:"buy_link"`                        // 购买按钮跳转地址（可留空）
+	Tone         string       `gorm:"type:varchar(10)" json:"tone"`                              // 底色：dark / light / 空=自动
 	Image        string       `gorm:"type:varchar(500);not null" json:"image"`                   // 主图
 	MobileImage  string       `gorm:"type:varchar(500)" json:"mobile_image"`                     // 移动端图片
 	LinkType     string       `gorm:"type:varchar(20);not null;default:'none'" json:"link_type"` // 跳转类型
