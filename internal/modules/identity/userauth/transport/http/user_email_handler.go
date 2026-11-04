@@ -75,6 +75,8 @@ func (h *UserEmailHandler) SendChangeEmailCode(c *gin.Context) {
 			ginutil.RespondError(c, response.CodeBadRequest, "error.email_change_invalid", nil)
 		case errors.Is(err, ErrEmailChangeExists):
 			ginutil.RespondError(c, response.CodeBadRequest, "error.email_change_exists", nil)
+		case errors.Is(err, ErrEmailDomainNotAllowed):
+			ginutil.RespondError(c, response.CodeBadRequest, "error.email_domain_not_allowed", nil)
 		case errors.Is(err, ErrUserNotFound):
 			ginutil.RespondError(c, response.CodeNotFound, "error.user_not_found", nil)
 		case errors.Is(err, ErrVerifyCodeTooFrequent):
@@ -122,6 +124,8 @@ func (h *UserEmailHandler) ChangeEmail(c *gin.Context) {
 			ginutil.RespondError(c, response.CodeBadRequest, "error.email_change_invalid", nil)
 		case errors.Is(err, ErrEmailChangeExists):
 			ginutil.RespondError(c, response.CodeBadRequest, "error.email_change_exists", nil)
+		case errors.Is(err, ErrEmailDomainNotAllowed):
+			ginutil.RespondError(c, response.CodeBadRequest, "error.email_domain_not_allowed", nil)
 		case errors.Is(err, ErrVerifyCodeInvalid):
 			ginutil.RespondError(c, response.CodeBadRequest, "error.verify_code_invalid", nil)
 		case errors.Is(err, ErrVerifyCodeExpired):

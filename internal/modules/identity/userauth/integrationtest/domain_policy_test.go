@@ -185,3 +185,24 @@ func TestSendVerifyCodeFailedSendDoesNotBlockResend(t *testing.T) {
 		t.Fatalf("resend after failed send should succeed, got %v", err)
 	}
 }
+
+// 改邮箱必须与注册共用同一套域名白名单，否则可以用一次性邮箱绕过注册限制刷发信。
+func TestSendChangeEmailCodeRejectsEmailDomainNotAllowed(t *testing.T) {
+	svc, settings, _ := newRegistrationDomainPolicyAuthService(t)
+	if _, err := settings.Update(constants.SettingKeyRegistrationConfig, map[string]interface{}{
+		constants.SettingFieldEmailDomainAllowlistEnabled: true,
+		constants.SettingFieldAllowedEmailDomains:         []interface{}{"qq.com"},
+	}); err != nil {
+		t.Fatalf("update registration config failed: %v", err)
+	}
+
+	user, _, _, err := svc.Register("buyer@qq.com", "secret123", "", true, false)
+	if err != nil {
+		t.Fatalf("register should allow qq.com: %v", err)
+	}
+
+	err = svc.SendChangeEmailCode(context.Background(), user.ID, "new", "spam@maildrop.cc", constants.LocaleZhCN)
+	if !errors.Is(err, settingsapp.ErrEmailDomainNotAllowed) {
+		t.Fatalf("change email should reject disallowed domain, got %v", err)
+	}
+}

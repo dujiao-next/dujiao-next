@@ -248,6 +248,10 @@ func (s *Service) SendVerifyCode(ctx context.Context, email, purpose, locale, in
 		}
 	}
 
+	// 记录发码操作者，便于事后追溯。改邮箱这类高危操作尤其需要，
+	// 否则被刷时无法从记录反查是哪个账号。
+	var codeUserID *uint
+
 	if purpose == constants.VerifyPurposeReset {
 		user, err := s.userRepo.GetByEmail(normalized)
 		if err != nil {
@@ -259,6 +263,7 @@ func (s *Service) SendVerifyCode(ctx context.Context, email, purpose, locale, in
 		if strings.TrimSpace(user.Locale) != "" {
 			locale = user.Locale
 		}
+		codeUserID = &user.ID
 	}
 
 	if purpose == constants.VerifyPurposeTelegramBind {
@@ -272,9 +277,10 @@ func (s *Service) SendVerifyCode(ctx context.Context, email, purpose, locale, in
 		if strings.TrimSpace(user.Locale) != "" {
 			locale = user.Locale
 		}
+		codeUserID = &user.ID
 	}
 
-	return s.sendVerifyCode(ctx, normalized, purpose, locale)
+	return s.sendVerifyCode(ctx, normalized, purpose, locale, codeUserID)
 }
 
 // Register 用户注册
@@ -543,7 +549,7 @@ func (s *Service) verifyCode(email, purpose, code string) (*emailverificationdom
 	return record, nil
 }
 
-func (s *Service) sendVerifyCode(ctx context.Context, email, purpose, locale string) error {
+func (s *Service) sendVerifyCode(ctx context.Context, email, purpose, locale string, userID *uint) error {
 	latest, err := s.codeRepo.GetLatest(email, purpose)
 	if err != nil {
 		return err
@@ -570,6 +576,7 @@ func (s *Service) sendVerifyCode(ctx context.Context, email, purpose, locale str
 
 	record := &emailverificationdomain.Code{
 		Email:     email,
+		UserID:    userID,
 		Purpose:   strings.ToLower(purpose),
 		Code:      code,
 		ExpiresAt: now.Add(time.Duration(resolveExpireMinutes(s.cfg.Email.VerifyCode)) * time.Minute),

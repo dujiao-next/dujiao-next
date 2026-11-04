@@ -169,7 +169,7 @@ func (s *Service) SendChangeEmailCode(ctx context.Context, userID uint, kind, ne
 		if mode == EmailChangeModeBindOnly {
 			return ErrEmailChangeInvalid
 		}
-		return s.sendVerifyCode(ctx, user.Email, constants.VerifyPurposeChangeEmailOld, locale)
+		return s.sendVerifyCode(ctx, user.Email, constants.VerifyPurposeChangeEmailOld, locale, &user.ID)
 	case "new":
 		normalized, err := normalizeUserSuppliedEmail(newEmail)
 		if err != nil {
@@ -178,6 +178,11 @@ func (s *Service) SendChangeEmailCode(ctx context.Context, userID uint, kind, ne
 		if strings.EqualFold(normalized, user.Email) {
 			return ErrEmailChangeInvalid
 		}
+		// 与注册共用同一套域名白名单：否则改邮箱可以绕过注册的限制，
+		// 用一次性邮箱（maildrop.cc / guerrillamail 等）发码刷信。
+		if err := s.checkRegistrationEmailDomain(normalized); err != nil {
+			return err
+		}
 		exist, err := s.userRepo.GetByEmail(normalized)
 		if err != nil {
 			return err
@@ -185,7 +190,7 @@ func (s *Service) SendChangeEmailCode(ctx context.Context, userID uint, kind, ne
 		if exist != nil {
 			return ErrEmailChangeExists
 		}
-		return s.sendVerifyCode(ctx, normalized, constants.VerifyPurposeChangeEmailNew, locale)
+		return s.sendVerifyCode(ctx, normalized, constants.VerifyPurposeChangeEmailNew, locale, &user.ID)
 	default:
 		return ErrEmailChangeInvalid
 	}
@@ -214,6 +219,10 @@ func (s *Service) ChangeEmail(userID uint, newEmail, oldCode, newCode string) (*
 	}
 	if strings.EqualFold(normalized, user.Email) {
 		return nil, ErrEmailChangeInvalid
+	}
+	// 兜底：即使发码时已校验，真正落库前再查一次，防止配置在两步之间被改。
+	if err := s.checkRegistrationEmailDomain(normalized); err != nil {
+		return nil, err
 	}
 	exist, err := s.userRepo.GetByEmail(normalized)
 	if err != nil {
