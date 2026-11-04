@@ -172,9 +172,8 @@ func ValidateConfig(cfg *Config) error {
 	if _, err := url.ParseRequestURI(sanitizeURLForValidation(cfg.CancelURL)); err != nil {
 		return fmt.Errorf("%w: cancel_url is invalid", ErrConfigInvalid)
 	}
-	if len(cfg.PaymentMethodTypes) == 0 {
-		return fmt.Errorf("%w: payment_method_types is empty", ErrConfigInvalid)
-	}
+	// payment_method_types 允许为空：空值表示使用 Stripe Dashboard 动态支付方式（新版 API 推荐做法）。
+	// 非空时各项由 Normalize() 已 trim/lowercase，此处无需再校验单项格式。
 	return nil
 }
 
@@ -547,23 +546,18 @@ func (c *Config) Normalize() {
 	if c.WebhookToleranceSeconds <= 0 {
 		c.WebhookToleranceSeconds = defaultWebhookToleranceS
 	}
-	if len(c.PaymentMethodTypes) == 0 {
-		c.PaymentMethodTypes = []string{"card"}
-	} else {
-		normalized := make([]string, 0, len(c.PaymentMethodTypes))
-		for _, item := range c.PaymentMethodTypes {
-			trimmed := strings.ToLower(strings.TrimSpace(item))
-			if trimmed == "" {
-				continue
-			}
-			normalized = append(normalized, trimmed)
+	// payment_method_types 为空时保持空列表，表示使用 Stripe Dashboard 动态支付方式（新版 API 推荐）。
+	// 非空时做 trim/lowercase/去重，不再 fallback 到 ["card"]。
+	normalized := make([]string, 0, len(c.PaymentMethodTypes))
+	for _, item := range c.PaymentMethodTypes {
+		trimmed := strings.ToLower(strings.TrimSpace(item))
+		if trimmed == "" {
+			continue
 		}
-		if len(normalized) == 0 {
-			normalized = []string{"card"}
-		}
-		sort.Strings(normalized)
-		c.PaymentMethodTypes = normalized
+		normalized = append(normalized, trimmed)
 	}
+	sort.Strings(normalized)
+	c.PaymentMethodTypes = normalized
 	c.ExchangeRateConfig.NormalizeExchangeRate()
 }
 
