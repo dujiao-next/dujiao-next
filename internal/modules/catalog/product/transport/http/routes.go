@@ -28,3 +28,24 @@ func RegisterAdminRoutes(admin gin.IRoutes, handler *AdminProductHandler) {
 	admin.POST("/products/batch-stock-display", handler.BatchUpdateProductStockDisplay)
 	admin.POST("/products/batch-delete", handler.BatchDeleteProducts)
 }
+
+// RegisterPublicCompareRoutes 注册公开对比路由。
+func RegisterPublicCompareRoutes(public gin.IRoutes, handler *PublicCompareHandler) {
+	if public == nil || handler == nil {
+		panic("catalog product public compare routes: required dependency is nil")
+	}
+	public.GET("/products/:slug/compare", handler.GetProductCompare)
+	public.GET("/compare", handler.GetCompareByIDs)
+}
+
+// RegisterAdminCompareGroupRoutes 注册后台对比维度组路由。
+func RegisterAdminCompareGroupRoutes(admin gin.IRoutes, handler *AdminCompareGroupHandler) {
+	if admin == nil || handler == nil {
+		panic("catalog product admin compare group routes: required dependency is nil")
+	}
+	admin.GET("/compare-groups", handler.GetCompareGroups)
+	admin.GET("/compare-groups/:id", handler.GetCompareGroup)
+	admin.POST("/compare-groups", handler.CreateCompareGroup)
+	admin.PUT("/compare-groups/:id", handler.UpdateCompareGroup)
+	admin.DELETE("/compare-groups/:id", handler.DeleteCompareGroup)
+}

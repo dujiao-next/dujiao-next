@@ -16,6 +16,7 @@ import (
 // AdminPostUseCases 是后台 Content Handler 实际需要的文章能力。
 type AdminPostUseCases interface {
 	ListAdmin(ctx context.Context, query contentapp.AdminPostQuery) ([]contentdomain.Post, int64, error)
+	GetAdmin(ctx context.Context, id string) (*contentdomain.Post, error)
 	Create(ctx context.Context, input contentapp.CreatePostInput) (*contentdomain.Post, error)
 	Update(ctx context.Context, id string, input contentapp.CreatePostInput) (*contentdomain.Post, error)
 	Delete(ctx context.Context, id string) error
@@ -76,6 +77,20 @@ func (h *AdminHandler) GetAdminPosts(c *gin.Context) {
 		return
 	}
 	response.SuccessWithPage(c, posts, response.BuildPagination(page, pageSize, total))
+}
+
+// GetAdminPost 获取单篇文章详情。
+func (h *AdminHandler) GetAdminPost(c *gin.Context) {
+	post, err := h.posts.GetAdmin(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		if errors.Is(err, contentcontract.ErrNotFound) {
+			ginutil.RespondError(c, response.CodeNotFound, "error.post_not_found", nil)
+			return
+		}
+		ginutil.RespondError(c, response.CodeInternal, "error.post_fetch_failed", err)
+		return
+	}
+	response.Success(c, post)
 }
 
 // CreatePost 创建文章。

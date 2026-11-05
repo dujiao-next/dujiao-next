@@ -21,14 +21,23 @@ func (value JSON) Value() (driver.Value, error) {
 }
 
 // Scan implements sql.Scanner.
+//
+// SQLite/PostgreSQL 驱动对 JSON 列可能返回 []byte，也可能返回 string
+// （例如手工用 sqlite3 写入、或 TEXT 亲和性的列），两种都要认，
+// 否则会静默扫成 nil —— 页面区块会“凭空消失”而没有任何报错。
 func (value *JSON) Scan(source interface{}) error {
 	if source == nil {
 		*value = make(JSON)
 		return nil
 	}
-	bytes, ok := source.([]byte)
-	if !ok {
+	var raw []byte
+	switch typed := source.(type) {
+	case []byte:
+		raw = typed
+	case string:
+		raw = []byte(typed)
+	default:
 		return nil
 	}
-	return json.Unmarshal(bytes, value)
+	return json.Unmarshal(raw, value)
 }

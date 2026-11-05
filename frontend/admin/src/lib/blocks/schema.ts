@@ -18,6 +18,10 @@ export interface FieldDef {
   default?: any
   /** 字段下方的尺寸/安全区提示（admin.blocks.hints.*） */
   hintKey?: string
+  /** 属性面板分组：内容（默认）/ 外观 / 链接 */
+  group?: 'content' | 'look' | 'link'
+  /** 多行文本（标题这类可以按回车换行的字段） */
+  multiline?: boolean
 }
 
 export interface BlockDef {
@@ -32,6 +36,7 @@ const themeField: FieldDef = {
   key: 'theme',
   labelKey: 'theme',
   kind: 'select',
+  group: 'look',
   options: [
     { value: 'dark', labelKey: 'themeDark' },
     { value: 'light', labelKey: 'themeLight' },
@@ -51,6 +56,7 @@ const ctaList: FieldDef = {
   key: 'ctas',
   labelKey: 'ctas',
   kind: 'list',
+  group: 'link',
   itemDefault: () => ({ label: i18nEmpty(), url: '', style: 'primary' }),
   fields: [
     { key: 'label', labelKey: 'ctaLabel', kind: 'i18n' },
@@ -78,7 +84,7 @@ export const blockDefs: BlockDef[] = [
       {
         key: 'variant',
         labelKey: 'variant',
-        kind: 'select',
+        group: 'look', kind: 'select',
         options: [
           { value: 'stacked', labelKey: 'variantStacked' },
           { value: 'overlay', labelKey: 'variantOverlay' },
@@ -86,8 +92,8 @@ export const blockDefs: BlockDef[] = [
         default: 'stacked',
       },
       { key: 'eyebrow', labelKey: 'eyebrow', kind: 'i18n' },
-      { key: 'title', labelKey: 'title', kind: 'i18n', default: i18nEmpty() },
-      { key: 'subtitle', labelKey: 'subtitle', kind: 'i18n' },
+      { key: 'title', labelKey: 'title', kind: 'i18n', multiline: true, default: i18nEmpty() },
+      { key: 'subtitle', labelKey: 'subtitle', kind: 'i18n', multiline: true },
         mediaWith('hintHero'),
       ctaList,
     ],
@@ -104,8 +110,8 @@ export const blockDefs: BlockDef[] = [
         fields: [
           themeField,
           { key: 'eyebrow', labelKey: 'eyebrow', kind: 'i18n' },
-          { key: 'title', labelKey: 'title', kind: 'i18n' },
-          { key: 'subtitle', labelKey: 'subtitle', kind: 'i18n' },
+          { key: 'title', labelKey: 'title', kind: 'i18n', multiline: true },
+          { key: 'subtitle', labelKey: 'subtitle', kind: 'i18n', multiline: true },
         mediaWith('hintPromo'),
           ctaList,
         ],
@@ -117,9 +123,9 @@ export const blockDefs: BlockDef[] = [
     labelKey: 'sectionHeader',
     fields: [
       { key: 'eyebrow', labelKey: 'eyebrow', kind: 'i18n' },
-      { key: 'accent', labelKey: 'accent', kind: 'text', placeholderKey: '#c76a00' },
-      { key: 'title', labelKey: 'title', kind: 'i18n' },
-      { key: 'lead', labelKey: 'lead', kind: 'i18n' },
+      { key: 'accent', labelKey: 'accent', group: 'look', kind: 'text', placeholderKey: '#c76a00' },
+      { key: 'title', labelKey: 'title', kind: 'i18n', multiline: true },
+      { key: 'lead', labelKey: 'lead', kind: 'i18n', multiline: true },
     ],
   },
   {
@@ -129,6 +135,7 @@ export const blockDefs: BlockDef[] = [
       {
         key: 'columns',
         labelKey: 'columns',
+        group: 'look',
         kind: 'select',
         options: [
           { value: '2', labelKey: 'col2' },
@@ -144,7 +151,7 @@ export const blockDefs: BlockDef[] = [
         itemDefault: () => ({ title: i18nEmpty(), body: i18nEmpty() }),
         fields: [
         mediaWith('hintCard'),
-          { key: 'title', labelKey: 'title', kind: 'i18n' },
+          { key: 'title', labelKey: 'title', kind: 'i18n', multiline: true },
           { key: 'body', labelKey: 'body', kind: 'i18n' },
         ],
       },
@@ -154,8 +161,8 @@ export const blockDefs: BlockDef[] = [
     type: 'cardScroller',
     labelKey: 'cardScroller',
     fields: [
-      { key: 'title', labelKey: 'title', kind: 'i18n' },
-      { key: 'secondary', labelKey: 'secondary', kind: 'i18n' },
+      { key: 'title', labelKey: 'title', kind: 'i18n', multiline: true },
+      { key: 'secondary', labelKey: 'secondary', kind: 'i18n', multiline: true },
       {
         key: 'cards',
         labelKey: 'cards',
@@ -164,9 +171,9 @@ export const blockDefs: BlockDef[] = [
         fields: [
         mediaWith('hintCard'),
           { key: 'label', labelKey: 'label', kind: 'i18n' },
-          { key: 'title', labelKey: 'title', kind: 'i18n' },
+          { key: 'title', labelKey: 'title', kind: 'i18n', multiline: true },
           { key: 'body', labelKey: 'body', kind: 'i18n' },
-          { key: 'url', labelKey: 'url', kind: 'url' },
+          { key: 'url', labelKey: 'url', kind: 'url', group: 'link' },
         ],
       },
     ],
@@ -175,13 +182,13 @@ export const blockDefs: BlockDef[] = [
     type: 'gallery',
     labelKey: 'gallery',
     fields: [
-      { key: 'title', labelKey: 'title', kind: 'i18n' },
+      { key: 'title', labelKey: 'title', kind: 'i18n', multiline: true },
       {
         key: 'items',
         labelKey: 'galleryItems',
         kind: 'list',
         itemDefault: () => ({ caption: i18nEmpty() }),
-        fields: [mediaWith('hintGallery'), { key: 'caption', labelKey: 'caption', kind: 'i18n' }],
+        fields: [mediaWith('hintGallery'), { key: 'caption', labelKey: 'caption', kind: 'i18n', multiline: true }],
       },
     ],
   },
@@ -189,8 +196,8 @@ export const blockDefs: BlockDef[] = [
     type: 'compare',
     labelKey: 'compare',
     fields: [
-      { key: 'title', labelKey: 'title', kind: 'i18n' },
-      { key: 'subtitle', labelKey: 'lead', kind: 'i18n' },
+      { key: 'title', labelKey: 'title', kind: 'i18n', multiline: true },
+      { key: 'subtitle', labelKey: 'lead', kind: 'i18n', multiline: true },
       {
         key: 'columns',
         labelKey: 'compareColumns',
@@ -198,11 +205,11 @@ export const blockDefs: BlockDef[] = [
         itemDefault: () => ({ media: { kind: 'image', src: '', poster: '', mobileSrc: '' }, title: i18nEmpty(), subtitle: i18nEmpty(), price: '', ctaLabel: i18nEmpty(), ctaUrl: '' }),
         fields: [
           mediaWith('hintCard'),
-          { key: 'title', labelKey: 'title', kind: 'i18n' },
-          { key: 'subtitle', labelKey: 'caption', kind: 'i18n' },
+          { key: 'title', labelKey: 'title', kind: 'i18n', multiline: true },
+          { key: 'subtitle', labelKey: 'caption', kind: 'i18n', multiline: true },
           { key: 'price', labelKey: 'priceLabel', kind: 'text' },
-          { key: 'ctaLabel', labelKey: 'ctaLabel', kind: 'i18n' },
-          { key: 'ctaUrl', labelKey: 'ctaUrl', kind: 'url' },
+          { key: 'ctaLabel', labelKey: 'ctaLabel', kind: 'i18n', multiline: true },
+          { key: 'ctaUrl', labelKey: 'ctaUrl', kind: 'url', group: 'link' },
         ],
       },
       {
@@ -222,7 +229,7 @@ export const blockDefs: BlockDef[] = [
     labelKey: 'story',
     fields: [
       themeField,
-      { key: 'title', labelKey: 'title', kind: 'i18n' },
+      { key: 'title', labelKey: 'title', kind: 'i18n', multiline: true },
       {
         key: 'steps',
         labelKey: 'storySteps',
@@ -230,7 +237,7 @@ export const blockDefs: BlockDef[] = [
         itemDefault: () => ({ label: i18nEmpty(), title: i18nEmpty(), body: i18nEmpty(), media: { kind: 'image', src: '', poster: '', mobileSrc: '' } }),
         fields: [
           { key: 'label', labelKey: 'storyStepLabel', kind: 'i18n' },
-          { key: 'title', labelKey: 'title', kind: 'i18n' },
+          { key: 'title', labelKey: 'title', kind: 'i18n', multiline: true },
           { key: 'body', labelKey: 'body', kind: 'textarea' },
           mediaWith('hintStory'),
         ],
@@ -241,8 +248,8 @@ export const blockDefs: BlockDef[] = [
     type: 'video',
     labelKey: 'video',
     fields: [
-      { key: 'title', labelKey: 'title', kind: 'i18n' },
-      { key: 'caption', labelKey: 'caption', kind: 'i18n' },
+      { key: 'title', labelKey: 'title', kind: 'i18n', multiline: true },
+      { key: 'caption', labelKey: 'caption', kind: 'i18n', multiline: true },
         mediaWith('hintVideo'),
     ],
   },
@@ -250,10 +257,11 @@ export const blockDefs: BlockDef[] = [
     type: 'specs',
     labelKey: 'specs',
     fields: [
-      { key: 'title', labelKey: 'title', kind: 'i18n' },
+      { key: 'title', labelKey: 'title', kind: 'i18n', multiline: true },
       {
         key: 'columns',
         labelKey: 'columns',
+        group: 'look',
         kind: 'select',
         options: [
           { value: '2', labelKey: 'col2' },
@@ -268,7 +276,7 @@ export const blockDefs: BlockDef[] = [
         itemDefault: () => ({ label: i18nEmpty(), value: i18nEmpty() }),
         fields: [
           { key: 'label', labelKey: 'label', kind: 'i18n' },
-          { key: 'value', labelKey: 'value', kind: 'i18n' },
+          { key: 'value', labelKey: 'value', kind: 'i18n', multiline: true },
         ],
       },
     ],
@@ -277,9 +285,9 @@ export const blockDefs: BlockDef[] = [
     type: 'cta',
     labelKey: 'cta',
     fields: [
-      { key: 'title', labelKey: 'title', kind: 'i18n' },
-      { key: 'subtitle', labelKey: 'subtitle', kind: 'i18n' },
-      { key: 'price', labelKey: 'price', kind: 'text', placeholderKey: '9.00 CNY' },
+      { key: 'title', labelKey: 'title', kind: 'i18n', multiline: true },
+      { key: 'subtitle', labelKey: 'subtitle', kind: 'i18n', multiline: true },
+      { key: 'price', labelKey: 'price', group: 'look', kind: 'text', placeholderKey: '9.00 CNY' },
         mediaWith('hintCard'),
       ctaList,
     ],

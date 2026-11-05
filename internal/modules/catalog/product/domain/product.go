@@ -19,6 +19,9 @@ type Product struct {
 	DescriptionJSON      jsonmap.JSON        `gorm:"type:json" json:"description"`                                        // 多语言描述
 	ContentJSON          jsonmap.JSON        `gorm:"type:json" json:"content"`                                            // 多语言详情（Markdown）
 	InstructionsJSON     jsonmap.JSON        `gorm:"type:json" json:"instructions"`                                       // 多语言交付后使用说明（仅订单详情可见）
+	CompareJSON          jsonmap.JSON        `gorm:"type:json" json:"compare"`                                            // 商品对比配置（维度组、取值、和谁比）
+	FaqJSON              jsonmap.JSON        `gorm:"type:json" json:"faq"`                                                // 常见问题（{items:[...]}）
+	InBoxJSON            jsonmap.JSON        `gorm:"type:json" json:"in_box"`                                             // 包装内容（{image,items,note}）
 	PriceAmount          money.Amount        `gorm:"type:decimal(20,2);not null;default:0" json:"price_amount"`           // 价格金额
 	CostPriceAmount      money.Amount        `gorm:"type:decimal(20,2);not null;default:0" json:"cost_price_amount"`      // 成本价（取最低活跃SKU成本价）
 	WholesalePrices      WholesalePriceTiers `gorm:"type:json" json:"wholesale_prices"`                                   // 批发价阶梯
@@ -54,4 +57,34 @@ type Product struct {
 // TableName 指定表名
 func (Product) TableName() string {
 	return "products"
+}
+
+// CompareGroup 是商品对比维度组：一组对比项，同分类下的商品共用。
+//
+// 商品本身只存「值」（compare.values），维度定义放在这里，
+// 前台据此自动生成「哪款 xx 适合你」的对比表，不需要每页手画版式。
+type CompareGroup struct {
+	ID         uint         `gorm:"primarykey" json:"id"`
+	NameJSON   jsonmap.JSON `gorm:"type:json;not null" json:"name"`               // 组名（多语言）
+	CategoryID *uint        `gorm:"index" json:"category_id"`                     // 绑定分类，nil 表示全局可用
+	Dimensions jsonmap.JSON `gorm:"type:json" json:"dimensions"`                  // { items: [{key,label,icon,unit,type,group,visible,order}] }
+	IsActive   bool         `gorm:"not null;default:true;index" json:"is_active"` // 是否启用
+	SortOrder  int          `gorm:"not null;default:0;index" json:"sort_order"`   // 排序权重
+	CreatedAt  time.Time    `json:"created_at"`
+	UpdatedAt  time.Time    `json:"updated_at"`
+}
+
+// TableName 固定表名，避免 GORM 复数化差异。
+func (CompareGroup) TableName() string { return "compare_groups" }
+
+// CompareDimension 是对比维度（只用于 Go 侧读取，持久层仍是 JSON）。
+type CompareDimension struct {
+	Key     string       `json:"key"`
+	Label   jsonmap.JSON `json:"label"`
+	Icon    string       `json:"icon"`
+	Unit    string       `json:"unit"`
+	Type    string       `json:"type"`
+	Group   string       `json:"group"`
+	Visible bool         `json:"visible"`
+	Order   int          `json:"order"`
 }

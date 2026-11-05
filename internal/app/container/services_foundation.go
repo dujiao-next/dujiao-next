@@ -10,6 +10,7 @@ import (
 	affiliateapp "github.com/dujiao-next/internal/modules/affiliate/application"
 	captchaapp "github.com/dujiao-next/internal/modules/captcha/application"
 	captchaturnstile "github.com/dujiao-next/internal/modules/captcha/infrastructure/turnstile"
+	productadmin "github.com/dujiao-next/internal/modules/catalog/product/application/admin"
 	complianceapp "github.com/dujiao-next/internal/modules/compliance/application"
 	adminauthapp "github.com/dujiao-next/internal/modules/identity/adminauth/application"
 	admintotpapp "github.com/dujiao-next/internal/modules/identity/adminauth/totp/application"
@@ -140,5 +141,6 @@ func (c *Container) initIdentityAndCatalogServices() {
 	})
 	c.ProductReadService = productServices.Read
 	c.ProductAdminService = productServices.Admin
+	c.CompareGroupService = productadmin.NewCompareGroupService(c.CompareGroupRepo)
 	c.ProductWriteService = productServices.Write
 }

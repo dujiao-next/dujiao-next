@@ -1,15 +1,17 @@
 <template>
+  <!-- 允许 media 缺失：配方/新加的图库行常常还没选图，不能因此整段页面崩掉 -->
+  <div v-if="!resolved.src && resolved.kind !== 'video'" class="blk-media-empty" aria-hidden="true"></div>
   <img
-    v-if="media.kind !== 'video'"
+    v-else-if="resolved.kind !== 'video'"
     :src="src"
-    :alt="media.alt || ''"
+    :alt="resolved.alt || ''"
     loading="lazy"
   />
   <video
     v-else
     ref="videoEl"
-    :src="media.src"
-    :poster="media.poster"
+    :src="resolved.src"
+    :poster="resolved.poster"
     muted
     loop
     playsinline
@@ -21,9 +23,13 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import type { BlockMedia } from './types'
 
-const props = defineProps<{ media: BlockMedia; mobile?: boolean }>()
+const props = defineProps<{ media?: BlockMedia; mobile?: boolean }>()
 
-const src = computed(() => (props.mobile && props.media.mobileSrc) || props.media.src)
+const resolved = computed<BlockMedia>(
+  () => props.media || ({ kind: 'image', src: '' } as BlockMedia),
+)
+
+const src = computed(() => (props.mobile && resolved.value.mobileSrc) || resolved.value.src)
 
 /**
  * 视频只在进入视口时播放（苹果的做法）：
@@ -33,7 +39,7 @@ const videoEl = ref<HTMLVideoElement | null>(null)
 let observer: IntersectionObserver | null = null
 
 onMounted(() => {
-  if (props.media.kind !== 'video') return
+  if (resolved.value.kind !== 'video') return
   const el = videoEl.value
   if (!el) return
   if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return

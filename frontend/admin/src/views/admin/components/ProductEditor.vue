@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import type { AdminProduct, AdminCategory, AdminProductSKU, AdminPaymentChannel, LocalizedText } from '@/api/types'
 import MediaPicker from '@/components/admin/MediaPicker.vue'
+import ProductExtras from './ProductExtras.vue'
 import RichEditor from '@/components/RichEditor.vue'
 // image utils removed - MediaPicker handles image display
 import { Button } from '@/components/ui/button'
@@ -12,14 +13,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { notifyError } from '@/utils/notify'
 import { getLocalizedText } from '@/utils/format'
 import { buildAdminCategoryPath, createAdminCategoryChildCountMap, createAdminCategoryMap, flattenAdminCategories, isAdminProductCategorySelectable } from '@/utils/category'
 
 const props = defineProps<{
-  modelValue: boolean
   productId: number | null
   categories: AdminCategory[]
   siteCurrency: string
@@ -27,8 +26,8 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  'update:modelValue': [value: boolean]
-  success: []
+  cancel: []
+  saved: []
 }>()
 
 const { t, locale } = useI18n()
@@ -180,6 +179,9 @@ const form = reactive({
   is_active: true,
   sort_order: 0,
   manual_form_schema: { fields: [] as ManualFormField[] },
+  compare: {} as Record<string, any>,
+  faq: { items: [] as any[] } as Record<string, any>,
+  in_box: { items: [] as any[] } as Record<string, any>,
 })
 
 const loadPaymentChannels = async () => {
@@ -524,6 +526,9 @@ const resetForm = () => {
     is_active: true,
     sort_order: 0,
     manual_form_schema: { fields: [] },
+    compare: {},
+    faq: { items: [] },
+    in_box: { items: [] },
   })
 }
 
@@ -573,11 +578,14 @@ const populateForm = (product: AdminProduct) => {
     is_active: product.is_active ?? true,
     sort_order: Number(product.sort_order || 0),
     manual_form_schema: parseManualFormSchemaForEdit(product.manual_form_schema),
+    compare: (product as any).compare || {},
+    faq: (product as any).faq || { items: [] },
+    in_box: (product as any).in_box || { items: [] },
   })
 }
 
 const closeModal = () => {
-  emit('update:modelValue', false)
+  emit('cancel')
 }
 
 const handleSubmit = async () => {
@@ -648,6 +656,9 @@ const handleSubmit = async () => {
       is_active: form.is_active,
       sort_order: Number(form.sort_order) || 0,
       manual_form_schema: normalizeManualFormSchemaForSubmit(),
+      compare: form.compare || {},
+      faq: form.faq || { items: [] },
+      in_box: form.in_box || { items: [] },
     }
 
     if (isEditing.value) {
@@ -655,8 +666,7 @@ const handleSubmit = async () => {
     } else {
       await adminAPI.createProduct(payload as unknown as Partial<AdminProduct>)
     }
-    closeModal()
-    emit('success')
+    emit('saved')
   } catch (err: any) {
     if (isNotifiedError(err)) return
     notifyError(t('admin.products.errors.operationFailed', { message: err?.message || '' }))
@@ -680,7 +690,6 @@ const removeTag = (index: number) => {
 watch(
   () => props.productId,
   async (newId) => {
-    if (!props.modelValue) return
     currentLang.value = 'zh-CN'
     if (newId != null && newId > 0) {
       // Edit mode
@@ -701,12 +710,13 @@ watch(
       editingIsMapped.value = false
       resetForm()
     }
-  }
+  },
+  { immediate: true },
 )
 
 // Also handle when modal opens
 watch(
-  () => props.modelValue,
+  () => props.productId,
   (newVal) => {
     if (!newVal) return
     currentLang.value = 'zh-CN'
@@ -729,16 +739,17 @@ watch(
       editingIsMapped.value = false
       resetForm()
     }
-  }
+  },
+  { immediate: true },
 )
 </script>
 
 <template>
-  <Dialog :open="modelValue" @update:open="(value) => { if (!value) closeModal() }">
-    <DialogScrollContent class="w-[calc(100vw-1rem)] max-w-5xl p-4 sm:p-6" @interact-outside="(e) => e.preventDefault()">
-      <DialogHeader>
-        <DialogTitle>{{ isEditing ? t('admin.products.modal.editTitle') : t('admin.products.modal.createTitle') }}</DialogTitle>
-      </DialogHeader>
+  <div class="pe-root">
+    <div class="pe-body">
+      <div class="pe-head">
+        <h2 class="pe-title">{{ isEditing ? t('admin.products.modal.editTitle') : t('admin.products.modal.createTitle') }}</h2>
+      </div>
       <form class="space-y-6" @submit.prevent="handleSubmit">
         <div class="border-b border-border">
           <div class="flex gap-2 overflow-x-auto pb-1 sm:gap-4">
@@ -1137,13 +1148,40 @@ watch(
           </div>
         </div>
 
-        <div class="flex flex-col-reverse gap-3 border-t border-border pt-6 sm:flex-row sm:justify-end">
+        <!-- 商品页扩展内容：对比 / 常见问题 / 包装内容 -->
+        <div class="col-span-1 md:col-span-2 border-t border-border pt-4">
+          <p class="mb-2 text-xs font-medium text-muted-foreground">{{ t('admin.productExtras.sectionTitle') }}</p>
+          <ProductExtras
+            :lang="currentLang"
+            :categories="categoryOptions.map((item) => ({ id: item.category.id, name: item.category.name }))"
+            v-model:compare="form.compare"
+            v-model:faq="form.faq"
+            v-model:in-box="form.in_box"
+          />
+        </div>
+
+        <div class="sticky bottom-0 z-10 -mx-4 flex flex-col-reverse gap-3 border-t border-border bg-background/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:flex-row sm:justify-end sm:px-6">
           <Button type="button" variant="outline" class="w-full sm:w-auto" @click="closeModal">{{ t('admin.common.cancel') }}</Button>
           <Button type="submit" class="w-full sm:w-auto" :disabled="submitting">
             {{ submitting ? t('admin.products.actions.submitting') : isEditing ? t('admin.products.actions.saveChanges') : t('admin.products.actions.createNow') }}
           </Button>
         </div>
       </form>
-    </DialogScrollContent>
-  </Dialog>
+    </div>
+  </div>
 </template>
+
+<style scoped>
+.pe-root {
+  width: 100%;
+}
+.pe-head {
+  margin-bottom: 12px;
+}
+.pe-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+</style>

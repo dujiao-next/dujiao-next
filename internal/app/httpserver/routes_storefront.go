@@ -4,6 +4,7 @@ import (
 	"github.com/dujiao-next/internal/app/container"
 	"github.com/dujiao-next/internal/app/httpserver/middleware"
 	affiliatebootstrap "github.com/dujiao-next/internal/bootstrap/affiliate"
+	catalogproductbootstrap "github.com/dujiao-next/internal/bootstrap/catalogproduct"
 	"github.com/dujiao-next/internal/config"
 	affiliatetransport "github.com/dujiao-next/internal/modules/affiliate/transport/http"
 	apicredentialtransport "github.com/dujiao-next/internal/modules/apicredential/transport/http"
@@ -76,6 +77,8 @@ func registerStorefrontRoutes(
 	{
 		publicconfigtransport.RegisterPublicRoutes(public, publicConfigHandler)
 		producthttp.RegisterPublicRoutes(public, publicCatalogHandler)
+		producthttp.RegisterPublicCompareRoutes(public,
+			catalogproductbootstrap.NewPublicCompareHTTP(c.ProductReadService, c.ResellerStore, c.ProductRepo, c.CompareGroupRepo))
 		categoryhttp.RegisterPublicRoutes(public, publicCategoryHandler)
 		contenttransport.RegisterPublicRoutes(public, publicContentHandler)
 		captchatransport.RegisterPublicRoutes(public, captchatransport.NewPublicHandler(c.CaptchaService))

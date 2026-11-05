@@ -318,3 +318,69 @@ func (r *ProductStore) ReleaseManualStock(productID uint, quantity int) (int64, 
 func (r *ProductStore) ConsumeManualStock(productID uint, quantity int) (int64, error) {
 	return gormutil.ConsumeManualStock(r.db, &productdomain.Product{}, productID, quantity)
 }
+
+// CompareGroupStore 是对比维度组的 GORM 实现。
+type CompareGroupStore struct {
+	db *gorm.DB
+}
+
+var _ productcontract.CompareGroupRepository = (*CompareGroupStore)(nil)
+
+func NewCompareGroupStore(db *gorm.DB) *CompareGroupStore {
+	return &CompareGroupStore{db: db}
+}
+
+// ListActive 返回启用中的维度组。
+func (r *CompareGroupStore) ListActive() ([]productdomain.CompareGroup, error) {
+	var items []productdomain.CompareGroup
+	err := r.db.Where("is_active = ?", true).Order("sort_order asc, id asc").Find(&items).Error
+	return items, err
+}
+
+// ListAll 返回全部维度组（后台用）。
+func (r *CompareGroupStore) ListAll() ([]productdomain.CompareGroup, error) {
+	var items []productdomain.CompareGroup
+	err := r.db.Order("sort_order asc, id asc").Find(&items).Error
+	return items, err
+}
+
+// GetByID 按 ID 取维度组。
+func (r *CompareGroupStore) GetByID(id uint) (*productdomain.CompareGroup, error) {
+	var item productdomain.CompareGroup
+	if err := r.db.First(&item, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &item, nil
+}
+
+// GetByCategory 取某分类绑定的维度组。
+func (r *CompareGroupStore) GetByCategory(categoryID uint) (*productdomain.CompareGroup, error) {
+	var item productdomain.CompareGroup
+	err := r.db.Where("is_active = ? AND category_id = ?", true, categoryID).
+		Order("sort_order asc, id asc").First(&item).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &item, nil
+}
+
+// Create 新建维度组。
+func (r *CompareGroupStore) Create(item *productdomain.CompareGroup) error {
+	return r.db.Create(item).Error
+}
+
+// Update 更新维度组。
+func (r *CompareGroupStore) Update(item *productdomain.CompareGroup) error {
+	return r.db.Save(item).Error
+}
+
+// Delete 删除维度组。
+func (r *CompareGroupStore) Delete(id uint) error {
+	return r.db.Delete(&productdomain.CompareGroup{}, id).Error
+}

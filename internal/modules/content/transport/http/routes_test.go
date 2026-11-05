@@ -23,6 +23,7 @@ func TestContentRouteRegistrationContract(t *testing.T) {
 		http.MethodGet + " /api/v1/public/banners",
 		http.MethodGet + " /api/v1/public/post-categories",
 		http.MethodGet + " /api/v1/admin/posts",
+		http.MethodGet + " /api/v1/admin/posts/:id",
 		http.MethodPost + " /api/v1/admin/posts",
 		http.MethodPut + " /api/v1/admin/posts/:id",
 		http.MethodDelete + " /api/v1/admin/posts/:id",

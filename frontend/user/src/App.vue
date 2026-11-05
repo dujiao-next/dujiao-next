@@ -1,7 +1,10 @@
 <template>
   <div id="app" class="min-h-screen bg-background text-foreground flex flex-col">
     <!-- 首次访问还不知道站点用哪套模板时先不渲染外壳，等配置返回（见 shellReady） -->
-    <template v-if="shellReady">
+    <!-- 纯画布页（后台积木编辑器预览）不套外壳 -->
+    <RouterView v-if="isBarePage" />
+
+    <template v-else-if="shellReady">
       <!-- vault 模板：自带顶栏/页脚的外壳包裹页面（控制台仍走下方分支） -->
       <component :is="TemplateLayout" v-if="hasTemplateLayout && !isResellerConsole">
         <ErrorBoundary>
@@ -58,6 +61,7 @@ const AppleLayout = defineAsyncComponent(() => import('./templates/apple/layout/
 // config 由 router.beforeEach 统一加载，无需在此重复调用
 const appStore = useAppStore()
 const route = useRoute()
+const isBarePage = computed(() => route.meta?.bare === true)
 const isResellerConsole = computed(() => route.meta.resellerConsole === true)
 // getActiveTemplate 读取 appStore.config（响应式），config 加载后会重新计算
 const activeTemplate = computed(() => getActiveTemplate())

@@ -18,7 +18,6 @@ import TableSkeleton from '@/components/TableSkeleton.vue'
 import ListPagination from '@/components/ListPagination.vue'
 import type { ListFetchOptions } from '@/composables/useListRefresh'
 import { confirmAction } from '@/utils/confirm'
-import ProductEditModal from './components/ProductEditModal.vue'
 import { buildAdminCategoryPath, createAdminCategoryMap, createAdminCategoryChildCountMap, flattenAdminCategories, isAdminProductCategorySelectable } from '@/utils/category'
 import { formatWholesaleTierScopeLabel, wholesaleTierScopeValue } from '@/utils/wholesalePricing'
 
@@ -32,8 +31,6 @@ const categoryFilter = ref('all')
 const route = useRoute()
 const router = useRouter()
 
-const showModal = ref(false)
-const editingProductId = ref<number | null>(null)
 const editingSortId = ref<number | null>(null)
 const editingSortValue = ref('')
 const editingCategoryId = ref<number | null>(null)
@@ -361,19 +358,13 @@ const changePageSize = (size: number) => {
 }
 
 const openCreateModal = () => {
-  editingProductId.value = null
-  showModal.value = true
+  router.push({ name: 'product-create' })
 }
 
 const openEditById = (rawId: unknown) => {
   const id = Number(rawId)
   if (!Number.isFinite(id) || id <= 0) return
-  editingProductId.value = id
-  showModal.value = true
-}
-
-const handleModalSuccess = () => {
-  fetchProducts()
+  router.push({ name: 'product-edit', params: { id: String(id) } })
 }
 
 const handleDelete = async (product: AdminProduct) => {
@@ -784,13 +775,5 @@ watch(
       />
     </div>
 
-    <ProductEditModal
-      v-model="showModal"
-      :product-id="editingProductId"
-      :categories="orderedCategories"
-      :site-currency="siteCurrency"
-      :supported-locales="['zh-CN', 'zh-TW', 'en-US']"
-      @success="handleModalSuccess"
-    />
   </div>
 </template>

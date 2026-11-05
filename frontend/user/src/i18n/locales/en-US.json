@@ -224,7 +224,15 @@
     "addCartStockExceededWithCart": "Insufficient stock for this SKU. You can purchase up to {count} ({cartCount} already in cart)",
     "addCartLimitExceeded": "This product can be purchased up to {count} per order",
     "addCartLimitExceededWithCart": "This product can be purchased up to {count} per order ({cartCount} already in cart)",
-    "explore": "Explore"
+    "explore": "Explore",
+    "compareTitle": "Which one is right for you?",
+    "compareTitleWith": "Which {name} is right for you?",
+    "inBox": "What’s in the box",
+    "faq": "Frequently asked questions",
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all",
+    "compareAll": "Compare all",
+    "priceFrom": "from"
   },
   "quickBuy": {
     "title": "Quick Buy",
@@ -1768,5 +1776,13 @@
     "tileContactDesc": "Stuck on something? Talk to a human.",
     "learnMore": "Learn more",
     "buyNow": "Buy"
+  },
+  "comparePage": {
+    "title": "Compare",
+    "lead": "Comparing {count} products",
+    "empty": "No products selected yet.",
+    "pick": "Browse products",
+    "keepShopping": "Keep shopping",
+    "remove": "Remove"
   }
 }

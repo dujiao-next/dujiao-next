@@ -108,6 +108,8 @@ func registerAdminRoutes(
 
 	// 商品 / 分类管理
 	producthttp.RegisterAdminRoutes(authorized, adminCatalogProductHandler)
+	producthttp.RegisterAdminCompareGroupRoutes(authorized,
+		producthttp.NewAdminCompareGroupHandler(c.CompareGroupService))
 	contenttransport.RegisterAdminRoutes(authorized, adminContentHandler)
 	categoryhttp.RegisterAdminRoutes(authorized, adminCatalogCategoryHandler)
 

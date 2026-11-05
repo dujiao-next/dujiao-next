@@ -187,6 +187,46 @@
         </div>
       </section>
 
+      <!-- 哪款适合你（自动生成，版式对齐 apple.com.cn 购买页） -->
+      <section v-if="compareData && compareData.items?.length > 1" class="st-container pd-section">
+        <h2 class="pd-section-title">{{ compareTitle }}</h2>
+        <CompareSection :data="compareData" :price-suffix="t('productDetail.priceFrom')" />
+        <div v-if="compareData.items.length > 2" class="pd-compare-all-row">
+          <RouterLink
+            class="pd-compare-all"
+            :to="{ path: '/compare', query: { ids: compareData.items.map((i: any) => i.id).join(',') } }"
+          >{{ t('productDetail.compareAll') }} <ChevronRight class="h-3.5 w-3.5" /></RouterLink>
+        </div>
+      </section>
+
+      <!-- 包装内容 -->
+      <section v-if="boxItems.length || boxImage" class="st-container pd-section">
+        <h2 class="pd-section-title pd-section-title--center">{{ t('productDetail.inBox') }}</h2>
+        <div class="pd-box">
+          <img v-if="boxImage" class="pd-box-image" :src="getImageUrl(boxImage)" :alt="t('productDetail.inBox')" />
+          <div v-if="boxItems.length" class="pd-box-items">
+            <figure v-for="(item, index) in boxItems" :key="index" class="pd-box-item">
+              <img v-if="item.image" :src="getImageUrl(item.image)" :alt="getLocalizedText(item.label)" />
+              <figcaption>{{ getLocalizedText(item.label) }}</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- 常见问题 -->
+      <section v-if="faqItems.length" class="st-container pd-section">
+        <div class="pd-faq-head">
+          <h2 class="pd-section-title">{{ t('productDetail.faq') }}</h2>
+          <button type="button" class="pd-faq-all" :aria-expanded="allFaqOpen" @click="toggleAllFaq">
+            {{ allFaqOpen ? t('productDetail.collapseAll') : t('productDetail.expandAll') }}
+          </button>
+        </div>
+        <details v-for="(item, index) in faqItems" :key="item.id || index" class="pd-faq" :open="allFaqOpen || undefined">
+          <summary>{{ getLocalizedText(item.q) }}</summary>
+          <div class="pd-faq-body" v-html="faqAnswerHtml(item)" />
+        </details>
+      </section>
+
       <!-- 相关文章 -->
       <section v-if="relatedPosts.length" class="st-container pd-section">
         <h2 class="pd-section-title">{{ t('productDetail.relatedPosts') }}</h2>
@@ -237,17 +277,19 @@
 </template>
 
 <script setup lang="ts">
-import { onUnmounted, ref } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
+import { useHead } from '@unhead/vue'
 import { useI18n } from 'vue-i18n'
-import {
-  AlertCircle, ArrowLeft, ChevronRight, Minus, Package, Pencil, Plus,
-  ShoppingCart, Tag, TicketCheck, Zap,
-} from 'lucide-vue-next'
+import { AlertCircle, ArrowLeft, ChevronRight, Minus, Package, Pencil, Plus, ShoppingCart, Tag, TicketCheck, Zap } from 'lucide-vue-next'
+import { productAPI } from '../../api'
+import { getImageUrl } from '../../utils/image'
 import { processHtmlForDisplay } from '../../utils/content'
 import { useProductDetail } from '../../composables/useProductDetail'
 import VaultProductMobileBar from './components/VaultProductMobileBar.vue'
+import CompareSection from './components/CompareSection.vue'
 
 const { t } = useI18n()
+
 
 // 移动端固定购买条：IntersectionObserver 监听桌面购买区是否出屏
 const purchaseActionsRef = ref<HTMLElement | null>(null)
@@ -297,6 +339,66 @@ const {
   mobileBarShowSkuPrice, mobileBarSkuPriceDisplay,
   mobileBarShowProductPromotionPrice, mobileBarProductPromotionPriceDisplay, mobileBarProductPriceDisplay,
 } = useProductDetail({ onLoaded: () => setupMobileBarObserver() })
+
+/* ---------- 商品页扩展：对比 / 包装内容 / FAQ ---------- */
+const compareData = ref<any>(null)
+const allFaqOpen = ref(false)
+
+const faqItems = computed<any[]>(() => (product.value as any)?.faq?.items || [])
+const boxItems = computed<any[]>(() => (product.value as any)?.in_box?.items || [])
+const boxImage = computed<string>(() => (product.value as any)?.in_box?.image || '')
+const compareTitle = computed(() => {
+  // 有维度组名就直接当标题（后台自己起的名字），没有就退回通用文案
+  const name = compareData.value?.group_name
+  const groupName = name ? getLocalizedText(name) : ''
+  return groupName || t('productDetail.compareTitle')
+})
+
+/** FAQ 答案现在是富文本（HTML），走和商品详情同一套图片地址处理 */
+const faqAnswerHtml = (item: any) => processHtmlForDisplay(getLocalizedText(item.a))
+
+const toggleAllFaq = () => {
+  allFaqOpen.value = !allFaqOpen.value
+}
+
+/** FAQ 结构化数据：让 Google 出「常见问题」富摘要 */
+useHead(() => {
+  const items = faqItems.value
+  if (!items.length) return { script: [] as any[] }
+  const stripHtml = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+  return {
+    script: [
+      {
+        type: 'application/ld+json',
+        innerHTML: JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'FAQPage',
+          mainEntity: items.map((item: any) => ({
+            '@type': 'Question',
+            name: getLocalizedText(item.q),
+            acceptedAnswer: { '@type': 'Answer', text: stripHtml(getLocalizedText(item.a)) },
+          })),
+        }),
+      },
+    ],
+  }
+})
+
+watch(product, async (value) => {
+  const slug = (value as any)?.slug
+  if (!slug) return
+  const hasCompare = Boolean((value as any)?.compare?.group_id) || Boolean((value as any)?.compare)
+  if (!hasCompare) {
+    compareData.value = null
+    return
+  }
+  try {
+    const res = await productAPI.compare(slug)
+    compareData.value = res.data?.data || null
+  } catch {
+    compareData.value = null
+  }
+}, { immediate: true })
 
 onUnmounted(() => {
   if (observer) {
@@ -760,6 +862,219 @@ onUnmounted(() => {
 .pd-reassure svg {
   flex: none;
   color: var(--st-green);
+}
+
+/* ---------- 对比 / 包装内容 / FAQ ---------- */
+.pd-section-title--center {
+  text-align: center;
+}
+.pd-compare-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+.pd-compare-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--st-link, #06c);
+  font-size: 14px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.pd-compare-scroll {
+  overflow-x: auto;
+  margin-top: 28px;
+  -webkit-overflow-scrolling: touch;
+}
+.pd-compare {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+}
+.pd-compare th,
+.pd-compare td {
+  padding: 16px 18px;
+  text-align: center;
+  vertical-align: middle;
+  font-weight: 400;
+  font-size: 15px;
+}
+.pd-compare thead th {
+  vertical-align: bottom;
+  border-bottom: 1px solid color-mix(in srgb, var(--st-text) 10%, transparent);
+  padding-bottom: 20px;
+}
+.pd-compare-corner {
+  width: 200px;
+}
+.pd-compare-col img {
+  display: block;
+  width: 96px;
+  height: 96px;
+  margin: 0 auto 10px;
+  object-fit: contain;
+}
+.pd-compare-col.is-current {
+  background: color-mix(in srgb, var(--st-text) 3%, transparent);
+  border-radius: 14px 14px 0 0;
+}
+.pd-compare-name {
+  display: block;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.pd-compare-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--st-text-2);
+}
+.pd-compare-price {
+  display: block;
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--st-text-2);
+}
+.pd-compare-cta {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 4px 14px;
+  border-radius: 980px;
+  background: var(--st-blue, #0071e3);
+  color: #fff;
+  font-size: 12px;
+  text-decoration: none;
+}
+.pd-compare-label {
+  text-align: left;
+  font-weight: 500;
+  color: var(--st-text);
+  border-top: 1px solid color-mix(in srgb, var(--st-text) 8%, transparent);
+  white-space: nowrap;
+}
+.pd-compare-label .pd-compare-icon {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  vertical-align: -3px;
+  color: var(--st-text-2);
+}
+.pd-compare-label .pd-ico,
+.pd-compare-label .pd-ico svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+.pd-compare td {
+  border-top: 1px solid color-mix(in srgb, var(--st-text) 8%, transparent);
+  color: var(--st-text-2);
+  font-size: 14px;
+}
+.pd-compare td.is-current {
+  background: color-mix(in srgb, var(--st-text) 3%, transparent);
+  color: var(--st-text);
+}
+
+.pd-box {
+  margin-top: 24px;
+  padding: 40px;
+  border-radius: 18px;
+  background: var(--st-bg-alt);
+  text-align: center;
+}
+.pd-box-image {
+  display: block;
+  max-width: 100%;
+  margin: 0 auto;
+}
+.pd-box-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 32px;
+  justify-content: center;
+}
+.pd-box-item {
+  margin: 0;
+  max-width: 160px;
+}
+.pd-box-item img {
+  display: block;
+  width: 96px;
+  height: 96px;
+  margin: 0 auto 10px;
+  object-fit: contain;
+}
+.pd-box-item figcaption {
+  font-size: 13px;
+  color: var(--st-text-2);
+}
+
+.pd-faq-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+.pd-faq-all {
+  border: 0;
+  background: none;
+  color: var(--st-link, #06c);
+  font-size: 13px;
+  cursor: pointer;
+}
+.pd-faq {
+  border-top: 1px solid color-mix(in srgb, var(--st-text) 10%, transparent);
+  padding: 18px 0;
+}
+.pd-faq summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  list-style: none;
+  cursor: pointer;
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--st-text);
+}
+.pd-faq summary::-webkit-details-marker {
+  display: none;
+}
+.pd-faq summary::after {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg) translateY(-2px);
+  transition: transform 200ms ease;
+  opacity: 0.5;
+}
+.pd-faq[open] summary::after {
+  transform: rotate(225deg) translateY(-2px);
+}
+.pd-faq-body {
+  margin-top: 12px;
+  max-width: 68ch;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--st-text-2);
+}
+.pd-faq-body :deep(p) {
+  margin: 0 0 8px;
+}
+.pd-faq-body :deep(a) {
+  color: var(--st-link, #06c);
+}
+.pd-faq-body :deep(img) {
+  max-width: 100%;
+  border-radius: 10px;
 }
 
 /* ---------- 详情 / 相关文章 ---------- */

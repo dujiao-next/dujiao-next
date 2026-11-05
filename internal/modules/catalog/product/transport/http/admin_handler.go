@@ -2,6 +2,7 @@ package producthttp
 
 import (
 	"errors"
+	productadmin "github.com/dujiao-next/internal/modules/catalog/product/application/admin"
 	"strconv"
 	"strings"
 
@@ -220,6 +221,9 @@ type CreateProductRequest struct {
 	ContentJSON         map[string]interface{}   `json:"content"`
 	InstructionsJSON    map[string]interface{}   `json:"instructions"`
 	ManualFormSchema    map[string]interface{}   `json:"manual_form_schema"`
+	CompareJSON         map[string]interface{}   `json:"compare"`
+	FaqJSON             map[string]interface{}   `json:"faq"`
+	InBoxJSON           map[string]interface{}   `json:"in_box"`
 	PriceAmount         float64                  `json:"price_amount" binding:"required"`
 	CostPriceAmount     float64                  `json:"cost_price_amount"`
 	WholesalePrices     *[]WholesalePriceRequest `json:"wholesale_prices"`
@@ -293,6 +297,9 @@ func (h *AdminProductHandler) CreateProduct(c *gin.Context) {
 		ContentJSON:          req.ContentJSON,
 		InstructionsJSON:     req.InstructionsJSON,
 		ManualFormSchemaJSON: req.ManualFormSchema,
+		CompareJSON:          req.CompareJSON,
+		FaqJSON:              req.FaqJSON,
+		InBoxJSON:            req.InBoxJSON,
 		PriceAmount:          decimal.NewFromFloat(req.PriceAmount),
 		CostPriceAmount:      decimal.NewFromFloat(req.CostPriceAmount),
 		WholesalePrices:      toWholesalePriceInputs(req.WholesalePrices),
@@ -385,6 +392,9 @@ func (h *AdminProductHandler) UpdateProduct(c *gin.Context) {
 		ContentJSON:          req.ContentJSON,
 		InstructionsJSON:     req.InstructionsJSON,
 		ManualFormSchemaJSON: req.ManualFormSchema,
+		CompareJSON:          req.CompareJSON,
+		FaqJSON:              req.FaqJSON,
+		InBoxJSON:            req.InBoxJSON,
 		PriceAmount:          decimal.NewFromFloat(req.PriceAmount),
 		CostPriceAmount:      decimal.NewFromFloat(req.CostPriceAmount),
 		WholesalePrices:      toWholesalePriceInputs(req.WholesalePrices),
@@ -769,4 +779,135 @@ func (h *AdminProductHandler) DeleteProduct(c *gin.Context) {
 	}
 
 	response.Success(c, nil)
+}
+
+// CompareGroupService 是维度组后台用例所需的最小接口。
+type CompareGroupService interface {
+	List() ([]productdomain.CompareGroup, error)
+	Get(id uint) (*productdomain.CompareGroup, error)
+	Create(input productadmin.CompareGroupInput) (*productdomain.CompareGroup, error)
+	Update(id uint, input productadmin.CompareGroupInput) (*productdomain.CompareGroup, error)
+	Delete(id uint) error
+}
+
+// AdminCompareGroupHandler 处理后台对比维度组请求。
+type AdminCompareGroupHandler struct {
+	groups CompareGroupService
+}
+
+// NewAdminCompareGroupHandler 创建维度组 Handler。
+func NewAdminCompareGroupHandler(groups CompareGroupService) *AdminCompareGroupHandler {
+	if groups == nil {
+		panic("catalog admin compare group handler: use cases are nil")
+	}
+	return &AdminCompareGroupHandler{groups: groups}
+}
+
+// CompareGroupRequest 是维度组新建/更新请求。
+type CompareGroupRequest struct {
+	NameJSON   map[string]interface{} `json:"name"`
+	CategoryID *uint                  `json:"category_id"`
+	Dimensions map[string]interface{} `json:"dimensions"`
+	IsActive   *bool                  `json:"is_active"`
+	SortOrder  int                    `json:"sort_order"`
+}
+
+// GetCompareGroups 返回全部维度组。
+func (h *AdminCompareGroupHandler) GetCompareGroups(c *gin.Context) {
+	items, err := h.groups.List()
+	if err != nil {
+		ginutil.RespondError(c, response.CodeInternal, "error.compare_group_fetch_failed", err)
+		return
+	}
+	response.Success(c, items)
+}
+
+// GetCompareGroup 返回单个维度组。
+func (h *AdminCompareGroupHandler) GetCompareGroup(c *gin.Context) {
+	id, err := parseCompareGroupID(c)
+	if err != nil {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.invalid_id", nil)
+		return
+	}
+	item, err := h.groups.Get(id)
+	if err != nil {
+		ginutil.RespondError(c, response.CodeInternal, "error.compare_group_fetch_failed", err)
+		return
+	}
+	if item == nil {
+		ginutil.RespondError(c, response.CodeNotFound, "error.compare_group_not_found", nil)
+		return
+	}
+	response.Success(c, item)
+}
+
+// CreateCompareGroup 新建维度组。
+func (h *AdminCompareGroupHandler) CreateCompareGroup(c *gin.Context) {
+	var req CompareGroupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		ginutil.RespondBindError(c, err)
+		return
+	}
+	item, err := h.groups.Create(req.toInput())
+	if err != nil {
+		ginutil.RespondError(c, response.CodeInternal, "error.compare_group_create_failed", err)
+		return
+	}
+	response.Success(c, item)
+}
+
+// UpdateCompareGroup 更新维度组。
+func (h *AdminCompareGroupHandler) UpdateCompareGroup(c *gin.Context) {
+	id, err := parseCompareGroupID(c)
+	if err != nil {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.invalid_id", nil)
+		return
+	}
+	var req CompareGroupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		ginutil.RespondBindError(c, err)
+		return
+	}
+	item, err := h.groups.Update(id, req.toInput())
+	if err != nil {
+		if errors.Is(err, productcontract.ErrNotFound) {
+			ginutil.RespondError(c, response.CodeNotFound, "error.compare_group_not_found", nil)
+			return
+		}
+		ginutil.RespondError(c, response.CodeInternal, "error.compare_group_update_failed", err)
+		return
+	}
+	response.Success(c, item)
+}
+
+// DeleteCompareGroup 删除维度组。
+func (h *AdminCompareGroupHandler) DeleteCompareGroup(c *gin.Context) {
+	id, err := parseCompareGroupID(c)
+	if err != nil {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.invalid_id", nil)
+		return
+	}
+	if err := h.groups.Delete(id); err != nil {
+		ginutil.RespondError(c, response.CodeInternal, "error.compare_group_delete_failed", err)
+		return
+	}
+	response.Success(c, nil)
+}
+
+func parseCompareGroupID(c *gin.Context) (uint, error) {
+	value, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil || value == 0 {
+		return 0, errors.New("invalid id")
+	}
+	return uint(value), nil
+}
+
+func (r CompareGroupRequest) toInput() productadmin.CompareGroupInput {
+	return productadmin.CompareGroupInput{
+		NameJSON:   r.NameJSON,
+		CategoryID: r.CategoryID,
+		Dimensions: r.Dimensions,
+		IsActive:   r.IsActive,
+		SortOrder:  r.SortOrder,
+	}
 }

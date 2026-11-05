@@ -77,6 +77,7 @@ func AutoMigrate() error {
 		&promotiondomain.Promotion{},
 		&categorydomain.Category{},
 		&productdomain.Product{},
+		&productdomain.CompareGroup{},
 		&productdomain.ProductSKU{},
 		&contentdomain.Post{},
 		&contentdomain.PostProduct{},

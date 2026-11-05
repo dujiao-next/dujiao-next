@@ -144,6 +144,11 @@ const router = createRouter({
             },
         },
         {
+            path: '/compare',
+            name: 'compare',
+            component: templateView('Compare', () => import('../views/Products.vue')),
+        },
+        {
             path: '/products/:slug',
             name: 'product-detail',
             component: templateView('ProductDetail', productDetailViewLoader),
@@ -263,6 +268,13 @@ const router = createRouter({
             path: '/guest/orders/:order_no',
             name: 'guest-order-detail',
             component: templateView('GuestOrderDetail', () => import('../views/GuestOrderDetail.vue')),
+        },
+        {
+            // 后台积木编辑器的实时预览画布（无外壳，只渲染区块）
+            path: '/preview/blocks',
+            name: 'block-preview',
+            component: () => import('../views/BlockPreview.vue'),
+            meta: { bare: true },
         },
         {
             path: '/blog',

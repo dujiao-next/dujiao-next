@@ -47,6 +47,7 @@ import {
   Bell,
   ImageIcon,
   LayoutGrid,
+  Columns3,
 } from 'lucide-vue-next'
 import { Menu } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -143,6 +144,12 @@ const navGroups = computed<NavGroup[]>(() => {
           to: '/products',
           icon: Boxes,
           permission: 'GET:/admin/products',
+        },
+        {
+          label: t('admin.navItems.compareGroups'),
+          to: '/compare-groups',
+          icon: Columns3,
+          permission: 'GET:/admin/compare-groups',
         },
         {
           label: t('admin.navItems.cardSecrets'),

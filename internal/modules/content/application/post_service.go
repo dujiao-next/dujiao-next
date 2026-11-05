@@ -91,6 +91,18 @@ func (s *PostService) GetPublicBySlug(ctx context.Context, slug string) (*domain
 	return post, nil
 }
 
+// GetAdmin 按 ID 取单篇文章（后台编辑器深链接/刷新时用）。
+func (s *PostService) GetAdmin(ctx context.Context, id string) (*domain.Post, error) {
+	post, err := s.posts.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if post == nil {
+		return nil, contract.ErrNotFound
+	}
+	return post, nil
+}
+
 // ListAdmin 获取后台文章列表。
 func (s *PostService) ListAdmin(ctx context.Context, query AdminPostQuery) ([]domain.Post, int64, error) {
 	return s.posts.List(ctx, contract.PostQuery{

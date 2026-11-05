@@ -45,6 +45,9 @@ func (s *WriteService) Update(id string, input CreateProductInput) (*productdoma
 	product.TitleJSON = jsonmap.JSON(input.TitleJSON)
 	product.DescriptionJSON = jsonmap.JSON(input.DescriptionJSON)
 	product.ContentJSON = jsonmap.JSON(input.ContentJSON)
+	product.CompareJSON = jsonmap.JSON(input.CompareJSON)
+	product.FaqJSON = jsonmap.JSON(input.FaqJSON)
+	product.InBoxJSON = jsonmap.JSON(input.InBoxJSON)
 	product.InstructionsJSON = jsonmap.JSON(input.InstructionsJSON)
 	// 对接商品的交付表单由上游同步维护，后台编辑不得清空。
 	if !product.IsMapped {

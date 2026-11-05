@@ -60,3 +60,14 @@ type SKURepository interface {
 	ReleaseManualStock(skuID uint, quantity int) (int64, error)
 	ConsumeManualStock(skuID uint, quantity int) (int64, error)
 }
+
+// CompareGroupRepository 是对比维度组的持久化端口。
+type CompareGroupRepository interface {
+	ListActive() ([]productdomain.CompareGroup, error)
+	ListAll() ([]productdomain.CompareGroup, error)
+	GetByID(id uint) (*productdomain.CompareGroup, error)
+	GetByCategory(categoryID uint) (*productdomain.CompareGroup, error)
+	Create(item *productdomain.CompareGroup) error
+	Update(item *productdomain.CompareGroup) error
+	Delete(id uint) error
+}

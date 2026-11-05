@@ -26,6 +26,29 @@ func TestJSONDatabaseRoundTrip(t *testing.T) {
 	}
 }
 
+func TestJSONScanAcceptsTextColumn(t *testing.T) {
+	// 同一个 JSON 列，驱动可能给出 []byte 也可能给出 string；
+	// TEXT 亲和性（手工写入）时必须同样能扫出来。
+	var decoded JSON
+	if err := decoded.Scan(`{"blocks":[{"id":"b1"}]}`); err != nil {
+		t.Fatalf("scan string JSON: %v", err)
+	}
+	blocks, ok := decoded["blocks"].([]interface{})
+	if !ok || len(blocks) != 1 {
+		t.Fatalf("scan string JSON lost content: %#v", decoded)
+	}
+}
+
+func TestJSONScanIgnoresUnexpectedType(t *testing.T) {
+	value := JSON{"keep": true}
+	if err := value.Scan(123); err != nil {
+		t.Fatalf("scan unexpected type should not error: %v", err)
+	}
+	if !value["keep"].(bool) {
+		t.Fatalf("scan unexpected type should keep previous value: %#v", value)
+	}
+}
+
 func TestJSONScanNilCreatesEmptyObject(t *testing.T) {
 	value := JSON{"stale": true}
 	if err := value.Scan(nil); err != nil {

@@ -14,6 +14,7 @@ func RegisterPublicRoutes(public gin.IRoutes, handler *PublicHandler) {
 // 调用方必须传入已经挂载认证、RBAC 和后台安全中间件的 RouterGroup。
 func RegisterAdminRoutes(admin gin.IRoutes, handler *AdminHandler) {
 	admin.GET("/posts", handler.GetAdminPosts)
+	admin.GET("/posts/:id", handler.GetAdminPost)
 	admin.POST("/posts", handler.CreatePost)
 	admin.PUT("/posts/:id", handler.UpdatePost)
 	admin.DELETE("/posts/:id", handler.DeletePost)

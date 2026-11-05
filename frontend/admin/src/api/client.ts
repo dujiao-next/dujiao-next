@@ -33,6 +33,8 @@ interface RequestOptions {
   headers?: Record<string, string>
   blob?: boolean
   data?: any
+  /** 静默请求：失败不弹全局提示（调用方自己兜底时用） */
+  silent?: boolean
   [key: string]: any
 }
 
@@ -131,7 +133,7 @@ async function request(method: string, path: string, bodyOrOptions?: any, option
     })
   } catch (err: any) {
     const message = t(err?.name === 'AbortError' ? 'common.api.timeout' : 'common.api.networkError')
-    notifyError(message)
+    if (!opts.silent) notifyError(message)
     return Promise.reject(createNotifiedError(message))
   } finally {
     clearTimeout(timer)
@@ -149,13 +151,13 @@ async function request(method: string, path: string, bodyOrOptions?: any, option
       if (response.status === 401 && !isLoginEndpoint(path)) {
         redirectToLogin()
       }
-      notifyError(message)
+      if (!opts.silent) notifyError(message)
       return Promise.reject(createNotifiedError(message))
     }
     if (contentType.includes('application/json')) {
       const fallbackMessage = t('common.api.requestFailed')
       const message = await readBlobErrorMessage(blob, fallbackMessage)
-      notifyError(message)
+      if (!opts.silent) notifyError(message)
       return Promise.reject(createNotifiedError(message))
     }
     return { data: blob, headers: responseHeadersToObject(response.headers) }
@@ -172,11 +174,11 @@ async function request(method: string, path: string, bodyOrOptions?: any, option
       if (status === 401 && !isLoginEndpoint(path)) {
         redirectToLogin()
       }
-      notifyError(message)
+      if (!opts.silent) notifyError(message)
       return Promise.reject(createNotifiedError(message))
     }
     const message = t('common.api.responseMissing')
-    notifyError(message)
+    if (!opts.silent) notifyError(message)
     return Promise.reject(createNotifiedError(message))
   }
 
@@ -187,7 +189,7 @@ async function request(method: string, path: string, bodyOrOptions?: any, option
     if (status === 401 && !isLoginEndpoint(path)) {
       redirectToLogin()
     }
-    notifyError(message)
+    if (!opts.silent) notifyError(message)
     return Promise.reject(createNotifiedError(message))
   }
 
@@ -196,7 +198,7 @@ async function request(method: string, path: string, bodyOrOptions?: any, option
     const fallbackMessage = t('common.api.requestFailed')
     const message = data.msg || fallbackMessage
     if (data.status_code === 401 && !isLoginEndpoint(path)) {
-      notifyError(message)
+      if (!opts.silent) notifyError(message)
       redirectToLogin()
       return Promise.reject(createNotifiedError(message))
     }
@@ -204,7 +206,7 @@ async function request(method: string, path: string, bodyOrOptions?: any, option
     if (message === 'compliance_required' || message === 'compliance_required_by_super_admin') {
       return Promise.reject(createNotifiedError(message))
     }
-    notifyError(message)
+    if (!opts.silent) notifyError(message)
     return Promise.reject(createNotifiedError(message))
   }
 

@@ -149,6 +149,38 @@ const routes = [
         meta: { permission: 'GET:/admin/posts' },
       },
       {
+        // 整页积木编辑器：左边真预览、右边属性面板
+        path: 'posts/:type(blog|notice|page)/new',
+        name: 'post-create',
+        component: () => import('@/views/admin/PostEdit.vue'),
+        meta: { permission: 'GET:/admin/posts' },
+      },
+      {
+        path: 'posts/:type(blog|notice|page)/:id(\\d+)',
+        name: 'post-edit',
+        component: () => import('@/views/admin/PostEdit.vue'),
+        meta: { permission: 'GET:/admin/posts' },
+      },
+      {
+        path: 'compare-groups',
+        name: 'compare-groups',
+        component: () => import('@/views/admin/CompareGroups.vue'),
+        meta: { permission: 'GET:/admin/compare-groups' },
+      },
+      {
+        // 整页商品编辑器
+        path: 'products/new',
+        name: 'product-create',
+        component: () => import('@/views/admin/ProductEdit.vue'),
+        meta: { permission: 'GET:/admin/products' },
+      },
+      {
+        path: 'products/:id(\\d+)/edit',
+        name: 'product-edit',
+        component: () => import('@/views/admin/ProductEdit.vue'),
+        meta: { permission: 'GET:/admin/products' },
+      },
+      {
         path: 'homepage',
         name: 'homepage',
         component: () => import('@/views/admin/Homepage.vue'),

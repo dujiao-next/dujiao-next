@@ -382,7 +382,7 @@ export const adminAPI = {
   patchCategoryActive: (id: number, isActive: boolean) => api.patch(`/admin/categories/${id}/active`, { is_active: isActive }),
   deleteCategory: (id: number) => api.delete(`/admin/categories/${id}`),
   getPosts: (params?: Record<string, unknown>) => api.get('/admin/posts', { params }),
-  getPost: (id: number) => api.get(`/admin/posts/${id}`),
+  getPost: (id: number, options?: { silent?: boolean }) => api.get(`/admin/posts/${id}`, options),
   createPost: (data: Partial<AdminPost> & { product_ids?: number[] }) => api.post('/admin/posts', data),
   updatePost: (id: number, data: Partial<AdminPost> & { product_ids?: number[] }) => api.put(`/admin/posts/${id}`, data),
   deletePost: (id: number) => api.delete(`/admin/posts/${id}`),
@@ -676,6 +676,13 @@ export const adminAPI = {
     api.post('/admin/ads/impression', data),
 
   // 文章分类
+  // 商品对比维度组
+  // silent：老后端没有这个接口时不要弹全局错误提示
+  getCompareGroups: (options?: { silent?: boolean }) => api.get('/admin/compare-groups', options),
+  createCompareGroup: (data: Record<string, unknown>) => api.post('/admin/compare-groups', data),
+  updateCompareGroup: (id: number, data: Record<string, unknown>) => api.put(`/admin/compare-groups/${id}`, data),
+  deleteCompareGroup: (id: number) => api.delete(`/admin/compare-groups/${id}`),
+
   getPostCategories: (params?: Record<string, unknown>) => api.get('/admin/post-categories', { params }),
   createPostCategory: (data: any) => api.post('/admin/post-categories', data),
   updatePostCategory: (id: number, data: any) => api.put(`/admin/post-categories/${id}`, data),

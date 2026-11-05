@@ -1728,7 +1728,15 @@
     "addCartStockExceededWithCart": "该规格库存不足，最多可购买 {count} 件（购物车中已有 {cartCount} 件）",
     "addCartLimitExceeded": "当前商品单次最多可购买 {count} 件",
     "addCartLimitExceededWithCart": "当前商品单次最多可购买 {count} 件（购物车中已有 {cartCount} 件）",
-    "explore": "探索"
+    "explore": "探索",
+    "compareTitle": "哪款适合你？",
+    "compareTitleWith": "哪款{name}适合你？",
+    "inBox": "包装内容",
+    "faq": "常见问题解答",
+    "expandAll": "全部展开",
+    "collapseAll": "全部收起",
+    "compareAll": "查看全部对比",
+    "priceFrom": "起"
   },
   "quickBuy": {
     "title": "快速购买",
@@ -1768,5 +1776,13 @@
     "tileContactDesc": "遇到问题直接找我们，不用自己憋着。",
     "learnMore": "进一步了解",
     "buyNow": "购买"
+  },
+  "comparePage": {
+    "title": "机型对比",
+    "lead": "正在对比 {count} 款商品",
+    "empty": "还没有选择要对比的商品。",
+    "pick": "去挑选商品",
+    "keepShopping": "继续选购",
+    "remove": "移除"
   }
 }

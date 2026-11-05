@@ -46,6 +46,20 @@ func (adapter publicProductAdapter) ApplyAutoStockCounts(products []productdomai
 	return adapter.products.ApplyAutoStockCounts(products)
 }
 
+// NewPublicCompareHTTP 装配公开对比 Handler（复用同一套租户隐藏策略）。
+func NewPublicCompareHTTP(
+	products *productapplication.Service,
+	hidden productapplication.HiddenProductRepository,
+	store producthttp.CompareProductStore,
+	groups producthttp.CompareGroupReader,
+) *producthttp.PublicCompareHandler {
+	return producthttp.NewPublicCompareHandler(
+		publicProductAdapter{products: products, hidden: hidden},
+		store,
+		groups,
+	)
+}
+
 // NewPublicHTTP 装配公开 Product HTTP Handler。
 func NewPublicHTTP(dependencies PublicHTTPDependencies) *producthttp.PublicHandler {
 	var promotions producthttp.ProductPromotionDecorator

@@ -101,6 +101,7 @@ type Container struct {
 	GiftCardRepo           *giftcardgormstore.Store
 	FulfillmentStore       fulfillmentcontract.Store
 	ProductRepo            *productgormstore.ProductStore
+	CompareGroupRepo       *productgormstore.CompareGroupStore
 	ProductSKURepo         *productgormstore.SKUStore
 	CartRepo               *cartgormstore.Store
 	CouponRepo             *coupongormstore.Store
@@ -145,6 +146,7 @@ type Container struct {
 	UploadService                 *uploadapp.Service
 	ProductReadService            *productapplication.Service
 	ProductAdminService           *productadmin.AdminService
+	CompareGroupService           *productadmin.CompareGroupService
 	ProductWriteService           *productwrite.WriteService
 	ContentPostService            *contentapp.PostService
 	ContentPostCategoryService    *contentapp.PostCategoryService
