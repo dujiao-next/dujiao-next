@@ -137,7 +137,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  Search, Moon, Sun, ShoppingCart, Languages, Menu, X, User, Info, ClipboardList, LogOut, Github,
+  Search, Moon, Sun, ShoppingCart, Languages, Menu, X, User, Info, ClipboardList, LogOut,
   LayoutGrid, Send, MessageCircle, Mail, Headphones,
 } from 'lucide-vue-next'
 import { useAppStore } from '../../../stores/app'
