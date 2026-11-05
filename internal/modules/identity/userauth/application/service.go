@@ -284,6 +284,20 @@ func (s *Service) SendVerifyCode(ctx context.Context, email, purpose, locale, in
 }
 
 // Register 用户注册
+// checkRegistrationEmailDomain 校验邮箱是否命中注册域名白名单。
+// 上游 v1.5 把注册流程里的这一步内联了，但改邮箱这条链路也要用同一个判断，
+// 否则可以用一次性邮箱绕过注册限制继续发信。
+func (s *Service) checkRegistrationEmailDomain(email string) error {
+	if s == nil || s.settingService == nil {
+		return nil
+	}
+	policy, err := s.settingService.GetRegistrationEmailDomainPolicy()
+	if err != nil {
+		return err
+	}
+	return settingsapp.CheckRegistrationEmailDomainAllowed(email, policy)
+}
+
 func (s *Service) Register(email, password, code, inviteCode string, agreementAccepted bool, emailVerificationEnabled bool) (*userdomain.User, string, time.Time, error) {
 	if !agreementAccepted {
 		return nil, "", time.Time{}, ErrAgreementRequired

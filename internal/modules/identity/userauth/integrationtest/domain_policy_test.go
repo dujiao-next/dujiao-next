@@ -196,7 +196,7 @@ func TestSendChangeEmailCodeRejectsEmailDomainNotAllowed(t *testing.T) {
 		t.Fatalf("update registration config failed: %v", err)
 	}
 
-	user, _, _, err := svc.Register("buyer@qq.com", "secret123", "", true, false)
+	user, _, _, err := svc.Register("buyer@qq.com", "secret123", "", "", true, false)
 	if err != nil {
 		t.Fatalf("register should allow qq.com: %v", err)
 	}
