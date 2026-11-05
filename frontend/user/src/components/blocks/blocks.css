@@ -464,7 +464,7 @@
 
 .blk-arrow {
   position: absolute;
-  top: 42%;
+  top: 30%;
   z-index: 2;
   display: none;
   place-items: center;
@@ -473,12 +473,17 @@
   height: 36px;
   border: 0;
   border-radius: 36px;
-  background: rgba(210, 210, 215, 0.64);
+  background: rgba(255, 255, 255, 0.8);
   color: rgba(0, 0, 0, 0.56);
   cursor: pointer;
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
-  transition: background 100ms linear, color 100ms linear, opacity 100ms linear;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.12);
+  opacity: 0;
+  transition: background 100ms linear, color 100ms linear, opacity 160ms linear;
+}
+.blk-scroller-wrap:hover .blk-arrow:not(:disabled) {
+  opacity: 1;
 }
 .blk-arrow:hover {
   color: rgba(0, 0, 0, 0.64);
@@ -496,6 +501,11 @@
 @media (min-width: 1069px) {
   .blk-arrow {
     display: grid;
+  }
+}
+@media (hover: none) {
+  .blk-arrow {
+    display: none;
   }
 }
 
@@ -716,7 +726,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 10px;
   margin-top: 20px;
 }
 

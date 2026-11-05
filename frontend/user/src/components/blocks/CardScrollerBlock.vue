@@ -33,25 +33,25 @@
       <button class="blk-arrow blk-arrow--next" type="button" :disabled="atEnd" aria-label="下一张" @click="page(1)">
         <svg viewBox="0 0 36 36" aria-hidden="true"><path d="M15 10l8 8-8 8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-    </div>
 
-    <!-- 底部控制条：进度点 + 播放/暂停（苹果「先刷重点」那种） -->
-    <div v-if="p.cards.length > 1" class="blk-scroller-dock">
-      <div class="blk-dock">
-        <button
-          v-for="(_, i) in p.cards"
-          :key="i"
-          type="button"
-          class="blk-dot"
-          :class="{ 'is-active': i === activeIndex }"
-          :aria-label="`第 ${i + 1} 张`"
-          @click="goTo(i)"
-        />
+      <!-- 底部控制条：浮在卡片上（苹果「先刷重点」那种） -->
+      <div v-if="p.cards.length > 1" class="blk-scroller-dock">
+        <div class="blk-dock">
+          <button
+            v-for="(_, i) in p.cards"
+            :key="i"
+            type="button"
+            class="blk-dot"
+            :class="{ 'is-active': i === activeIndex }"
+            :aria-label="`第 ${i + 1} 张`"
+            @click="goTo(i)"
+          />
+        </div>
+        <button type="button" class="blk-dock-btn" :aria-label="playing ? '暂停' : '播放'" @click="togglePlay">
+          <span v-if="playing" class="blk-pause-icon" />
+          <span v-else class="blk-play-icon" />
+        </button>
       </div>
-      <button type="button" class="blk-dock-btn" :aria-label="playing ? '暂停' : '播放'" @click="togglePlay">
-        <span v-if="playing" class="blk-pause-icon" />
-        <span v-else class="blk-play-icon" />
-      </button>
     </div>
   </section>
 </template>
