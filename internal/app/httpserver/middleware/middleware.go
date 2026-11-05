@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	resellercontract "github.com/dujiao-next/internal/modules/reseller/contract"
 	"net/http"
 	"strconv"
 	"strings"
@@ -361,6 +362,13 @@ func UserJWTAuthMiddleware(secretKey string, userRepo usercontract.Store) gin.Ha
 			return
 		}
 		if !jwttoken.IsAccessType(claims.Typ) {
+			msg := i18n.T(i18n.ResolveLocale(c), "error.token_invalid")
+			response.Unauthorized(c, msg)
+			c.Abort()
+			return
+		}
+		// 令牌只在签发时所在的站点有效（主站 rid=0）
+		if claims.ResellerID != resellercontract.RequestResellerID(c.Request.Context()) {
 			msg := i18n.T(i18n.ResolveLocale(c), "error.token_invalid")
 			response.Unauthorized(c, msg)
 			c.Abort()

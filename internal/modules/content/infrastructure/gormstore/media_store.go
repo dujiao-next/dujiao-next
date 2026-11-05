@@ -3,6 +3,7 @@ package gormstore
 import (
 	"context"
 	"errors"
+	"github.com/dujiao-next/internal/persistence/gormutil"
 	"strings"
 
 	"github.com/dujiao-next/internal/modules/content/contract"
@@ -31,15 +32,15 @@ func (s *MediaStore) List(ctx context.Context, query contract.MediaQuery) ([]dom
 	}
 	if search := strings.TrimSpace(query.Search); search != "" {
 		like := "%" + search + "%"
-		operator := likeOperatorByDialect(dbDialectName(db))
-		statement = statement.Where("name "+operator+" ? OR filename "+operator+" ?", like, like)
+		condition, argCount := gormutil.BuildLocalizedLikeCondition(db, []string{"name", "filename"}, nil)
+		statement = statement.Where(condition, gormutil.RepeatLikeArgs(like, argCount)...)
 	}
 
 	var total int64
 	if err := statement.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	statement = applyPagination(statement, query.Page, query.PageSize)
+	statement = gormutil.ApplyPagination(statement, query.Page, query.PageSize)
 	if err := statement.Order("created_at DESC").Find(&items).Error; err != nil {
 		return nil, 0, err
 	}

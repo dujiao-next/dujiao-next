@@ -198,7 +198,7 @@ type ProductSKURequest struct {
 	SpecValuesJSON   map[string]interface{} `json:"spec_values"`
 	PriceAmount      float64                `json:"price_amount" binding:"required"`
 	CostPriceAmount  float64                `json:"cost_price_amount"`
-	ManualStockTotal int                    `json:"manual_stock_total"`
+	ManualStockTotal *int                   `json:"manual_stock_total"`
 	IsActive         *bool                  `json:"is_active"`
 	SortOrder        int                    `json:"sort_order"`
 }
@@ -651,6 +651,12 @@ type BatchProductCategoryRequest struct {
 	CategoryID uint   `json:"category_id"`
 }
 
+// BatchProductStockDisplayRequest 商品批量库存展示模式更新请求
+type BatchProductStockDisplayRequest struct {
+	IDs              []uint `json:"ids" binding:"required,min=1"`
+	StockDisplayMode string `json:"stock_display_mode" binding:"required"`
+}
+
 type batchProductFailureItem struct {
 	ID        uint   `json:"id"`
 	ErrorCode string `json:"error_code"`
@@ -679,18 +685,22 @@ func (h *AdminProductHandler) BatchUpdateProductStatus(c *gin.Context) {
 		ginutil.RespondBindError(c, err)
 		return
 	}
+	h.batchQuickUpdate(c, req.IDs, map[string]interface{}{"is_active": req.IsActive})
+}
+
+// batchQuickUpdate 对每个商品执行 QuickUpdate，并返回成功数与失败明细。
+func (h *AdminProductHandler) batchQuickUpdate(c *gin.Context, ids []uint, fields map[string]interface{}) {
 	locale := i18n.ResolveLocale(c)
 	successCount := 0
 	failedItems := make([]batchProductFailureItem, 0)
-	for _, id := range req.IDs {
-		_, err := h.admin.QuickUpdate(strconv.FormatUint(uint64(id), 10), map[string]interface{}{"is_active": req.IsActive})
-		if err == nil {
+	for _, id := range ids {
+		if _, err := h.admin.QuickUpdate(strconv.FormatUint(uint64(id), 10), fields); err == nil {
 			successCount++
 		} else {
 			failedItems = append(failedItems, productBatchFailureFromError(locale, id, err))
 		}
 	}
-	response.Success(c, gin.H{"total": len(req.IDs), "success_count": successCount, "failed_items": failedItems})
+	response.Success(c, gin.H{"total": len(ids), "success_count": successCount, "failed_items": failedItems})
 }
 
 // BatchUpdateProductCategory 批量修改分类
@@ -700,14 +710,22 @@ func (h *AdminProductHandler) BatchUpdateProductCategory(c *gin.Context) {
 		ginutil.RespondBindError(c, err)
 		return
 	}
-	successCount := 0
-	for _, id := range req.IDs {
-		_, err := h.admin.QuickUpdate(strconv.FormatUint(uint64(id), 10), map[string]interface{}{"category_id": req.CategoryID})
-		if err == nil {
-			successCount++
-		}
+	h.batchQuickUpdate(c, req.IDs, map[string]interface{}{"category_id": req.CategoryID})
+}
+
+// BatchUpdateProductStockDisplay 批量修改前台库存展示模式
+func (h *AdminProductHandler) BatchUpdateProductStockDisplay(c *gin.Context) {
+	var req BatchProductStockDisplayRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		ginutil.RespondBindError(c, err)
+		return
 	}
-	response.Success(c, gin.H{"total": len(req.IDs), "success_count": successCount})
+	mode := productdomain.NormalizeStockDisplayMode(req.StockDisplayMode)
+	if mode == "" {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", nil)
+		return
+	}
+	h.batchQuickUpdate(c, req.IDs, map[string]interface{}{"stock_display_mode": mode})
 }
 
 // BatchDeleteProducts 批量删除商品

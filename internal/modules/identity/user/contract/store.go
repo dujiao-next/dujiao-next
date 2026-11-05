@@ -4,8 +4,6 @@ import (
 	"time"
 
 	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
-
-	"github.com/shopspring/decimal"
 )
 
 // ListFilter describes the administration user-directory query.
@@ -13,6 +11,7 @@ type ListFilter struct {
 	Page          int
 	PageSize      int
 	UserID        uint
+	InviteCodeID  uint
 	Keyword       string
 	Status        string
 	CreatedFrom   *time.Time
@@ -30,12 +29,8 @@ type Store interface {
 	ListByIDs([]uint) ([]userdomain.User, error)
 	Create(*userdomain.User) error
 	Update(*userdomain.User) error
-	IncrementTotalRecharged(uint, decimal.Decimal) error
-	IncrementTotalSpent(uint, decimal.Decimal) error
-	UpdateMemberLevelIfCurrent(uint, uint, uint) (int64, error)
 	List(ListFilter) ([]userdomain.User, int64, error)
 	BatchUpdateStatus([]uint, string) error
-	AssignDefaultMemberLevel(uint) (int64, error)
 	UpdateTOTPPending(uint, string, time.Time) error
 	UpdateTOTPEnabled(uint, string, time.Time, string) error
 	UpdateRecoveryCodes(uint, string) error

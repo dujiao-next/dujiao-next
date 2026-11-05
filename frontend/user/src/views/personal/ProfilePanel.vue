@@ -22,6 +22,7 @@
           <Input
             v-model="profileForm.nickname"
             :placeholder="t('personalCenter.profile.nicknamePlaceholder')"
+            maxlength="32"
             class="h-11"
           />
         </div>

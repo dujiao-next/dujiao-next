@@ -78,7 +78,7 @@ type User2FATOTPService interface {
 // User2FAAuthService 是 2FA 登录完成端口。
 type User2FAAuthService interface {
 	ParseUserChallengeToken(tokenString string) (*UserChallengeClaims, error)
-	CompleteLoginAfter2FA(userID uint, rememberMe bool) (*AuthLoginResult, error)
+	CompleteLoginAfter2FA(ctx context.Context, userID uint, rememberMe bool) (*AuthLoginResult, error)
 	GetUserEmail(userID uint) (string, error)
 }
 
@@ -101,16 +101,9 @@ func NewUser2FAHandler(totp User2FATOTPService, auth User2FAAuthService, challen
 }
 
 func (h *User2FAHandler) recordLogin(c *gin.Context, email string, userID uint, status, failReason, source string) {
-	if h == nil || h.recorder == nil || c == nil {
-		return
+	if h != nil {
+		recordLoginEvent(h.recorder, c, email, userID, status, failReason, source)
 	}
-	requestID := ""
-	if rid, ok := c.Get("request_id"); ok {
-		if value, ok := rid.(string); ok {
-			requestID = value
-		}
-	}
-	h.recorder.Record(email, userID, status, failReason, source, c.ClientIP(), c.GetHeader("User-Agent"), requestID)
 }
 
 // GetUser2FAStatus 当前用户 2FA 状态。
@@ -180,7 +173,7 @@ func (h *User2FAHandler) EnableUser2FA(c *gin.Context) {
 		}
 		return
 	}
-	loginRes, signErr := h.auth.CompleteLoginAfter2FA(uid, false)
+	loginRes, signErr := h.auth.CompleteLoginAfter2FA(c.Request.Context(), uid, false)
 	if signErr == nil && loginRes != nil {
 		res.Token = loginRes.Token
 		res.ExpiresAt = loginRes.ExpiresAt
@@ -329,7 +322,7 @@ func (h *User2FAHandler) VerifyUser2FA(c *gin.Context) {
 	if h.challenges != nil {
 		h.challenges.Revoke(ctx, claims.JTI)
 	}
-	loginRes, err := h.auth.CompleteLoginAfter2FA(claims.UserID, claims.RememberMe)
+	loginRes, err := h.auth.CompleteLoginAfter2FA(c.Request.Context(), claims.UserID, claims.RememberMe)
 	if err != nil {
 		ginutil.RespondError(c, response.CodeInternal, "error.login_failed", err)
 		return

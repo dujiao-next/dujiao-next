@@ -19,6 +19,8 @@ export const userAuthAPI = {
         userApi.post(GOOGLE_REDIRECT_API_PATHS.loginIntent, {}, { credentials: 'include' }),
     googleRedirectExchange: () =>
         userApi.post(GOOGLE_REDIRECT_API_PATHS.loginExchange, {}, { credentials: 'include' }),
+    completeInviteRegistration: (data: { invite_ticket: string; invite_code: string }) =>
+        userApi.post('/auth/invite/complete', data),
     forgotPassword: (data: any) => userApi.post('/auth/forgot-password', data),
 }
 

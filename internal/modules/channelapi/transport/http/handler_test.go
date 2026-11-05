@@ -13,10 +13,14 @@ import (
 	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
 
 	"github.com/dujiao-next/internal/constants"
+	userauthapp "github.com/dujiao-next/internal/modules/identity/userauth/application"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/money"
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 )
 
 func TestBuildChannelIdentityResponse(t *testing.T) {
@@ -234,6 +238,7 @@ func TestBuildChannelPaymentResponseIncludesOrderSummary(t *testing.T) {
 	order := &orderdomain.Order{
 		ID:               9,
 		OrderNo:          "DJ20260310002",
+		Currency:         "CNY",
 		TotalAmount:      money.FromDecimal(decimal.RequireFromString("99.00")),
 		WalletPaidAmount: money.FromDecimal(decimal.RequireFromString("19.00")),
 		OnlinePaidAmount: money.FromDecimal(decimal.RequireFromString("80.00")),
@@ -249,7 +254,8 @@ func TestBuildChannelPaymentResponseIncludesOrderSummary(t *testing.T) {
 		Amount:          money.FromDecimal(decimal.RequireFromString("80.80")),
 		FeeRate:         money.FromDecimal(decimal.RequireFromString("1.00")),
 		FeeAmount:       money.FromDecimal(decimal.RequireFromString("0.80")),
-		Currency:        "CNY",
+		FeePolicy:       "merchant_absorbed",
+		Currency:        "GBP",
 		PayURL:          "https://pay.example.com",
 		CreatedAt:       now,
 		UpdatedAt:       now,
@@ -267,6 +273,13 @@ func TestBuildChannelPaymentResponseIncludesOrderSummary(t *testing.T) {
 	}
 	if got := resp["paid_amount"]; got != "99.00" {
 		t.Fatalf("expected paid_amount=99.00, got=%v", got)
+	}
+	// Telegram Bot 依赖这两个字段决定是否显示"含手续费"以及手续费币种
+	if got := resp["fee_policy"]; got != "merchant_absorbed" {
+		t.Fatalf("expected fee_policy=merchant_absorbed, got=%v", got)
+	}
+	if got := resp["fee_currency"]; got != "CNY" {
+		t.Fatalf("expected fee_currency=CNY (order currency, not GBP), got=%v", got)
 	}
 }
 
@@ -492,5 +505,144 @@ func TestBuildChannelPaymentResponse_USDTQRExposesWalletFields(t *testing.T) {
 	}
 	if got := resp["interaction_mode"]; got != constants.PaymentInteractionQR {
 		t.Fatalf("interaction_mode: got %v want qr", got)
+	}
+}
+
+// inviteIdentityService 模拟邀请注册模式：只有 GOOD 能开号。
+type inviteIdentityService struct {
+	IdentityService
+	gotCode string
+}
+
+func (s *inviteIdentityService) ProvisionTelegramChannelIdentity(input TelegramIdentityInput) (*userdomain.User, *externalidentitydomain.Identity, bool, error) {
+	s.gotCode = input.InviteCode
+	switch input.InviteCode {
+	case "":
+		return nil, nil, false, userauthapp.ErrInviteCodeRequired
+	case "GOOD":
+		return &userdomain.User{ID: 1}, nil, true, nil
+	default:
+		return nil, nil, false, userauthapp.ErrInviteCodeInvalid
+	}
+}
+
+// Telegram Bot 依赖这些 error_code 字符串判断是否提示输入邀请码，改动即为对 Bot 的破坏性变更。
+func TestProvisionTelegramIdentityInviteErrorCodes(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cases := []struct {
+		inviteCode string
+		wantStatus int
+		wantCode   string
+	}{
+		{"", http.StatusForbidden, "invite_code_required"},
+		{"BAD", http.StatusBadRequest, "invite_code_invalid"},
+		{"GOOD", http.StatusOK, ""},
+	}
+	for _, tc := range cases {
+		service := &inviteIdentityService{}
+		handler := &Handler{Dependencies{UserAuthService: service}}
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		body := `{"channel_user_id":"1001","invite_code":"` + tc.inviteCode + `"}`
+		c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/channel/identities/telegram/provision", strings.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		handler.ProvisionTelegramIdentity(c)
+
+		var resp struct {
+			ErrorCode string `json:"error_code"`
+		}
+		_ = json.Unmarshal(recorder.Body.Bytes(), &resp)
+		if recorder.Code != tc.wantStatus || resp.ErrorCode != tc.wantCode || service.gotCode != tc.inviteCode {
+			t.Fatalf("invite_code=%q: status=%d error_code=%q passed=%q body=%s", tc.inviteCode, recorder.Code, resp.ErrorCode, service.gotCode, recorder.Body.String())
+		}
+	}
+	// 注册关闭也要给出可识别的错误码，而不是 internal_error。
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/channel/orders", nil)
+	respondChannelIdentityServiceError(c, userauthapp.ErrRegistrationDisabled)
+	if recorder.Code != http.StatusForbidden || !strings.Contains(recorder.Body.String(), `"error_code":"registration_disabled"`) {
+		t.Fatalf("registration disabled: status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+type paymentChannelsIdentityStub struct{ IdentityService }
+
+func (paymentChannelsIdentityStub) ProvisionTelegramChannelUserID(TelegramIdentityInput) (uint, error) {
+	return 7, nil
+}
+
+type paymentChannelsOrdersStub struct{ Orders }
+
+func (paymentChannelsOrdersStub) GetOrderByUserOrderNo(string, uint) (*orderdomain.Order, error) {
+	return &orderdomain.Order{UserID: 7, Items: []orderdomain.OrderItem{{ProductID: 1}}}, nil
+}
+
+// paymentChannelsPaymentsStub 的过滤只保留 eligibleID，用来确认接口确实调用了资格过滤。
+type paymentChannelsPaymentsStub struct {
+	Payments
+	eligibleID uint
+}
+
+func (s paymentChannelsPaymentsStub) all() []paymentdomain.PaymentChannel {
+	return []paymentdomain.PaymentChannel{{ID: 1, Name: "open"}, {ID: 2, Name: "vip-only"}}
+}
+
+func (s paymentChannelsPaymentsStub) GetAllowedChannelsForProducts([]uint) ([]paymentdomain.PaymentChannel, error) {
+	return s.all(), nil
+}
+
+func (s paymentChannelsPaymentsStub) GetWalletRechargeChannels() ([]paymentdomain.PaymentChannel, error) {
+	return s.all(), nil
+}
+
+func (s paymentChannelsPaymentsStub) keepEligible(channels []paymentdomain.PaymentChannel) []paymentdomain.PaymentChannel {
+	var kept []paymentdomain.PaymentChannel
+	for _, ch := range channels {
+		if ch.ID == s.eligibleID {
+			kept = append(kept, ch)
+		}
+	}
+	return kept
+}
+
+func (s paymentChannelsPaymentsStub) FilterOrderEligibleChannels(channels []paymentdomain.PaymentChannel, _ *orderdomain.Order) []paymentdomain.PaymentChannel {
+	return s.keepEligible(channels)
+}
+
+func (s paymentChannelsPaymentsStub) FilterWalletEligibleChannels(channels []paymentdomain.PaymentChannel, _ uint) ([]paymentdomain.PaymentChannel, error) {
+	return s.keepEligible(channels), nil
+}
+
+func TestGetPaymentChannelsFiltersByUserEligibility(t *testing.T) {
+	handler := &Handler{Dependencies: Dependencies{
+		UserAuthService: paymentChannelsIdentityStub{},
+		OrderService:    paymentChannelsOrdersStub{},
+		PaymentService:  paymentChannelsPaymentsStub{eligibleID: 1},
+	}}
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/payment-channels", handler.GetPaymentChannels)
+
+	for _, query := range []string{"order_no=DJ1&channel_user_id=123", "context=recharge&channel_user_id=123"} {
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/payment-channels?"+query, nil))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("%s: expected 200, got %d body=%s", query, recorder.Code, recorder.Body.String())
+		}
+		var payload struct {
+			Data struct {
+				Items []struct {
+					ID uint `json:"id"`
+				} `json:"items"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("%s: decode response: %v", query, err)
+		}
+		if len(payload.Data.Items) != 1 || payload.Data.Items[0].ID != 1 {
+			t.Fatalf("%s: expected only eligible channel 1, got %+v", query, payload.Data.Items)
+		}
 	}
 }

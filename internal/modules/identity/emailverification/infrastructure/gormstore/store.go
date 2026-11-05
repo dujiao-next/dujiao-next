@@ -34,14 +34,25 @@ func (store *Store) GetLatest(email, purpose string) (*emailverificationdomain.C
 	return &record, nil
 }
 
-func (store *Store) MarkVerified(id uint, verifiedAt time.Time) error {
-	return store.db.Model(&emailverificationdomain.Code{}).
-		Where("id = ? AND deleted_at IS NULL", id).
-		Update("verified_at", verifiedAt).Error
+func (store *Store) MarkVerified(id uint, verifiedAt time.Time) (bool, error) {
+	result := store.db.Model(&emailverificationdomain.Code{}).
+		Where("id = ? AND deleted_at IS NULL AND verified_at IS NULL", id).
+		Update("verified_at", verifiedAt)
+	return result.RowsAffected == 1, result.Error
 }
 
-func (store *Store) IncrementAttempt(id uint) error {
+func (store *Store) Delete(id uint) error {
 	return store.db.Model(&emailverificationdomain.Code{}).
 		Where("id = ? AND deleted_at IS NULL", id).
-		UpdateColumn("attempt_count", gorm.Expr("attempt_count + 1")).Error
+		Update("deleted_at", time.Now()).Error
+}
+
+func (store *Store) ReserveAttempt(id uint, maxAttempts int) (bool, error) {
+	query := store.db.Model(&emailverificationdomain.Code{}).
+		Where("id = ? AND deleted_at IS NULL AND verified_at IS NULL", id)
+	if maxAttempts > 0 {
+		query = query.Where("attempt_count < ?", maxAttempts)
+	}
+	result := query.UpdateColumn("attempt_count", gorm.Expr("attempt_count + 1"))
+	return result.RowsAffected == 1, result.Error
 }

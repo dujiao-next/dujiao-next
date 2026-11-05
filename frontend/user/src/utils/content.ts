@@ -1,7 +1,8 @@
+import DOMPurify from 'dompurify'
 import { getImageUrl } from './image'
 
 /**
- * 将 HTML 内容中的图片路径转换为显示用的绝对路径
+ * 将 HTML 内容中的图片路径转换为显示用的绝对路径，并清除脚本
  * /uploads/xxx -> http://domain/uploads/xxx
  */
 export function processHtmlForDisplay(html: string): string {
@@ -9,9 +10,11 @@ export function processHtmlForDisplay(html: string): string {
 
     // 匹配 src="/uploads/..."，支持单引号和双引号
     // 使用非贪婪匹配 .*?
-    return html.replace(/src=["'](\/uploads\/.*?)["']/g, (_, path) => {
+    const withImages = html.replace(/src=["'](\/uploads\/.*?)["']/g, (_, path) => {
         return `src="${getImageUrl(path)}"`
     })
+    // 结果直接进 v-html，且与后台同源（localStorage 里有 admin_token）；上游导入的商品详情也走这里
+    return DOMPurify.sanitize(withImages, { ADD_ATTR: ['target'] })
 }
 
 /**

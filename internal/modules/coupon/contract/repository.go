@@ -23,6 +23,7 @@ type UsageListFilter struct {
 // EligibilityItem 是 Coupon 计算所需的订单项只读快照，避免优惠券域依赖订单持久化模型。
 type EligibilityItem struct {
 	ProductID         uint
+	SKUID             uint
 	Quantity          int
 	TotalPrice        money.Amount
 	WholesaleDiscount money.Amount
@@ -47,4 +48,10 @@ type UsageRepository interface {
 	ListByOrderID(orderID uint) ([]coupondomain.CouponUsage, error)
 	ListByUser(filter UsageListFilter) ([]coupondomain.CouponUsage, int64, error)
 	DeleteByOrderID(orderID uint) error
+}
+
+// SKUDirectory 解析规格所属商品，用于校验优惠券规格范围。
+type SKUDirectory interface {
+	// ResolveSKUProducts 按规格 ID 返回其所属商品 ID；已删除或不存在的规格不在结果中。
+	ResolveSKUProducts(ids []uint) (map[uint]uint, error)
 }

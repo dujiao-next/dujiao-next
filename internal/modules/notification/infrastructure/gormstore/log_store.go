@@ -3,6 +3,7 @@ package gormstore
 import (
 	"github.com/dujiao-next/internal/modules/notification/contract"
 	"github.com/dujiao-next/internal/modules/notification/domain"
+	"github.com/dujiao-next/internal/persistence/gormutil"
 
 	"gorm.io/gorm"
 )
@@ -50,7 +51,7 @@ func (r *LogStore) ListAdmin(filter contract.LogListFilter) ([]domain.Notificati
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	query = applyPagination(query, filter.Page, filter.PageSize)
+	query = gormutil.ApplyPagination(query, filter.Page, filter.PageSize)
 
 	logs := make([]domain.NotificationLog, 0)
 	if err := query.Order("id DESC").Find(&logs).Error; err != nil {

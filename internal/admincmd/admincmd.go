@@ -8,8 +8,10 @@ package admincmd
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
+	"github.com/dujiao-next/internal/cache"
 	"os"
 	"strings"
 	"text/tabwriter"
@@ -134,6 +136,7 @@ func resetTOTP(username string) {
 		fmt.Fprintf(os.Stderr, "clear: %v\n", err)
 		os.Exit(1)
 	}
+	dropAdminAuthCache(admin.ID)
 	rid := "cli-" + uuid.NewString()
 	_ = logService.Record(auditlogapp.AdminLoginRecord{
 		AdminID:   admin.ID,
@@ -177,6 +180,7 @@ func resetPassword(username, providedPassword string) {
 		fmt.Fprintf(os.Stderr, "update: %v\n", err)
 		os.Exit(1)
 	}
+	dropAdminAuthCache(admin.ID)
 
 	rid := "cli-" + uuid.NewString()
 	_ = logService.Record(auditlogapp.AdminLoginRecord{
@@ -249,4 +253,15 @@ func sanityCheckPassword(pwd string) error {
 		return fmt.Errorf("密码长度至少 %d 个字符", minPasswordLength)
 	}
 	return nil
+}
+
+// dropAdminAuthCache 清掉管理员鉴权缓存，让被盗令牌立即失效；
+// Redis 不可用时提示缓存最多保留 10 分钟。
+func dropAdminAuthCache(adminID uint) {
+	if !cache.Enabled() {
+		return
+	}
+	if err := cache.DelAdminAuthState(context.Background(), adminID); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: clear auth cache failed (%v); existing sessions may stay valid for up to 10 minutes\n", err)
+	}
 }

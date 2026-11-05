@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/dujiao-next/internal/cache"
 	"github.com/dujiao-next/internal/constants"
@@ -23,7 +22,6 @@ import (
 const (
 	maxGoogleProviderUserIDBytes = 255
 	maxGoogleIdentityEmailBytes  = 128
-	maxGoogleDisplayNameRunes    = 128
 	maxGooglePictureURLBytes     = 2048
 )
 
@@ -62,16 +60,16 @@ func (s *Service) LoginWithGoogle(input LoginWithGoogleInput) (*UserLoginResult,
 	if err != nil {
 		return nil, err
 	}
-	return s.loginVerifiedGoogle(ctx, verified)
+	return s.loginVerifiedGoogle(ctx, verified, "")
 }
 
 // LoginVerifiedGoogle completes login after the dedicated Google verifier has
 // authenticated and normalized the credential.
 func (s *Service) LoginVerifiedGoogle(verified *googleauthapp.VerifiedIdentity) (*UserLoginResult, error) {
-	return s.loginVerifiedGoogle(context.Background(), verified)
+	return s.loginVerifiedGoogle(context.Background(), verified, "")
 }
 
-func (s *Service) loginVerifiedGoogle(ctx context.Context, verified *googleauthapp.VerifiedIdentity) (*UserLoginResult, error) {
+func (s *Service) loginVerifiedGoogle(ctx context.Context, verified *googleauthapp.VerifiedIdentity, inviteCode string) (*UserLoginResult, error) {
 	if s == nil || s.userOAuthIdentityRepo == nil || s.authUnitOfWork == nil {
 		return nil, googleauthapp.ErrGoogleAuthConfigInvalid
 	}
@@ -97,7 +95,7 @@ func (s *Service) loginVerifiedGoogle(ctx context.Context, verified *googleautha
 		}
 
 		var userBefore *userdomain.User
-		var registration googleRegistrationSnapshot
+		var registration registrationPolicy
 		registrationLoaded := false
 		if identityBefore == nil {
 			userBefore, lookupErr = s.userRepo.GetByEmail(verified.Email)
@@ -105,7 +103,7 @@ func (s *Service) loginVerifiedGoogle(ctx context.Context, verified *googleautha
 				return nil, lookupErr
 			}
 			if userBefore == nil {
-				registration, lookupErr = s.loadGoogleRegistrationSnapshot()
+				registration, lookupErr = s.loadRegistrationPolicy(inviteCode)
 				if lookupErr != nil {
 					return nil, lookupErr
 				}
@@ -122,6 +120,9 @@ func (s *Service) loginVerifiedGoogle(ctx context.Context, verified *googleautha
 			registrationLoaded,
 		)
 		if txErr != nil {
+			if errors.Is(txErr, ErrInviteCodeRequired) {
+				return s.inviteRequiredResult(inviteTicketClaims{Provider: inviteTicketProviderGoogle, Google: verified})
+			}
 			if errors.Is(txErr, errGoogleLoginMappingChanged) && attempt == 0 {
 				continue
 			}
@@ -180,7 +181,7 @@ func (s *Service) loginGoogleTransaction(
 	verified *googleauthapp.VerifiedIdentity,
 	identityBefore *externalidentitydomain.Identity,
 	userBefore *userdomain.User,
-	registration googleRegistrationSnapshot,
+	registration registrationPolicy,
 	registrationLoaded bool,
 ) (resolvedUser *userdomain.User, createdUser bool, resultErr error) {
 	resultErr = s.authUnitOfWork.WithinTransaction(ctx, func(tx AuthTransaction) error {
@@ -259,7 +260,7 @@ func (s *Service) loginGoogleTransaction(
 			if err != nil {
 				return err
 			}
-			if err = tx.CreateUser(user); err != nil {
+			if err = createRegisteredUser(tx, user, registration); err != nil {
 				return err
 			}
 			createdUser = true
@@ -313,36 +314,13 @@ func activeTransactionUser(tx AuthTransaction, userID uint) (*userdomain.User, e
 	return user, nil
 }
 
-type googleRegistrationSnapshot struct {
-	Enabled     bool
-	EmailDomain settingsapp.RegistrationEmailDomainPolicy
-}
-
-func (s *Service) loadGoogleRegistrationSnapshot() (googleRegistrationSnapshot, error) {
-	snapshot := googleRegistrationSnapshot{Enabled: true}
-	if s == nil || s.settingService == nil {
-		return snapshot, nil
-	}
-	enabled, err := s.settingService.GetRegistrationEnabled(true)
-	if err != nil {
-		return snapshot, err
-	}
-	policy, err := s.settingService.GetRegistrationEmailDomainPolicy()
-	if err != nil {
-		return snapshot, err
-	}
-	snapshot.Enabled = enabled
-	snapshot.EmailDomain = policy
-	return snapshot, nil
-}
-
 func newGoogleUser(verified *googleauthapp.VerifiedIdentity) (*userdomain.User, error) {
 	passwordHash, err := generateGooglePlaceholderPassword()
 	if err != nil {
 		return nil, err
 	}
 	now := time.Now()
-	displayName := truncateRunes(strings.TrimSpace(verified.Name), maxGoogleDisplayNameRunes)
+	displayName := userdomain.SanitizeDisplayName(verified.Name)
 	if displayName == "" {
 		displayName = resolveNicknameFromEmail(verified.Email)
 	}
@@ -735,12 +713,4 @@ func generateGooglePlaceholderPassword() (string, error) {
 		return "", err
 	}
 	return string(hashed), nil
-}
-
-func truncateRunes(value string, limit int) string {
-	if limit <= 0 || utf8.RuneCountInString(value) <= limit {
-		return value
-	}
-	runes := []rune(value)
-	return string(runes[:limit])
 }

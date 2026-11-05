@@ -43,6 +43,7 @@ import (
 	emailverificationcontract "github.com/dujiao-next/internal/modules/identity/emailverification/contract"
 	externalidentitycontract "github.com/dujiao-next/internal/modules/identity/externalidentity/contract"
 	googleauthapp "github.com/dujiao-next/internal/modules/identity/googleauth/application"
+	invitecodeapp "github.com/dujiao-next/internal/modules/identity/invitecode/application"
 	telegramauthapp "github.com/dujiao-next/internal/modules/identity/telegramauth/application"
 	usercontract "github.com/dujiao-next/internal/modules/identity/user/contract"
 	userauthapp "github.com/dujiao-next/internal/modules/identity/userauth/application"
@@ -134,42 +135,42 @@ type Container struct {
 	MemberLevelUserRepo    memberlevelcontract.UserRepository
 
 	// Services
-	AuthzService               *authz.Service
-	AuthService                *adminauthapp.Service
-	TOTPService                *admintotpapp.Service
-	UserTOTPService            *usertotpapp.Service
-	UserAuthService            *userauthapp.Service
-	TelegramAuthService        *telegramauthapp.Service
-	GoogleAuthService          *googleauthapp.Service
-	EmailSender                *notificationsmtp.Service
-	EmailBrandResolver         mailbrand.Resolver
-	CaptchaService             *captchaapp.Service
-	UploadService              *uploadapp.Service
-	ProductReadService         *productapplication.Service
-	ProductAdminService        *productadmin.AdminService
-	ProductWriteService        *productwrite.WriteService
-	ContentPostService         *contentapp.PostService
-	ContentPostCategoryService *contentapp.PostCategoryService
-	ContentBannerService       *contentapp.BannerService
-	ContentMediaService        *contentapp.MediaService
-	CategoryService            *categoryapp.Service
-	SettingService             *settingsapp.Service
-	SitemapService             *sitemapapp.Service
-	CartService                *cartapp.Service
-	WalletService              *walletapp.Service
-	OrderRefundService         *orderrefund.Service
-	OrderService               *orderapp.OrderService
-	FulfillmentService         *fulfillmentapp.Service
-	CouponAdminService         *couponapp.AdminService
-	PromotionAdminService      *promotionapp.AdminService
-	PaymentService             *paymentapp.PaymentService
-	PaymentCandidateService    *paymentcandidates.Service
+	AuthzService                  *authz.Service
+	AuthService                   *adminauthapp.Service
+	TOTPService                   *admintotpapp.Service
+	UserTOTPService               *usertotpapp.Service
+	UserAuthService               *userauthapp.Service
+	InviteCodeService             *invitecodeapp.Service
+	TelegramAuthService           *telegramauthapp.Service
+	GoogleAuthService             *googleauthapp.Service
+	EmailSender                   *notificationsmtp.Service
+	EmailBrandResolver            mailbrand.Resolver
+	CaptchaService                *captchaapp.Service
+	UploadService                 *uploadapp.Service
+	ProductReadService            *productapplication.Service
+	ProductAdminService           *productadmin.AdminService
+	ProductWriteService           *productwrite.WriteService
+	ContentPostService            *contentapp.PostService
+	ContentPostCategoryService    *contentapp.PostCategoryService
+	ContentBannerService          *contentapp.BannerService
+	ContentMediaService           *contentapp.MediaService
+	CategoryService               *categoryapp.Service
+	SettingService                *settingsapp.Service
+	SitemapService                *sitemapapp.Service
+	CartService                   *cartapp.Service
+	WalletService                 *walletapp.Service
+	OrderRefundService            *orderrefund.Service
+	OrderService                  *orderapp.OrderService
+	FulfillmentService            *fulfillmentapp.Service
+	CouponAdminService            *couponapp.AdminService
+	PromotionAdminService         *promotionapp.AdminService
+	PaymentService                *paymentapp.PaymentService
+	PaymentCandidateService       *paymentcandidates.Service
 
 	PaymentSettlementService        *paymentsettlement.Service
 	PaymentEffectsService           *paymentsettlement.Effects
 	PaymentSecurityAlertsService    *paymentsecurityalerts.Service
 	PaymentChainVerificationService *paymentchainverification.Service
-
 	CardSecretService             *cardsecretapp.Service
 	GiftCardService               *giftcardapp.Service
 	UserLoginLogService           *auditlogapp.UserLoginService

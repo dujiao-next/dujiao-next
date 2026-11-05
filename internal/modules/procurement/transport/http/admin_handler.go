@@ -214,6 +214,10 @@ func (h *AdminHandler) CancelProcurementOrder(c *gin.Context) {
 			ginutil.RespondErrorWithMsg(c, response.CodeBadRequest, err.Error(), nil)
 			return
 		}
+		if errors.Is(err, procurementcontract.ErrUpstreamCancelRefused) {
+			ginutil.RespondError(c, response.CodeBadRequest, "error.procurement_upstream_cancel_refused", nil)
+			return
+		}
 		ginutil.RespondError(c, response.CodeInternal, "error.procurement_cancel_failed", err)
 		return
 	}

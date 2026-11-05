@@ -17,6 +17,13 @@ import (
 // AdminService 优惠券管理服务
 type AdminService struct {
 	repo couponcontract.Repository
+	skus couponcontract.SKUDirectory
+}
+
+// WithSKUDirectory 注入规格目录，用于保存时校验规格是否属于所选商品；未注入时跳过该校验。
+func (s *AdminService) WithSKUDirectory(skus couponcontract.SKUDirectory) *AdminService {
+	s.skus = skus
+	return s
 }
 
 // NewAdminService 创建优惠券管理服务
@@ -38,6 +45,7 @@ type CreateCouponInput struct {
 	PaymentRoles           []string
 	MemberLevels           []uint
 	ScopeRefIDs            []uint
+	ScopeSKUIDs            []uint
 	StartsAt               *time.Time
 	EndsAt                 *time.Time
 	IsActive               *bool
@@ -57,6 +65,7 @@ type UpdateCouponInput struct {
 	PaymentRoles           []string
 	MemberLevels           []uint
 	ScopeRefIDs            []uint
+	ScopeSKUIDs            []uint
 	StartsAt               *time.Time
 	EndsAt                 *time.Time
 	IsActive               *bool
@@ -89,6 +98,13 @@ func (s *AdminService) Create(input CreateCouponInput) (*coupondomain.Coupon, er
 
 	scopeRefIDs, err := encodeScopeRefIDs(input.ScopeRefIDs)
 	if err != nil {
+		return nil, err
+	}
+	scopeSKUIDs, err := encodeScopeSKUIDs(input.ScopeSKUIDs)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.validateScopeSKUs(input.ScopeRefIDs, input.ScopeSKUIDs); err != nil {
 		return nil, err
 	}
 	paymentRoles, err := normalizeCouponPaymentRoles(input.PaymentRoles)
@@ -129,6 +145,7 @@ func (s *AdminService) Create(input CreateCouponInput) (*coupondomain.Coupon, er
 		MemberLevels:           memberLevels,
 		ScopeType:              constants.ScopeTypeProduct,
 		ScopeRefIDs:            scopeRefIDs,
+		ScopeSKUIDs:            scopeSKUIDs,
 		StartsAt:               input.StartsAt,
 		EndsAt:                 input.EndsAt,
 		IsActive:               isActive,
@@ -182,6 +199,13 @@ func (s *AdminService) Update(id uint, input UpdateCouponInput) (*coupondomain.C
 	if err != nil {
 		return nil, err
 	}
+	scopeSKUIDs, err := encodeScopeSKUIDs(input.ScopeSKUIDs)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.validateScopeSKUs(input.ScopeRefIDs, input.ScopeSKUIDs); err != nil {
+		return nil, err
+	}
 	paymentRoles, err := normalizeCouponPaymentRoles(input.PaymentRoles)
 	if err != nil {
 		return nil, err
@@ -220,6 +244,7 @@ func (s *AdminService) Update(id uint, input UpdateCouponInput) (*coupondomain.C
 	existing.MemberLevels = memberLevels
 	existing.ScopeType = constants.ScopeTypeProduct
 	existing.ScopeRefIDs = scopeRefIDs
+	existing.ScopeSKUIDs = scopeSKUIDs
 	existing.StartsAt = input.StartsAt
 	existing.EndsAt = input.EndsAt
 	existing.IsActive = isActive
@@ -261,6 +286,66 @@ func encodeScopeRefIDs(ids []uint) (string, error) {
 	if err != nil {
 		return "", couponcontract.ErrScopeInvalid
 	}
+	return string(payload), nil
+}
+
+// validateScopeSKUs 校验每个规格都存在且属于所选商品范围，
+// 并保证每个所选商品至少有一个规格被选中（否则该商品永远不会参与优惠）。
+func (s *AdminService) validateScopeSKUs(productIDs, skuIDs []uint) error {
+	if s.skus == nil || len(skuIDs) == 0 {
+		return nil
+	}
+	allowed := make(map[uint]struct{}, len(productIDs))
+	for _, id := range productIDs {
+		allowed[id] = struct{}{}
+	}
+	owners, err := s.skus.ResolveSKUProducts(skuIDs)
+	if err != nil {
+		return err
+	}
+	covered := make(map[uint]struct{}, len(skuIDs))
+	for _, id := range skuIDs {
+		if id == 0 {
+			continue
+		}
+		productID, ok := owners[id]
+		if !ok {
+			return couponcontract.ErrScopeInvalid
+		}
+		if _, ok := allowed[productID]; !ok {
+			return couponcontract.ErrScopeInvalid
+		}
+		covered[productID] = struct{}{}
+	}
+	for _, id := range productIDs {
+		if id == 0 {
+			continue
+		}
+		if _, ok := covered[id]; !ok {
+			return couponcontract.ErrScopeInvalid
+		}
+	}
+	return nil
+}
+
+// encodeScopeSKUIDs 编码优惠券适用规格集合；为空表示不限制规格（商品下全部规格）。
+func encodeScopeSKUIDs(ids []uint) (string, error) {
+	seen := make(map[uint]struct{}, len(ids))
+	normalized := make([]uint, 0, len(ids))
+	for _, id := range ids {
+		if id == 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		normalized = append(normalized, id)
+	}
+	if len(normalized) == 0 {
+		return "", nil
+	}
+	payload, _ := json.Marshal(normalized)
 	return string(payload), nil
 }
 

@@ -204,6 +204,14 @@ func (s *OrderService) buildOrderResult(input orderCreateParams) (*orderBuildRes
 			if err := s.productMappingService.EnsureUpstreamStockForOrder(sku.ID, item.Quantity); err != nil {
 				return nil, err
 			}
+			// 库存检查可能触发实时同步并更新交付表单，重新读取以免用旧 schema 校验。
+			refreshed, err := s.productRepo.GetByID(strconv.FormatUint(uint64(product.ID), 10))
+			if err != nil {
+				return nil, err
+			}
+			if refreshed != nil {
+				product.ManualFormSchemaJSON = refreshed.ManualFormSchemaJSON
+			}
 		}
 
 		manualSchemaSnapshot := jsonmap.JSON{}
@@ -292,6 +300,7 @@ func (s *OrderService) buildOrderResult(input orderCreateParams) (*orderBuildRes
 		for _, item := range orderItems {
 			couponItems = append(couponItems, couponcontract.EligibilityItem{
 				ProductID:         item.ProductID,
+				SKUID:             item.SKUID,
 				Quantity:          item.Quantity,
 				TotalPrice:        item.TotalPrice,
 				WholesaleDiscount: item.WholesaleDiscount,
@@ -444,6 +453,10 @@ func applyCouponDiscountToItems(plans []childOrderPlan, coupon *coupondomain.Cou
 	if err != nil {
 		return couponcontract.ErrScopeInvalid
 	}
+	skuIDs, err := coupondomain.DecodeScopeIDs(coupon.ScopeSKUIDs)
+	if err != nil {
+		return couponcontract.ErrScopeInvalid
+	}
 	eligibleIndexes := make([]int, 0, len(plans))
 	eligibleTotal := decimal.Zero
 	scopeMatched := 0
@@ -451,6 +464,11 @@ func applyCouponDiscountToItems(plans []childOrderPlan, coupon *coupondomain.Cou
 	for i := range plans {
 		if _, ok := ids[plans[i].Item.ProductID]; !ok {
 			continue
+		}
+		if len(skuIDs) > 0 {
+			if _, ok := skuIDs[plans[i].Item.SKUID]; !ok {
+				continue
+			}
 		}
 		scopeMatched++
 		if coupon.DisabledWholesalePrice && plans[i].WholesaleDiscount.GreaterThan(decimal.Zero) {

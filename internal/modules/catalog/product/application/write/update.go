@@ -3,8 +3,6 @@ package productwrite
 import (
 	"strings"
 
-	categorydomain "github.com/dujiao-next/internal/modules/catalog/category/domain"
-
 	"github.com/dujiao-next/internal/constants"
 	productcontract "github.com/dujiao-next/internal/modules/catalog/product/contract"
 	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
@@ -42,14 +40,16 @@ func (s *WriteService) Update(id string, input CreateProductInput) (*productdoma
 	}
 
 	product.CategoryID = input.CategoryID
-	product.Category = categorydomain.Category{}
 	product.Slug = input.Slug
 	product.SeoMetaJSON = jsonmap.JSON(input.SeoMetaJSON)
 	product.TitleJSON = jsonmap.JSON(input.TitleJSON)
 	product.DescriptionJSON = jsonmap.JSON(input.DescriptionJSON)
 	product.ContentJSON = jsonmap.JSON(input.ContentJSON)
 	product.InstructionsJSON = jsonmap.JSON(input.InstructionsJSON)
-	product.ManualFormSchemaJSON = jsonmap.JSON{}
+	// 对接商品的交付表单由上游同步维护，后台编辑不得清空。
+	if !product.IsMapped {
+		product.ManualFormSchemaJSON = jsonmap.JSON{}
+	}
 	product.PriceAmount = money.FromDecimal(priceAmount)
 	product.SortOrder = input.SortOrder
 	product.Images = jsonslice.Strings(input.Images)
@@ -144,6 +144,11 @@ func (s *WriteService) Update(id string, input CreateProductInput) (*productdoma
 		product.CostPriceAmount = money.FromDecimal(input.CostPriceAmount.Round(2))
 	}
 	product.ManualStockTotal = manualStockTotal
+	// 单规格且未提交库存时不改 SKU 库存，避免旧表单值覆盖下单预占后的实时库存
+	var singleSKUStock *int
+	if input.ManualStockTotal != nil || fulfillmentType != constants.FulfillmentTypeManual {
+		singleSKUStock = &manualStockTotal
+	}
 
 	if err := s.transactions.WithinTransaction(func(repositories TransactionRepositories) error {
 		productRepo := repositories.Products
@@ -153,25 +158,30 @@ func (s *WriteService) Update(id string, input CreateProductInput) (*productdoma
 			if err := s.applyProductSKUsWithStockGuard(skuRepo, cardSecretRepo, product.ID, fulfillmentType, normalizedSKUs); err != nil {
 				return err
 			}
-		} else if err := s.syncSingleProductSKU(skuRepo, product.ID, priceAmount, product.CostPriceAmount.Decimal, product.ManualStockTotal, true); err != nil {
+		} else if err := s.syncSingleProductSKU(skuRepo, cardSecretRepo, product.ID, fulfillmentType, priceAmount, product.CostPriceAmount.Decimal, singleSKUStock); err != nil {
 			return err
+		}
+		// SKU 落库之后才处理批发价：此时的规格集合才是最终形态。
+		var skus []productdomain.ProductSKU
+		if skuRepo != nil {
+			var err error
+			skus, err = skuRepo.ListByProduct(product.ID, false)
+			if err != nil {
+				return err
+			}
 		}
 		// 仅当请求显式携带批发价字段时才覆盖，省略字段（nil）保留原有配置，
 		// 避免不关心批发价的局部更新静默清空已配阶梯。
 		if input.WholesalePrices != nil {
-			var skus []productdomain.ProductSKU
-			if skuRepo != nil {
-				var err error
-				skus, err = skuRepo.ListByProduct(product.ID, false)
-				if err != nil {
-					return err
-				}
-			}
 			wholesalePrices, err := productdomain.NormalizeWholesalePricesForSKUs(*input.WholesalePrices, skus)
 			if err != nil {
 				return err
 			}
 			product.WholesalePrices = wholesalePrices
+		} else {
+			// 上面可能删掉了规格行。保留的阶梯若仍指向已删除的 SKU，会让后续任何
+			// 批发价编辑都因为「引用了不存在的 SKU」而失败，这里顺手清掉悬空阶梯。
+			product.WholesalePrices = productdomain.PruneWholesalePricesForSKUs(product.WholesalePrices, skus)
 		}
 		if err := productRepo.Update(product); err != nil {
 			return err

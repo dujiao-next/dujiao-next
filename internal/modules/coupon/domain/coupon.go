@@ -24,6 +24,7 @@ type Coupon struct {
 	MemberLevels           jsonslice.Uints   `gorm:"type:json" json:"member_levels"`                            // 会员等级限制（留空不限制）
 	ScopeType              string            `gorm:"not null" json:"scope_type"`                                // 适用范围（product）
 	ScopeRefIDs            string            `gorm:"type:text" json:"scope_ref_ids"`                            // 适用商品ID集合（JSON数组）
+	ScopeSKUIDs            string            `gorm:"column:scope_sku_ids;type:text" json:"scope_sku_ids"`       // 适用规格ID集合（JSON数组，留空表示商品下全部规格）
 	StartsAt               *time.Time        `gorm:"index" json:"starts_at"`                                    // 生效时间
 	EndsAt                 *time.Time        `gorm:"index" json:"ends_at"`                                      // 失效时间
 	IsActive               bool              `gorm:"not null;default:true" json:"is_active"`                    // 是否启用

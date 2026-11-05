@@ -43,6 +43,7 @@ type CreateCouponRequest struct {
 	PaymentRoles           []string `json:"payment_roles"`
 	MemberLevels           []uint   `json:"member_levels"`
 	ScopeRefIDs            []uint   `json:"scope_ref_ids" binding:"required"`
+	ScopeSKUIDs            []uint   `json:"scope_sku_ids"`
 	StartsAt               string   `json:"starts_at"`
 	EndsAt                 string   `json:"ends_at"`
 	IsActive               *bool    `json:"is_active"`
@@ -70,6 +71,7 @@ func buildCreateCouponInputFromRequest(req CreateCouponRequest) (couponapp.Creat
 		PaymentRoles:           req.PaymentRoles,
 		MemberLevels:           req.MemberLevels,
 		ScopeRefIDs:            req.ScopeRefIDs,
+		ScopeSKUIDs:            req.ScopeSKUIDs,
 		StartsAt:               startsAt,
 		EndsAt:                 endsAt,
 		IsActive:               req.IsActive,

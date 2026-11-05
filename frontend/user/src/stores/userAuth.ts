@@ -23,6 +23,8 @@ export const useUserAuthStore = defineStore('user-auth', () => {
     // 2FA 挑战中间状态（不持久化到 localStorage）
     const challengeToken = ref<string>('')
     const challengeExpiresAt = ref<string>('')
+    // 邀请制下第三方新用户的待补邀请码票据（不持久化，后端 10 分钟有效）
+    const inviteTicket = ref<string>('')
 
     const isAuthenticated = computed(() => !!token.value)
 
@@ -106,7 +108,11 @@ export const useUserAuthStore = defineStore('user-auth', () => {
         }
     }
 
-    const handleLoginResponse = (data: any): { requiresTotp: boolean } => {
+    const handleLoginResponse = (data: any): { requiresTotp: boolean; inviteRequired?: boolean } => {
+        if (data?.invite_required) {
+            inviteTicket.value = data.invite_ticket || ''
+            return { requiresTotp: false, inviteRequired: true }
+        }
         if (data?.requires_totp) {
             challengeToken.value = data.challenge_token || ''
             challengeExpiresAt.value = data.challenge_expires_at || ''
@@ -169,6 +175,24 @@ export const useUserAuthStore = defineStore('user-auth', () => {
         }
     }
 
+    const clearInviteTicket = () => {
+        inviteTicket.value = ''
+    }
+
+    const completeInviteRegistration = async (inviteCode: string) => {
+        loading.value = true
+        try {
+            const response = await userAuthAPI.completeInviteRegistration({
+                invite_ticket: inviteTicket.value,
+                invite_code: inviteCode,
+            })
+            clearInviteTicket()
+            return handleLoginResponse(response.data.data)
+        } finally {
+            loading.value = false
+        }
+    }
+
     const forgotPassword = async (payload: any) => {
         loading.value = true
         try {
@@ -203,6 +227,7 @@ export const useUserAuthStore = defineStore('user-auth', () => {
         loading,
         challengeToken,
         challengeExpiresAt,
+        inviteTicket,
         isAuthenticated,
         sendVerifyCode,
         register,
@@ -214,6 +239,8 @@ export const useUserAuthStore = defineStore('user-auth', () => {
         telegramMiniAppLogin,
         googleLogin,
         googleRedirectLogin,
+        clearInviteTicket,
+        completeInviteRegistration,
         forgotPassword,
         syncUserProfile,
         logout,

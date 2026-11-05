@@ -665,3 +665,29 @@ func TestWalletServiceAdminRefundToWalletParentFullMixedChildrenStatus(t *testin
 		expectedChildStatus:  constants.OrderStatusRefunded,
 	})
 }
+
+// 退到钱包同样要让子订单退款计入父订单：先全额退子单，再退父单不能把同一笔钱退两次。
+func TestWalletServiceAdminRefundToWalletChildCountsAgainstParent(t *testing.T) {
+	svc, db := setupOrderRefundWalletTest(t)
+	createTestUser(t, db, 105)
+	parent := createTestOrder(t, db, 105, "DJTESTREFUNDPARENT", decimal.NewFromInt(40))
+	child := createTestOrder(t, db, 105, "DJTESTREFUNDCHILD", decimal.NewFromInt(40))
+	paidAt := time.Now()
+	for _, id := range []uint{parent.ID, child.ID} {
+		updates := map[string]interface{}{"status": constants.OrderStatusPaid, "paid_at": paidAt}
+		if id == child.ID {
+			updates["parent_id"] = parent.ID
+		}
+		if err := db.Model(&orderdomain.Order{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+			t.Fatalf("update order failed: %v", err)
+		}
+	}
+
+	forty := money.FromDecimal(decimal.NewFromInt(40))
+	if _, _, _, err := svc.AdminRefundToWallet(AdminRefundToWalletInput{OrderID: child.ID, Amount: forty}); err != nil {
+		t.Fatalf("child refund failed: %v", err)
+	}
+	if _, _, _, err := svc.AdminRefundToWallet(AdminRefundToWalletInput{OrderID: parent.ID, Amount: forty}); !errors.Is(err, walletcontract.ErrRefundExceeded) {
+		t.Fatalf("parent refund after full child refund must be rejected, got %v", err)
+	}
+}

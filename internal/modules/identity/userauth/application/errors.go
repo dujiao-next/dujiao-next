@@ -29,9 +29,13 @@ var (
 	ErrGoogleRedirectUserMismatch   = errors.New("google redirect user mismatch")
 	ErrGoogleRedirectFlowInvalid    = errors.New("google redirect flow invalid")
 	ErrProfileEmpty                 = errors.New("profile empty")
+	ErrNicknameInvalid              = errors.New("nickname invalid")
 	ErrEmailChangeInvalid           = errors.New("email change invalid")
 	ErrEmailChangeExists            = errors.New("email change exists")
 	ErrRegistrationDisabled         = errors.New("registration disabled")
+	ErrInviteCodeRequired           = errors.New("invite code required")
+	ErrInviteCodeInvalid            = errors.New("invite code invalid")
+	ErrInviteTicketInvalid          = errors.New("invite ticket invalid")
 )
 
 var errExternalIdentityUnbindLocked = errors.New("external identity unbind would lock account")

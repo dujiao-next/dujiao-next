@@ -1,6 +1,7 @@
 package application
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -29,7 +30,7 @@ func (s *Service) getActiveUserByID(userID uint) (*userdomain.User, error) {
 	return user, nil
 }
 
-func (s *Service) findOrCreateTelegramUser(verified *telegramauthapp.IdentityVerified) (*userdomain.User, error) {
+func (s *Service) findOrCreateTelegramUser(verified *telegramauthapp.IdentityVerified, inviteCode string) (*userdomain.User, error) {
 	if verified == nil {
 		return nil, telegramauthapp.ErrTelegramAuthPayloadInvalid
 	}
@@ -44,14 +45,15 @@ func (s *Service) findOrCreateTelegramUser(verified *telegramauthapp.IdentityVer
 		}
 		return user, nil
 	}
-	if s.settingService != nil {
-		registrationEnabled, err := s.settingService.GetRegistrationEnabled(true)
-		if err != nil {
-			return nil, err
-		}
-		if !registrationEnabled {
-			return nil, ErrRegistrationDisabled
-		}
+	policy, err := s.loadRegistrationPolicy(inviteCode)
+	if err != nil {
+		return nil, err
+	}
+	if !policy.Enabled {
+		return nil, ErrRegistrationDisabled
+	}
+	if err := s.precheckInviteCode(policy); err != nil {
+		return nil, err
 	}
 
 	randomSuffix, err := randomNumericCode(16)
@@ -69,13 +71,13 @@ func (s *Service) findOrCreateTelegramUser(verified *telegramauthapp.IdentityVer
 		Email:                 email,
 		PasswordHash:          string(hashedPassword),
 		PasswordSetupRequired: true,
-		DisplayName:           telegramidentity.ResolveDisplayName(verified.ProviderUserID, verified.Username, verified.FirstName, verified.LastName),
+		DisplayName:           userdomain.SanitizeDisplayName(telegramidentity.ResolveDisplayName(verified.ProviderUserID, verified.Username, verified.FirstName, verified.LastName)),
 		Status:                constants.UserStatusActive,
 		LastLoginAt:           &now,
 		CreatedAt:             now,
 		UpdatedAt:             now,
 	}
-	if err := s.userRepo.Create(user); err != nil {
+	if err := s.createUserInTransaction(context.Background(), user, policy); err != nil {
 		return nil, err
 	}
 	// 分配默认会员等级

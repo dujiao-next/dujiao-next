@@ -195,7 +195,7 @@ func (h *UserHandler) Recharge(c *gin.Context) {
 	}
 	result, err := h.payments.CreateWalletRechargePayment(CreateRechargePaymentInput{
 		UserID: uid, ChannelID: req.ChannelID, Amount: money.FromDecimal(amount), Currency: currency,
-		Remark: strings.TrimSpace(req.Remark), ClientIP: c.ClientIP(), Context: c.Request.Context(), RequestScheme: requestSchemeFromContext(c),
+		Remark: strings.TrimSpace(req.Remark), ClientIP: c.ClientIP(), Context: c.Request.Context(), RequestScheme: ginutil.RequestScheme(c),
 	})
 	if err != nil {
 		switch {
@@ -321,22 +321,6 @@ func (h *UserHandler) CaptureRechargePayment(c *gin.Context) {
 		return
 	}
 	response.Success(c, walletpresenter.NewWalletRechargePaymentPayload(recharge, payment, account))
-}
-
-func requestSchemeFromContext(c *gin.Context) string {
-	if c == nil || c.Request == nil {
-		return ""
-	}
-	if proto := strings.TrimSpace(c.GetHeader("X-Forwarded-Proto")); proto != "" {
-		proto = strings.ToLower(strings.TrimSpace(strings.Split(proto, ",")[0]))
-		if proto == "http" || proto == "https" {
-			return proto
-		}
-	}
-	if c.Request.TLS != nil {
-		return "https"
-	}
-	return "http"
 }
 
 func respondPaymentCreateError(c *gin.Context, err error) {

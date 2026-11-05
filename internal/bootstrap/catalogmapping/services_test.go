@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"strings"
 	"testing"
 
 	mappingdomain "github.com/dujiao-next/internal/modules/catalog/mapping/domain"
@@ -842,5 +844,100 @@ func TestImportUpstreamProductRejectsInactive(t *testing.T) {
 	}
 	if productCount != 0 {
 		t.Fatalf("expected no local product created when import rejected, got %d", productCount)
+	}
+}
+
+func TestImportUpstreamProductPrefersUpstreamSlug(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:import_upstream_slug?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite failed: %v", err)
+	}
+	if err := db.AutoMigrate(
+		&categorydomain.Category{},
+		&productdomain.Product{},
+		&productdomain.ProductSKU{},
+		&siteconnectiondomain.Connection{},
+		&mappingdomain.Mapping{},
+		&mappingdomain.SKUMapping{},
+	); err != nil {
+		t.Fatalf("auto migrate failed: %v", err)
+	}
+	categoryRepo := categorygormstore.NewCategoryStore(db)
+	if err := categoryRepo.Create(&categorydomain.Category{Slug: "c", NameJSON: jsonmap.JSON{"zh-CN": "C"}}); err != nil {
+		t.Fatalf("create category failed: %v", err)
+	}
+	// 已软删除的商品仍占用唯一索引，导入必须避开
+	if err := db.Exec("INSERT INTO products (category_id, slug, title_json, price_amount, deleted_at) VALUES (1, 'taken', '{}', 0, CURRENT_TIMESTAMP)").Error; err != nil {
+		t.Fatalf("seed deleted product failed: %v", err)
+	}
+
+	upstreamSlugs := map[string]string{
+		"/api/v1/upstream/products/1": "telegram-asia-iq964",
+		"/api/v1/upstream/products/2": "taken",
+		"/api/v1/upstream/products/3": "Bad Slug!",
+		"/api/v1/upstream/products/4": "",
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id, _ := strconv.Atoi(strings.TrimPrefix(r.URL.Path, "/api/v1/upstream/products/"))
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"ok": true,
+			"product": upstream.UpstreamProduct{
+				ID:          uint(id),
+				Slug:        upstreamSlugs[r.URL.Path],
+				Title:       jsonmap.JSON{"zh-CN": "P"},
+				PriceAmount: "10.00",
+				IsActive:    true,
+			},
+		})
+	}))
+	defer server.Close()
+
+	connService := siteconnectionapp.NewService(siteconnectiongormstore.New(db), "test-secret-key", t.TempDir())
+	conn, err := connService.Create(siteconnectionapp.CreateInput{
+		Name: "u", BaseURL: server.URL, ApiKey: "k", ApiSecret: "s",
+		Protocol: constants.ConnectionProtocolDujiaoNext,
+	})
+	if err != nil {
+		t.Fatalf("create connection failed: %v", err)
+	}
+	productRepo := productgormstore.NewProductStore(db)
+	svc, err := newTestMappingService(
+		mappinggormstore.NewMappingStore(db),
+		mappinggormstore.NewSKUMappingStore(db),
+		productRepo,
+		productgormstore.NewSKUStore(db),
+		categoryRepo,
+		connService,
+		noopLocalMediaRecorder{},
+	)
+	if err != nil {
+		t.Fatalf("create product mapping service: %v", err)
+	}
+
+	cases := []struct {
+		upstreamID uint
+		want       string
+	}{
+		{1, "telegram-asia-iq964"},
+		{2, "taken-2"},
+		{3, ""}, // 非法 slug → 回退自动生成
+		{4, ""}, // 未提供 slug → 回退自动生成
+	}
+	for _, tc := range cases {
+		mapping, err := svc.ImportUpstreamProduct(conn.ID, tc.upstreamID, 1, "")
+		if err != nil {
+			t.Fatalf("import upstream %d failed: %v", tc.upstreamID, err)
+		}
+		var product productdomain.Product
+		if err := db.First(&product, mapping.LocalProductID).Error; err != nil {
+			t.Fatalf("load product failed: %v", err)
+		}
+		if tc.want != "" && product.Slug != tc.want {
+			t.Fatalf("upstream %d: expected slug %q, got %q", tc.upstreamID, tc.want, product.Slug)
+		}
+		if tc.want == "" && !strings.HasPrefix(product.Slug, "upstream-") {
+			t.Fatalf("upstream %d: expected fallback slug, got %q", tc.upstreamID, product.Slug)
+		}
 	}
 }

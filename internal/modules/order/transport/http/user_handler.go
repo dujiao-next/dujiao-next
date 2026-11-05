@@ -84,12 +84,7 @@ func NewUserHandler(orders UserOrderQuery, payments PaymentChannelPolicy, refund
 }
 
 func tenantFromRequest(c *gin.Context) reseller.TenantContext {
-	if c != nil && c.Request != nil {
-		if tenant, ok := reseller.TenantFromContext(c.Request.Context()); ok {
-			return tenant
-		}
-	}
-	return reseller.MainTenantContext("")
+	return reseller.TenantOrMain(c.Request.Context())
 }
 
 // ListOrders 获取订单列表

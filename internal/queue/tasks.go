@@ -21,6 +21,8 @@ const (
 	TaskNotificationDispatch = constants.TaskNotificationDispatch
 	// TaskAffiliateConfirmCommissions 佣金到期确认任务
 	TaskAffiliateConfirmCommissions = constants.TaskAffiliateConfirmCommissions
+	// TaskAffiliateOrderPaid 支付后佣金创建失败时的重试任务
+	TaskAffiliateOrderPaid = constants.TaskAffiliateOrderPaid
 	// TaskResellerConfirmLedger 分销商账务到期确认任务
 	TaskResellerConfirmLedger = constants.TaskResellerConfirmLedger
 	// TaskUpstreamSyncStock 上游库存同步任务
@@ -52,6 +54,11 @@ type OrderStatusEmailPayload struct {
 type OrderAutoFulfillPayload struct {
 	DurablePaymentEffects bool `json:"durable_payment_effects,omitempty"`
 	OrderID               uint `json:"order_id"`
+}
+
+// AffiliateOrderPaidPayload 佣金创建重试任务载荷
+type AffiliateOrderPaidPayload struct {
+	OrderID uint `json:"order_id"`
 }
 
 // OrderTimeoutCancelPayload 超时取消任务载荷
@@ -90,6 +97,15 @@ func NewOrderAutoFulfillTask(payload OrderAutoFulfillPayload) (*asynq.Task, erro
 		return nil, err
 	}
 	return asynq.NewTask(TaskOrderAutoFulfill, body), nil
+}
+
+// NewAffiliateOrderPaidTask 创建佣金创建重试任务
+func NewAffiliateOrderPaidTask(payload AffiliateOrderPaidPayload) (*asynq.Task, error) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	return asynq.NewTask(TaskAffiliateOrderPaid, body), nil
 }
 
 // NewOrderTimeoutCancelTask 创建超时取消任务

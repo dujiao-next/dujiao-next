@@ -2,6 +2,7 @@ package gormstore
 
 import (
 	"fmt"
+	"github.com/dujiao-next/internal/persistence/gormutil"
 	"strings"
 	"time"
 
@@ -10,21 +11,10 @@ import (
 	"gorm.io/gorm"
 )
 
-func dialectName(db *gorm.DB) string {
-	if db == nil || db.Dialector == nil {
-		return "sqlite"
-	}
-	name := strings.ToLower(strings.TrimSpace(db.Dialector.Name()))
-	if name == "" {
-		return "sqlite"
-	}
-	return name
-}
-
 func localizedJSONCoalesceExpr(db *gorm.DB, column string) string {
 	parts := make([]string, 0, len(constants.SupportedLocales)+1)
 	for _, key := range constants.SupportedLocales {
-		switch dialectName(db) {
+		switch gormutil.DialectName(db) {
 		case "postgres", "postgresql":
 			parts = append(parts, fmt.Sprintf("(%s::jsonb ->> '%s')", column, key))
 		default:
@@ -39,7 +29,7 @@ func dateGroupExpr(db *gorm.DB, column string, loc *time.Location, refTime time.
 	if loc == nil {
 		loc = time.UTC
 	}
-	switch dialectName(db) {
+	switch gormutil.DialectName(db) {
 	case "postgres", "postgresql":
 		zoneName := loc.String()
 		if zoneName == "" || zoneName == "Local" {
@@ -74,7 +64,7 @@ func quotedStatusList(statuses []string) string {
 // timeRangeQuery 返回时间范围查询的 WHERE 条件和参数
 // 在 SQLite 下使用 datetime() 函数确保格式一致，避免字符串比较错误
 func timeRangeQuery(db *gorm.DB, column string, startAt, endAt time.Time) (string, []interface{}) {
-	switch dialectName(db) {
+	switch gormutil.DialectName(db) {
 	case "postgres", "postgresql":
 		return fmt.Sprintf("%s >= ? AND %s < ?", column, column), []interface{}{startAt, endAt}
 	default:

@@ -362,7 +362,7 @@
 
         <!-- Back Button -->
         <div class="mb-12 text-center">
-          <router-link to="/products"
+          <router-link :to="backToListTo"
             class="inline-flex items-center space-x-2 text-muted-foreground hover:text-foreground transition-colors border-b border-transparent hover:border-current pb-1">
             <ArrowLeft class="w-5 h-5" />
             <span>{{ t('productDetail.backToProducts') }}</span>
@@ -402,7 +402,7 @@
             {{ t('errorBoundary.retry') }}
           </Button>
           <Button variant="secondary" as-child class="rounded-full h-10">
-            <router-link to="/products">{{ t('productDetail.backToProducts') }}</router-link>
+            <router-link :to="backToListTo">{{ t('productDetail.backToProducts') }}</router-link>
           </Button>
         </template>
       </EmptyState>
@@ -466,6 +466,7 @@ const {
   quantityEffectiveLimit, quantityEffectiveMin, handleQuantityInput,
   requiresLogin, requiresSKUSelection, canPurchase, cannotPurchaseReason,
   categoryName, images,
+  backToListTo,
   addToCart, buyNow, goLogin, loadProduct,
   mobileBarShowMemberPrice, mobileBarMemberPriceDisplay,
   mobileBarShowSkuPromotionPrice, mobileBarSkuPromotionPriceDisplay,

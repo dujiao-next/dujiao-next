@@ -51,6 +51,7 @@ func registerStorefrontRoutes(
 	userGoogleHandler *userauthtransport.UserGoogleHandler,
 	userLoginHandler *userauthtransport.UserLoginHandler,
 	user2FAHandler *userauthtransport.User2FAHandler,
+	userInviteHandler *userauthtransport.UserInviteHandler,
 	publicConfigHandler *publicconfigtransport.Handler,
 	userCartHandler *carttransport.UserHandler,
 	userOrderHandler *ordertransport.UserHandler,
@@ -99,17 +100,29 @@ func registerStorefrontRoutes(
 		paymenttransport.RegisterGuestWriteRoutes(guestWrite, paymentWriteHandler)
 	}
 
+	// 注册 / 忘记密码 / 发送验证码：按 IP 计数，共享出口 IP（NAT）下一次完整流程就要 2~4 次请求，
+	// 不能照搬登录的 5 次/封 15 分钟，否则同网用户会被成批误封。
+	authRule := middleware.RateLimitRule{
+		Prefix:        loginRule.Prefix + ":auth",
+		WindowSeconds: 300,
+		MaxRequests:   20,
+		BlockSeconds:  300,
+		MessageKey:    "error.rate_limited",
+	}
+	authRateLimit := middleware.RateLimitMiddleware(redisClient, authRule, middleware.KeyByIP)
+
 	// 用户认证接口
 	auth := storefront.Group("/auth")
 	{
-		userauthtransport.RegisterUserVerifyAuthRoutes(auth, userVerifyHandler)
-		userauthtransport.RegisterUserRegisterAuthRoutes(auth, userLoginHandler)
+		userauthtransport.RegisterUserVerifyAuthRoutes(auth, userVerifyHandler, authRateLimit)
+		userauthtransport.RegisterUserRegisterAuthRoutes(auth, userLoginHandler, authRateLimit)
 		userauthtransport.RegisterUserLoginAuthRoutes(auth, userLoginHandler, middleware.RateLimitMiddleware(redisClient, loginRule, middleware.KeyByIPAndJSONField("email")))
 		userauthtransport.RegisterUser2FAAuthRoutes(auth, user2FAHandler, middleware.RateLimitMiddleware(redisClient, loginRule, middleware.KeyByIP))
 		userauthtransport.RegisterUserTelegramAuthRoutes(auth, userTelegramHandler, middleware.RateLimitMiddleware(redisClient, loginRule, middleware.KeyByIP))
 		userauthtransport.RegisterUserTelegramOIDCAuthRoutes(auth, userTelegramOIDCHandler, middleware.RateLimitMiddleware(redisClient, loginRule, middleware.KeyByIP))
 		userauthtransport.RegisterUserGoogleAuthRoutes(auth, userGoogleHandler, middleware.RateLimitMiddleware(redisClient, loginRule, middleware.KeyByIP))
-		userauthtransport.RegisterUserPasswordAuthRoutes(auth, userPasswordHandler)
+		userauthtransport.RegisterUserInviteAuthRoutes(auth, userInviteHandler, middleware.RateLimitMiddleware(redisClient, loginRule, middleware.KeyByIP))
+		userauthtransport.RegisterUserPasswordAuthRoutes(auth, userPasswordHandler, authRateLimit)
 	}
 
 	// 用户接口（需鉴权）
@@ -156,8 +169,9 @@ func registerStorefrontRoutes(
 	}
 }
 
-func registerPaymentCallbackRoutes(apiV1 *gin.RouterGroup, callbackHandler *paymentcallbacktransport.Handler, webhookHandler *paymenttransport.WebhookHandler, redisClient *redis.Client, callbackRule middleware.RateLimitRule) {
+func registerPaymentCallbackRoutes(apiV1 *gin.RouterGroup, callbackHandler *paymentcallbacktransport.Handler, webhookHandler *paymenttransport.WebhookHandler, epayRedirectHandler *paymenttransport.EpayRedirectHandler, redisClient *redis.Client, callbackRule middleware.RateLimitRule) {
 	callbacks := apiV1.Group("", middleware.RateLimitMiddleware(redisClient, callbackRule, middleware.KeyByIP))
 	paymentcallbacktransport.RegisterRoutes(callbacks, callbackHandler)
 	paymenttransport.RegisterWebhookRoutes(callbacks, webhookHandler)
+	paymenttransport.RegisterEpayRedirectRoute(callbacks, epayRedirectHandler)
 }

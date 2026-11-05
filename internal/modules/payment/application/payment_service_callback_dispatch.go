@@ -35,6 +35,12 @@ func (s *PaymentService) enqueueOrderPaidAsync(order *orderdomain.Order, payment
 				"order_no", order.OrderNo,
 				"error", err,
 			)
+			// 支付已提交，佣金写入失败交给队列重试（佣金表唯一索引保证重复执行安全）
+			if s.queue != nil && s.queue.Enabled() {
+				if enqueueErr := s.queue.EnqueueAffiliateOrderPaid(order.ID); enqueueErr != nil {
+					log.Warnw("affiliate_order_paid_enqueue_retry_failed", "order_id", order.ID, "error", enqueueErr)
+				}
+			}
 		}
 	}
 	if s.queue != nil && s.queue.Enabled() && !isOrderFullyAutoFulfill(order) {
@@ -389,7 +395,7 @@ func (s *PaymentService) HandlePaymentEffect(ctx context.Context, effect payment
 			if !locked.RefundedAmount.Decimal.IsZero() || locked.Status == constants.OrderStatusCanceled || locked.Status == constants.OrderStatusRefunded || locked.Status == constants.OrderStatusPartiallyRefunded {
 				return nil
 			}
-			return apply(tx.Users())
+			return apply(tx.MemberLevelUsers())
 		})
 		return true, err
 	case "affiliate":

@@ -3,6 +3,7 @@ package gormstore
 import (
 	"context"
 	"fmt"
+	"github.com/dujiao-next/internal/persistence/gormutil"
 	"strings"
 	"testing"
 	"time"
@@ -311,11 +312,11 @@ func TestStoresPropagateCancelledContext(t *testing.T) {
 }
 
 func TestLocalizedSearchDialectExpressions(t *testing.T) {
-	postgres, postgresArgs := buildLocalizedLikeConditionByDialect("postgres", []string{"slug"}, []string{"title_json"})
+	postgres, postgresArgs := gormutil.BuildLocalizedLikeConditionByDialect("postgres", []string{"slug"}, []string{"title_json"})
 	if postgresArgs != 4 || !strings.Contains(postgres, "ILIKE") || !strings.Contains(postgres, "title_json::jsonb ->> 'zh-CN'") {
 		t.Fatalf("postgres localized search expression mismatch args=%d sql=%s", postgresArgs, postgres)
 	}
-	sqliteCondition, sqliteArgs := buildLocalizedLikeConditionByDialect("sqlite", []string{"slug"}, []string{"title_json"})
+	sqliteCondition, sqliteArgs := gormutil.BuildLocalizedLikeConditionByDialect("sqlite", []string{"slug"}, []string{"title_json"})
 	if sqliteArgs != 4 || !strings.Contains(sqliteCondition, " LIKE ") || !strings.Contains(sqliteCondition, `json_extract(title_json, '$."zh-CN"')`) {
 		t.Fatalf("sqlite localized search expression mismatch args=%d sql=%s", sqliteArgs, sqliteCondition)
 	}

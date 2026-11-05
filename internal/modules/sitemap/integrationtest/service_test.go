@@ -246,6 +246,7 @@ func TestSitemapServiceGenerateRobotsIncludesSitemapURL(t *testing.T) {
 
 	mustContain := []string{
 		"User-agent: *",
+		"Allow: /api/v1/public/\nDisallow: /api/\n",
 		"Disallow: /admin/",
 		"Disallow: /me/",
 		"Sitemap: https://example.com/sitemap.xml",

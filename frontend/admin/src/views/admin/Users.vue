@@ -499,7 +499,7 @@ onMounted(() => {
             </div>
             <div>
               <label class="block text-xs font-medium text-muted-foreground mb-1.5">{{ t('admin.users.form.nickname') }}</label>
-              <Input v-model="form.nickname" :placeholder="t('admin.users.form.nicknamePlaceholder')" />
+              <Input v-model="form.nickname" :placeholder="t('admin.users.form.nicknamePlaceholder')" maxlength="32" />
               <p v-if="formErrors.nickname" class="text-xs text-destructive mt-1">{{ formErrors.nickname }}</p>
             </div>
             <div>

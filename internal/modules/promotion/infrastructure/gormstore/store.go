@@ -2,6 +2,7 @@ package gormstore
 
 import (
 	"errors"
+	"github.com/dujiao-next/internal/persistence/gormutil"
 	"strings"
 	"time"
 
@@ -110,7 +111,7 @@ func (r *Store) List(filter promotioncontract.ListFilter) ([]promotiondomain.Pro
 		return nil, 0, err
 	}
 
-	query = applyPagination(query, filter.Page, filter.PageSize)
+	query = gormutil.ApplyPagination(query, filter.Page, filter.PageSize)
 
 	if err := query.Order("id desc").Find(&promotions).Error; err != nil {
 		return nil, 0, err

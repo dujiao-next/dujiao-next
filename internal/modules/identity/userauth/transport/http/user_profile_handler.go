@@ -13,8 +13,9 @@ import (
 )
 
 var (
-	ErrProfileEmpty = errors.New("user profile empty")
-	ErrUserNotFound = errors.New("user not found")
+	ErrProfileEmpty    = errors.New("user profile empty")
+	ErrNicknameInvalid = errors.New("user nickname invalid")
+	ErrUserNotFound    = errors.New("user not found")
 )
 
 // UserProfileService 是用户资料端点所需的最小端口。
@@ -98,6 +99,8 @@ func (h *UserProfileHandler) UpdateUserProfile(c *gin.Context) {
 		switch {
 		case errors.Is(err, ErrProfileEmpty):
 			ginutil.RespondError(c, response.CodeBadRequest, "error.profile_empty", nil)
+		case errors.Is(err, ErrNicknameInvalid):
+			ginutil.RespondError(c, response.CodeBadRequest, "error.nickname_invalid", nil)
 		case errors.Is(err, ErrUserNotFound):
 			ginutil.RespondError(c, response.CodeNotFound, "error.user_not_found", nil)
 		default:

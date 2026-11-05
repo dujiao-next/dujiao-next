@@ -52,12 +52,18 @@ func TestStoreReturnsLatestActiveCodeAndPersistsAttempts(t *testing.T) {
 	if got == nil || got.ID != latest.ID {
 		t.Fatalf("unexpected latest verification code: %#v", got)
 	}
-	if err := store.IncrementAttempt(got.ID); err != nil {
-		t.Fatalf("increment attempt failed: %v", err)
+	if ok, err := store.ReserveAttempt(got.ID, 1); err != nil || !ok {
+		t.Fatalf("reserve attempt failed: ok=%v err=%v", ok, err)
+	}
+	if ok, err := store.ReserveAttempt(got.ID, 1); err != nil || ok {
+		t.Fatalf("reserve attempt beyond max must fail: ok=%v err=%v", ok, err)
 	}
 	verifiedAt := now.Add(2 * time.Second)
-	if err := store.MarkVerified(got.ID, verifiedAt); err != nil {
-		t.Fatalf("mark verified failed: %v", err)
+	if ok, err := store.MarkVerified(got.ID, verifiedAt); err != nil || !ok {
+		t.Fatalf("mark verified failed: ok=%v err=%v", ok, err)
+	}
+	if ok, err := store.MarkVerified(got.ID, verifiedAt); err != nil || ok {
+		t.Fatalf("verified code must not be marked twice: ok=%v err=%v", ok, err)
 	}
 	refreshed, err := store.GetLatest("buyer@example.com", "login")
 	if err != nil {

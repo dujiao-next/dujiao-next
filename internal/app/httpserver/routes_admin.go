@@ -23,6 +23,7 @@ import (
 	giftcardtransport "github.com/dujiao-next/internal/modules/giftcard/transport/http"
 	adminauthtransport "github.com/dujiao-next/internal/modules/identity/adminauth/transport/http"
 	adminauthztransport "github.com/dujiao-next/internal/modules/identity/adminauthorization/transport/http"
+	invitecodetransport "github.com/dujiao-next/internal/modules/identity/invitecode/transport/http"
 	adminusertransport "github.com/dujiao-next/internal/modules/identity/user/transport/http/admin"
 	memberleveltransport "github.com/dujiao-next/internal/modules/memberlevel/transport/http"
 	notificationtransport "github.com/dujiao-next/internal/modules/notification/transport/http"
@@ -156,6 +157,7 @@ func registerAdminRoutes(
 	fulfillmenttransport.RegisterAdminRoutes(authorized, adminFulfillmentHandler)
 	cardsecrettransport.RegisterAdminRoutes(authorized, adminCardSecretHandler)
 	giftcardtransport.RegisterAdminRoutes(authorized, adminGiftCardHandler)
+	invitecodetransport.RegisterAdminRoutes(authorized, invitecodetransport.NewAdminHandler(c.InviteCodeService, c.UserStore))
 
 	// 优惠券与活动价
 	coupontransport.RegisterAdminRoutes(authorized, adminCouponHandler)

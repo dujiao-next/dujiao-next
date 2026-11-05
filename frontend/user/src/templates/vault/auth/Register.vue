@@ -24,6 +24,15 @@
           </div>
 
           <form class="grid gap-[18px]" @submit.prevent="handleRegister">
+            <!-- 邀请码 -->
+            <div v-if="inviteOnlyEnabled">
+              <label class="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                <Ticket class="h-3.5 w-3.5 opacity-70" /> {{ t('auth.invite.codeLabel') }}
+              </label>
+              <Input v-model="inviteCode" type="text" required autocomplete="off" class="h-11" :placeholder="t('auth.invite.codePlaceholder')" />
+              <p class="mt-1.5 text-xs text-muted-foreground">{{ t('auth.invite.registerHint') }}</p>
+            </div>
+
             <!-- 邮箱 -->
             <div>
               <label class="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
@@ -168,7 +177,7 @@
       </Card>
 
       <div class="mt-4 text-center">
-        <RouterLink to="/auth/login" class="text-sm text-muted-foreground transition-colors hover:text-foreground">{{ t('auth.register.hasAccount') }}</RouterLink>
+        <RouterLink :to="loginLink" class="text-sm text-muted-foreground transition-colors hover:text-foreground">{{ t('auth.register.hasAccount') }}</RouterLink>
       </div>
     </div>
   </div>
@@ -176,7 +185,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Mail, Lock, ShieldCheck, Eye, EyeOff, UserPlus } from 'lucide-vue-next'
+import { ArrowLeft, Mail, Lock, ShieldCheck, Eye, EyeOff, UserPlus, Ticket } from 'lucide-vue-next'
 import ImageCaptcha from '../../../components/captcha/ImageCaptcha.vue'
 import TurnstileCaptcha from '../../../components/captcha/TurnstileCaptcha.vue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -191,7 +200,7 @@ const { t } = useI18n()
 
 const {
   userAuthStore, brandSiteName,
-  email, emailLocalPart, selectedEmailDomain, password, showPassword, code, agreed,
+  email, emailLocalPart, selectedEmailDomain, password, showPassword, code, agreed, inviteCode, inviteOnlyEnabled, loginLink,
   passwordStrength, error, sending, countdown,
   captchaPayload, turnstileToken, imageCaptchaRef, turnstileRef,
   captchaProvider, sendCodeCaptchaEnabled, turnstileSiteKey,

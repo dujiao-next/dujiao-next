@@ -34,6 +34,7 @@ type Settings interface {
 	GetSMTPEnabled() bool
 	GetRegistrationEnabled(defaultValue bool) (bool, error)
 	GetEmailVerificationEnabled(defaultValue bool) (bool, error)
+	GetRegistrationInviteOnly() (bool, error)
 	GetRegistrationEmailDomainPolicy() (enabled bool, allowedDomains []string, err error)
 	GetByKey(key string) (interface{}, error)
 	GetActiveHomeAnnouncement() (jsonmap.JSON, bool)
@@ -204,6 +205,8 @@ func (h *Handler) GetConfig(c *gin.Context) {
 	emailVerificationEnabled, _ := h.settings.GetEmailVerificationEnabled(true)
 	data["registration_enabled"] = registrationEnabled
 	data["email_verification_enabled"] = emailVerificationEnabled
+	inviteOnly, _ := h.settings.GetRegistrationInviteOnly()
+	data["invite_only_enabled"] = registrationEnabled && inviteOnly
 	enabled, allowedDomains, policyErr := h.settings.GetRegistrationEmailDomainPolicy()
 	if policyErr != nil {
 		ginutil.RespondError(c, response.CodeInternal, "error.config_fetch_failed", policyErr)

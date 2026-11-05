@@ -5,6 +5,7 @@ import { useTelegramMiniAppStore } from '../stores/telegramMiniApp'
 import { captureAffiliateFromRoute } from '../utils/affiliate'
 import { templateView } from '../templates/registry'
 import { GOOGLE_REDIRECT_FRONTEND_CALLBACK_PATH } from '../utils/googleRedirect'
+import { waitForListScrollSignal } from '../utils/listScrollSignal'
 
 type RouteComponentLoader = () => Promise<unknown>
 
@@ -102,8 +103,13 @@ export const warmupCommonRoutes = () => {
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
-    scrollBehavior(to, _from, savedPosition) {
+    async scrollBehavior(to, _from, savedPosition) {
         if (savedPosition) {
+            // 后退/前进到列表页时，等数据加载完再恢复位置，避免页面未撑开就截断
+            const listRoutes = new Set(['home', 'products', 'category-products'])
+            if (listRoutes.has(String(to.name))) {
+                await waitForListScrollSignal()
+            }
             return savedPosition
         }
         if (to.hash) {

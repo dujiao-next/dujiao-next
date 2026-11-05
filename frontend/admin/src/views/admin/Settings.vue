@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import RichEditor from '@/components/RichEditor.vue'
@@ -48,6 +49,7 @@ const footerLinksMaxCount = 20
 
 const registrationForm = reactive({
   registration_enabled: true,
+  invite_only_enabled: false,
   email_verification_enabled: true,
   email_domain_allowlist_enabled: false,
   allowed_email_domains_text: '',
@@ -555,6 +557,7 @@ const fetchSettings = async () => {
     if (registrationRes.data && registrationRes.data.data) {
       const regData = registrationRes.data.data as Record<string, unknown>
       registrationForm.registration_enabled = regData.registration_enabled !== false
+      registrationForm.invite_only_enabled = regData.invite_only_enabled === true
       registrationForm.email_verification_enabled = regData.email_verification_enabled !== false
       registrationForm.email_domain_allowlist_enabled = regData.email_domain_allowlist_enabled === true
       registrationForm.allowed_email_domains_text = joinAllowedEmailDomains(regData.allowed_email_domains)
@@ -597,6 +600,7 @@ const saveRegistrationSettings = async () => {
     key: 'registration_config',
     value: {
       registration_enabled: registrationForm.registration_enabled,
+      invite_only_enabled: registrationForm.invite_only_enabled,
       email_verification_enabled: registrationForm.email_verification_enabled,
       email_domain_allowlist_enabled: registrationForm.email_domain_allowlist_enabled,
       allowed_email_domains: splitAllowedEmailDomains(registrationForm.allowed_email_domains_text),
@@ -853,6 +857,16 @@ onMounted(() => {
             <div>
               <Label for="registration-enabled" class="text-sm font-medium">{{ t('admin.settings.registration.registrationEnabled') }}</Label>
               <p class="text-xs text-muted-foreground">{{ t('admin.settings.registration.registrationEnabledDesc') }}</p>
+            </div>
+          </div>
+          <div v-if="registrationForm.registration_enabled" class="flex flex-col gap-3 rounded-lg border border-border bg-muted/20 px-4 py-3 sm:flex-row sm:items-center">
+            <Switch id="invite-only-enabled" v-model="registrationForm.invite_only_enabled" />
+            <div>
+              <Label for="invite-only-enabled" class="text-sm font-medium">{{ t('admin.settings.registration.inviteOnlyEnabled') }}</Label>
+              <p class="text-xs text-muted-foreground">
+                {{ t('admin.settings.registration.inviteOnlyEnabledDesc') }}
+                <RouterLink to="/invite-codes" class="text-primary underline-offset-4 hover:underline">{{ t('admin.settings.registration.inviteOnlyManageLink') }}</RouterLink>
+              </p>
             </div>
           </div>
           <div class="flex flex-col gap-3 rounded-lg border border-border bg-muted/20 px-4 py-3 sm:flex-row sm:items-center">

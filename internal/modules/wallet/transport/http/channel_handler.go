@@ -185,6 +185,8 @@ func (h *ChannelHandler) CreateWalletRecharge(c *gin.Context) {
 		"id":               result.Payment.ID,
 		"amount":           result.Payment.Amount.StringFixed(2),
 		"fee_amount":       result.Payment.FeeAmount.StringFixed(2),
+		"fee_policy":       result.Payment.FeePolicy,
+		"fee_currency":     result.Recharge.Currency,
 		"currency":         result.Payment.Currency,
 		"status":           result.Payment.Status,
 		"interaction_mode": result.Payment.InteractionMode,

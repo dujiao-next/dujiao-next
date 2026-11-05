@@ -2,15 +2,14 @@ package userstore
 
 import (
 	"errors"
+	"github.com/dujiao-next/internal/persistence/gormutil"
 	"strings"
 	"time"
 
 	"github.com/dujiao-next/internal/constants"
 	usercontract "github.com/dujiao-next/internal/modules/identity/user/contract"
 	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
-	"github.com/dujiao-next/internal/shared/money"
 
-	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -77,52 +76,15 @@ func (r *Store) Update(user *userdomain.User) error {
 		Updates(user).Error
 }
 
-// IncrementTotalRecharged 原子累加用户累计充值金额。
-func (r *Store) IncrementTotalRecharged(userID uint, amount decimal.Decimal) error {
-	return r.incrementMoneyColumn(userID, "total_recharged", amount)
-}
-
-// IncrementTotalSpent 原子累加用户累计消费金额。
-func (r *Store) IncrementTotalSpent(userID uint, amount decimal.Decimal) error {
-	return r.incrementMoneyColumn(userID, "total_spent", amount)
-}
-
-func (r *Store) incrementMoneyColumn(userID uint, column string, amount decimal.Decimal) error {
-	if userID == 0 {
-		return nil
-	}
-	amount = amount.Round(2)
-	if amount.LessThanOrEqual(decimal.Zero) {
-		return nil
-	}
-	return r.db.Model(&userdomain.User{}).
-		Where("id = ? AND deleted_at IS NULL", userID).
-		Updates(map[string]interface{}{
-			column:       gorm.Expr(column+" + ?", money.FromDecimal(amount)),
-			"updated_at": time.Now(),
-		}).Error
-}
-
-// UpdateMemberLevelIfCurrent 仅在用户当前等级未被其他流程改变时更新会员等级。
-func (r *Store) UpdateMemberLevelIfCurrent(userID, currentLevelID, nextLevelID uint) (int64, error) {
-	if userID == 0 || currentLevelID == nextLevelID {
-		return 0, nil
-	}
-	result := r.db.Model(&userdomain.User{}).
-		Where("id = ? AND member_level_id = ? AND deleted_at IS NULL", userID, currentLevelID).
-		Updates(map[string]interface{}{
-			"member_level_id": nextLevelID,
-			"updated_at":      time.Now(),
-		})
-	return result.RowsAffected, result.Error
-}
-
 // List 用户列表
 func (r *Store) List(filter usercontract.ListFilter) ([]userdomain.User, int64, error) {
 	query := r.db.Model(&userdomain.User{}).Where("users.deleted_at IS NULL")
 
 	if filter.UserID != 0 {
 		query = query.Where("users.id = ?", filter.UserID)
+	}
+	if filter.InviteCodeID != 0 {
+		query = query.Where("users.invite_code_id = ?", filter.InviteCodeID)
 	}
 	if filter.Keyword != "" {
 		like := "%" + filter.Keyword + "%"
@@ -160,7 +122,7 @@ func (r *Store) List(filter usercontract.ListFilter) ([]userdomain.User, int64, 
 		return nil, 0, err
 	}
 
-	query = applyPagination(query, filter.Page, filter.PageSize)
+	query = gormutil.ApplyPagination(query, filter.Page, filter.PageSize)
 	query = applyUserSort(query, filter.SortBy, filter.SortOrder)
 
 	var users []userdomain.User
@@ -210,20 +172,6 @@ func (r *Store) BatchUpdateStatus(userIDs []uint, status string) error {
 		updates["token_version"] = gorm.Expr("token_version + 1")
 	}
 	return r.db.Model(&userdomain.User{}).Where("id IN ? AND deleted_at IS NULL", userIDs).Updates(updates).Error
-}
-
-// AssignDefaultMemberLevel 为所有未分配等级(member_level_id=0)的用户批量分配默认等级
-func (r *Store) AssignDefaultMemberLevel(defaultLevelID uint) (int64, error) {
-	if defaultLevelID == 0 {
-		return 0, nil
-	}
-	result := r.db.Model(&userdomain.User{}).
-		Where("(member_level_id = 0 OR member_level_id IS NULL) AND deleted_at IS NULL").
-		Updates(map[string]interface{}{
-			"member_level_id": defaultLevelID,
-			"updated_at":      time.Now(),
-		})
-	return result.RowsAffected, result.Error
 }
 
 // UpdateTOTPPending 写入待绑定 secret 与过期时间
@@ -277,14 +225,4 @@ func (r *Store) ClearTOTP(userID uint) error {
 		"token_version":           gorm.Expr("token_version + 1"),
 		"token_invalid_before":    now,
 	}).Error
-}
-
-func applyPagination(query *gorm.DB, page, pageSize int) *gorm.DB {
-	if query == nil || pageSize <= 0 {
-		return query
-	}
-	if page < 1 {
-		page = 1
-	}
-	return query.Offset((page - 1) * pageSize).Limit(pageSize)
 }

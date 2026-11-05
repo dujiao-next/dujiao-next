@@ -386,6 +386,10 @@ func (h *AdminHandler) UpdateAdminUser(c *gin.Context) {
 	if req.Nickname != nil {
 		trimmed := strings.TrimSpace(*req.Nickname)
 		if trimmed != "" {
+			if !userdomain.ValidDisplayName(trimmed) {
+				ginutil.RespondError(c, response.CodeBadRequest, "error.nickname_invalid", nil)
+				return
+			}
 			user.DisplayName = trimmed
 			updated = true
 		}

@@ -368,6 +368,7 @@ func setupAdminPaymentHandlerTest(t *testing.T) (*AdminHandler, adminPaymentFixt
 			{PaymentID: fixture.RechargePaymentUser1, RechargeNo: fixture.RechargeNoUser1, UserID: fixture.User1ID, Status: constants.WalletRechargeStatusPending},
 			{PaymentID: fixture.RechargePaymentUser2, RechargeNo: fixture.RechargeNoUser2, UserID: fixture.User2ID, Status: constants.WalletRechargeStatusPending},
 		}},
+		noopAdminPaymentConfirmer{},
 	)
 	return h, fixture
 }
@@ -615,4 +616,10 @@ func TestGetAdminPaymentsBadQueryReturnsBadRequestCode(t *testing.T) {
 	if resp.StatusCode != 400 {
 		t.Fatalf("status_code want 400 got %d", resp.StatusCode)
 	}
+}
+
+type noopAdminPaymentConfirmer struct{}
+
+func (noopAdminPaymentConfirmer) ManualConfirmPayment(ManualConfirmPaymentInput) (*paymentdomain.Payment, error) {
+	return nil, nil
 }

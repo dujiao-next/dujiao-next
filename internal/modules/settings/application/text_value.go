@@ -24,22 +24,3 @@ func normalizeSettingTextWithRuneLimit(raw interface{}, maxRuneCount int) string
 	}
 	return string(runes[:maxRuneCount])
 }
-
-// parseSettingBool 解析设置中的布尔值。
-func parseSettingBool(raw interface{}) bool {
-	switch value := raw.(type) {
-	case bool:
-		return value
-	case int:
-		return value != 0
-	case int64:
-		return value != 0
-	case float64:
-		return value != 0
-	case string:
-		normalized := strings.ToLower(strings.TrimSpace(value))
-		return normalized == "1" || normalized == "true" || normalized == "yes" || normalized == "on"
-	default:
-		return false
-	}
-}

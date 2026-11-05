@@ -50,6 +50,14 @@ export const paymentStatusLabel = (t: TranslateFn, status?: string) => {
   return map[status] || status
 }
 
+// 支付异常码未配置翻译时原样显示，方便排查新增的异常码
+export const paymentExceptionLabel = (t: TranslateFn, code?: string) => {
+  if (!code) return '-'
+  const key = `admin.payments.exceptions.${code}`
+  const translated = t(key)
+  return translated === key ? code : translated
+}
+
 export const paymentStatusClass = (status?: string) => {
   switch (status) {
     case 'success':

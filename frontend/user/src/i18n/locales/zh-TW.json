@@ -24,7 +24,8 @@
       "serverError": "伺服器內部錯誤",
       "badGateway": "閘道錯誤",
       "serviceUnavailable": "服務不可用",
-      "networkError": "網路連線失敗"
+      "networkError": "網路連線失敗",
+      "timeout": "請求逾時，請稍後重試"
     }
   },
   "errorBoundary": {
@@ -101,7 +102,9 @@
     "contact": "聯絡我們",
     "rights": "保留所有權利",
     "terms": "服務條款",
-    "privacy": "隱私政策"
+    "privacy": "隱私政策",
+    "email": "信箱",
+    "supportUrl": "線上客服"
   },
   "notFoundPage": {
     "title": "頁面不存在",
@@ -195,6 +198,7 @@
     "backToProducts": "返回商品列表",
     "relatedPosts": "相關文章",
     "deliveryReassurance": "付款成功後，兌換碼即時送達訂單頁與郵箱，憑證僅你本人可見。",
+    "deliveryReassuranceManual": "付款成功後由人工為你處理，處理進度與結果會同步到訂單頁與郵箱。",
     "loginToBuy": "登入後購買",
     "addToCart": "加入購物車",
     "buyNow": "立即購買",
@@ -1050,7 +1054,8 @@
         "codeRequired": "請輸入動態碼",
         "recoveryRequired": "請輸入恢復碼",
         "verifyFailed": "驗證失敗，請確認輸入是否正確"
-      }
+      },
+      "inviteOnlyHint": "本站僅限邀請註冊，新用戶（含第三方登入）需填寫邀請碼。"
     },
     "telegramCallback": {
       "processing": "正在處理 Telegram 登入…",
@@ -1087,7 +1092,8 @@
         "registerFailed": "註冊失敗，請檢查輸入",
         "agreementRequired": "請先閱讀並同意隱私政策與服務條款",
         "emailDomainNotAllowed": "目前信箱後綴不允許註冊，請使用：{domains}",
-        "emailDomainUnavailable": "目前未設定允許註冊的信箱後綴，請聯絡管理員"
+        "emailDomainUnavailable": "目前未設定允許註冊的信箱後綴，請聯絡管理員",
+        "inviteCodeRequired": "請輸入邀請碼"
       },
       "registrationDisabled": "註冊功能已關閉"
     },
@@ -1110,6 +1116,16 @@
         "sendCodeFailed": "驗證碼發送失敗",
         "resetFailed": "重設失敗，請檢查輸入"
       }
+    },
+    "invite": {
+      "dialogTitle": "輸入邀請碼",
+      "dialogMessage": "本站目前僅限邀請註冊，首次使用該帳號登入需要填寫邀請碼以建立帳戶。",
+      "codeLabel": "邀請碼",
+      "codePlaceholder": "請輸入邀請碼",
+      "submit": "確認並繼續",
+      "submitting": "驗證中...",
+      "failed": "邀請碼驗證失敗，請重試",
+      "registerHint": "本站僅限邀請註冊，請填寫你收到的邀請碼。"
     }
   },
   "order": {

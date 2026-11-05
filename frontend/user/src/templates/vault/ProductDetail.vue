@@ -179,8 +179,8 @@
           </div>
 
           <div class="mt-4 flex items-center gap-3 rounded-md bg-[color:var(--teal-soft)] px-[18px] py-3.5 text-[color:var(--teal-strong)]">
-            <TicketCheck class="h-[22px] w-[22px] flex-none" />
-            <span class="text-sm font-semibold">{{ t('productDetail.deliveryReassurance') }}</span>
+            <component :is="product.fulfillment_type === 'manual' ? Pencil : TicketCheck" class="h-[22px] w-[22px] flex-none" />
+            <span class="text-sm font-semibold">{{ product.fulfillment_type === 'manual' ? t('productDetail.deliveryReassuranceManual') : t('productDetail.deliveryReassurance') }}</span>
           </div>
         </div>
       </section>
@@ -210,7 +210,7 @@
       </section>
 
       <div class="py-6 text-center">
-        <Button as-child variant="ghost" size="sm" class="rounded-full"><RouterLink to="/products"><ArrowLeft /> {{ t('productDetail.backToProducts') }}</RouterLink></Button>
+        <Button as-child variant="ghost" size="sm" class="rounded-full"><RouterLink :to="backToListTo"><ArrowLeft /> {{ t('productDetail.backToProducts') }}</RouterLink></Button>
       </div>
 
       <!-- 移动端固定购买条 -->
@@ -239,7 +239,7 @@
       <p>{{ t('productDetail.notFound') }}</p>
       <div class="mt-2 flex flex-wrap justify-center gap-2.5">
         <Button size="sm" class="rounded-full" @click="loadProduct"><RotateCw /> {{ t('errorBoundary.retry') }}</Button>
-        <Button as-child variant="outline" size="sm" class="rounded-full"><RouterLink to="/products">{{ t('productDetail.backToProducts') }}</RouterLink></Button>
+        <Button as-child variant="outline" size="sm" class="rounded-full"><RouterLink :to="backToListTo">{{ t('productDetail.backToProducts') }}</RouterLink></Button>
       </div>
     </div>
   </div>
@@ -295,6 +295,7 @@ const {
   quantityEffectiveLimit, quantityEffectiveMin, handleQuantityInput,
   requiresLogin, requiresSKUSelection, canPurchase, cannotPurchaseReason,
   categoryName, images,
+  backToListTo,
   addToCart, buyNow, goLogin, loadProduct,
   mobileBarShowMemberPrice, mobileBarMemberPriceDisplay,
   mobileBarShowSkuPromotionPrice, mobileBarSkuPromotionPriceDisplay,

@@ -72,6 +72,8 @@ func (s *Service) GenerateRobots(baseURL string) string {
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	var b strings.Builder
 	b.WriteString("User-agent: *\n")
+	// 前台是 CSR，爬虫渲染时要能请求公开接口，否则商品页会被判为 Soft 404
+	b.WriteString("Allow: /api/v1/public/\n")
 	b.WriteString("Disallow: /api/\n")
 	b.WriteString("Disallow: /admin/\n")
 	b.WriteString("Disallow: /me/\n")

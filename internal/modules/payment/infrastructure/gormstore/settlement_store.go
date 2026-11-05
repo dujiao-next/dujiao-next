@@ -9,6 +9,8 @@ import (
 
 	usercontract "github.com/dujiao-next/internal/modules/identity/user/contract"
 	userstore "github.com/dujiao-next/internal/modules/identity/user/infrastructure/gormstore"
+	memberlevelcontract "github.com/dujiao-next/internal/modules/memberlevel/contract"
+	memberlevelstore "github.com/dujiao-next/internal/modules/memberlevel/infrastructure/gormstore"
 	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
 	pc "github.com/dujiao-next/internal/modules/payment/contract"
 	pd "github.com/dujiao-next/internal/modules/payment/domain"
@@ -65,6 +67,10 @@ func (tx transaction) LockAutomation(revision uint64) error {
 }
 
 func (tx transaction) Users() usercontract.Store { return userstore.New(tx.db) }
+
+func (tx transaction) MemberLevelUsers() memberlevelcontract.UserRepository {
+	return memberlevelstore.NewUserStore(tx.db)
+}
 func (tx transaction) Allocation(id uint) (*pd.Allocation, error) {
 	var a pd.Allocation
 	err := tx.db.Where("payment_id = ?", id).First(&a).Error

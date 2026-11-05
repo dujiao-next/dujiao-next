@@ -140,6 +140,7 @@ func TestResellerSiteConfigServiceApplyPublicConfigOverlay(t *testing.T) {
 	if _, err := svc.UpdateUserSiteConfig(context.Background(), user.ID, ResellerSiteConfigInput{
 		SiteName: "Overlay Store",
 		Favicon:  "/uploads/reseller/favicon.png",
+		Support:  ResellerSupportInput{Email: "help@shop.example.test", SupportURL: "https://shop.example.test/support"},
 		SEO: ResellerSEOInput{
 			Title: LocalizedTextInput{"zh-CN": "覆盖标题", "en-US": "Overlay Title"},
 		},
@@ -154,11 +155,16 @@ func TestResellerSiteConfigServiceApplyPublicConfigOverlay(t *testing.T) {
 			"site_url":  "https://main.example.test",
 		},
 		"currency": "CNY",
+		"contact": map[string]interface{}{
+			"telegram": "https://t.me/main",
+			"whatsapp": "https://wa.me/1234567890",
+		},
 		"seo": map[string]interface{}{
 			"title": map[string]interface{}{"zh-CN": "主站标题", "en-US": "Main Title"},
 		},
 		"announcement": map[string]interface{}{"enabled": true},
 		"nav_config":   map[string]interface{}{"builtin": map[string]interface{}{"blog": false}},
+		"scripts":      []interface{}{map[string]interface{}{"name": "main-analytics"}},
 	}
 	tenant := ResellerTenantContext("shop.example.test", resellerID, user.ID, "shop.example.test")
 	out, err := svc.ApplyPublicConfigOverlay(context.Background(), tenant, base)
@@ -174,6 +180,19 @@ func TestResellerSiteConfigServiceApplyPublicConfigOverlay(t *testing.T) {
 	}
 	if out["currency"] != "CNY" {
 		t.Fatalf("global inherited fields should remain, got currency=%v", out["currency"])
+	}
+	if scripts, _ := out["scripts"].([]interface{}); len(scripts) != 0 {
+		t.Fatalf("main-site custom scripts must not run on reseller sites, got %+v", out["scripts"])
+	}
+	contact := resellerSiteConfigTestMap(out["contact"])
+	if contact["email"] != "help@shop.example.test" || contact["support_url"] != "https://shop.example.test/support" {
+		t.Fatalf("reseller contact fields should be emitted, got %+v", contact)
+	}
+	if _, exists := contact["telegram"]; exists {
+		t.Fatalf("empty reseller contact must not fall back to main site, got %+v", contact)
+	}
+	if _, exists := contact["whatsapp"]; exists {
+		t.Fatalf("empty reseller contact must not fall back to main site, got %+v", contact)
 	}
 	seo := resellerSiteConfigTestMap(out["seo"])
 	title := resellerSiteConfigTestMap(seo["title"])

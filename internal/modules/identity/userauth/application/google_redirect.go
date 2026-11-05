@@ -173,7 +173,7 @@ func (s *Service) ExchangeGoogleRedirectLogin(
 	if err = s.validateGoogleRedirectHandoffRuntime(handoff); err != nil {
 		return nil, err
 	}
-	return s.loginVerifiedGoogle(ctx, &handoff.Identity)
+	return s.loginVerifiedGoogle(ctx, &handoff.Identity, "")
 }
 
 // ExchangeGoogleRedirectBind atomically consumes a bind handoff. The

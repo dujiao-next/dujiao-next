@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 
 	paymentpresenter "github.com/dujiao-next/internal/modules/payment/transport/presenter"
 
@@ -127,7 +126,7 @@ func (h *WriteHandler) CreatePayment(c *gin.Context) {
 		UseBalance:    req.UseBalance,
 		ClientIP:      c.ClientIP(),
 		Context:       c.Request.Context(),
-		RequestScheme: requestSchemeFromContext(c),
+		RequestScheme: ginutil.RequestScheme(c),
 	})
 	if err != nil {
 		respondPaymentCreateError(c, err)
@@ -216,7 +215,7 @@ func (h *WriteHandler) CreateGuestPayment(c *gin.Context) {
 		UseBalance:    false,
 		ClientIP:      c.ClientIP(),
 		Context:       c.Request.Context(),
-		RequestScheme: requestSchemeFromContext(c),
+		RequestScheme: ginutil.RequestScheme(c),
 	})
 	if err != nil {
 		respondPaymentCreateError(c, err)
@@ -278,22 +277,6 @@ func (h *WriteHandler) CaptureGuestPayment(c *gin.Context) {
 		"payment_id": updated.ID,
 		"status":     updated.Status,
 	})
-}
-
-func requestSchemeFromContext(c *gin.Context) string {
-	if c == nil || c.Request == nil {
-		return ""
-	}
-	if proto := strings.TrimSpace(c.GetHeader("X-Forwarded-Proto")); proto != "" {
-		proto = strings.ToLower(strings.TrimSpace(strings.Split(proto, ",")[0]))
-		if proto == "http" || proto == "https" {
-			return proto
-		}
-	}
-	if c.Request.TLS != nil {
-		return "https"
-	}
-	return "http"
 }
 
 type mappedError struct {

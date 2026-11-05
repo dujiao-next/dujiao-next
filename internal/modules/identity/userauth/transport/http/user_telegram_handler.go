@@ -123,16 +123,9 @@ var telegramLoginErrorRules = []telegramLoginErrorRule{
 }
 
 func (h *UserTelegramHandler) recordLogin(c *gin.Context, email string, userID uint, status, failReason, source string) {
-	if h == nil || h.recorder == nil || c == nil {
-		return
+	if h != nil {
+		recordLoginEvent(h.recorder, c, email, userID, status, failReason, source)
 	}
-	requestID := ""
-	if rid, ok := c.Get("request_id"); ok {
-		if value, ok := rid.(string); ok {
-			requestID = value
-		}
-	}
-	h.recorder.Record(email, userID, status, failReason, source, c.ClientIP(), c.GetHeader("User-Agent"), requestID)
 }
 
 func (h *UserTelegramHandler) respondTelegramLoginError(c *gin.Context, err error) {
@@ -175,6 +168,9 @@ func respondTelegramBindError(c *gin.Context, err error) {
 }
 
 func respondTelegramLoginSuccess(c *gin.Context, h *UserTelegramHandler, res *AuthLoginResult) {
+	if respondInviteRequired(c, res) {
+		return
+	}
 	if res.RequiresTOTP {
 		h.recordLogin(c, res.User.Email, res.User.ID, constants.LoginLogStatusSuccess, constants.LoginLogPasswordOK2FAPending, constants.LoginLogSourceTelegram)
 		response.Success(c, gin.H{

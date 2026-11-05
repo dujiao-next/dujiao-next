@@ -121,6 +121,10 @@ func mapTransportError(err error) error {
 		{walletcontract.ErrOnlyPaymentRequired, paymenttransport.ErrWalletOnlyPaymentRequired},
 		{paymentapp.ErrPaymentStatusInvalid, paymenttransport.ErrPaymentStatusInvalid},
 		{paymentapp.ErrPaymentAmountMismatch, paymenttransport.ErrPaymentAmountMismatch},
+		{orderapp.ErrCardSecretInsufficient, paymenttransport.ErrCardSecretInsufficient},
+		{orderapp.ErrManualStockInsufficient, paymenttransport.ErrManualStockInsufficient},
+		{paymentapp.ErrPaymentUnderpaidCredited, paymenttransport.ErrPaymentUnderpaidCredited},
+		{paymentapp.ErrPaymentCanceledOrderUnderpaid, paymenttransport.ErrPaymentCanceledOrderUnderpaid},
 	} {
 		if errors.Is(err, mapping.source) {
 			return fmt.Errorf("%w: %v", mapping.target, err)

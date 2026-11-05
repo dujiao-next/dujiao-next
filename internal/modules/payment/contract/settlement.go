@@ -6,6 +6,7 @@ import (
 	"time"
 
 	usercontract "github.com/dujiao-next/internal/modules/identity/user/contract"
+	memberlevelcontract "github.com/dujiao-next/internal/modules/memberlevel/contract"
 	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
 	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
 )
@@ -21,6 +22,11 @@ type AllocationStore interface {
 type SettlementTransaction interface {
 	Transaction
 	Users() usercontract.Store
+	// MemberLevelUsers 返回会员等级模块的用户仓储。
+	// 上游 v1.5 把 IncrementTotalSpent / AssignDefaultMemberLevel 从 identity 的
+	// usercontract.Store 挪到了 memberlevel 自己的契约里，链核验结算在事务内
+	// 加消费额、做等级检查都得走这个入口。
+	MemberLevelUsers() memberlevelcontract.UserRepository
 	Allocation(uint) (*paymentdomain.Allocation, error)
 	ConsumeEvent(paymentdomain.EventConsumption) (bool, error)
 	AddPaymentEffects([]paymentdomain.PaymentEffect) error

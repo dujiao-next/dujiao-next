@@ -51,9 +51,10 @@ func (h *Handler) CreateOrder(c *gin.Context) {
 	if strings.TrimSpace(req.DownstreamOrderNo) != "" {
 		existingRef, _ := h.DownstreamRefs.GetByCredentialAndDownstreamNo(credentialID, req.DownstreamOrderNo)
 		if existingRef != nil {
-			// 已有相同下游订单号的记录，返回已有订单信息
+			// 已有相同下游订单号的记录，返回已有订单信息；
+			// 已取消的旧单（如上游余额不足下单失败）允许下游用同一单号重新下单。
 			existingOrder, orderErr := h.Orders.GetOrderByUser(existingRef.OrderID, userID)
-			if orderErr == nil && existingOrder != nil {
+			if orderErr == nil && existingOrder != nil && existingOrder.Status != constants.OrderStatusCanceled {
 				currency, _ := h.Settings.GetSiteCurrency("CNY")
 				successResponse(c, gin.H{
 					"ok":       true,
@@ -88,7 +89,8 @@ func (h *Handler) CreateOrder(c *gin.Context) {
 
 	// 构建手动表单数据
 	var manualFormData map[string]jsonmap.JSON
-	if req.ManualFormData != nil && product.FulfillmentType == constants.FulfillmentTypeManual {
+	// 不按交付类型过滤：对接商品（upstream）也可能带表单，是否必填由订单服务按 schema 校验。
+	if req.ManualFormData != nil {
 		manualFormData = map[string]jsonmap.JSON{
 			fmt.Sprintf("%d", sku.ProductID): req.ManualFormData,
 		}

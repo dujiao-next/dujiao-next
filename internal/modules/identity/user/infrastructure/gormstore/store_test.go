@@ -177,9 +177,6 @@ func TestStoreSoftDeleteExcludesUserFromReadsListsAndMutations(t *testing.T) {
 	if err := store.BatchUpdateStatus([]uint{user.ID}, "disabled"); err != nil {
 		t.Fatalf("batch update deleted user: %v", err)
 	}
-	if err := store.IncrementTotalRecharged(user.ID, decimal.NewFromInt(5)); err != nil {
-		t.Fatalf("increment deleted user: %v", err)
-	}
 	if err := store.ClearTOTP(user.ID); err != nil {
 		t.Fatalf("clear deleted user TOTP: %v", err)
 	}

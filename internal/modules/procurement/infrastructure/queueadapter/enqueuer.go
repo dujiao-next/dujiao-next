@@ -25,7 +25,10 @@ func New(client Client) procurementcontract.Enqueuer {
 	return &Enqueuer{client: client}
 }
 
-func (e *Enqueuer) EnqueueSubmit(orderID uint) error {
+func (e *Enqueuer) EnqueueSubmit(orderID uint, delay time.Duration) error {
+	if delay > 0 {
+		return e.client.EnqueueProcurementSubmit(queue.ProcurementSubmitPayload{ProcurementOrderID: orderID}, asynq.ProcessIn(delay))
+	}
 	return e.client.EnqueueProcurementSubmit(queue.ProcurementSubmitPayload{ProcurementOrderID: orderID})
 }
 

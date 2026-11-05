@@ -262,13 +262,15 @@
 
       <div v-if="registrationEnabled" class="mt-4 text-center">
         <router-link
-          to="/auth/register"
+          :to="registerLink"
           class="text-muted-foreground transition-colors hover:text-foreground text-sm"
         >
           {{ t('auth.login.noAccount') }}
         </router-link>
+        <p v-if="inviteOnlyEnabled" class="mt-1 text-xs text-muted-foreground">{{ t('auth.login.inviteOnlyHint') }}</p>
       </div>
     </div>
+    <InviteCodeDialog @success="continueAfterLogin" />
   </div>
 </template>
 
@@ -277,6 +279,7 @@ import ImageCaptcha from '../../components/captcha/ImageCaptcha.vue'
 import TurnstileCaptcha from '../../components/captcha/TurnstileCaptcha.vue'
 import FormField from '../../components/FormField.vue'
 import GoogleIdentityButton from '../../components/auth/GoogleIdentityButton.vue'
+import InviteCodeDialog from '../../components/InviteCodeDialog.vue'
 import { useI18n } from 'vue-i18n'
 import { ArrowLeft, Mail, Lock, ShieldCheck, Eye, EyeOff, LogIn } from 'lucide-vue-next'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -295,7 +298,7 @@ const {
   error, info, formValidation,
   loginCaptchaEnabled, captchaProvider, captchaPayload, turnstileToken, turnstileSiteKey,
   imageCaptchaRef, turnstileRef, handleCaptchaConfigStale,
-  registrationEnabled, emailVerificationEnabled,
+  registrationEnabled, emailVerificationEnabled, inviteOnlyEnabled, registerLink, continueAfterLogin,
   showTelegramWidget, telegramWidgetRef, showTelegramOidc, startTelegramOidc,
   showMiniAppLoginHint, attemptingMiniAppLogin, showTelegramMiniAppEntry, openTelegramMiniAppEntry,
   googleClientID, googleButtonLocale, googleIdentityUXMode, googleRedirectLoginURI,

@@ -76,3 +76,20 @@ func ParseOptionalBoolValue(raw string) (*bool, error) {
 	}
 	return &parsed, nil
 }
+
+// RequestScheme 返回当前请求的 scheme（优先 X-Forwarded-Proto）。
+func RequestScheme(c *gin.Context) string {
+	if c == nil || c.Request == nil {
+		return ""
+	}
+	if proto := strings.TrimSpace(c.GetHeader("X-Forwarded-Proto")); proto != "" {
+		proto = strings.ToLower(strings.TrimSpace(strings.Split(proto, ",")[0]))
+		if proto == "http" || proto == "https" {
+			return proto
+		}
+	}
+	if c.Request.TLS != nil {
+		return "https"
+	}
+	return "http"
+}

@@ -17,10 +17,10 @@ func TestPaymentServiceImplementationIsSplitByResponsibility(t *testing.T) {
 			"NewPaymentService", "ListPayments", "GetPayment", "ListChannels", "GetChannel", "WithEffectDelivery",
 			"paymentLogger",
 		},
-		"payment_service_create.go": {"hasProviderResult", "CreatePayment"},
+		"payment_service_create.go": {"hasProviderResult", "CreatePayment", "lockPaymentAttempt", "newerActivePaymentID", "takenOverResult"},
 		"payment_service_recharge.go": {
 			"CreateWalletRechargePayment", "generateWalletRechargeNo",
-			"ExpireWalletRechargePayment", "canExpireWalletRechargePayment",
+			"ExpireWalletRechargePayment", "canExpireWalletRechargePayment", "failRechargeAttempt",
 		},
 		"payment_service_provider.go": {
 			"detachOutboundRequestContext",
@@ -31,7 +31,7 @@ func TestPaymentServiceImplementationIsSplitByResponsibility(t *testing.T) {
 			"tenantReturnPath", "resolveTokenPayOrderUserKey", "lockPaymentCreation", "validateFixedPaymentItems",
 		},
 		"payment_service_rules.go": {
-			"normalizeOrderAmount", "calculatePaymentAmounts", "paymentCoveredOrderAmount", "paymentExchangeRate", "pickFirstNonEmpty",
+			"normalizeOrderAmount", "calculatePaymentAmounts", "paymentCoveredOrderAmount", "paymentExchangeRate", "paymentOriginalAmount", "pickFirstNonEmpty",
 			"shouldMarkFulfilling", "shouldUseCNYPaymentCurrency", "validatePaymentAmountForChannel",
 			"validatePaymentCurrencyForChannel", "resolveExpireMinutes", "normalizePaymentStatus",
 			"isPaymentStatusValid", "shouldAutoFulfill", "isOrderFullyAutoFulfill",
@@ -44,6 +44,7 @@ func TestPaymentServiceImplementationIsSplitByResponsibility(t *testing.T) {
 			"GetAvailableChannels", "matchesChannelAmount", "matchesChannelRole", "isEpusdtProvider",
 			"matchesChannelMemberLevel", "matchesChannelPaymentType",
 			"validateOrderChannelEligibility", "validateWalletChannelEligibility",
+			"FilterOrderEligibleChannels", "FilterWalletEligibleChannels",
 		},
 	}
 

@@ -334,6 +334,32 @@ func validateOrderChannelEligibility(channel paymentdomain.PaymentChannel, order
 	return nil
 }
 
+// FilterOrderEligibleChannels 只保留该订单可用的渠道，规则与创建支付时的资格校验一致。
+func (s *PaymentService) FilterOrderEligibleChannels(channels []paymentdomain.PaymentChannel, order *orderdomain.Order) []paymentdomain.PaymentChannel {
+	filtered := make([]paymentdomain.PaymentChannel, 0, len(channels))
+	for _, channel := range channels {
+		if validateOrderChannelEligibility(channel, order) == nil {
+			filtered = append(filtered, channel)
+		}
+	}
+	return filtered
+}
+
+// FilterWalletEligibleChannels 只保留该用户可用于钱包充值的渠道，规则与创建充值支付时的资格校验一致。
+func (s *PaymentService) FilterWalletEligibleChannels(channels []paymentdomain.PaymentChannel, userID uint) ([]paymentdomain.PaymentChannel, error) {
+	user, err := s.userRepo.GetByID(userID)
+	if err != nil {
+		return nil, err
+	}
+	filtered := make([]paymentdomain.PaymentChannel, 0, len(channels))
+	for _, channel := range channels {
+		if validateWalletChannelEligibility(channel, user) == nil {
+			filtered = append(filtered, channel)
+		}
+	}
+	return filtered, nil
+}
+
 func validateWalletChannelEligibility(channel paymentdomain.PaymentChannel, user *userdomain.User) error {
 	if user == nil || user.ID == 0 {
 		return ErrPaymentInvalid

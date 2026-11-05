@@ -29,6 +29,15 @@
         </div>
 
         <form class="space-y-6" @submit.prevent="handleRegister">
+          <div v-if="inviteOnlyEnabled">
+            <label class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              <Ticket class="h-3.5 w-3.5 opacity-60" />
+              {{ t('auth.invite.codeLabel') }}
+            </label>
+            <Input v-model="inviteCode" type="text" required autocomplete="off" class="h-11" :placeholder="t('auth.invite.codePlaceholder')" />
+            <p class="mt-1.5 text-xs text-muted-foreground">{{ t('auth.invite.registerHint') }}</p>
+          </div>
+
           <div>
             <label class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               <Mail class="h-3.5 w-3.5 opacity-60" />
@@ -199,7 +208,7 @@
 
       <div class="mt-4 text-center">
         <router-link
-          to="/auth/login"
+          :to="loginLink"
           class="text-muted-foreground transition-colors hover:text-foreground text-sm"
         >
           {{ t('auth.register.hasAccount') }}
@@ -213,7 +222,7 @@
 import { useI18n } from 'vue-i18n'
 import ImageCaptcha from '../../components/captcha/ImageCaptcha.vue'
 import TurnstileCaptcha from '../../components/captcha/TurnstileCaptcha.vue'
-import { ArrowLeft, Mail, Lock, ShieldCheck, Eye, EyeOff, UserPlus } from 'lucide-vue-next'
+import { ArrowLeft, Mail, Lock, ShieldCheck, Eye, EyeOff, UserPlus, Ticket } from 'lucide-vue-next'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -226,7 +235,7 @@ const { t } = useI18n()
 
 const {
   userAuthStore, brandSiteName,
-  email, emailLocalPart, selectedEmailDomain, password, showPassword, code, agreed,
+  email, emailLocalPart, selectedEmailDomain, password, showPassword, code, agreed, inviteCode, inviteOnlyEnabled, loginLink,
   passwordStrength, error, sending, countdown,
   captchaPayload, turnstileToken, imageCaptchaRef, turnstileRef,
   captchaProvider, sendCodeCaptchaEnabled, turnstileSiteKey,

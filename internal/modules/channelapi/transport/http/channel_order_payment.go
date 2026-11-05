@@ -45,6 +45,9 @@ func (h *Handler) GetPaymentChannels(c *gin.Context) {
 	if contextParam == "recharge" {
 		// 钱包充值渠道
 		channels, err = h.PaymentService.GetWalletRechargeChannels()
+		if channelUserID := channelUserIDFromQuery(c); err == nil && channelUserID != "" {
+			channels = h.filterWalletEligibleChannels(channels, channelUserID)
+		}
 	} else if orderNo != "" {
 		// 按订单商品过滤渠道
 		channelUserID := channelUserIDFromQuery(c)
@@ -89,6 +92,9 @@ func (h *Handler) GetPaymentChannels(c *gin.Context) {
 						productIDs = append(productIDs, id)
 					}
 					channels, err = h.PaymentService.GetAllowedChannelsForProducts(productIDs)
+					if err == nil {
+						channels = h.PaymentService.FilterOrderEligibleChannels(channels, order)
+					}
 				}
 			}
 		}
@@ -138,6 +144,21 @@ func (h *Handler) GetPaymentChannels(c *gin.Context) {
 		resp["wallet_only_payment"] = true
 	}
 	respondChannelSuccess(c, resp)
+}
+
+// filterWalletEligibleChannels 按用户角色与会员等级过滤充值渠道；用户解析失败时保留原列表，创建充值时仍会校验。
+func (h *Handler) filterWalletEligibleChannels(channels []paymentdomain.PaymentChannel, channelUserID string) []paymentdomain.PaymentChannel {
+	userID, err := h.provisionTelegramChannelUserID(TelegramIdentityInput{ChannelUserID: channelUserID})
+	if err != nil {
+		logger.Errorw("channel_payment_channels_resolve_user", "channel_user_id", channelUserID, "error", err)
+		return channels
+	}
+	filtered, err := h.PaymentService.FilterWalletEligibleChannels(channels, userID)
+	if err != nil {
+		logger.Errorw("channel_payment_channels_filter_wallet", "user_id", userID, "error", err)
+		return channels
+	}
+	return filtered
 }
 
 // GetLatestPayment GET /api/v1/channel/payments/latest
@@ -221,7 +242,8 @@ func (h *Handler) CreatePayment(c *gin.Context) {
 		return
 	}
 
-	if _, err := h.OrderService.GetOrderByUser(req.OrderID, userID); err != nil {
+	order, err := h.OrderService.GetOrderByUser(req.OrderID, userID)
+	if err != nil {
 		if errors.Is(err, ErrOrderNotFound) {
 			respondChannelError(c, 404, response.CodeNotFound, "order_not_found", "error.order_not_found", nil)
 			return
@@ -255,6 +277,10 @@ func (h *Handler) CreatePayment(c *gin.Context) {
 	}
 	if result.Channel != nil {
 		resp["channel_name"] = result.Channel.Name
+	}
+	if order != nil {
+		// 手续费按订单币种计算，换汇渠道下 currency 是结算币种，需单独告知
+		resp["fee_currency"] = order.Currency
 	}
 
 	respondChannelSuccess(c, resp)
@@ -320,6 +346,7 @@ func buildChannelPaymentResponse(order *orderdomain.Order, payment *paymentdomai
 		"amount":           payment.Amount.StringFixed(2),
 		"fee_rate":         payment.FeeRate.StringFixed(2),
 		"fee_amount":       payment.FeeAmount.StringFixed(2),
+		"fee_policy":       payment.FeePolicy,
 		"currency":         payment.Currency,
 		"pay_url":          payment.PayURL,
 		"qr_code":          payment.QRCode,
@@ -345,6 +372,7 @@ func buildChannelPaymentResponse(order *orderdomain.Order, payment *paymentdomai
 	}
 	if order != nil {
 		resp["order_no"] = order.OrderNo
+		resp["fee_currency"] = order.Currency
 		resp["total_amount"] = order.TotalAmount.StringFixed(2)
 		resp["wallet_paid_amount"] = order.WalletPaidAmount.StringFixed(2)
 		resp["online_paid_amount"] = order.OnlinePaidAmount.StringFixed(2)

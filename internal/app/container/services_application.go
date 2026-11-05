@@ -13,6 +13,7 @@ import (
 	contentapp "github.com/dujiao-next/internal/modules/content/application"
 	"github.com/dujiao-next/internal/modules/content/infrastructure/gormstore"
 	couponapp "github.com/dujiao-next/internal/modules/coupon/application"
+	couponproductadapter "github.com/dujiao-next/internal/modules/coupon/infrastructure/productadapter"
 	fulfillmentapp "github.com/dujiao-next/internal/modules/fulfillment/application"
 	fulfillmentqueue "github.com/dujiao-next/internal/modules/fulfillment/infrastructure/queueadapter"
 	giftcardapp "github.com/dujiao-next/internal/modules/giftcard/application"
@@ -132,7 +133,7 @@ func (c *Container) initApplicationServices() {
 		Currency: giftcardsettingscurrency.New(c.SettingService),
 		Redeemer: giftcardredeemgormuow.New(c.GiftCardRepo, c.WalletService),
 	})
-	c.CouponAdminService = couponapp.NewAdminService(c.CouponRepo)
+	c.CouponAdminService = couponapp.NewAdminService(c.CouponRepo).WithSKUDirectory(couponproductadapter.New(c.ProductSKURepo))
 	c.PromotionAdminService = promotionapp.NewAdminService(c.PromotionRepo)
 	c.ContentBannerService = contentapp.NewBannerService(
 		gormstore.NewBannerStore(gormdb.DB),

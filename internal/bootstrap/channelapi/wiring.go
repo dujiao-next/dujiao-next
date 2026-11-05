@@ -47,6 +47,7 @@ func identityServiceInput(input channeltransport.TelegramIdentityInput) userauth
 	return userauthapp.TelegramChannelIdentityInput{
 		ChannelUserID: input.ChannelUserID, Username: input.Username,
 		FirstName: input.FirstName, LastName: input.LastName, AvatarURL: input.AvatarURL,
+		InviteCode: input.InviteCode,
 	}
 }
 
@@ -160,6 +161,14 @@ func (a paymentAdapter) ListChannels(filter channeltransport.PaymentChannelListF
 
 func (a paymentAdapter) GetAllowedChannelsForProducts(productIDs []uint) ([]paymentdomain.PaymentChannel, error) {
 	return a.payments.GetAllowedChannelsForProducts(productIDs)
+}
+
+func (a paymentAdapter) FilterOrderEligibleChannels(channels []paymentdomain.PaymentChannel, order *orderdomain.Order) []paymentdomain.PaymentChannel {
+	return a.payments.FilterOrderEligibleChannels(channels, order)
+}
+
+func (a paymentAdapter) FilterWalletEligibleChannels(channels []paymentdomain.PaymentChannel, userID uint) ([]paymentdomain.PaymentChannel, error) {
+	return a.payments.FilterWalletEligibleChannels(channels, userID)
 }
 
 func (a paymentAdapter) CreatePayment(input channeltransport.CreatePaymentInput) (*channeltransport.CreatePaymentResult, error) {

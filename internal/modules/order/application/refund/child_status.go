@@ -7,6 +7,11 @@ import (
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/logger"
 	ordercontract "github.com/dujiao-next/internal/modules/order/contract"
+	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
+	walletcontract "github.com/dujiao-next/internal/modules/wallet/contract"
+	"github.com/dujiao-next/internal/shared/money"
+
+	"github.com/shopspring/decimal"
 )
 
 // applyParentRefundChildStatusUpdates 根据父订单退款结果统一更新子订单状态。
@@ -35,4 +40,27 @@ func applyParentRefundChildStatusUpdates(orderStore ordercontract.Store, parentO
 		)
 	}
 	return nil
+}
+
+// reserveParentRefund 子订单退款同时受父订单剩余可退金额约束，并累加到父订单已退金额。
+// 父订单退款只看父订单自身的已退金额，若子订单退款不计入父订单，就能"先退子单、再退父单"重复退款。
+func reserveParentRefund(orderStore ordercontract.Store, order *orderdomain.Order, amount decimal.Decimal, now time.Time) error {
+	if order == nil || order.ParentID == nil || *order.ParentID == 0 {
+		return nil
+	}
+	parent, err := orderStore.GetByIDForUpdate(*order.ParentID)
+	if err != nil {
+		return err
+	}
+	if parent == nil {
+		return ErrOrderNotFound
+	}
+	parentRefunded := parent.RefundedAmount.Decimal.Round(2)
+	if amount.GreaterThan(parent.TotalAmount.Decimal.Sub(parentRefunded).Round(2)) {
+		return walletcontract.ErrRefundExceeded
+	}
+	return orderStore.UpdateFields(parent.ID, map[string]interface{}{
+		"refunded_amount": money.FromDecimal(parentRefunded.Add(amount).Round(2)),
+		"updated_at":      now,
+	})
 }

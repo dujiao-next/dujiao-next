@@ -338,7 +338,12 @@ func (s *Service) LoadEnableSubject(userID uint) (totpapplication.EnableSubject,
 }
 
 func (s *Service) SaveEnabled(userID uint, result *totpapplication.EnableResult) error {
-	return s.userRepo.UpdateTOTPEnabled(userID, result.EncryptedSecret, result.EnabledAt, result.RecoveryCodesJSON)
+	if err := s.userRepo.UpdateTOTPEnabled(userID, result.EncryptedSecret, result.EnabledAt, result.RecoveryCodesJSON); err != nil {
+		return err
+	}
+	// 启用会递增 token_version 让其他设备下线，需同步清掉鉴权缓存，否则旧令牌在缓存期内仍有效
+	_ = cache.DelUserAuthState(context.Background(), userID)
+	return nil
 }
 
 func (s *Service) ClearEnableFailures(userID uint) {

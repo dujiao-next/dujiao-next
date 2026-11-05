@@ -79,6 +79,10 @@ func (a publicConfigSettingsAdapter) GetEmailVerificationEnabled(defaultValue bo
 	return a.settings.GetEmailVerificationEnabled(defaultValue)
 }
 
+func (a publicConfigSettingsAdapter) GetRegistrationInviteOnly() (bool, error) {
+	return a.settings.GetRegistrationInviteOnly()
+}
+
 func (a publicConfigSettingsAdapter) GetRegistrationEmailDomainPolicy() (bool, []string, error) {
 	policy, err := a.settings.GetRegistrationEmailDomainPolicy()
 	if err != nil {

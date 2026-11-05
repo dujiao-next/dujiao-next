@@ -20,10 +20,10 @@
       <Button as-child class="mt-2 rounded-full" size="sm"><RouterLink to="/products">{{ t('cart.emptyAction') }}</RouterLink></Button>
     </div>
 
-    <div v-else class="grid items-start gap-7 lg:grid-cols-[1fr_340px]">
+    <div v-else class="grid items-start gap-7 lg:grid-cols-[minmax(0,1fr)_340px]">
       <!-- 商品列表 -->
-      <div class="grid gap-4">
-        <article v-for="item in cartItems" :key="cartItemKey(item)" class="flex gap-4 rounded-xl border bg-card p-4">
+      <div class="grid min-w-0 gap-4">
+        <article v-for="item in cartItems" :key="cartItemKey(item)" class="flex min-w-0 gap-4 rounded-xl border bg-card p-4">
           <RouterLink :to="`/products/${item.slug}`" class="relative grid h-[88px] w-[88px] flex-none place-items-center overflow-hidden rounded-md bg-secondary">
             <img v-if="cartItemImage(item)" :src="cartItemImage(item)" :alt="getLocalizedText(item.title)" loading="lazy" class="absolute inset-0 h-full w-full object-cover" />
             <Package v-else class="h-10 w-10 text-muted-foreground" />
@@ -41,8 +41,9 @@
                   <Badge variant="success" size="sm" class="rounded-full">{{ item.fulfillmentType === 'auto' ? t('products.fulfillmentType.auto') : t('products.fulfillmentType.manual') }}</Badge>
                 </div>
               </div>
-              <button type="button" class="grid h-10 w-10 flex-none place-items-center rounded-sm text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive" :aria-label="t('cart.remove')" @click="removeWithUndo(item)">
-                <Trash2 class="h-[18px] w-[18px]" />
+              <button type="button" class="inline-flex h-10 flex-none items-center gap-1.5 rounded-full border-2 border-hairline-strong px-3 text-muted-foreground transition-colors hover:border-destructive hover:bg-destructive/10 hover:text-destructive" @click="removeWithUndo(item)">
+                <Trash2 class="h-4 w-4" />
+                <span class="text-[13px] font-semibold">{{ t('cart.remove') }}</span>
               </button>
             </div>
 

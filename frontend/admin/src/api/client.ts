@@ -66,7 +66,8 @@ function getHttpErrorMessage(status: number): string {
 }
 
 const baseURL = `${API_BASE_URL}${API_PREFIX}`
-const timeout = 10000
+// 与后端 http.Server WriteTimeout（60s）对齐，大表查询/导出/上传不应被前端提前中断
+const timeout = 60000
 
 function responseHeadersToObject(headers: Headers): Record<string, string> {
   const result: Record<string, string> = {}
@@ -129,8 +130,7 @@ async function request(method: string, path: string, bodyOrOptions?: any, option
       signal: controller.signal,
     })
   } catch (err: any) {
-    clearTimeout(timer)
-    const message = t('common.api.networkError')
+    const message = t(err?.name === 'AbortError' ? 'common.api.timeout' : 'common.api.networkError')
     notifyError(message)
     return Promise.reject(createNotifiedError(message))
   } finally {

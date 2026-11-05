@@ -163,6 +163,7 @@ func TestSendCallbackBuildsPayloadAndPersistsSentStatus(t *testing.T) {
 		ID:        5,
 		APIKey:    "downstream-key",
 		APISecret: "downstream-secret",
+		Active:    true,
 	}}}
 	deliverer := &delivererStub{}
 	service := newService(references, orders, credentials, nil, deliverer)
@@ -188,7 +189,7 @@ func TestSendCallbackFailureSchedulesBackoffAndPersistsRetry(t *testing.T) {
 	ref := &downstreamdomain.OrderRef{ID: 3, OrderID: 8, ApiCredentialID: 5, CallbackURL: "https://callback.example.test"}
 	references := &refRepositoryStub{byID: map[uint]*downstreamdomain.OrderRef{ref.ID: ref}}
 	orders := orderReaderStub{orders: map[uint]*downstreamcontract.OrderSnapshot{8: {ID: 8, Status: "paid"}}}
-	credentials := credentialReaderStub{credentials: map[uint]*downstreamcontract.Credential{5: {ID: 5}}}
+	credentials := credentialReaderStub{credentials: map[uint]*downstreamcontract.Credential{5: {ID: 5, Active: true}}}
 	queue := &callbackQueueStub{}
 	service := newService(references, orders, credentials, queue, &delivererStub{err: errors.New("network unavailable")})
 
@@ -216,7 +217,7 @@ func TestDurableCallbackPropagatesFailureWithoutRedisRetry(t *testing.T) {
 	queue := &callbackQueueStub{}
 	deliverer := &durableDelivererStub{err: errors.New("synthetic failure")}
 	order := &downstreamcontract.OrderSnapshot{ID: 2, OrderNo: "synthetic", Status: "paid"}
-	svc := downstreamapp.NewService(downstreamapp.Options{References: repo, Orders: orderReaderStub{orders: map[uint]*downstreamcontract.OrderSnapshot{2: order}}, Credentials: credentialReaderStub{credentials: map[uint]*downstreamcontract.Credential{3: {APIKey: "test", APISecret: "test"}}}, Queue: queue, Deliverer: deliverer, PaymentEffects: fixedEffectOwner{}})
+	svc := downstreamapp.NewService(downstreamapp.Options{References: repo, Orders: orderReaderStub{orders: map[uint]*downstreamcontract.OrderSnapshot{2: order}}, Credentials: credentialReaderStub{credentials: map[uint]*downstreamcontract.Credential{3: {APIKey: "test", APISecret: "test", Active: true}}}, Queue: queue, Deliverer: deliverer, PaymentEffects: fixedEffectOwner{}})
 	if err := svc.SendCallback(context.Background(), 1); err != nil || deliverer.calls != 0 {
 		t.Fatal("old queue bypassed fixed owner")
 	}
@@ -255,4 +256,26 @@ type durableDelivererStub struct {
 func (d *durableDelivererStub) Send(context.Context, downstreamcontract.DeliveryRequest) error {
 	d.calls++
 	return d.err
+}
+func TestSendCallbackSkipsDeliveryWhenCredentialInactive(t *testing.T) {
+	for _, retryCount := range []int{0, 2} {
+		ref := &downstreamdomain.OrderRef{ID: 3, OrderID: 8, ApiCredentialID: 5, CallbackURL: "https://attacker.example.test",
+			CallbackStatus: downstreamdomain.StatusPending, CallbackRetryCount: retryCount}
+		references := &refRepositoryStub{byID: map[uint]*downstreamdomain.OrderRef{ref.ID: ref}}
+		orders := orderReaderStub{orders: map[uint]*downstreamcontract.OrderSnapshot{8: {ID: 8, Status: "completed"}}}
+		credentials := credentialReaderStub{credentials: map[uint]*downstreamcontract.Credential{5: {ID: 5, APIKey: "k", APISecret: "s"}}}
+		queue := &callbackQueueStub{}
+		deliverer := &delivererStub{}
+		service := newService(references, orders, credentials, queue, deliverer)
+
+		if err := service.SendCallback(context.Background(), ref.ID); err != nil {
+			t.Fatalf("retry=%d SendCallback() error = %v", retryCount, err)
+		}
+		if deliverer.calls != 0 || len(queue.callbacks) != 0 {
+			t.Fatalf("retry=%d inactive credential must not deliver or requeue: calls=%d queue=%d", retryCount, deliverer.calls, len(queue.callbacks))
+		}
+		if ref.CallbackStatus != downstreamdomain.StatusFailed {
+			t.Fatalf("retry=%d status = %s, want failed", retryCount, ref.CallbackStatus)
+		}
+	}
 }

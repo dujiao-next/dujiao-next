@@ -125,3 +125,25 @@ func TestValidateCategoryAssignmentPreservesCompatibilityError(t *testing.T) {
 		t.Fatalf("keeping current parent assignment must remain valid, got %v", err)
 	}
 }
+
+func TestPruneWholesalePricesForSKUs(t *testing.T) {
+	tiers := WholesalePriceTiers{
+		{SKUID: 7, SKUCode: "A", MinQuantity: 10}, // 编码被改为 A2：保留并刷新编码
+		{SKUID: 8, SKUCode: "B", MinQuantity: 10}, // SKU 已删除：丢弃
+		{SKUCode: "legacy", MinQuantity: 10},      // 仅按编码引用且编码已不存在：丢弃
+		{SKUCode: "c", MinQuantity: 10},           // 仅按编码引用且编码存在（大小写不敏感）：保留
+		{MinQuantity: 20},                         // 商品级阶梯：保留
+	}
+	skus := []ProductSKU{{ID: 7, SKUCode: "A2"}, {ID: 9, SKUCode: "C"}}
+
+	got := PruneWholesalePricesForSKUs(tiers, skus)
+	if len(got) != 3 {
+		t.Fatalf("expected 3 tiers kept, got %d: %+v", len(got), got)
+	}
+	if got[0].SKUID != 7 || got[0].SKUCode != "A2" {
+		t.Fatalf("expected renamed tier refreshed to A2, got %+v", got[0])
+	}
+	if got[1].SKUCode != "c" || got[2].SKUID != 0 || got[2].SKUCode != "" {
+		t.Fatalf("unexpected kept tiers: %+v", got)
+	}
+}

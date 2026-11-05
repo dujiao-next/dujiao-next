@@ -238,14 +238,6 @@ func ResolveChain(tokenID string) string {
 	return ""
 }
 
-// IsSupportedTokenID 判断 token_id 是否已收录在内置映射表中。
-// 该表仅用于精确解析 chain，不再作为准入白名单：未收录但符合命名约定的 token_id
-// 同样可用，准入条件是 ResolveChain 能推导出非空 chain。
-func IsSupportedTokenID(tokenID string) bool {
-	_, ok := supportedTokenChains[strings.ToLower(strings.TrimSpace(tokenID))]
-	return ok
-}
-
 var supportedTokenChains = map[string]string{
 	"tron-trx":       "tron",
 	"tron-usdt":      "tron",

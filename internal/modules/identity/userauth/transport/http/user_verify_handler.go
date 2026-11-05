@@ -34,7 +34,7 @@ type UserVerifySettings interface {
 
 // UserVerifyAuth 是发送邮箱验证码端口。
 type UserVerifyAuth interface {
-	SendVerifyCode(ctx context.Context, email, purpose, locale string) error
+	SendVerifyCode(ctx context.Context, email, purpose, locale, inviteCode string) error
 }
 
 // UserVerifyHandler 处理公开的发送邮箱验证码 HTTP 请求。
@@ -58,6 +58,7 @@ func NewUserVerifyHandler(settings UserVerifySettings, captcha CaptchaVerifier, 
 type UserSendVerifyCodeRequest struct {
 	Email          string                            `json:"email" binding:"required"`
 	Purpose        string                            `json:"purpose" binding:"required"`
+	InviteCode     string                            `json:"invite_code"`
 	CaptchaPayload captchahttp.CaptchaPayloadRequest `json:"captcha_payload"`
 }
 
@@ -108,7 +109,10 @@ func (h *UserVerifyHandler) SendUserVerifyCode(c *gin.Context) {
 	}
 
 	locale := i18n.ResolveLocale(c)
-	if err := h.auth.SendVerifyCode(c.Request.Context(), req.Email, req.Purpose, locale); err != nil {
+	if err := h.auth.SendVerifyCode(c.Request.Context(), req.Email, req.Purpose, locale, req.InviteCode); err != nil {
+		if respondInviteCodeError(c, err) {
+			return
+		}
 		switch {
 		case errors.Is(err, ErrInvalidEmail):
 			ginutil.RespondError(c, response.CodeBadRequest, "error.email_invalid", nil)

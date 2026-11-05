@@ -2,6 +2,8 @@ package upstreamgateway
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	procurementcontract "github.com/dujiao-next/internal/modules/procurement/contract"
 	siteconnectiondomain "github.com/dujiao-next/internal/modules/siteconnection/domain"
@@ -81,7 +83,11 @@ func (s *session) GetOrder(ctx context.Context, orderID uint) (*procurementcontr
 }
 
 func (s *session) CancelOrder(ctx context.Context, orderID uint) error {
-	return s.adapter.CancelOrder(ctx, orderID)
+	err := s.adapter.CancelOrder(ctx, orderID)
+	if errors.Is(err, upstream.ErrUpstreamCancelNotAllowed) {
+		return fmt.Errorf("%w: %v", procurementcontract.ErrUpstreamCancelRefused, err)
+	}
+	return err
 }
 
 func fromUpstreamFulfillment(value *upstream.UpstreamFulfillment) *procurementcontract.Fulfillment {

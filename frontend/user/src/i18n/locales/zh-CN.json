@@ -24,7 +24,8 @@
       "serverError": "服务器内部错误",
       "badGateway": "网关错误",
       "serviceUnavailable": "服务不可用",
-      "networkError": "网络连接失败"
+      "networkError": "网络连接失败",
+      "timeout": "请求超时，请稍后重试"
     }
   },
   "errorBoundary": {
@@ -101,7 +102,9 @@
     "contact": "联系我们",
     "rights": "保留所有权利",
     "terms": "服务条款",
-    "privacy": "隐私政策"
+    "privacy": "隐私政策",
+    "email": "邮箱",
+    "supportUrl": "在线客服"
   },
   "notFoundPage": {
     "title": "页面不存在",
@@ -1003,7 +1006,8 @@
         "codeRequired": "请输入动态码",
         "recoveryRequired": "请输入恢复码",
         "verifyFailed": "验证失败，请确认输入是否正确"
-      }
+      },
+      "inviteOnlyHint": "本站仅限邀请注册，新用户（含第三方登录）需填写邀请码。"
     },
     "telegramCallback": {
       "processing": "正在处理 Telegram 登录…",
@@ -1040,7 +1044,8 @@
         "registerFailed": "注册失败，请检查输入",
         "agreementRequired": "请先阅读并同意隐私政策和服务条款",
         "emailDomainNotAllowed": "当前邮箱后缀不允许注册，请使用：{domains}",
-        "emailDomainUnavailable": "当前未配置允许注册的邮箱后缀，请联系管理员"
+        "emailDomainUnavailable": "当前未配置允许注册的邮箱后缀，请联系管理员",
+        "inviteCodeRequired": "请输入邀请码"
       },
       "registrationDisabled": "注册功能已关闭"
     },
@@ -1063,6 +1068,16 @@
         "sendCodeFailed": "验证码发送失败",
         "resetFailed": "重置失败，请检查输入"
       }
+    },
+    "invite": {
+      "dialogTitle": "输入邀请码",
+      "dialogMessage": "本站目前仅限邀请注册，首次使用该账号登录需要填写邀请码以创建账户。",
+      "codeLabel": "邀请码",
+      "codePlaceholder": "请输入邀请码",
+      "submit": "确认并继续",
+      "submitting": "验证中...",
+      "failed": "邀请码验证失败，请重试",
+      "registerHint": "本站仅限邀请注册，请填写你收到的邀请码。"
     }
   },
   "order": {
@@ -1707,6 +1722,7 @@
     "backToProducts": "返回商品列表",
     "relatedPosts": "相关文章",
     "deliveryReassurance": "付款成功后，兑换码即时送达订单页与邮箱，凭证仅你本人可见。",
+    "deliveryReassuranceManual": "付款成功后由人工为你处理，处理进度与结果会同步到订单页与邮箱。",
     "loginToBuy": "登录后购买",
     "addToCart": "加入购物车",
     "buyNow": "立即购买",

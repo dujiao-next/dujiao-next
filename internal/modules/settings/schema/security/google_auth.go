@@ -83,15 +83,6 @@ func MaskGoogleAuthSettingForAdmin(setting GoogleAuthSetting) jsonmap.JSON {
 	return EncodeGoogleAuthSetting(setting)
 }
 
-// PublicGoogleAuthSetting 返回前台初始化 Google Identity Services 所需的最小配置。
-func PublicGoogleAuthSetting(setting GoogleAuthSetting) map[string]interface{} {
-	normalized := NormalizeGoogleAuthSetting(setting)
-	return map[string]interface{}{
-		"enabled":   normalized.Enabled && normalized.ClientID != "",
-		"client_id": normalized.ClientID,
-	}
-}
-
 // DecodeGoogleAuthSetting 从持久化 JSON 解码，并对缺失字段使用 fallback。
 func DecodeGoogleAuthSetting(raw jsonmap.JSON, fallback GoogleAuthSetting) GoogleAuthSetting {
 	next := fallback

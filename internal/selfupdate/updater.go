@@ -81,33 +81,10 @@ func NewUpdater() *Updater {
 	}
 }
 
-// Apply 下载指定发行版的当前平台归档并替换正在运行的二进制。
-// progress 可为 nil；非 nil 时会在各阶段回调，用于前端展示进度。
-//
-// 成功返回后二进制已就位，但进程仍是旧版本，需由调用方决定何时重启。
-func (u *Updater) Apply(ctx context.Context, release *version.Release, progress func(stage Stage, percent int)) error {
-	execPath, err := ExecutablePath()
-	if err != nil {
-		return err
-	}
-
-	// 覆盖整个下载 + 替换过程，而不只是 swap 那一瞬：下载期间跑一次 CLI 回滚，
-	// 会把 .backup 消耗掉，随后 swapBinary 又生成一个指向新版本的 .backup，
-	// 结果是两边都以为自己成功了，可恢复的旧二进制却已经没了。
-	unlock, err := acquireBinaryLock(execPath)
-	if err != nil {
-		return err
-	}
-	defer unlock()
-
-	return u.applyLocked(ctx, release, execPath, progress)
-}
-
 // applyLocked 执行实际升级，调用方必须已经持有 execPath 对应的跨进程锁。
 //
 // Manager.Start 在请求 GitHub release 之前取得锁并把所有权传到这里，从而覆盖
-// 「版本检查 → 下载 → 校验 → 替换 → 元数据落盘」完整事务；Apply 这个公开入口
-// 则在上面自行取得同一把锁后再调用。
+// 「版本检查 → 下载 → 校验 → 替换 → 元数据落盘」完整事务。
 func (u *Updater) applyLocked(ctx context.Context, release *version.Release, execPath string, progress func(stage Stage, percent int)) error {
 	report := func(stage Stage, percent int) {
 		if progress != nil {

@@ -1,7 +1,9 @@
 package userdomain
 
 import (
+	"strings"
 	"time"
+	"unicode"
 
 	"github.com/dujiao-next/internal/shared/money"
 )
@@ -28,6 +30,7 @@ type User struct {
 	RecoveryCodes         string       `gorm:"type:text;default:''" json:"-"`                                // jsonmap.JSON 数组：[{"hash":"...","used_at":null|"..."}]
 	EmailVerifiedAt       *time.Time   `json:"email_verified_at"`                                            // 邮箱验证时间
 	LastLoginAt           *time.Time   `json:"last_login_at"`                                                // 最后登录时间
+	InviteCodeID          *uint        `gorm:"index" json:"invite_code_id,omitempty"`                        // 注册时核销的邀请码
 	CreatedAt             time.Time    `gorm:"index" json:"created_at"`                                      // 创建时间
 	UpdatedAt             time.Time    `gorm:"index" json:"updated_at"`                                      // 更新时间
 	DeletedAt             *time.Time   `gorm:"index" json:"-"`                                               // 软删除时间
@@ -36,4 +39,30 @@ type User struct {
 // TableName 指定表名
 func (User) TableName() string {
 	return "users"
+}
+
+// DisplayNameMaxRunes 昵称最大字符数。
+const DisplayNameMaxRunes = 32
+
+func isDisallowedDisplayNameRune(r rune) bool {
+	return unicode.IsControl(r) || strings.ContainsRune("<>\"'`", r)
+}
+
+// SanitizeDisplayName 剔除 HTML 敏感字符与控制字符并截断，用于第三方/系统生成的昵称。
+func SanitizeDisplayName(raw string) string {
+	cleaned := strings.TrimSpace(strings.Map(func(r rune) rune {
+		if isDisallowedDisplayNameRune(r) {
+			return -1
+		}
+		return r
+	}, raw))
+	if runes := []rune(cleaned); len(runes) > DisplayNameMaxRunes {
+		cleaned = strings.TrimSpace(string(runes[:DisplayNameMaxRunes]))
+	}
+	return cleaned
+}
+
+// ValidDisplayName 校验手动填写的昵称（调用方先 TrimSpace）：非空、不超长、不含 HTML 敏感字符与控制字符。
+func ValidDisplayName(name string) bool {
+	return name != "" && SanitizeDisplayName(name) == name
 }

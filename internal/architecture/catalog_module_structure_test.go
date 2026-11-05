@@ -220,7 +220,7 @@ func TestCatalogProductImplementationLivesInNestedBoundedContext(t *testing.T) {
 	})
 	assertFileDeclaresFunctions(t, filepath.Join(domainRoot, "pricing.go"), []string{
 		"NormalizeWholesalePrices", "NormalizeWholesalePricesForSKUs",
-		"ResolveWholesaleUnitPrice", "ResolveWholesaleUnitPriceWithMatchQuantity", "ResolveWholesaleUnitPriceForSKU",
+		"ResolveWholesaleUnitPrice", "ResolveWholesaleUnitPriceForSKU",
 	})
 	assertFileDeclaresFunctions(t, filepath.Join(domainRoot, "purchase_policy.go"), []string{
 		"NormalizePurchaseType", "NormalizeFulfillmentType", "NormalizeStockDisplayMode",

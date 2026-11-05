@@ -92,7 +92,7 @@ func TestRiskGateSerializesConcurrentGuestQuotaChecks(t *testing.T) {
 			defer wg.Done()
 			<-start
 			err := store.db.Transaction(func(dbtx *gorm.DB) error {
-				txStore := store.bind(dbtx)
+				txStore := &Store{db: dbtx, guestCredentialSecret: store.guestCredentialSecret}
 				if err := txStore.LockRiskKeys([]string{"guest:ip:1.2.3.4"}); err != nil {
 					return err
 				}

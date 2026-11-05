@@ -1,5 +1,5 @@
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useUserAuthStore } from '../stores/userAuth'
 import { useI18n } from 'vue-i18n'
 import { debounceAsync } from '../utils/debounce'
@@ -15,6 +15,7 @@ import { useFormValidation, getPasswordStrength } from './useFormValidation'
  */
 export function useRegister() {
   const router = useRouter()
+  const route = useRoute()
   const userAuthStore = useUserAuthStore()
   const appStore = useAppStore()
   const { t } = useI18n()
@@ -31,6 +32,8 @@ export function useRegister() {
   const showPassword = ref(false)
   const code = ref('')
   const agreed = ref(false)
+  // 支持站长分发 /auth/register?invite=CODE 预填邀请码
+  const inviteCode = ref(typeof route.query.invite === 'string' ? route.query.invite.trim() : '')
 
   const passwordStrength = computed(() => getPasswordStrength(password.value))
   const error = ref('')
@@ -48,6 +51,11 @@ export function useRegister() {
   const turnstileSiteKey = computed(() => String(captchaConfig.value?.turnstile?.site_key || ''))
   const registrationEnabled = computed(() => appStore.config?.registration_enabled !== false)
   const emailVerificationEnabled = computed(() => appStore.config?.email_verification_enabled !== false)
+  const inviteOnlyEnabled = computed(() => appStore.config?.invite_only_enabled === true)
+  const loginLink = computed(() => ({
+    path: '/auth/login',
+    query: inviteCode.value ? { invite: inviteCode.value } : {},
+  }))
   const emailDomainAllowlistEnabled = computed(() => appStore.config?.email_domain_allowlist_enabled === true)
   const allowedEmailDomains = computed(() => {
     const raw = appStore.config?.allowed_email_domains
@@ -148,6 +156,12 @@ export function useRegister() {
     turnstileToken.value = ''
   }
 
+  const inviteCodeMissing = (): boolean => {
+    if (!inviteOnlyEnabled.value || inviteCode.value.trim() !== '') return false
+    error.value = t('auth.register.errors.inviteCodeRequired')
+    return true
+  }
+
   const performSendCode = async () => {
     error.value = ''
     const currentEmail = registrationEmail.value
@@ -155,6 +169,7 @@ export function useRegister() {
       error.value = t('auth.register.errors.emailRequired')
       return
     }
+    if (inviteCodeMissing()) return
     touchRegistrationEmail()
     if (formValidation.hasError('email')) return
     if (countdown.value > 0) return
@@ -177,6 +192,7 @@ export function useRegister() {
       await userAuthStore.sendVerifyCode({
         email: currentEmail,
         purpose: 'register',
+        invite_code: inviteOnlyEnabled.value ? inviteCode.value.trim() : undefined,
         captcha_payload: getCaptchaPayload(),
       })
       startCountdown()
@@ -199,6 +215,7 @@ export function useRegister() {
     const currentEmail = registrationEmail.value
     if (!formValidation.validateAll({ email: currentEmail, password: password.value })) return
     if (emailVerificationEnabled.value && !code.value) return
+    if (inviteCodeMissing()) return
     if (!agreed.value) {
       error.value = t('auth.register.errors.agreementRequired')
       return
@@ -209,6 +226,7 @@ export function useRegister() {
         password: password.value,
         code: emailVerificationEnabled.value ? code.value : '',
         agreement_accepted: agreed.value,
+        invite_code: inviteOnlyEnabled.value ? inviteCode.value.trim() : undefined,
       })
       router.push('/me/orders')
     } catch (err: any) {
@@ -233,6 +251,9 @@ export function useRegister() {
     showPassword,
     code,
     agreed,
+    inviteCode,
+    inviteOnlyEnabled,
+    loginLink,
     passwordStrength,
     error,
     sending,

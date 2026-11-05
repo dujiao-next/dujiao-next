@@ -16,7 +16,7 @@ import TableSkeleton from '@/components/TableSkeleton.vue'
 import ListPagination from '@/components/ListPagination.vue'
 import { useListRefresh, type ListFetchOptions } from '@/composables/useListRefresh'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { paymentStatusClass, paymentStatusLabel } from '@/utils/status'
+import { paymentExceptionLabel, paymentStatusClass, paymentStatusLabel } from '@/utils/status'
 import ComplianceGuardWrapper from '@/components/ComplianceGuardWrapper.vue'
 import { copyText } from '@/utils/clipboard'
 import { formatDate, toRFC3339 } from '@/utils/format'
@@ -225,12 +225,7 @@ const feePolicyLabel = (policy?: string) => {
   return translated === key ? policy : translated
 }
 
-const exceptionLabel = (code?: string) => {
-  if (!code) return '-'
-  const key = `admin.payments.exceptions.${code}`
-  const translated = t(key)
-  return translated === key ? code : translated
-}
+const exceptionLabel = (code?: string) => paymentExceptionLabel(t, code)
 
 const providerTypeLabel = (value?: string) => {
   const map: Record<string, string> = {

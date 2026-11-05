@@ -2,8 +2,13 @@ package epayadapter
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 
 	gatewaycommon "github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/common"
@@ -148,14 +153,72 @@ func (a *epayAdapter) CreatePayment(ctx context.Context, raw jsonmap.JSON, input
 		payload["original_currency"] = originalCurrency
 	}
 
+	redirectURL := result.PayURL
+	if mode == constants.PaymentInteractionRedirect && epaySubmitPOST(payload) {
+		formURL, token, formErr := epayRedirectFormURL(input.PaymentID, returnURL, notifyURL)
+		if formErr != nil {
+			return nil, formErr
+		}
+		payload["token"] = token
+		redirectURL = formURL
+	}
+
 	return &paymentcontract.GatewayCreateResult{
 		ProviderRef:  result.TradeNo,
-		RedirectURL:  result.PayURL,
+		RedirectURL:  redirectURL,
 		QRCodeURL:    result.QRCode,
 		Payload:      payload,
 		AmountSent:   payAmount,
 		CurrencySent: payCurrency,
 	}, nil
+}
+
+func epaySubmitPOST(payload jsonmap.JSON) bool {
+	method, _ := payload["submit_method"].(string)
+	return strings.EqualFold(strings.TrimSpace(method), http.MethodPost)
+}
+
+// epayRedirectFormURL 把 v2 跳转收成站内表单地址。域名优先取 return_url，为空再退回 notify_url。
+func epayRedirectFormURL(paymentID uint, returnURL, notifyURL string) (string, string, error) {
+	if paymentID == 0 {
+		return "", "", fmt.Errorf("%w: epay redirect payment id is required", paymentcontract.ErrGatewayConfigInvalid)
+	}
+	originSource := strings.TrimSpace(returnURL)
+	if originSource == "" {
+		originSource = strings.TrimSpace(notifyURL)
+	}
+	origin, err := httpOrigin(originSource)
+	if err != nil {
+		return "", "", fmt.Errorf("%w: epay redirect url origin", paymentcontract.ErrGatewayConfigInvalid)
+	}
+	token, err := newEpayRedirectToken()
+	if err != nil {
+		return "", "", fmt.Errorf("%w: %v", paymentcontract.ErrGatewayRequestFailed, err)
+	}
+	formURL := origin + "/api/v1/payments/epay-redirect?payment_id=" + strconv.FormatUint(uint64(paymentID), 10) + "&token=" + token
+	return formURL, token, nil
+}
+
+func httpOrigin(raw string) (string, error) {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return "", err
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return "", fmt.Errorf("url scheme %q", parsed.Scheme)
+	}
+	if parsed.Host == "" {
+		return "", fmt.Errorf("url host is empty")
+	}
+	return parsed.Scheme + "://" + parsed.Host, nil
+}
+
+func newEpayRedirectToken() (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(buf), nil
 }
 
 // VerifyCallback 实现 paymentcontract.GatewayCallbackVerifier。epay 用 form POST，body 参数忽略。

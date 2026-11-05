@@ -17,6 +17,7 @@ import (
 
 	"github.com/dujiao-next/internal/cache"
 	"github.com/dujiao-next/internal/constants"
+	"github.com/dujiao-next/internal/shared/contactlink"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/mailbrand"
 )
@@ -152,11 +153,11 @@ func validateSupportURL(raw string) (string, error) {
 // NormalizeResellerSupport 归一化并校验客服联系方式。
 func NormalizeResellerSupport(input ResellerSupportInput) (jsonmap.JSON, error) {
 	telegram := trimLimit(input.Telegram, 500)
-	if telegram != "" && !strings.HasPrefix(telegram, "https://telegram.me/") && !strings.HasPrefix(telegram, "https://t.me/") && !strings.HasPrefix(telegram, "tg://") {
+	if telegram != "" && !contactlink.IsTelegram(telegram) {
 		return nil, newResellerFieldError("support_telegram")
 	}
 	whatsApp := trimLimit(input.WhatsApp, 500)
-	if whatsApp != "" && !strings.HasPrefix(whatsApp, "https://wa.me/") && !strings.HasPrefix(whatsApp, "https://api.whatsapp.com/") {
+	if whatsApp != "" && !contactlink.IsWhatsApp(whatsApp) {
 		return nil, newResellerFieldError("support_whatsapp")
 	}
 	email := trimLimit(input.Email, 320)
@@ -367,6 +368,8 @@ func (s *SiteConfigService) ApplyPublicConfigOverlay(ctx context.Context, tenant
 		"host":           tenant.Host,
 		"primary_domain": tenant.PrimaryDomain,
 	}
+	// 主站的统计/客服等自定义脚本不能在白标分销站上运行，否则主站能看到分销站顾客
+	out["scripts"] = []interface{}{}
 	brand, _ := out["brand"].(map[string]interface{})
 	if brand == nil {
 		brand = map[string]interface{}{}
@@ -486,10 +489,9 @@ func applyResellerSiteConfigToPublicConfig(out map[string]interface{}, cfg *rese
 	}
 	out["brand"] = brand
 
-	contact, _ := out["contact"].(map[string]interface{})
-	if contact == nil {
-		contact = map[string]interface{}{}
-	}
+	// A saved reseller config owns contact entirely: empty fields stay hidden
+	// instead of falling back to the main site's support channels.
+	contact := map[string]interface{}{}
 	for _, key := range []string{"telegram", "whatsapp", "email", "support_url"} {
 		if value, ok := cfg.SupportJSON[key].(string); ok && strings.TrimSpace(value) != "" {
 			contact[key] = value

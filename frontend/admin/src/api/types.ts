@@ -246,6 +246,7 @@ export interface AdminCoupon {
   member_levels?: number[]
   scope_type: string
   scope_ref_ids: number[] | string
+  scope_sku_ids?: number[] | string
   starts_at?: string
   ends_at?: string
   is_active: boolean
@@ -278,6 +279,21 @@ export interface AdminGiftCardBatch {
   amount: number
   currency: string
   created_at: string
+}
+
+// --- InviteCode ---
+export interface AdminInviteCode {
+  id: number
+  code: string
+  max_uses: number
+  used_count: number
+  expires_at?: string | null
+  status: 'active' | 'disabled'
+  note: string
+  created_by?: number | null
+  created_at: string
+  updated_at: string
+  usable: boolean
 }
 
 // --- MemberLevel ---

@@ -32,6 +32,8 @@ const (
 
 	paypalWebhookVerifyStatusSuccess = "SUCCESS"
 
+	paypalIssueOrderAlreadyCaptured = "ORDER_ALREADY_CAPTURED"
+
 	paypalEventCaptureCompleted = "PAYMENT.CAPTURE.COMPLETED"
 	paypalEventOrderCompleted   = "CHECKOUT.ORDER.COMPLETED"
 	paypalEventCaptureDenied    = "PAYMENT.CAPTURE.DENIED"
@@ -242,9 +244,63 @@ func CaptureOrder(ctx context.Context, cfg *Config, orderID string) (*CaptureRes
 		return nil, err
 	}
 	if statusCode < 200 || statusCode >= 300 {
-		return nil, fmt.Errorf("%w: capture status %d", ErrResponseInvalid, statusCode)
+		// 订单已被捕获（上一次 capture 成功但本地未落库、或重复触发）时，PayPal 返回
+		// 422 ORDER_ALREADY_CAPTURED。此时资金已到账，应读取订单当前状态而不是报错，
+		// 否则本地支付单会永远停在 pending。
+		if statusCode == http.StatusUnprocessableEntity && paypalErrorIssue(respBody) == paypalIssueOrderAlreadyCaptured {
+			return fetchCapturedOrder(ctx, cfg, token, orderID)
+		}
+		return nil, fmt.Errorf("%w: capture status %d%s", ErrResponseInvalid, statusCode, paypalErrorDetail(respBody))
 	}
+	return parseCaptureResponse(respBody, orderID)
+}
 
+// fetchCapturedOrder 读取已捕获订单的当前状态，并按 capture 响应同样的结构解析。
+func fetchCapturedOrder(ctx context.Context, cfg *Config, token, orderID string) (*CaptureResult, error) {
+	endpoint := "/v2/checkout/orders/" + url.PathEscape(orderID)
+	respBody, statusCode, err := doJSONRequest(ctx, cfg, http.MethodGet, endpoint, token, nil)
+	if err != nil {
+		return nil, err
+	}
+	if statusCode < 200 || statusCode >= 300 {
+		return nil, fmt.Errorf("%w: get order status %d%s", ErrResponseInvalid, statusCode, paypalErrorDetail(respBody))
+	}
+	return parseCaptureResponse(respBody, orderID)
+}
+
+// paypalErrorIssue 提取 PayPal 错误响应 details[0].issue。
+func paypalErrorIssue(body []byte) string {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(readString(raw, "details", "0", "issue"))
+}
+
+// paypalErrorDetail 把 PayPal 错误响应的 name/issue/description 拼成可读后缀，
+// 便于排查（仅包含这三个字段，长度受限）。
+func paypalErrorDetail(body []byte) string {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return ""
+	}
+	parts := make([]string, 0, 3)
+	for _, path := range [][]string{{"name"}, {"details", "0", "issue"}, {"details", "0", "description"}} {
+		if v := strings.TrimSpace(readString(raw, path...)); v != "" {
+			parts = append(parts, v)
+		}
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	detail := strings.Join(parts, " / ")
+	if len(detail) > 300 {
+		detail = detail[:300]
+	}
+	return " (" + detail + ")"
+}
+
+func parseCaptureResponse(respBody []byte, orderID string) (*CaptureResult, error) {
 	var raw map[string]interface{}
 	if err := json.Unmarshal(respBody, &raw); err != nil {
 		return nil, fmt.Errorf("%w: decode response failed", ErrResponseInvalid)

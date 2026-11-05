@@ -330,6 +330,33 @@ export function useProductDetail(options: { onLoaded?: () => void } = {}) {
     return category ? getLocalizedText(category) : ''
   })
 
+  /**
+   * 返回商品列表的目标路由。
+   * 优先级：
+   *   1. 浏览器历史的上一页是列表页 → 直接回去（保留 ?page= 等 query）
+   *   2. 商品所属分类有 slug → 跳到该分类页
+   *   3. 兜底 → /products
+   */
+  const LIST_ROUTE_NAMES = new Set(['home', 'products', 'category-products'])
+  const backToListTo = computed<string | object>(() => {
+    const back = (history.state as Record<string, unknown>)?.back
+    if (typeof back === 'string' && back) {
+      try {
+        const resolved = router.resolve(back)
+        if (LIST_ROUTE_NAMES.has(String(resolved.name))) {
+          return back
+        }
+      } catch {
+        // 无法解析时忽略，走后续兜底
+      }
+    }
+    const categorySlug = product.value?.category?.slug
+    if (categorySlug) {
+      return { name: 'category-products', params: { slug: categorySlug } }
+    }
+    return '/products'
+  })
+
   const images = computed(() => {
     if (!product.value?.images) return []
     let imageArray: string[] = []
@@ -689,6 +716,7 @@ export function useProductDetail(options: { onLoaded?: () => void } = {}) {
     // 购买能力
     purchaseType, requiresLogin, requiresSKUSelection, canPurchase, cannotPurchaseReason,
     categoryName, images,
+    backToListTo,
     // 动作
     addToCart, buyNow, goLogin, loadProduct,
     // 移动端购买条

@@ -67,6 +67,7 @@ type TelegramIdentityInput struct {
 	FirstName     string
 	LastName      string
 	AvatarURL     string
+	InviteCode    string
 }
 
 type BindTelegramIdentityInput struct {
@@ -199,6 +200,8 @@ type Payments interface {
 	GetWalletRechargeChannels() ([]paymentdomain.PaymentChannel, error)
 	ListChannels(filter PaymentChannelListFilter) ([]paymentdomain.PaymentChannel, int64, error)
 	GetAllowedChannelsForProducts(productIDs []uint) ([]paymentdomain.PaymentChannel, error)
+	FilterOrderEligibleChannels(channels []paymentdomain.PaymentChannel, order *orderdomain.Order) []paymentdomain.PaymentChannel
+	FilterWalletEligibleChannels(channels []paymentdomain.PaymentChannel, userID uint) ([]paymentdomain.PaymentChannel, error)
 	CreatePayment(input CreatePaymentInput) (*CreatePaymentResult, error)
 }
 

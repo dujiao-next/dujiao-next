@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/dujiao-next/internal/cache"
 	"io"
 	"os"
 	"path/filepath"
@@ -82,6 +83,12 @@ func main() {
 
 	// 加载配置
 	cfg := config.Load()
+	// 拼错的 mode（如 prod）会静默走 debug 分支：默认管理员不拦截、GORM 记录带参数值的完整 SQL。
+	// 在初始化日志前检查，报错直接进 stderr，不会只落在日志文件里
+	if cfg.Server.Mode != "debug" && cfg.Server.Mode != "release" {
+		fmt.Fprintf(os.Stderr, "server.mode 只能是 debug 或 release，当前为 %q\n", cfg.Server.Mode)
+		os.Exit(1)
+	}
 	logger.Init(cfg.Server.Mode, cfg.Log.ToLoggerOptions())
 	stdLog := logger.StdLogger()
 
@@ -92,7 +99,7 @@ func main() {
 	defaultAdminUser, defaultAdminPass := resolveDefaultAdminCredentials(cfg)
 	if unsafeBootstrapAdminPassword(cfg, defaultAdminPass) {
 		if cfg.Server.Mode == "release" {
-			stdLog.Fatalf("bootstrap.default_admin_password 为已知默认值或不符合密码策略；请配置强密码，或留空以跳过默认管理员初始化")
+			stdLog.Fatalf("bootstrap.default_admin_password 为已知默认值或不符合密码策略；请配置强密码，或留空由首次启动随机生成")
 		}
 		stdLog.Printf("警告: bootstrap.default_admin_password 为已知默认值或不符合密码策略")
 	}
@@ -145,10 +152,11 @@ func main() {
 	}
 
 	// 初始化默认管理员账号
-	if cfg.Server.Mode == "release" && defaultAdminPass == "" {
-		stdLog.Printf("警告: 未设置 DJ_DEFAULT_ADMIN_PASSWORD 且 bootstrap.default_admin_password 为空，已跳过默认管理员初始化")
-	} else if err := adminapplication.InitDefaultAdmin(adminstore.New(gormdb.DB), defaultAdminUser, defaultAdminPass); err != nil {
+	if generated, err := adminapplication.InitDefaultAdmin(adminstore.New(gormdb.DB), defaultAdminUser, defaultAdminPass); err != nil {
 		stdLog.Printf("警告: 初始化默认管理员失败: %v", err)
+	} else if generated != "" {
+		// 只打到控制台不进日志文件；忘记了可用 ./dujiao-next admin reset-password 重置
+		fmt.Printf("%s已创建默认超级管理员，随机密码: %s（仅显示这一次，请登录后立即修改）%s\n", ansiBrightMag, generated, ansiReset)
 	}
 
 	// 设置 Gin 模式
@@ -377,6 +385,8 @@ func runAdminSubcommand(args []string) {
 		fmt.Fprintf(os.Stderr, "init db: %v\n", err)
 		os.Exit(1)
 	}
+	// 重置密码 / 2FA 后需清理鉴权缓存，Redis 不可用不阻断命令
+	_ = cache.InitRedis(&cfg.Redis)
 	admincmd.Run(args)
 }
 

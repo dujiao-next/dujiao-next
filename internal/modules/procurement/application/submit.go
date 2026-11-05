@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strconv"
 	"strings"
 	"time"
@@ -47,6 +48,11 @@ func (s *Service) SubmitToUpstream(procurementOrderID uint) error {
 	}
 	if localOrder == nil {
 		s.rejectProcurement(procOrder, fmt.Sprintf("local order %d not found", procOrder.LocalOrderID))
+		return nil // 永久性错误，不重试
+	}
+	// 本地订单已退款/取消等不再需要采购（如巡检补投的历史积压单），不能再去上游扣款
+	if localOrder.Status != constants.OrderStatusPaid && localOrder.Status != constants.OrderStatusFulfilling {
+		s.rejectProcurement(procOrder, fmt.Sprintf("local order %d status %s no longer needs procurement", localOrder.ID, localOrder.Status))
 		return nil // 永久性错误，不重试
 	}
 	if len(localOrder.Items) == 0 {
@@ -99,17 +105,22 @@ func (s *Service) SubmitToUpstream(procurementOrderID uint) error {
 
 	// 成功：更新状态，重置 retry_count 用于轮询阶段
 	now := time.Now()
-	updates := map[string]interface{}{
+	upstreamFields := map[string]interface{}{
 		"upstream_order_id": resp.OrderID,
 		"upstream_order_no": resp.OrderNo,
 		"upstream_amount":   resp.Amount,
 		"upstream_currency": resp.Currency,
-		"error_message":     "",
-		"retry_count":       0,
 		"updated_at":        now,
 	}
-	if err := s.procRepo.UpdateStatus(procOrder.ID, "accepted", updates); err != nil {
+	updates := maps.Clone(upstreamFields)
+	updates["error_message"] = ""
+	updates["retry_count"] = 0
+	accepted, err := s.procRepo.UpdateStatus(procOrder.ID, procOrder.Status, constants.ProcurementStatusAccepted, updates)
+	if err != nil {
 		return fmt.Errorf("update procurement status: %w", err)
+	}
+	if !accepted {
+		return s.recordUpstreamOrderAfterStatusChanged(procOrder.ID, resp.OrderNo, upstreamFields)
 	}
 
 	logger.Infow("procurement_order_accepted",
@@ -118,7 +129,9 @@ func (s *Service) SubmitToUpstream(procurementOrderID uint) error {
 		"upstream_order_no", resp.OrderNo,
 	)
 
-	// 更新本地订单状态为 fulfilling
+	// 更新本地订单状态为 fulfilling。
+	// shortcut: 本地订单写入不做比较后再写，回调恰好落在上一步与这一步之间时仍可能回退为 fulfilling；
+	// 窗口仅两条语句，需要时给订单仓储加带前置状态的更新。
 	_ = s.orderRepo.UpdateStatus(localOrder.ID, constants.OrderStatusFulfilling, map[string]interface{}{
 		"updated_at": now,
 	})
@@ -134,7 +147,7 @@ func (s *Service) SubmitToUpstream(procurementOrderID uint) error {
 // markProcurementError 记录错误信息但不改变状态（用于瞬态错误，asynq 可重试）
 func (s *Service) markProcurementError(procOrder *procurementdomain.Order, errMsg string) {
 	now := time.Now()
-	_ = s.procRepo.UpdateStatus(procOrder.ID, procOrder.Status, map[string]interface{}{
+	_, _ = s.procRepo.UpdateStatus(procOrder.ID, procOrder.Status, procOrder.Status, map[string]interface{}{
 		"error_message": errMsg,
 		"updated_at":    now,
 	})
@@ -148,15 +161,43 @@ func (s *Service) markProcurementError(procOrder *procurementdomain.Order, errMs
 // 同时回退本地订单状态并通知管理员
 func (s *Service) rejectProcurement(procOrder *procurementdomain.Order, errMsg string) {
 	now := time.Now()
-	_ = s.procRepo.UpdateStatus(procOrder.ID, "rejected", map[string]interface{}{
+	rejected, _ := s.procRepo.UpdateStatus(procOrder.ID, procOrder.Status, constants.ProcurementStatusRejected, map[string]interface{}{
 		"error_message": errMsg,
 		"updated_at":    now,
 	})
+	if !rejected {
+		return
+	}
 	logger.Warnw("procurement_rejected_config_error",
 		"procurement_order_id", procOrder.ID,
 		"error", errMsg,
 	)
 	s.rollbackLocalOrderOnProcurementFailure(procOrder, errMsg)
+}
+
+// recordUpstreamOrderAfterStatusChanged 上游已成单，但采购单在请求途中被回调推进（如秒发卡密）或被管理员取消：
+// 不回退状态，只补记上游订单号，否则对账与上游退款同步会跳过这单；被取消的需告警人工处理。
+func (s *Service) recordUpstreamOrderAfterStatusChanged(id uint, upstreamOrderNo string, fields map[string]interface{}) error {
+	current, err := s.procRepo.GetByID(id)
+	if err != nil {
+		return fmt.Errorf("reload procurement order: %w", err)
+	}
+	if current == nil {
+		return procurementcontract.ErrNotFound
+	}
+	if _, err := s.procRepo.UpdateStatus(id, current.Status, current.Status, fields); err != nil {
+		return fmt.Errorf("record upstream order: %w", err)
+	}
+	if current.Status == constants.ProcurementStatusCanceled {
+		logger.Errorw("procurement_canceled_but_upstream_created",
+			"procurement_order_id", id,
+			"upstream_order_no", upstreamOrderNo,
+		)
+		s.notifyProcurementFailure(current, fmt.Sprintf("procurement canceled locally but upstream order %s was created and paid", upstreamOrderNo))
+		return nil
+	}
+	logger.Infow("procurement_accept_skipped_status_changed", "procurement_order_id", id, "status", current.Status)
+	return nil
 }
 
 // rollbackLocalOrderOnProcurementFailure 采购单终态失败时回退本地订单状态并通知管理员
@@ -211,8 +252,12 @@ func (s *Service) handleSubmitFailure(procOrder *procurementdomain.Order, connec
 			"error_message": errMsg,
 			"updated_at":    now,
 		}
-		if err := s.procRepo.UpdateStatus(procOrder.ID, "failed", updates); err != nil {
+		failed, err := s.procRepo.UpdateStatus(procOrder.ID, procOrder.Status, constants.ProcurementStatusFailed, updates)
+		if err != nil {
 			return fmt.Errorf("update procurement status (failed): %w", err)
+		}
+		if !failed {
+			return nil
 		}
 
 		logger.Warnw("procurement_submit_failed_retryable",
@@ -222,9 +267,11 @@ func (s *Service) handleSubmitFailure(procOrder *procurementdomain.Order, connec
 			"error", errMsg,
 		)
 
-		// 入队重试
+		// 按配置间隔延迟重试：上游超时可能仍在处理首个请求，立即重试会与之并发
 		if s.queue != nil {
-			_ = s.queue.EnqueueSubmit(procOrder.ID)
+			if err := s.queue.EnqueueSubmit(procOrder.ID, delay); err != nil {
+				logger.Warnw("procurement_enqueue_retry_failed", "procurement_order_id", procOrder.ID, "error", err)
+			}
 		}
 
 		return nil
@@ -235,8 +282,12 @@ func (s *Service) handleSubmitFailure(procOrder *procurementdomain.Order, connec
 		"error_message": errMsg,
 		"updated_at":    now,
 	}
-	if err := s.procRepo.UpdateStatus(procOrder.ID, "rejected", updates); err != nil {
+	rejected, err := s.procRepo.UpdateStatus(procOrder.ID, procOrder.Status, constants.ProcurementStatusRejected, updates)
+	if err != nil {
 		return fmt.Errorf("update procurement status (rejected): %w", err)
+	}
+	if !rejected {
+		return nil
 	}
 
 	logger.Warnw("procurement_submit_rejected",

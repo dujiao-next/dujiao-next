@@ -165,6 +165,13 @@ func respondChannelIdentityServiceError(c *gin.Context, err error) {
 		respondChannelError(c, http.StatusBadRequest, response.CodeBadRequest, "verify_code_invalid", "error.verify_code_attempts_exceeded", nil)
 	case errors.Is(err, userauthapp.ErrUserDisabled):
 		respondChannelError(c, http.StatusUnauthorized, response.CodeUnauthorized, "user_disabled", "error.user_disabled", nil)
+	// Bot 新用户在邀请注册模式下需先提交邀请码（/channel/identities/telegram/provision 的 invite_code）。
+	case errors.Is(err, userauthapp.ErrInviteCodeRequired):
+		respondChannelError(c, http.StatusForbidden, response.CodeForbidden, "invite_code_required", "error.invite_code_required", nil)
+	case errors.Is(err, userauthapp.ErrInviteCodeInvalid):
+		respondChannelError(c, http.StatusBadRequest, response.CodeBadRequest, "invite_code_invalid", "error.invite_code_invalid", nil)
+	case errors.Is(err, userauthapp.ErrRegistrationDisabled):
+		respondChannelError(c, http.StatusForbidden, response.CodeForbidden, "registration_disabled", "error.registration_disabled", nil)
 	case errors.Is(err, userauthapp.ErrUserOAuthIdentityExists):
 		respondChannelError(c, http.StatusBadRequest, response.CodeBadRequest, "channel_identity_conflict", "error.telegram_bind_conflict", nil)
 	case errors.Is(err, userauthapp.ErrUserOAuthAlreadyBound):

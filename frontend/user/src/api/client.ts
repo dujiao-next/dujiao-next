@@ -59,7 +59,8 @@ function getHttpErrorMessage(status: number): string {
 
 function createClient(injectAuth: boolean) {
     const baseURL = `${API_BASE_URL}${API_PREFIX}`
-    const timeout = 10000
+    // 与后端 http.Server WriteTimeout（60s）对齐
+    const timeout = 60000
 
     async function request(method: string, path: string, bodyOrOptions?: any, options?: RequestOptions): Promise<{ data: any }> {
         let body: any = undefined
@@ -106,7 +107,7 @@ function createClient(injectAuth: boolean) {
             })
         } catch (err: any) {
             if (err.name === 'AbortError') {
-                const message = t('common.api.networkError')
+                const message = t('common.api.timeout')
                 console.error('Request Timeout:', message)
                 return Promise.reject(new Error(message))
             }

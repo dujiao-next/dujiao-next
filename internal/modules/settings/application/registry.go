@@ -11,6 +11,9 @@ import (
 // Normalizer 把任意设置 JSON 归一化为可持久化形状。
 type Normalizer func(value jsonmap.JSON) jsonmap.JSON
 
+// Validator 校验归一化后的设置；返回错误时拒绝写入。
+type Validator func(value jsonmap.JSON) error
+
 // Effect 描述设置成功写入后需要由调用方处理的外部影响。
 // Registry 只声明影响，不直接依赖缓存、HTTP 或其他基础设施。
 type Effect string
@@ -26,6 +29,7 @@ const (
 type Definition struct {
 	Key       string
 	Normalize Normalizer
+	Validate  Validator
 	Effects   []Effect
 }
 
@@ -86,6 +90,15 @@ func (registry Registry) Normalize(key string, value jsonmap.JSON) jsonmap.JSON 
 		return value
 	}
 	return definition.Normalize(value)
+}
+
+// Validate 执行已登记的校验；未知 key 或未声明校验时直接放行。
+func (registry Registry) Validate(key string, value jsonmap.JSON) error {
+	definition, exists := registry.definitions[key]
+	if !exists || definition.Validate == nil {
+		return nil
+	}
+	return definition.Validate(value)
 }
 
 // Effects 返回设置成功写入后的影响集合副本；未知 key 没有声明式副作用。

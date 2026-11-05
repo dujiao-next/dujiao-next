@@ -22,6 +22,8 @@ var (
 	// 旧版上游对下架商品返回 product_unavailable，新版改为 200 + is_active=false；
 	// 此错误仅作为旧版兼容兜底使用。
 	ErrUpstreamProductUnavailable = errors.New("upstream product unavailable")
+	// ErrUpstreamCancelNotAllowed 上游拒绝取消订单（如订单已付款），重试也不会成功
+	ErrUpstreamCancelNotAllowed = errors.New("upstream order cannot be canceled")
 )
 
 // PingResult 连接测试结果
@@ -54,6 +56,7 @@ type ProductListResult struct {
 // UpstreamProduct 上游商品信息
 type UpstreamProduct struct {
 	ID               uint                              `json:"id"`
+	Slug             string                            `json:"slug"`
 	SeoMeta          jsonmap.JSON                      `json:"seo_meta"`
 	Title            jsonmap.JSON                      `json:"title"`
 	Description      jsonmap.JSON                      `json:"description"`

@@ -92,6 +92,9 @@ func (s *Service) AdminRefundToWallet(
 		if amount.GreaterThan(refundable) {
 			return walletcontract.ErrRefundExceeded
 		}
+		if err := reserveParentRefund(orderRepository, &order, amount, now); err != nil {
+			return err
+		}
 
 		_, transaction, err := s.wallets.CreditInTransaction(
 			tx.Wallets(),

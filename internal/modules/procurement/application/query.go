@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dujiao-next/internal/constants"
@@ -25,7 +26,7 @@ func (s *Service) GetByID(id uint) (*procurementdomain.Order, error) {
 	if procOrder == nil {
 		return nil, procurementcontract.ErrNotFound
 	}
-	s.fillUpstreamRefundRecordsForProcurementOrder(procOrder)
+	s.fillUpstreamRefundRecordsForProcurementOrder(context.Background(), procOrder)
 	return procOrder, nil
 }
 
@@ -210,7 +211,7 @@ func parseUpstreamRefundRecordCreatedAt(v interface{}) (time.Time, bool) {
 }
 
 // fillUpstreamRefundRecordsForProcurementOrder 为单条采购单补充上游退款记录与退款金额，并同步退款状态。
-func (s *Service) fillUpstreamRefundRecordsForProcurementOrder(order *procurementdomain.Order) {
+func (s *Service) fillUpstreamRefundRecordsForProcurementOrder(parent context.Context, order *procurementdomain.Order) {
 	if order == nil {
 		return
 	}
@@ -223,7 +224,7 @@ func (s *Service) fillUpstreamRefundRecordsForProcurementOrder(order *procuremen
 	if err != nil || connection == nil {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 8*time.Second)
 	defer cancel()
 	detail, err := connection.GetOrder(ctx, order.UpstreamOrderID)
 	if err != nil || detail == nil {
@@ -252,7 +253,7 @@ func (s *Service) fillUpstreamRefundRecordsForProcurementOrder(order *procuremen
 		order.Status = targetStatus
 		return
 	}
-	if err := s.procRepo.UpdateStatus(order.ID, targetStatus, map[string]interface{}{"updated_at": time.Now()}); err != nil {
+	if _, err := s.procRepo.UpdateStatus(order.ID, order.Status, targetStatus, map[string]interface{}{"updated_at": time.Now()}); err != nil {
 		logger.Warnw("procurement_sync_refund_status_failed",
 			"procurement_order_id", order.ID,
 			"upstream_order_id", order.UpstreamOrderID,
@@ -278,8 +279,20 @@ func isPositiveUpstreamRefundAmount(raw string) bool {
 }
 
 // fillUpstreamRefundRecordsForProcurementOrders 批量为采购单补充上游退款记录与退款金额。
+// 列表页并发查询并设整页总超时：上游变慢或宕机时，超时的行只是缺少上游退款数据，页面不会被拖到超时。
 func (s *Service) fillUpstreamRefundRecordsForProcurementOrders(orders []procurementdomain.Order) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	sem := make(chan struct{}, 8)
+	var wg sync.WaitGroup
 	for i := range orders {
-		s.fillUpstreamRefundRecordsForProcurementOrder(&orders[i])
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(order *procurementdomain.Order) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			s.fillUpstreamRefundRecordsForProcurementOrder(ctx, order)
+		}(&orders[i])
 	}
+	wg.Wait()
 }
