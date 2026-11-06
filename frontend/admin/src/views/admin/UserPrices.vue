@@ -97,7 +97,7 @@ const fetchPrices = async () => {
     })
     prices.value = res.data.data || []
     if (res.data.pagination) Object.assign(pagination, res.data.pagination)
-    await loadProducts(prices.value.map((p) => p.product_id))
+    // 商品标题与 SKU 摘要已随列表返回，不再逐行请求商品详情。
   } catch {
     prices.value = []
   } finally {
@@ -118,20 +118,27 @@ const changePageSize = (size: number) => {
   fetchPrices()
 }
 
+// 列表接口已经随行返回商品/SKU 摘要，行内展示不再依赖 productCache
+//（productCache 只留给编辑弹窗，打开时才按需加载那一个商品）。
 const skuLabelOf = (row: AdminUserProductPrice) => {
   if (!row.sku_id) return t('admin.userPrices.skuAll')
-  const sku = productCache[row.product_id]?.skus?.find((s) => s.id === row.sku_id)
-  return sku ? formatWholesaleSkuLabel(sku, String(locale.value || 'zh-CN')) : `#${row.sku_id}`
+  if (row.sku_code || row.sku_spec_values) {
+    return formatWholesaleSkuLabel(
+      { id: row.sku_id, sku_code: row.sku_code, spec_values: row.sku_spec_values },
+      String(locale.value || 'zh-CN'),
+    )
+  }
+  return `#${row.sku_id}`
 }
 
 const basePriceOf = (row: AdminUserProductPrice) => {
-  const product = productCache[row.product_id]
-  if (!product) return '-'
-  if (row.sku_id) {
-    const sku = product.skus?.find((s) => s.id === row.sku_id)
-    if (sku) return formatPrice(sku.price_amount)
-  }
-  return formatPrice(product.price_amount)
+  const amount = row.sku_id ? row.sku_price_amount : row.product_price_amount
+  return amount === undefined || amount === null || amount === '' ? '-' : formatPrice(amount)
+}
+
+const rowProductName = (row: AdminUserProductPrice) => {
+  const title = getLocalizedText(row.product_title || {})
+  return title || `#${row.product_id}`
 }
 
 const removePrice = async (row: AdminUserProductPrice) => {
@@ -341,7 +348,7 @@ const ruleKeys = ['admin.userPrices.ruleExclusive', 'admin.userPrices.ruleLowerO
             <TableRow v-for="row in prices" v-else :key="row.id" class="hover:bg-muted/30">
               <TableCell class="px-6 py-4"><IdCell :value="row.id" /></TableCell>
               <TableCell class="px-6 py-4">
-                <div class="font-medium">{{ productName(productCache[row.product_id]) }}</div>
+                <div class="font-medium">{{ rowProductName(row) }}</div>
                 <div class="font-mono text-xs text-muted-foreground">#{{ row.product_id }}</div>
               </TableCell>
               <TableCell class="px-6 py-4">{{ skuLabelOf(row) }}</TableCell>

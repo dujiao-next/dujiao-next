@@ -319,6 +319,14 @@ export interface AdminUserProductPrice {
   price_amount: number | string
   created_at: string
   updated_at: string
+  // 列表接口随行返回的商品/SKU 摘要，避免后台每行再单独请求商品详情
+  product_title?: Record<string, string>
+  product_slug?: string
+  product_active?: boolean
+  product_price_amount?: number | string
+  sku_code?: string
+  sku_spec_values?: Record<string, string>
+  sku_price_amount?: number | string
 }
 
 export interface AdminMemberLevelPrice {

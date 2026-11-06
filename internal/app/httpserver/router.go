@@ -118,7 +118,7 @@ func SetupRouter(cfg *config.Config, c *container.Container) *gin.Engine {
 		c.ContentMediaService,
 	)
 	adminDashboardHandler := dashboardtransport.NewAdminHandler(c.DashboardService)
-	adminMemberLevelHandler := memberleveltransport.NewAdminHandler(c.MemberLevelService)
+	adminMemberLevelHandler := memberleveltransport.NewAdminHandler(c.MemberLevelService, memberlevelproductadapter.New(c.ProductRepo, c.ProductSKURepo))
 	publicMemberLevelHandler := memberleveltransport.NewPublicHandler(c.MemberLevelService)
 	userMemberLevelHandler := memberleveltransport.NewUserHandler(c.MemberLevelService, memberlevelproductadapter.New(c.ProductRepo, c.ProductSKURepo))
 	userAuthHandlers := userauthwiring.New(c)

@@ -4,6 +4,7 @@ import (
 	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
 	memberleveldomain "github.com/dujiao-next/internal/modules/memberlevel/domain"
 	"github.com/dujiao-next/internal/shared/jsonmap"
+	"github.com/dujiao-next/internal/shared/money"
 	"github.com/shopspring/decimal"
 )
 
@@ -56,16 +57,20 @@ type UserRepository interface {
 }
 
 // ProductSummary 是专属价展示所需的商品摘要。
+// PriceAmount 让后台列表能直接显示"原价"，不必再为每一行单独拉一次商品详情。
 type ProductSummary struct {
-	Slug     string
-	Title    jsonmap.JSON
-	IsActive bool
+	Slug        string
+	Title       jsonmap.JSON
+	IsActive    bool
+	PriceAmount money.Amount
 }
 
 // SKUSummary 是专属价展示所需的 SKU 摘要。
 type SKUSummary struct {
-	SKUCode    string
-	SpecValues jsonmap.JSON
+	ProductID   uint
+	SKUCode     string
+	SpecValues  jsonmap.JSON
+	PriceAmount money.Amount
 }
 
 // ProductDirectory 按 ID 批量解析商品与 SKU 摘要，仅用于用户专属价的前台展示。

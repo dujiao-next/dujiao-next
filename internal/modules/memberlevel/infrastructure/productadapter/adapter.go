@@ -29,9 +29,10 @@ func (a *Adapter) ResolveProducts(ids []uint) (map[uint]memberlevelcontract.Prod
 	result := make(map[uint]memberlevelcontract.ProductSummary, len(items))
 	for _, item := range items {
 		result[item.ID] = memberlevelcontract.ProductSummary{
-			Slug:     item.Slug,
-			Title:    item.TitleJSON,
-			IsActive: item.IsActive,
+			Slug:        item.Slug,
+			Title:       item.TitleJSON,
+			IsActive:    item.IsActive,
+			PriceAmount: item.PriceAmount,
 		}
 	}
 	return result, nil
@@ -50,8 +51,10 @@ func (a *Adapter) ResolveSKUs(ids []uint) (map[uint]memberlevelcontract.SKUSumma
 	result := make(map[uint]memberlevelcontract.SKUSummary, len(items))
 	for _, item := range items {
 		result[item.ID] = memberlevelcontract.SKUSummary{
-			SKUCode:    item.SKUCode,
-			SpecValues: item.SpecValuesJSON,
+			ProductID:   item.ProductID,
+			SKUCode:     item.SKUCode,
+			SpecValues:  item.SpecValuesJSON,
+			PriceAmount: item.PriceAmount,
 		}
 	}
 	return result, nil

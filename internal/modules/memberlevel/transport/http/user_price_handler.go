@@ -27,6 +27,19 @@ type BatchUpsertUserPricesRequest struct {
 	Prices []UserPriceInput `json:"prices" binding:"required,min=1"`
 }
 
+// adminUserPriceView 是后台列表的一行：专属价 + 商品/SKU 摘要。
+// 摘要随列表一起返回，后台不必再为每一行单独请求商品详情（一页最多 20 次）。
+type adminUserPriceView struct {
+	memberleveldomain.UserProductPrice
+	ProductTitle       jsonmap.JSON `json:"product_title,omitempty"`
+	ProductSlug        string       `json:"product_slug,omitempty"`
+	ProductActive      bool         `json:"product_active"`
+	ProductPriceAmount money.Amount `json:"product_price_amount"`
+	SKUCode            string       `json:"sku_code,omitempty"`
+	SKUSpecValues      jsonmap.JSON `json:"sku_spec_values,omitempty"`
+	SKUPriceAmount     money.Amount `json:"sku_price_amount,omitempty"`
+}
+
 // GetUserPrices GET /admin/member-user-prices?user_id= 分页获取用户的专属价
 func (h *AdminHandler) GetUserPrices(c *gin.Context) {
 	userID, err := ginutil.ParseQueryUint(c.Query("user_id"), false)
@@ -41,7 +54,61 @@ func (h *AdminHandler) GetUserPrices(c *gin.Context) {
 		ginutil.RespondError(c, response.CodeInternal, "error.user_product_price_fetch_failed", err)
 		return
 	}
-	response.SuccessWithPage(c, prices, response.BuildPagination(page, pageSize, total))
+
+	views := make([]adminUserPriceView, 0, len(prices))
+	for _, p := range prices {
+		views = append(views, adminUserPriceView{UserProductPrice: p})
+	}
+	h.attachProductSummaries(views)
+
+	response.SuccessWithPage(c, views, response.BuildPagination(page, pageSize, total))
+}
+
+// attachProductSummaries 按当前页一次性批量解析商品与 SKU 摘要并写回视图。
+// 解析失败不阻断列表：摘要是展示用的附加信息。
+func (h *AdminHandler) attachProductSummaries(views []adminUserPriceView) {
+	if h.products == nil || len(views) == 0 {
+		return
+	}
+	productIDs := make([]uint, 0, len(views))
+	skuIDs := make([]uint, 0, len(views))
+	seenProduct := map[uint]struct{}{}
+	seenSKU := map[uint]struct{}{}
+	for _, v := range views {
+		if _, dup := seenProduct[v.ProductID]; !dup {
+			seenProduct[v.ProductID] = struct{}{}
+			productIDs = append(productIDs, v.ProductID)
+		}
+		if v.SKUID > 0 {
+			if _, dup := seenSKU[v.SKUID]; !dup {
+				seenSKU[v.SKUID] = struct{}{}
+				skuIDs = append(skuIDs, v.SKUID)
+			}
+		}
+	}
+
+	productMap, err := h.products.ResolveProducts(productIDs)
+	if err != nil {
+		return
+	}
+	skuMap, err := h.products.ResolveSKUs(skuIDs)
+	if err != nil {
+		skuMap = nil
+	}
+
+	for i := range views {
+		if product, found := productMap[views[i].ProductID]; found {
+			views[i].ProductTitle = product.Title
+			views[i].ProductSlug = product.Slug
+			views[i].ProductActive = product.IsActive
+			views[i].ProductPriceAmount = product.PriceAmount
+		}
+		if sku, found := skuMap[views[i].SKUID]; found && views[i].SKUID > 0 {
+			views[i].SKUCode = sku.SKUCode
+			views[i].SKUSpecValues = sku.SpecValues
+			views[i].SKUPriceAmount = sku.PriceAmount
+		}
+	}
 }
 
 // BatchUpsertUserPrices POST /admin/member-user-prices/batch 批量设置用户专属价
