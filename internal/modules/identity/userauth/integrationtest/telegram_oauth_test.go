@@ -377,6 +377,7 @@ func TestLoginWithTelegramAssignsDefaultMemberLevel(t *testing.T) {
 		memberlevelgormstore.NewLevelStore(db),
 		nil,
 		memberlevelgormstore.NewUserStore(db),
+		memberlevelgormstore.NewUserPriceStore(db),
 	))
 
 	res, err := svc.LoginVerifiedTelegram(&telegramauthapp.IdentityVerified{

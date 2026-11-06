@@ -23,6 +23,11 @@ type memberLevelPriceCleaner interface {
 	DeleteByProductInTx(tx *gorm.DB, productID uint) error
 }
 
+// userPriceCleaner 用户专属价的级联清理端口，与会员等级价同款。
+type userPriceCleaner interface {
+	DeleteByProductInTx(tx *gorm.DB, productID uint) error
+}
+
 // ProductStore 是装配层需要的 Product 持久化与事务能力。
 type ProductStore interface {
 	productcontract.Repository
@@ -66,6 +71,7 @@ type Dependencies struct {
 	CardSecretBatches CardSecretBatchStore
 	Categories        categorycontract.Repository
 	MemberLevelPrices memberLevelPriceCleaner
+	UserPrices        userPriceCleaner
 	Carts             *cartgormstore.Store
 	ProductMappings   MappingStore
 	Orders            OrderReader
@@ -129,6 +135,7 @@ type productAdminUnitOfWork struct {
 	cardSecrets       CardSecretStore
 	cardSecretBatches CardSecretBatchStore
 	memberLevelPrices memberLevelPriceCleaner
+	userPrices        userPriceCleaner
 	carts             *cartgormstore.Store
 	productMappings   MappingStore
 }
@@ -139,6 +146,7 @@ func newProductAdminUnitOfWork(
 	cardSecrets CardSecretStore,
 	cardSecretBatches CardSecretBatchStore,
 	memberLevelPrices memberLevelPriceCleaner,
+	userPrices userPriceCleaner,
 	carts *cartgormstore.Store,
 	productMappings MappingStore,
 ) productadmin.UnitOfWork {
@@ -148,6 +156,7 @@ func newProductAdminUnitOfWork(
 		cardSecrets:       cardSecrets,
 		cardSecretBatches: cardSecretBatches,
 		memberLevelPrices: memberLevelPrices,
+		userPrices:        userPrices,
 		carts:             carts,
 		productMappings:   productMappings,
 	}
@@ -167,6 +176,7 @@ func (unit *productAdminUnitOfWork) WithinTransaction(fn func(productadmin.Delet
 			CardSecretBatches: unit.cardSecretBatches.BindTx(tx),
 			SKUs:              unit.productSKUs.BindTx(tx),
 			MemberLevelPrices: memberLevelPriceDeleteAdapter{tx: tx, cleaner: unit.memberLevelPrices},
+			UserPrices:        userPriceDeleteAdapter{tx: tx, cleaner: unit.userPrices},
 			Carts:             unit.carts.WithTx(tx),
 			ProductMappings:   bindMappingDeleteTx(unit.productMappings, tx),
 		})
@@ -189,6 +199,15 @@ func (adapter memberLevelPriceDeleteAdapter) DeleteByProduct(productID uint) err
 	return adapter.cleaner.DeleteByProductInTx(adapter.tx, productID)
 }
 
+type userPriceDeleteAdapter struct {
+	tx      *gorm.DB
+	cleaner userPriceCleaner
+}
+
+func (adapter userPriceDeleteAdapter) DeleteByProduct(productID uint) error {
+	return adapter.cleaner.DeleteByProductInTx(adapter.tx, productID)
+}
+
 // New 显式装配 Product 查询、管理和写入用例。
 func New(dependencies Dependencies) Services {
 	read := productapplication.NewService(productapplication.Options{
@@ -201,7 +220,7 @@ func New(dependencies Dependencies) Services {
 		Categories:   dependencies.Categories,
 		CardSecrets:  dependencies.CardSecrets,
 		Orders:       dependencies.Orders,
-		Transactions: newProductAdminUnitOfWork(dependencies.Products, dependencies.SKUs, dependencies.CardSecrets, dependencies.CardSecretBatches, dependencies.MemberLevelPrices, dependencies.Carts, dependencies.ProductMappings),
+		Transactions: newProductAdminUnitOfWork(dependencies.Products, dependencies.SKUs, dependencies.CardSecrets, dependencies.CardSecretBatches, dependencies.MemberLevelPrices, dependencies.UserPrices, dependencies.Carts, dependencies.ProductMappings),
 	})
 	write := productwrite.NewWriteService(productwrite.Options{
 		Products:        dependencies.Products,

@@ -21,11 +21,13 @@ func NewService(
 	levelRepo memberlevelcontract.LevelRepository,
 	priceRepo memberlevelcontract.PriceRepository,
 	userRepo memberlevelcontract.UserRepository,
+	userPriceRepo memberlevelcontract.UserPriceRepository,
 ) *Service {
 	return &Service{
-		levelRepo: levelRepo,
-		priceRepo: priceRepo,
-		userRepo:  userRepo,
+		levelRepo:     levelRepo,
+		priceRepo:     priceRepo,
+		userRepo:      userRepo,
+		userPriceRepo: userPriceRepo,
 	}
 }
 
@@ -171,6 +173,32 @@ func (s *Service) ResolveMemberPrice(levelID, productID, skuID uint, basePrice d
 		return mp, basePrice.Sub(mp).Round(2)
 	}
 	return basePrice, decimal.Zero
+}
+
+// ResolveCatalogPrice 解析目录展示价，口径与下单完全一致。
+//
+// 下单流程里活动价 → 批发价 → 会员等级价依次生效，最后才拿专属价去比较；专属价必须
+// 比这条路径的最终价更低才有意义。目录只有基础价可用（没有数量、也拿不到批发阶梯的
+// 命中情况），所以这里比的是"基础价 vs 专属价 vs 会员价"，取更低的那个：
+//   - 专属价低于会员价 → 展示专属价，调用方隐藏活动价（一口价不与活动叠加）；
+//   - 会员价更低 → 展示会员价；
+//   - 都不低于基础价 → 不命中。
+//
+// 上游对接目录和渠道目录都调这一份，避免两边各写一遍后慢慢跑偏。
+func (s *Service) ResolveCatalogPrice(
+	book UserPriceBook, levelID, productID, skuID uint,
+	base decimal.Decimal,
+) (price decimal.Decimal, hit bool, exclusive bool) {
+	best := base
+	if levelID > 0 {
+		if memberPrice, _ := s.ResolveMemberPrice(levelID, productID, skuID, base); memberPrice.LessThan(best) {
+			best, hit = memberPrice, true
+		}
+	}
+	if userPrice, ok := book.Resolve(productID, skuID, base); ok && userPrice.LessThan(best) {
+		best, hit, exclusive = userPrice, true, true
+	}
+	return best, hit, exclusive
 }
 
 // ResolveMemberPriceForProducts 批量解析会员价（用于商品列表）

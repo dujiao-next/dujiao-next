@@ -6,7 +6,6 @@ import (
 
 	memberlevelcontract "github.com/dujiao-next/internal/modules/memberlevel/contract"
 	memberleveldomain "github.com/dujiao-next/internal/modules/memberlevel/domain"
-	"github.com/dujiao-next/internal/modules/memberlevel/infrastructure/gormstore"
 	"github.com/dujiao-next/internal/shared/money"
 	"github.com/shopspring/decimal"
 )
@@ -22,7 +21,6 @@ func newUserPriceServiceForTest(t *testing.T) (userID uint, svc interface {
 	if err := db.AutoMigrate(&memberleveldomain.UserProductPrice{}); err != nil {
 		t.Fatalf("auto migrate user price failed: %v", err)
 	}
-	base.WithUserPriceRepository(gormstore.NewUserPriceStore(db))
 	user := createUserFixture(t, db, "user-price@example.com", 0)
 	return user.ID, base
 }

@@ -133,6 +133,7 @@ func (c *Container) initIdentityAndCatalogServices() {
 		CardSecretBatches: c.CardSecretBatchRepo,
 		Categories:        c.CategoryRepo,
 		MemberLevelPrices: c.MemberLevelPriceRepo,
+		UserPrices:        c.UserProductPriceRepo,
 		Carts:             c.CartRepo,
 		ProductMappings:   c.ProductMappingRepo,
 		Orders:            c.OrderStore,

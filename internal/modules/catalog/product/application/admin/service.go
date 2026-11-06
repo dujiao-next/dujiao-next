@@ -45,6 +45,11 @@ type MemberLevelPriceDeleteRepository interface {
 	DeleteByProduct(productID uint) error
 }
 
+// UserPriceDeleteRepository 清理用户专属价，与会员等级价同款。
+type UserPriceDeleteRepository interface {
+	DeleteByProduct(productID uint) error
+}
+
 type CartDeleteRepository interface {
 	DeleteByProduct(productID uint) error
 }
@@ -60,6 +65,7 @@ type DeleteRepositories struct {
 	CardSecretBatches CardSecretBatchDeleteRepository
 	SKUs              SKUDeleteRepository
 	MemberLevelPrices MemberLevelPriceDeleteRepository
+	UserPrices        UserPriceDeleteRepository
 	Carts             CartDeleteRepository
 	ProductMappings   ProductMappingDeleteRepository
 }

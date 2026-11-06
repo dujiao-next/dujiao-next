@@ -121,10 +121,15 @@ export const useUserProfileStore = defineStore('user-profile', () => {
             return
         }
         if (!force && myProductPricesLoadedFor === userId) return
+        // 切换账号时先清掉上一个账号的列表，但不要立刻记下 loadedFor：
+        // 上一个账号的慢请求如果晚到，不能把当前账号的数据覆盖掉。
         if (myProductPricesLoadedFor !== userId) myProductPrices.value = []
-        myProductPricesLoadedFor = userId
         try {
             const response = await userProfileAPI.productPrices()
+            // 等待期间账号可能已经切换，结果不再属于当前用户就丢弃。
+            const currentUserId = Number(userAuthStore.user?.id || 0)
+            if (currentUserId !== userId) return
+            myProductPricesLoadedFor = userId
             myProductPrices.value = Array.isArray(response.data.data) ? response.data.data : []
         } catch {
             myProductPrices.value = []

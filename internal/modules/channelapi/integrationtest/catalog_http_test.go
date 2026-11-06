@@ -11,6 +11,7 @@ import (
 	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
 	externalidentitydomain "github.com/dujiao-next/internal/modules/identity/externalidentity/domain"
 	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
+	memberlevelapp "github.com/dujiao-next/internal/modules/memberlevel/application"
 
 	categoryapp "github.com/dujiao-next/internal/modules/catalog/category/application"
 	categorydomain "github.com/dujiao-next/internal/modules/catalog/category/domain"
@@ -328,6 +329,36 @@ func (priceTestLevels) ResolveMemberPrice(levelID, _, _ uint, base decimal.Decim
 	return base, decimal.Zero
 }
 
+// LoadUserPriceBook 把测试里的固定专属价装进快照，商品级与 SKU 级各给一条。
+// 用户 7：85（低于等级价 90，应当胜出）；用户 10：95（高于等级价，应当被忽略）。
+func (priceTestLevels) LoadUserPriceBook(userID uint) (memberlevelapp.UserPriceBook, error) {
+	book := memberlevelapp.UserPriceBook{}
+	switch userID {
+	case 7:
+		book["1:0"] = decimal.NewFromInt(85)
+		book["1:1"] = decimal.NewFromInt(85)
+	case 10:
+		book["1:0"] = decimal.NewFromInt(95)
+		book["1:1"] = decimal.NewFromInt(95)
+	}
+	return book, nil
+}
+
+// ResolveCatalogPrice 复刻生产的取价规则：专属价与会员价取更低者，专属价必须严格更低。
+func (l priceTestLevels) ResolveCatalogPrice(book memberlevelapp.UserPriceBook, levelID, productID, skuID uint, base decimal.Decimal) (decimal.Decimal, bool, bool) {
+	best, hit, exclusive := base, false, false
+	if levelID == 3 {
+		levelPrice := decimal.NewFromInt(90)
+		if levelPrice.LessThan(best) {
+			best, hit = levelPrice, true
+		}
+	}
+	if price, ok := book.Resolve(productID, skuID, base); ok && price.LessThan(best) {
+		best, hit, exclusive = price, true, true
+	}
+	return best, hit, exclusive
+}
+
 // 渠道目录价口径必须与下单一致：用户专属价优先于会员等级价，未命中时回退到等级价。
 func TestChannelCatalogMemberPricePrefersUserPrice(t *testing.T) {
 	dsn := fmt.Sprintf("file:channel_catalog_user_price_%d?mode=memory&cache=shared", time.Now().UnixNano())
@@ -366,9 +397,10 @@ func TestChannelCatalogMemberPricePrefersUserPrice(t *testing.T) {
 		ProductService: productapplication.NewService(productapplication.Options{Products: productRepo}),
 		SettingService: settingsapp.NewService(settingsstore.New(db)),
 		UserAuthService: priceTestIdentity{users: map[string]userdomain.User{
-			"with-user-price": {ID: 7, MemberLevelID: 3},
-			"level-only":      {ID: 8, MemberLevelID: 3},
-			"no-discount":     {ID: 9},
+			"with-user-price":  {ID: 7, MemberLevelID: 3},
+			"level-only":       {ID: 8, MemberLevelID: 3},
+			"no-discount":      {ID: 9},
+			"dearer-exclusive": {ID: 10, MemberLevelID: 3},
 		}},
 		MemberLevelService: priceTestLevels{},
 	}}
@@ -412,8 +444,13 @@ func TestChannelCatalogMemberPricePrefersUserPrice(t *testing.T) {
 	}
 
 	exclusive := fetch("with-user-price")
-	assertPrice("exclusive product", exclusive["member_price_from"], "95")
-	assertPrice("exclusive sku", skuPrice(exclusive), "95")
+	assertPrice("exclusive product", exclusive["member_price_from"], "85")
+	assertPrice("exclusive sku", skuPrice(exclusive), "85")
+
+	// 专属价比会员价贵时必须让会员价胜出，否则用户会比没有专属价时付得更多。
+	dearer := fetch("dearer-exclusive")
+	assertPrice("dearer exclusive product falls back to level price", dearer["member_price_from"], "90")
+	assertPrice("dearer exclusive sku falls back to level price", skuPrice(dearer), "90")
 
 	levelOnly := fetch("level-only")
 	assertPrice("level product", levelOnly["member_price_from"], "90")

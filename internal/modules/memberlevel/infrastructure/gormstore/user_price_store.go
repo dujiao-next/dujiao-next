@@ -87,4 +87,18 @@ func (r *UserPriceStore) Delete(id uint) error {
 		Update("deleted_at", time.Now()).Error
 }
 
+func (r *UserPriceStore) DeleteByProduct(productID uint) error {
+	return r.db.Model(&memberleveldomain.UserProductPrice{}).
+		Where("product_id = ? AND deleted_at IS NULL", productID).
+		Update("deleted_at", time.Now()).Error
+}
+
+// DeleteByProductInTx 是商品级联删除时的事务内适配入口，与会员等级价同款。
+func (r *UserPriceStore) DeleteByProductInTx(tx *gorm.DB, productID uint) error {
+	if tx == nil {
+		return r.DeleteByProduct(productID)
+	}
+	return NewUserPriceStore(tx).DeleteByProduct(productID)
+}
+
 var _ memberlevelcontract.UserPriceRepository = (*UserPriceStore)(nil)

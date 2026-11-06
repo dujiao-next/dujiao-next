@@ -12,6 +12,7 @@ import (
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/logger"
 	domaincatalog "github.com/dujiao-next/internal/modules/catalog"
+	memberlevelapp "github.com/dujiao-next/internal/modules/memberlevel/application"
 	"github.com/dujiao-next/internal/platform/http/ginutil"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/money"
@@ -102,19 +103,17 @@ type channelWholesalePrice struct {
 	UnitPrice   string `json:"unit_price"`
 }
 
-// resolveChannelMemberPrice 解析渠道目录展示的会员价，口径与下单一致：用户专属价优先，其次会员等级价。
-func (h *Handler) resolveChannelMemberPrice(userID, memberLevelID, productID, skuID uint, base decimal.Decimal) (decimal.Decimal, bool) {
-	if userID > 0 {
-		if price, hit := h.MemberLevelService.ResolveUserPrice(userID, productID, skuID, base); hit {
-			return price, true
-		}
+// loadChannelPriceBook 读一次渠道用户的专属价快照；失败按"没有专属价"处理。
+func (h *Handler) loadChannelPriceBook(userID uint) memberlevelapp.UserPriceBook {
+	if h.MemberLevelService == nil || userID == 0 {
+		return memberlevelapp.UserPriceBook{}
 	}
-	if memberLevelID > 0 {
-		if price, _ := h.MemberLevelService.ResolveMemberPrice(memberLevelID, productID, skuID, base); price.LessThan(base) {
-			return price, true
-		}
+	book, err := h.MemberLevelService.LoadUserPriceBook(userID)
+	if err != nil {
+		logger.Warnw("channel_catalog_load_user_price_book_failed", "user_id", userID, "error", err)
+		return memberlevelapp.UserPriceBook{}
 	}
-	return base, false
+	return book
 }
 
 func normalizeChannelWholesalePrices(tiers productdomain.WholesalePriceTiers) []channelWholesalePrice {
@@ -181,6 +180,8 @@ func (h *Handler) GetProducts(c *gin.Context) {
 			userID, memberLevelID = user.ID, user.MemberLevelID
 		}
 	}
+	// 专属价整页读一次，避免每个 SKU 都查库。
+	priceBook := h.loadChannelPriceBook(userID)
 
 	type productItem struct {
 		ID                  uint                    `json:"id"`
@@ -241,8 +242,8 @@ func (h *Handler) GetProducts(c *gin.Context) {
 
 		// 计算会员价
 		if (userID > 0 || memberLevelID > 0) && h.MemberLevelService != nil {
-			memberPrice, _ := h.resolveChannelMemberPrice(userID, memberLevelID, p.ID, 0, p.PriceAmount.Decimal)
-			if memberPrice.LessThan(p.PriceAmount.Decimal) {
+			memberPrice, hit, _ := h.MemberLevelService.ResolveCatalogPrice(priceBook, memberLevelID, p.ID, 0, p.PriceAmount.Decimal)
+			if hit && memberPrice.LessThan(p.PriceAmount.Decimal) {
 				item.MemberPriceFrom = money.FromDecimal(memberPrice).String()
 			}
 		}
@@ -315,6 +316,8 @@ func (h *Handler) GetProductDetail(c *gin.Context) {
 			userID, memberLevelID = user.ID, user.MemberLevelID
 		}
 	}
+	// 专属价整页读一次，避免每个 SKU 都查库。
+	priceBook := h.loadChannelPriceBook(userID)
 
 	type skuItem struct {
 		ID                  uint   `json:"id"`
@@ -354,8 +357,8 @@ func (h *Handler) GetProductDetail(c *gin.Context) {
 			StockQuantityHidden: stockDisplay.QuantityHidden,
 		}
 		if (userID > 0 || memberLevelID > 0) && h.MemberLevelService != nil {
-			memberPrice, _ := h.resolveChannelMemberPrice(userID, memberLevelID, product.ID, sku.ID, sku.PriceAmount.Decimal)
-			if memberPrice.LessThan(sku.PriceAmount.Decimal) {
+			memberPrice, hit, _ := h.MemberLevelService.ResolveCatalogPrice(priceBook, memberLevelID, product.ID, sku.ID, sku.PriceAmount.Decimal)
+			if hit && memberPrice.LessThan(sku.PriceAmount.Decimal) {
 				si.MemberPrice = money.FromDecimal(memberPrice).String()
 			}
 		}
@@ -365,8 +368,8 @@ func (h *Handler) GetProductDetail(c *gin.Context) {
 	// 商品级会员价
 	var memberPriceFrom string
 	if (userID > 0 || memberLevelID > 0) && h.MemberLevelService != nil {
-		mp, _ := h.resolveChannelMemberPrice(userID, memberLevelID, product.ID, 0, product.PriceAmount.Decimal)
-		if mp.LessThan(product.PriceAmount.Decimal) {
+		mp, hit, _ := h.MemberLevelService.ResolveCatalogPrice(priceBook, memberLevelID, product.ID, 0, product.PriceAmount.Decimal)
+		if hit && mp.LessThan(product.PriceAmount.Decimal) {
 			memberPriceFrom = money.FromDecimal(mp).String()
 		}
 	}

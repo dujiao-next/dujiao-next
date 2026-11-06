@@ -10,6 +10,7 @@ import (
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/logger"
 	domaincatalog "github.com/dujiao-next/internal/modules/catalog"
+	memberlevelapp "github.com/dujiao-next/internal/modules/memberlevel/application"
 	"github.com/dujiao-next/internal/platform/http/ginutil"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/jsonslice"
@@ -134,9 +135,12 @@ func (h *Handler) ListProducts(c *gin.Context) {
 	// 批量解析映射商品的真实交付类型
 	fulfillmentTypeMap := h.resolveEffectiveFulfillmentTypes(products)
 
+	// 专属价整页读一次，避免每个 SKU 都查库。
+	priceBook := h.loadUserPriceBook(userID)
+
 	items := make([]upstreamProduct, 0, len(products))
 	for _, p := range products {
-		items = append(items, h.toUpstreamProductWithMemberPrice(p, userID, memberLevelID, fulfillmentTypeMap))
+		items = append(items, h.toUpstreamProductWithMemberPrice(p, priceBook, memberLevelID, fulfillmentTypeMap))
 	}
 
 	successResponse(c, gin.H{
@@ -196,7 +200,7 @@ func (h *Handler) GetProduct(c *gin.Context) {
 
 	successResponse(c, gin.H{
 		"ok":      true,
-		"product": h.toUpstreamProductWithMemberPrice(products[0], userID, memberLevelID, fulfillmentTypeMap),
+		"product": h.toUpstreamProductWithMemberPrice(products[0], h.loadUserPriceBook(userID), memberLevelID, fulfillmentTypeMap),
 	})
 }
 
@@ -248,7 +252,29 @@ func (h *Handler) resolveEffectiveFulfillmentTypes(products []productdomain.Prod
 	return result
 }
 
-func (h *Handler) toUpstreamProductWithMemberPrice(p productdomain.Product, userID, memberLevelID uint, fulfillmentTypeMap map[uint]string) upstreamProduct {
+func (h *Handler) resolveCatalogPrice(book memberlevelapp.UserPriceBook, memberLevelID, productID, skuID uint, base decimal.Decimal) (decimal.Decimal, bool) {
+	if h.MemberLevels == nil {
+		return base, false
+	}
+	price, hit, _ := h.MemberLevels.ResolveCatalogPrice(book, memberLevelID, productID, skuID, base)
+	return price, hit
+}
+
+// loadUserPriceBook 读一次该下游用户的专属价快照；失败按"没有专属价"处理，
+// 展示用的附加价不能拖垮整个对接目录。
+func (h *Handler) loadUserPriceBook(userID uint) memberlevelapp.UserPriceBook {
+	if h.MemberLevels == nil || userID == 0 {
+		return memberlevelapp.UserPriceBook{}
+	}
+	book, err := h.MemberLevels.LoadUserPriceBook(userID)
+	if err != nil {
+		logger.Warnw("upstream_load_user_price_book_failed", "user_id", userID, "error", err)
+		return memberlevelapp.UserPriceBook{}
+	}
+	return book
+}
+
+func (h *Handler) toUpstreamProductWithMemberPrice(p productdomain.Product, priceBook memberlevelapp.UserPriceBook, memberLevelID uint, fulfillmentTypeMap map[uint]string) upstreamProduct {
 	skus := make([]upstreamSKU, 0, len(p.SKUs))
 	for _, s := range p.SKUs {
 		if !s.IsActive {
@@ -264,7 +290,7 @@ func (h *Handler) toUpstreamProductWithMemberPrice(p productdomain.Product, user
 			StockQuantity: stockQuantity,
 			IsActive:      s.IsActive,
 		}
-		if mp, ok := h.resolveCatalogPrice(userID, memberLevelID, p.ID, s.ID, s.PriceAmount.Decimal); ok {
+		if mp, ok := h.resolveCatalogPrice(priceBook, memberLevelID, p.ID, s.ID, s.PriceAmount.Decimal); ok {
 			si.OriginalPrice = si.PriceAmount
 			si.MemberPrice = money.FromDecimal(mp).StringFixed(2)
 			si.PriceAmount = si.MemberPrice // price_amount 是实际售价（专属价或会员价）
@@ -298,32 +324,13 @@ func (h *Handler) toUpstreamProductWithMemberPrice(p productdomain.Product, user
 		UpdatedAt:        p.UpdatedAt,
 	}
 
-	if mp, ok := h.resolveCatalogPrice(userID, memberLevelID, p.ID, 0, p.PriceAmount.Decimal); ok {
+	if mp, ok := h.resolveCatalogPrice(priceBook, memberLevelID, p.ID, 0, p.PriceAmount.Decimal); ok {
 		result.OriginalPrice = result.PriceAmount
 		result.MemberPrice = money.FromDecimal(mp).StringFixed(2)
 		result.PriceAmount = result.MemberPrice
 	}
 
 	return result
-}
-
-// resolveCatalogPrice 解析目录展示的对接价，口径与下单一致：用户专属价优先，其次会员等级价。
-// 仅当结果低于原价时返回 true。
-func (h *Handler) resolveCatalogPrice(userID, memberLevelID, productID, skuID uint, base decimal.Decimal) (decimal.Decimal, bool) {
-	if h.MemberLevels == nil {
-		return base, false
-	}
-	if userID > 0 {
-		if price, hit := h.MemberLevels.ResolveUserPrice(userID, productID, skuID, base); hit {
-			return price, true
-		}
-	}
-	if memberLevelID > 0 {
-		if price, _ := h.MemberLevels.ResolveMemberPrice(memberLevelID, productID, skuID, base); price.LessThan(base) {
-			return price, true
-		}
-	}
-	return base, false
 }
 
 // computeSKUStock 计算 SKU 的库存状态和实际可用量

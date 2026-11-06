@@ -42,6 +42,7 @@ type UserPriceRepository interface {
 	ListByUser(userID uint, page, pageSize int) ([]memberleveldomain.UserProductPrice, int64, error)
 	BatchUpsert(prices []memberleveldomain.UserProductPrice) error
 	Delete(id uint) error
+	DeleteByProduct(productID uint) error
 }
 
 // UserRepository is the member-level consumer's minimal user persistence port.

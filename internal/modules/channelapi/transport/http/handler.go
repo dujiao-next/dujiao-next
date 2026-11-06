@@ -18,6 +18,7 @@ import (
 	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
 
 	externalidentitydomain "github.com/dujiao-next/internal/modules/identity/externalidentity/domain"
+	memberlevelapp "github.com/dujiao-next/internal/modules/memberlevel/application"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/money"
 
@@ -181,6 +182,9 @@ type IdentityService interface {
 type MemberLevelService interface {
 	ResolveMemberPrice(levelID, productID, skuID uint, basePrice decimal.Decimal) (decimal.Decimal, decimal.Decimal)
 	ResolveUserPrice(userID, productID, skuID uint, basePrice decimal.Decimal) (decimal.Decimal, bool)
+	// ResolveCatalogPrice 是目录与下单共用的取价规则（专属价与会员价取更低者）。
+	ResolveCatalogPrice(book memberlevelapp.UserPriceBook, levelID, productID, skuID uint, base decimal.Decimal) (price decimal.Decimal, hit bool, exclusive bool)
+	LoadUserPriceBook(userID uint) (memberlevelapp.UserPriceBook, error)
 }
 
 type Settings interface {
