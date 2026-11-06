@@ -574,6 +574,7 @@ export interface AdminSiteConnection {
   exchange_rate?: number
   price_markup_percent?: number
   price_rounding_mode?: string
+  category_markups?: Record<string, number> | null
   auto_sync_price?: boolean
   created_at: string
   updated_at: string

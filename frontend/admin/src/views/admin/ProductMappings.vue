@@ -604,6 +604,11 @@ const handleImportCategory = async (catId: number) => {
     notifyError(t('productMappings.import.selectCategoryFirst'))
     return
   }
+  // 上游「未分类」组没有分类可供自动创建，必须指定本地分类
+  if (catId === 0 && localCatId === 0) {
+    notifyError(t('productMappings.import.uncategorizedNeedsLocalCategory'))
+    return
+  }
   categoryImporting.value = true
   try {
     const res = await adminAPI.batchImportByCategory({
@@ -648,9 +653,17 @@ const BATCH_SIZE = 3
 const handleBatchImport = async () => {
   const ids = Array.from(selectedProductIds.value)
   if (ids.length === 0) return
+  // 自动创建分类开关只在分类视图显示；平铺视图下即使状态残留也不能生效
+  const inCategoryView = importViewMode.value === 'category' && upstreamCategoriesSupported.value
+  const autoCreate = inCategoryView && autoCreateCategory.value
+  const categoryId = !autoCreate && importCategoryId.value !== '__none__' ? Number(importCategoryId.value) : 0
+  // 无分类商品无法上架（product_category_invalid），所以两种视图都必须有分类
+  if (!autoCreate && categoryId === 0) {
+    notifyError(t(inCategoryView ? 'productMappings.import.selectCategoryFirst' : 'productMappings.import.selectCategoryRequired'))
+    return
+  }
   importing.value = true
   importProgress.value = { done: 0, total: ids.length, success: 0 }
-  const categoryId = importCategoryId.value !== '__none__' ? Number(importCategoryId.value) : 0
   const allResults: { upstream_product_id: number; success: boolean; error?: string }[] = []
   let successCount = 0
 
@@ -663,6 +676,7 @@ const handleBatchImport = async () => {
           connection_id: Number(importConnectionId.value),
           upstream_product_ids: batchIds,
           category_id: categoryId || undefined,
+          auto_create_category: autoCreate,
         })
         const result = res.data.data as { results?: typeof allResults; success_count?: number } | null
         const batchResults = result?.results || []
@@ -673,7 +687,7 @@ const handleBatchImport = async () => {
           // 后端不支持批量接口，逐条导入
           for (const id of batchIds) {
             try {
-              await adminAPI.importUpstreamProduct({ connection_id: Number(importConnectionId.value), upstream_product_id: id, category_id: categoryId || undefined })
+              await adminAPI.importUpstreamProduct({ connection_id: Number(importConnectionId.value), upstream_product_id: id, category_id: categoryId || undefined, auto_create_category: autoCreate })
               allResults.push({ upstream_product_id: id, success: true }); successCount++
             } catch (singleErr: any) {
               allResults.push({ upstream_product_id: id, success: false, error: singleErr?.response?.data?.message || singleErr?.message })

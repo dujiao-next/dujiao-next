@@ -2,6 +2,8 @@ package application
 
 import (
 	"context"
+	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -10,10 +12,39 @@ import (
 	"github.com/dujiao-next/internal/logger"
 	siteconnectioncontract "github.com/dujiao-next/internal/modules/siteconnection/contract"
 	siteconnectiondomain "github.com/dujiao-next/internal/modules/siteconnection/domain"
+	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/upstream"
 
 	"github.com/shopspring/decimal"
 )
+
+// normalizeCategoryMarkups 清洗前端提交的分类加价：键必须是正整数的上游分类 ID，值必须是非负数，
+// 其余条目直接丢弃。结果为空时返回 nil，避免库里留下空对象。
+func normalizeCategoryMarkups(input map[string]float64) jsonmap.JSON {
+	if len(input) == 0 {
+		return nil
+	}
+	result := make(jsonmap.JSON, len(input))
+	for key, percent := range input {
+		id, err := strconv.ParseUint(strings.TrimSpace(key), 10, 64)
+		if err != nil || id == 0 || percent < 0 {
+			continue
+		}
+		result[strconv.FormatUint(id, 10)] = percent
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
+}
+
+// categoryMarkupsEqual 比较两份分类加价是否相同（nil 与空视为相同）。
+func categoryMarkupsEqual(a, b jsonmap.JSON) bool {
+	if len(a) == 0 && len(b) == 0 {
+		return true
+	}
+	return reflect.DeepEqual(a, b)
+}
 
 // MarkupReapplier 在连接定价配置（汇率/加价/取整）变更后，按新配置重算该连接已映射商品的本地售价。
 // 由 Catalog Mapping 应用服务实现，通过 setter 注入以避免与本服务的循环依赖。
@@ -89,6 +120,7 @@ func (s *Service) Create(input CreateInput) (*siteconnectiondomain.Connection, e
 		ExchangeRate:       s.normalizeExchangeRate(input.ExchangeRate),
 		PriceMarkupPercent: decimal.NewFromFloat(input.PriceMarkupPercent),
 		PriceRoundingMode:  roundingMode,
+		CategoryMarkups:    normalizeCategoryMarkups(input.CategoryMarkups),
 		AutoSyncPrice:      input.AutoSyncPrice,
 	}
 
@@ -112,6 +144,7 @@ func (s *Service) Update(id uint, input UpdateInput) (*siteconnectiondomain.Conn
 	prevExchangeRate := conn.ExchangeRate
 	prevMarkupPercent := conn.PriceMarkupPercent
 	prevRoundingMode := conn.PriceRoundingMode
+	prevCategoryMarkups := conn.CategoryMarkups
 
 	if strings.TrimSpace(input.Name) != "" {
 		conn.Name = strings.TrimSpace(input.Name)
@@ -154,6 +187,9 @@ func (s *Service) Update(id uint, input UpdateInput) (*siteconnectiondomain.Conn
 		}
 		conn.PriceRoundingMode = mode
 	}
+	if input.CategoryMarkups != nil {
+		conn.CategoryMarkups = normalizeCategoryMarkups(input.CategoryMarkups)
+	}
 	if input.AutoSyncPrice != nil {
 		conn.AutoSyncPrice = *input.AutoSyncPrice
 	}
@@ -167,7 +203,8 @@ func (s *Service) Update(id uint, input UpdateInput) (*siteconnectiondomain.Conn
 	// 仅记录告警，用户仍可通过「重新应用加价」手动补救。
 	priceConfigChanged := !conn.ExchangeRate.Equal(prevExchangeRate) ||
 		!conn.PriceMarkupPercent.Equal(prevMarkupPercent) ||
-		conn.PriceRoundingMode != prevRoundingMode
+		conn.PriceRoundingMode != prevRoundingMode ||
+		!categoryMarkupsEqual(conn.CategoryMarkups, prevCategoryMarkups)
 	if priceConfigChanged && s.markupReapplier != nil {
 		if _, err := s.markupReapplier.ReapplyMarkup(conn.ID); err != nil {
 			logger.Warnw("reapply_markup_after_connection_update_failed",
