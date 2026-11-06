@@ -71,6 +71,7 @@ var userProductSettingErrorRules = []mappedError{
 	{target: resellermodule.ErrProfileInactive, code: response.CodeBadRequest, key: "error.forbidden"},
 	{target: productcontract.ErrProductSKUInvalid, code: response.CodeBadRequest, key: "error.order_item_invalid"},
 	{target: resellermodule.ErrPriceBelowBase, code: response.CodeBadRequest, key: "error.reseller_price_invalid"},
+	{target: resellermodule.ErrPriceBelowMasterPrice, code: response.CodeBadRequest, key: "error.reseller_price_below_master"},
 	{target: resellermodule.ErrMarkupExceeded, code: response.CodeBadRequest, key: "error.reseller_markup_exceeded"},
 	{target: resellermodule.ErrPricingModeInvalid, code: response.CodeBadRequest, key: "error.reseller_price_invalid"},
 }

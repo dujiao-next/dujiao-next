@@ -646,3 +646,82 @@ func TestResellerPricingResolverDisplayHidesInvalidSKUWithoutFailing(t *testing.
 		t.Fatalf("expected display fall back to valid sku 11@130, got %+v", result)
 	}
 }
+
+func TestResellerPricingResolverWithAgencyPriceAndMasterPriceLimit(t *testing.T) {
+	// 商品主站售价 100，代理价 60。
+	product := productdomain.Product{
+		ID:                1,
+		PriceAmount:       money.FromDecimal(decimal.RequireFromString("100.00")),
+		AgencyPriceAmount: money.FromDecimal(decimal.RequireFromString("60.00")),
+	}
+	sku := productdomain.ProductSKU{
+		ID:                11,
+		ProductID:         1,
+		PriceAmount:       money.FromDecimal(decimal.RequireFromString("100.00")),
+		AgencyPriceAmount: money.FromDecimal(decimal.RequireFromString("60.00")),
+		IsActive:          true,
+	}
+
+	// 1. 继承模式：售价继承主站原价 100，进货底价为 60，利润为 (100 - 60) * 2 = 80
+	repoInherit := &resellerPricingRepoStub{
+		profile: &resellerdomain.Profile{ID: 10, UserID: 99, Status: resellerdomain.ProfileStatusActive},
+		settings: []resellerdomain.ProductSetting{
+			{ID: 1, ResellerID: 10, ProductID: 1, SKUID: 11, IsListed: true, PricingMode: resellerdomain.PricingModeInherit},
+		},
+	}
+	resolverInherit := NewResellerPricingResolver(repoInherit)
+	resultInherit := &orderBuildResult{
+		Currency: "CNY",
+		Plans: []childOrderPlan{
+			{
+				Product: &product,
+				SKU:     &sku,
+				Item: orderdomain.OrderItem{
+					ProductID: product.ID,
+					SKUID:     sku.ID,
+					Quantity:  2,
+				},
+			},
+		},
+	}
+	ctxInherit, err := resolverInherit.ApplyToOrderBuildResult(testResellerTenant(), 200, resultInherit)
+	if err != nil {
+		t.Fatalf("inherit pricing failed: %v", err)
+	}
+	if !ctxInherit.BaseAmount.Equal(decimal.RequireFromString("120.00")) {
+		t.Fatalf("expected base amount 120.00 (60*2), got %s", ctxInherit.BaseAmount)
+	}
+	if !ctxInherit.ResellerAmount.Equal(decimal.RequireFromString("200.00")) {
+		t.Fatalf("expected reseller amount 200.00 (100*2), got %s", ctxInherit.ResellerAmount)
+	}
+	if !ctxInherit.ProfitAmount.Equal(decimal.RequireFromString("80.00")) {
+		t.Fatalf("expected profit amount 80.00, got %s", ctxInherit.ProfitAmount)
+	}
+
+	// 2. 分销商设置售价低于主站原价（例如固定售价 90 < 100），必须被拦截
+	repoBelowMaster := &resellerPricingRepoStub{
+		profile: &resellerdomain.Profile{ID: 10, UserID: 99, Status: resellerdomain.ProfileStatusActive},
+		settings: []resellerdomain.ProductSetting{
+			{ID: 1, ResellerID: 10, ProductID: 1, SKUID: 11, IsListed: true, PricingMode: resellerdomain.PricingModeFixedPrice, FixedPriceAmount: money.FromDecimal(decimal.RequireFromString("90.00"))},
+		},
+	}
+	resolverBelowMaster := NewResellerPricingResolver(repoBelowMaster)
+	resultBelowMaster := &orderBuildResult{
+		Currency: "CNY",
+		Plans: []childOrderPlan{
+			{
+				Product: &product,
+				SKU:     &sku,
+				Item: orderdomain.OrderItem{
+					ProductID: product.ID,
+					SKUID:     sku.ID,
+					Quantity:  1,
+				},
+			},
+		},
+	}
+	_, err = resolverBelowMaster.ApplyToOrderBuildResult(testResellerTenant(), 200, resultBelowMaster)
+	if !errors.Is(err, resellercontract.ErrPriceBelowMasterPrice) {
+		t.Fatalf("expected ErrPriceBelowMasterPrice, got: %v", err)
+	}
+}

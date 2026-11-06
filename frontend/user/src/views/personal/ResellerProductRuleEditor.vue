@@ -5,6 +5,7 @@
         <div class="truncate text-sm font-bold text-foreground">{{ label }}</div>
         <div class="mt-1 flex flex-wrap items-center gap-1.5">
           <Badge variant="neutral" size="xs">{{ t('personalCenter.reseller.productSettings.basePrice') }} {{ basePrice }}</Badge>
+          <Badge v-if="masterPrice" variant="neutral" size="xs">{{ t('personalCenter.reseller.productSettings.masterPrice') }} {{ masterPrice }}</Badge>
           <Badge :variant="invalid ? 'danger' : 'accent'" size="xs">{{ t('personalCenter.reseller.productSettings.effectivePrice') }} {{ effectivePrice || '-' }}</Badge>
           <span v-if="invalid && errorHint" class="text-xs font-medium text-destructive">{{ errorHint }}</span>
         </div>
@@ -67,6 +68,7 @@ import type { ResellerProductSettingPayloadItem } from '../../api/types'
 const props = defineProps<{
   label: string
   basePrice: string
+  masterPrice?: string
   effectivePrice?: string
   invalid?: boolean
   errorCode?: string
@@ -82,6 +84,7 @@ const { t } = useI18n()
 const errorHint = computed(() => {
   if (!props.invalid) return ''
   if (props.errorCode === 'markup_exceeded') return t('personalCenter.reseller.productSettings.markupExceededHint')
+  if (props.errorCode === 'price_below_master') return t('personalCenter.reseller.productSettings.priceBelowMasterHint')
   return t('personalCenter.reseller.productSettings.priceInvalidHint')
 })
 

@@ -40,6 +40,8 @@ func respondAdminProductSettingError(c *gin.Context, err error) {
 	case errors.Is(err, resellercontract.ErrPriceBelowBase),
 		errors.Is(err, resellercontract.ErrPricingModeInvalid):
 		ginutil.RespondError(c, response.CodeBadRequest, "error.reseller_price_invalid", nil)
+	case errors.Is(err, resellercontract.ErrPriceBelowMasterPrice):
+		ginutil.RespondError(c, response.CodeBadRequest, "error.reseller_price_below_master", nil)
 	case errors.Is(err, resellercontract.ErrMarkupExceeded):
 		ginutil.RespondError(c, response.CodeBadRequest, "error.reseller_markup_exceeded", nil)
 	default:

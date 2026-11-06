@@ -148,6 +148,7 @@ type CreateOrderInput struct {
 	ManualFormData      map[string]jsonmap.JSON
 	SkipRiskControl     bool // 完全跳过风控（下游订单）
 	SkipIPRiskControl   bool // 跳过 IP 维度风控（渠道/Bot 订单）
+	IsApiOrder          bool // 标记为 API 采购订单（按代理价计费）
 }
 
 // CreateGuestOrderInput 游客创建订单输入
@@ -239,6 +240,7 @@ func (s *OrderService) CreateOrder(input CreateOrderInput) (*orderdomain.Order, 
 		ManualFormData:      input.ManualFormData,
 		SkipRiskControl:     input.SkipRiskControl,
 		SkipIPRiskControl:   input.SkipIPRiskControl,
+		IsApiOrder:          input.IsApiOrder,
 	})
 }
 
@@ -288,6 +290,7 @@ type orderCreateParams struct {
 	SkipManualFormCheck      bool
 	SkipRiskControl          bool
 	SkipIPRiskControl        bool
+	IsApiOrder               bool
 }
 
 // OrderPreview 订单金额预览
@@ -351,6 +354,7 @@ func (s *OrderService) PreviewOrder(input CreateOrderInput) (*OrderPreview, erro
 		ClientIP:            input.ClientIP,
 		ManualFormData:      input.ManualFormData,
 		SkipManualFormCheck: true,
+		IsApiOrder:          input.IsApiOrder,
 	}
 	if err := s.checkOrderRisk(&params, false); err != nil {
 		return nil, err
