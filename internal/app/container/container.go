@@ -129,6 +129,7 @@ type Container struct {
 	MemberLevelRepo        memberlevelcontract.LevelRepository
 	MemberLevelPriceRepo   *memberlevelgormstore.PriceStore
 	MemberLevelUserRepo    memberlevelcontract.UserRepository
+	UserProductPriceRepo   *memberlevelgormstore.UserPriceStore
 
 	// Services
 	AuthzService                  *authz.Service

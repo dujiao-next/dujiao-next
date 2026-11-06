@@ -99,6 +99,44 @@ export const useUserProfileStore = defineStore('user-profile', () => {
         }
     })
 
+    // 当前用户的专属一口价（口径与下单一致：命中后不再叠加批发价、活动价与等级价）
+    // product_* / sku_* 仅用于个人中心展示，商品已删除时这些字段缺省。
+    const myProductPrices = ref<Array<{
+        product_id: number
+        sku_id: number
+        price_amount: string | number
+        product_slug?: string
+        product_title?: Record<string, string>
+        product_active?: boolean
+        sku_code?: string
+        sku_spec_values?: Record<string, unknown>
+    }>>([])
+    let myProductPricesLoadedFor = 0
+
+    const loadMyProductPrices = async (force = false) => {
+        const userId = Number(userAuthStore.user?.id || 0)
+        if (!userAuthStore.isAuthenticated || userId <= 0) {
+            myProductPrices.value = []
+            myProductPricesLoadedFor = 0
+            return
+        }
+        if (!force && myProductPricesLoadedFor === userId) return
+        // 切换账号时先清掉上一个账号的列表，但不要立刻记下 loadedFor：
+        // 上一个账号的慢请求如果晚到，不能把当前账号的数据覆盖掉。
+        if (myProductPricesLoadedFor !== userId) myProductPrices.value = []
+        try {
+            const response = await userProfileAPI.productPrices()
+            // 等待期间账号可能已经切换，结果不再属于当前用户就丢弃。
+            const currentUserId = Number(userAuthStore.user?.id || 0)
+            if (currentUserId !== userId) return
+            myProductPricesLoadedFor = userId
+            myProductPrices.value = Array.isArray(response.data.data) ? response.data.data : []
+        } catch {
+            myProductPrices.value = []
+            myProductPricesLoadedFor = 0
+        }
+    }
+
     const loadMemberLevels = async () => {
         try {
             const response = await memberLevelAPI.list()
@@ -387,6 +425,8 @@ export const useUserProfileStore = defineStore('user-profile', () => {
         changePassword,
         loadRecentOrders,
         loadMemberLevels,
+        myProductPrices,
+        loadMyProductPrices,
         loadRecentLoginLogs,
         loadTelegramBinding,
         bindTelegram,

@@ -9,6 +9,9 @@ import (
 	"time"
 
 	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
+	externalidentitydomain "github.com/dujiao-next/internal/modules/identity/externalidentity/domain"
+	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
+	memberlevelapp "github.com/dujiao-next/internal/modules/memberlevel/application"
 
 	categoryapp "github.com/dujiao-next/internal/modules/catalog/category/application"
 	categorydomain "github.com/dujiao-next/internal/modules/catalog/category/domain"
@@ -295,4 +298,165 @@ func TestGetProductDetailIncludesStockDisplayMetadataAndKeepsRealStockCount(t *t
 	if lowStockSKU["stock_status"] != constants.ProductStockStatusLowStock {
 		t.Fatalf("expected sku stock_status=low_stock at storefront threshold, got %v", lowStockSKU["stock_status"])
 	}
+}
+
+type priceTestIdentity struct {
+	channeltransport.IdentityService
+	users map[string]userdomain.User
+}
+
+func (s priceTestIdentity) ResolveTelegramChannelIdentity(in channeltransport.TelegramIdentityInput) (*userdomain.User, *externalidentitydomain.Identity, error) {
+	user, ok := s.users[in.ChannelUserID]
+	if !ok {
+		return nil, nil, nil
+	}
+	return &user, nil, nil
+}
+
+type priceTestLevels struct{}
+
+func (priceTestLevels) ResolveUserPrice(userID, _, _ uint, base decimal.Decimal) (decimal.Decimal, bool) {
+	if userID == 7 {
+		return decimal.NewFromInt(95), true
+	}
+	return base, false
+}
+
+func (priceTestLevels) ResolveMemberPrice(levelID, _, _ uint, base decimal.Decimal) (decimal.Decimal, decimal.Decimal) {
+	if levelID == 3 {
+		return decimal.NewFromInt(90), base.Sub(decimal.NewFromInt(90))
+	}
+	return base, decimal.Zero
+}
+
+// LoadUserPriceBook 把测试里的固定专属价装进快照，商品级与 SKU 级各给一条。
+// 用户 7：85（低于等级价 90，应当胜出）；用户 10：95（高于等级价，应当被忽略）。
+func (priceTestLevels) LoadUserPriceBook(userID uint) (memberlevelapp.UserPriceBook, error) {
+	book := memberlevelapp.UserPriceBook{}
+	switch userID {
+	case 7:
+		book["1:0"] = decimal.NewFromInt(85)
+		book["1:1"] = decimal.NewFromInt(85)
+	case 10:
+		book["1:0"] = decimal.NewFromInt(95)
+		book["1:1"] = decimal.NewFromInt(95)
+	}
+	return book, nil
+}
+
+// ResolveCatalogPrice 复刻生产的取价规则：专属价与会员价取更低者，专属价必须严格更低。
+func (l priceTestLevels) ResolveCatalogPrice(book memberlevelapp.UserPriceBook, levelID, productID, skuID uint, base decimal.Decimal) (decimal.Decimal, bool, bool) {
+	best, hit, exclusive := base, false, false
+	if levelID == 3 {
+		levelPrice := decimal.NewFromInt(90)
+		if levelPrice.LessThan(best) {
+			best, hit = levelPrice, true
+		}
+	}
+	if price, ok := book.Resolve(productID, skuID, base); ok && price.LessThan(best) {
+		best, hit, exclusive = price, true, true
+	}
+	return best, hit, exclusive
+}
+
+// 渠道目录价口径必须与下单一致：用户专属价优先于会员等级价，未命中时回退到等级价。
+func TestChannelCatalogMemberPricePrefersUserPrice(t *testing.T) {
+	dsn := fmt.Sprintf("file:channel_catalog_user_price_%d?mode=memory&cache=shared", time.Now().UnixNano())
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite failed: %v", err)
+	}
+	if err := db.AutoMigrate(&categorydomain.Category{}, &productdomain.Product{}, &productdomain.ProductSKU{}); err != nil {
+		t.Fatalf("auto migrate failed: %v", err)
+	}
+	category := categorydomain.Category{Slug: "user-price", NameJSON: jsonmap.JSON{"zh-CN": "分类"}, IsActive: true}
+	if err := db.Create(&category).Error; err != nil {
+		t.Fatalf("create category failed: %v", err)
+	}
+	product := productdomain.Product{
+		CategoryID:      category.ID,
+		Slug:            "user-price-product",
+		TitleJSON:       jsonmap.JSON{"zh-CN": "专属价商品"},
+		PriceAmount:     money.FromDecimal(decimal.NewFromInt(100)),
+		FulfillmentType: constants.FulfillmentTypeManual,
+		IsActive:        true,
+	}
+	if err := db.Create(&product).Error; err != nil {
+		t.Fatalf("create product failed: %v", err)
+	}
+	sku := productdomain.ProductSKU{
+		ProductID: product.ID, SKUCode: "default", PriceAmount: money.FromDecimal(decimal.NewFromInt(100)), IsActive: true,
+	}
+	if err := db.Create(&sku).Error; err != nil {
+		t.Fatalf("create sku failed: %v", err)
+	}
+
+	productRepo := productgormstore.NewProductStore(db)
+	handler := &channeltransport.Handler{Dependencies: channeltransport.Dependencies{
+		ProductRepo:    productRepo,
+		ProductService: productapplication.NewService(productapplication.Options{Products: productRepo}),
+		SettingService: settingsapp.NewService(settingsstore.New(db)),
+		UserAuthService: priceTestIdentity{users: map[string]userdomain.User{
+			"with-user-price":  {ID: 7, MemberLevelID: 3},
+			"level-only":       {ID: 8, MemberLevelID: 3},
+			"no-discount":      {ID: 9},
+			"dearer-exclusive": {ID: 10, MemberLevelID: 3},
+		}},
+		MemberLevelService: priceTestLevels{},
+	}}
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/api/v1/channel/catalog/products/:id", handler.GetProductDetail)
+
+	fetch := func(channelUserID string) map[string]any {
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/channel/catalog/products/%d?locale=zh-CN&channel_user_id=%s", product.ID, channelUserID), nil)
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, req)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("%s: http %d body=%s", channelUserID, recorder.Code, recorder.Body.String())
+		}
+		var payload channelCatalogTestResponse
+		if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("decode response failed: %v", err)
+		}
+		return payload.Data
+	}
+	skuPrice := func(data map[string]any) any {
+		skus, _ := data["skus"].([]any)
+		if len(skus) != 1 {
+			t.Fatalf("expected one sku, got %v", data["skus"])
+		}
+		return skus[0].(map[string]any)["member_price"]
+	}
+	assertPrice := func(label string, got any, want string) {
+		t.Helper()
+		if want == "" {
+			if got != nil && got != "" {
+				t.Fatalf("%s: expected no member price, got %v", label, got)
+			}
+			return
+		}
+		text, _ := got.(string)
+		parsed, err := decimal.NewFromString(text)
+		if err != nil || !parsed.Equal(decimal.RequireFromString(want)) {
+			t.Fatalf("%s: member price = %v, want %s", label, got, want)
+		}
+	}
+
+	exclusive := fetch("with-user-price")
+	assertPrice("exclusive product", exclusive["member_price_from"], "85")
+	assertPrice("exclusive sku", skuPrice(exclusive), "85")
+
+	// 专属价比会员价贵时必须让会员价胜出，否则用户会比没有专属价时付得更多。
+	dearer := fetch("dearer-exclusive")
+	assertPrice("dearer exclusive product falls back to level price", dearer["member_price_from"], "90")
+	assertPrice("dearer exclusive sku falls back to level price", skuPrice(dearer), "90")
+
+	levelOnly := fetch("level-only")
+	assertPrice("level product", levelOnly["member_price_from"], "90")
+	assertPrice("level sku", skuPrice(levelOnly), "90")
+
+	none := fetch("no-discount")
+	assertPrice("none product", none["member_price_from"], "")
+	assertPrice("none sku", skuPrice(none), "")
 }

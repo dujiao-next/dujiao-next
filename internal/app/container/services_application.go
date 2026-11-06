@@ -86,7 +86,7 @@ func (c *Container) initApplicationServices() {
 		c.WalletService,
 		c.PaymentStore,
 	)
-	c.MemberLevelService = memberlevelapp.NewService(c.MemberLevelRepo, c.MemberLevelPriceRepo, c.MemberLevelUserRepo)
+	c.MemberLevelService = memberlevelapp.NewService(c.MemberLevelRepo, c.MemberLevelPriceRepo, c.MemberLevelUserRepo, c.UserProductPriceRepo)
 	c.OrderRiskControlService = orderriskapp.NewService(orderriskapp.Options{
 		Settings:    c.SettingService,
 		RateLimiter: orderrisklimiter.New(),

@@ -12,13 +12,16 @@ import (
 	"github.com/dujiao-next/internal/constants"
 	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
 	downstreamcallbackdomain "github.com/dujiao-next/internal/modules/downstreamcallback/domain"
+	memberlevelapp "github.com/dujiao-next/internal/modules/memberlevel/application"
 	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
 	procurementcontract "github.com/dujiao-next/internal/modules/procurement/contract"
 	procurementdomain "github.com/dujiao-next/internal/modules/procurement/domain"
 	siteconnectiondomain "github.com/dujiao-next/internal/modules/siteconnection/domain"
+	"github.com/dujiao-next/internal/shared/money"
 	upstreamadapter "github.com/dujiao-next/internal/upstream"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 )
 
 func TestMapCallbackStatus(t *testing.T) {
@@ -236,4 +239,121 @@ func TestCreateOrderRecreatesWhenSameDownstreamNoWasCanceled(t *testing.T) {
 	if orders.received.Items == nil {
 		t.Fatalf("expected a new order to be created, body=%s", recorder.Body.String())
 	}
+}
+
+type catalogPriceLevels struct {
+	MemberLevelService
+	userPrice  decimal.Decimal
+	levelPrice decimal.Decimal
+}
+
+func (l catalogPriceLevels) ResolveUserPrice(userID, _, _ uint, base decimal.Decimal) (decimal.Decimal, bool) {
+	if userID == 7 && l.userPrice.LessThan(base) {
+		return l.userPrice, true
+	}
+	return base, false
+}
+
+func (l catalogPriceLevels) ResolveMemberPrice(levelID, _, _ uint, base decimal.Decimal) (decimal.Decimal, decimal.Decimal) {
+	if levelID == 3 && l.levelPrice.LessThan(base) {
+		return l.levelPrice, base.Sub(l.levelPrice)
+	}
+	return base, decimal.Zero
+}
+
+func (l catalogPriceLevels) LoadUserPriceBook(userID uint) (memberlevelapp.UserPriceBook, error) {
+	book := memberlevelapp.UserPriceBook{}
+	if userID == 7 {
+		book["18:0"] = l.userPrice
+		book["18:19"] = l.userPrice
+	}
+	return book, nil
+}
+
+// ResolveCatalogPrice 复刻生产规则：专属价与等级价取更低者，专属价必须严格更低。
+func (l catalogPriceLevels) ResolveCatalogPrice(book memberlevelapp.UserPriceBook, levelID, productID, skuID uint, base decimal.Decimal) (decimal.Decimal, bool, bool) {
+	best, hit, exclusive := base, false, false
+	if levelID == 3 && l.levelPrice.LessThan(best) {
+		best, hit = l.levelPrice, true
+	}
+	if price, ok := book.Resolve(productID, skuID, base); ok && price.LessThan(best) {
+		best, hit, exclusive = price, true, true
+	}
+	return best, hit, exclusive
+}
+
+// 上游目录价口径必须与下单一致：专属价与会员等级价取更低者。
+// 专属价比会员价贵时必须让会员价胜出，否则用户会比没有专属价时付得更多。
+func TestUpstreamCatalogPriceTakesLowerOfUserPriceAndLevelPrice(t *testing.T) {
+	product := productdomain.Product{
+		ID:          18,
+		PriceAmount: money.FromDecimal(decimal.NewFromInt(100)),
+		SKUs: []productdomain.ProductSKU{{
+			ID: 19, ProductID: 18, IsActive: true,
+			PriceAmount: money.FromDecimal(decimal.NewFromInt(100)),
+		}},
+	}
+
+	t.Run("user price below level price wins", func(t *testing.T) {
+		handler := &Handler{Dependencies: Dependencies{MemberLevels: catalogPriceLevels{
+			userPrice:  decimal.RequireFromString("85"),
+			levelPrice: decimal.RequireFromString("90"),
+		}}}
+		book, _ := handler.MemberLevels.LoadUserPriceBook(7)
+		hit := handler.toUpstreamProductWithMemberPrice(product, book, 3, nil)
+		if hit.PriceAmount != "85.00" || hit.MemberPrice != "85.00" || hit.OriginalPrice != "100.00" {
+			t.Fatalf("product price = %s/%s/%s, want 85.00/85.00/100.00", hit.PriceAmount, hit.MemberPrice, hit.OriginalPrice)
+		}
+		if got := hit.SKUs[0]; got.PriceAmount != "85.00" || got.MemberPrice != "85.00" || got.OriginalPrice != "100.00" {
+			t.Fatalf("sku price = %s/%s/%s, want 85.00/85.00/100.00", got.PriceAmount, got.MemberPrice, got.OriginalPrice)
+		}
+	})
+
+	t.Run("user price above level price loses to the level price", func(t *testing.T) {
+		handler := &Handler{Dependencies: Dependencies{MemberLevels: catalogPriceLevels{
+			userPrice:  decimal.RequireFromString("95"),
+			levelPrice: decimal.RequireFromString("90"),
+		}}}
+		book, _ := handler.MemberLevels.LoadUserPriceBook(7)
+		got := handler.toUpstreamProductWithMemberPrice(product, book, 3, nil)
+		if got.PriceAmount != "90.00" || got.SKUs[0].PriceAmount != "90.00" {
+			t.Fatalf("price = %s/%s, want the cheaper level price 90.00", got.PriceAmount, got.SKUs[0].PriceAmount)
+		}
+	})
+
+	t.Run("user price alone applies when there is no level", func(t *testing.T) {
+		handler := &Handler{Dependencies: Dependencies{MemberLevels: catalogPriceLevels{
+			userPrice:  decimal.RequireFromString("95"),
+			levelPrice: decimal.RequireFromString("90"),
+		}}}
+		book, _ := handler.MemberLevels.LoadUserPriceBook(7)
+		got := handler.toUpstreamProductWithMemberPrice(product, book, 0, nil)
+		if got.PriceAmount != "95.00" || got.SKUs[0].PriceAmount != "95.00" {
+			t.Fatalf("price = %s/%s, want user price 95.00", got.PriceAmount, got.SKUs[0].PriceAmount)
+		}
+	})
+
+	t.Run("level price applies to a user without a user price", func(t *testing.T) {
+		handler := &Handler{Dependencies: Dependencies{MemberLevels: catalogPriceLevels{
+			userPrice:  decimal.RequireFromString("95"),
+			levelPrice: decimal.RequireFromString("90"),
+		}}}
+		book, _ := handler.MemberLevels.LoadUserPriceBook(8)
+		got := handler.toUpstreamProductWithMemberPrice(product, book, 3, nil)
+		if got.PriceAmount != "90.00" || got.SKUs[0].PriceAmount != "90.00" {
+			t.Fatalf("level fallback price = %s/%s, want 90.00", got.PriceAmount, got.SKUs[0].PriceAmount)
+		}
+	})
+
+	t.Run("no discount at all", func(t *testing.T) {
+		handler := &Handler{Dependencies: Dependencies{MemberLevels: catalogPriceLevels{
+			userPrice:  decimal.RequireFromString("95"),
+			levelPrice: decimal.RequireFromString("90"),
+		}}}
+		book, _ := handler.MemberLevels.LoadUserPriceBook(8)
+		none := handler.toUpstreamProductWithMemberPrice(product, book, 0, nil)
+		if none.PriceAmount != "100.00" || none.MemberPrice != "" || none.SKUs[0].PriceAmount != "100.00" {
+			t.Fatalf("no discount price = %s member=%q, want 100.00 and empty", none.PriceAmount, none.MemberPrice)
+		}
+	})
 }

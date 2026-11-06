@@ -10,12 +10,14 @@ import (
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/logger"
 	domaincatalog "github.com/dujiao-next/internal/modules/catalog"
+	memberlevelapp "github.com/dujiao-next/internal/modules/memberlevel/application"
 	"github.com/dujiao-next/internal/platform/http/ginutil"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/jsonslice"
 	"github.com/dujiao-next/internal/shared/money"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 )
 
 // upstreamCategory 上游分类响应格式
@@ -133,9 +135,12 @@ func (h *Handler) ListProducts(c *gin.Context) {
 	// 批量解析映射商品的真实交付类型
 	fulfillmentTypeMap := h.resolveEffectiveFulfillmentTypes(products)
 
+	// 专属价整页读一次，避免每个 SKU 都查库。
+	priceBook := h.loadUserPriceBook(userID)
+
 	items := make([]upstreamProduct, 0, len(products))
 	for _, p := range products {
-		items = append(items, h.toUpstreamProductWithMemberPrice(p, memberLevelID, fulfillmentTypeMap))
+		items = append(items, h.toUpstreamProductWithMemberPrice(p, priceBook, memberLevelID, fulfillmentTypeMap))
 	}
 
 	successResponse(c, gin.H{
@@ -195,7 +200,7 @@ func (h *Handler) GetProduct(c *gin.Context) {
 
 	successResponse(c, gin.H{
 		"ok":      true,
-		"product": h.toUpstreamProductWithMemberPrice(products[0], memberLevelID, fulfillmentTypeMap),
+		"product": h.toUpstreamProductWithMemberPrice(products[0], h.loadUserPriceBook(userID), memberLevelID, fulfillmentTypeMap),
 	})
 }
 
@@ -247,7 +252,29 @@ func (h *Handler) resolveEffectiveFulfillmentTypes(products []productdomain.Prod
 	return result
 }
 
-func (h *Handler) toUpstreamProductWithMemberPrice(p productdomain.Product, memberLevelID uint, fulfillmentTypeMap map[uint]string) upstreamProduct {
+func (h *Handler) resolveCatalogPrice(book memberlevelapp.UserPriceBook, memberLevelID, productID, skuID uint, base decimal.Decimal) (decimal.Decimal, bool) {
+	if h.MemberLevels == nil {
+		return base, false
+	}
+	price, hit, _ := h.MemberLevels.ResolveCatalogPrice(book, memberLevelID, productID, skuID, base)
+	return price, hit
+}
+
+// loadUserPriceBook 读一次该下游用户的专属价快照；失败按"没有专属价"处理，
+// 展示用的附加价不能拖垮整个对接目录。
+func (h *Handler) loadUserPriceBook(userID uint) memberlevelapp.UserPriceBook {
+	if h.MemberLevels == nil || userID == 0 {
+		return memberlevelapp.UserPriceBook{}
+	}
+	book, err := h.MemberLevels.LoadUserPriceBook(userID)
+	if err != nil {
+		logger.Warnw("upstream_load_user_price_book_failed", "user_id", userID, "error", err)
+		return memberlevelapp.UserPriceBook{}
+	}
+	return book
+}
+
+func (h *Handler) toUpstreamProductWithMemberPrice(p productdomain.Product, priceBook memberlevelapp.UserPriceBook, memberLevelID uint, fulfillmentTypeMap map[uint]string) upstreamProduct {
 	skus := make([]upstreamSKU, 0, len(p.SKUs))
 	for _, s := range p.SKUs {
 		if !s.IsActive {
@@ -263,13 +290,10 @@ func (h *Handler) toUpstreamProductWithMemberPrice(p productdomain.Product, memb
 			StockQuantity: stockQuantity,
 			IsActive:      s.IsActive,
 		}
-		if memberLevelID > 0 && h.MemberLevels != nil {
-			mp, _ := h.MemberLevels.ResolveMemberPrice(memberLevelID, p.ID, s.ID, s.PriceAmount.Decimal)
-			if mp.LessThan(s.PriceAmount.Decimal) {
-				si.OriginalPrice = si.PriceAmount
-				si.MemberPrice = money.FromDecimal(mp).StringFixed(2)
-				si.PriceAmount = si.MemberPrice // price_amount 是实际售价（会员价）
-			}
+		if mp, ok := h.resolveCatalogPrice(priceBook, memberLevelID, p.ID, s.ID, s.PriceAmount.Decimal); ok {
+			si.OriginalPrice = si.PriceAmount
+			si.MemberPrice = money.FromDecimal(mp).StringFixed(2)
+			si.PriceAmount = si.MemberPrice // price_amount 是实际售价（专属价或会员价）
 		}
 		skus = append(skus, si)
 	}
@@ -300,13 +324,10 @@ func (h *Handler) toUpstreamProductWithMemberPrice(p productdomain.Product, memb
 		UpdatedAt:        p.UpdatedAt,
 	}
 
-	if memberLevelID > 0 && h.MemberLevels != nil {
-		mp, _ := h.MemberLevels.ResolveMemberPrice(memberLevelID, p.ID, 0, p.PriceAmount.Decimal)
-		if mp.LessThan(p.PriceAmount.Decimal) {
-			result.OriginalPrice = result.PriceAmount
-			result.MemberPrice = money.FromDecimal(mp).StringFixed(2)
-			result.PriceAmount = result.MemberPrice
-		}
+	if mp, ok := h.resolveCatalogPrice(priceBook, memberLevelID, p.ID, 0, p.PriceAmount.Decimal); ok {
+		result.OriginalPrice = result.PriceAmount
+		result.MemberPrice = money.FromDecimal(mp).StringFixed(2)
+		result.PriceAmount = result.MemberPrice
 	}
 
 	return result
