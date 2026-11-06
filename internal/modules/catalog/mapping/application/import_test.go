@@ -86,14 +86,15 @@ func TestListAllUpstreamProductsStopsAtPageLimit(t *testing.T) {
 	}
 }
 
-// updateRecordingMappings 只实现 Update，用于验证回填写入了哪些映射。
+// updateRecordingMappings 只实现回填用到的写入方法，用于验证写入了哪些映射。
+// 回填走的是单列更新（UpdateUpstreamCategoryID），不是整行 Update。
 type updateRecordingMappings struct {
 	mappingcontract.MappingRepository
 	updated map[uint]uint
 }
 
-func (r *updateRecordingMappings) Update(m *mappingdomain.Mapping) error {
-	r.updated[m.ID] = m.UpstreamCategoryID
+func (r *updateRecordingMappings) UpdateUpstreamCategoryID(id uint, upstreamCategoryID uint) error {
+	r.updated[id] = upstreamCategoryID
 	return nil
 }
 

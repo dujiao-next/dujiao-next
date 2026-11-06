@@ -11,4 +11,7 @@ var (
 	ErrUpstreamStockInsufficient = errors.New("upstream stock insufficient")
 	ErrBatchImportInProgress     = errors.New("batch import already running for this connection")
 	ErrUpstreamProductNoCategory = errors.New("upstream product has no category, select a local category manually")
+	// ErrUpstreamCategoryUnavailable 表示连接配置了分类加价，但上游分类树拿不到。
+	// 这时不能退回默认加价改价，否则子分类商品会被按成本价卖出。
+	ErrUpstreamCategoryUnavailable = errors.New("upstream category tree unavailable, prices not recalculated")
 )

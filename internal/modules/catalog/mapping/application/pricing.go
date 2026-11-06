@@ -1,9 +1,7 @@
 package application
 
 import (
-	"encoding/json"
 	"strconv"
-	"strings"
 
 	"github.com/dujiao-next/internal/shared/jsonmap"
 
@@ -14,33 +12,31 @@ import (
 const maxCategoryDepth = 16
 
 // parseCategoryMarkup 把 category_markups 里的值转成百分比。
-// 数据库读出来是 float64，前端提交可能是数字或字符串；无法解析或为负数时视为未配置。
+// 值只有两个来源：normalizeCategoryMarkups 写入前已转成 float64，从库里读回来
+// （JSON 列）同样是 float64。无法解析或为负数时视为未配置。
 func parseCategoryMarkup(raw interface{}) (decimal.Decimal, bool) {
-	var value decimal.Decimal
-	switch v := raw.(type) {
-	case float64:
-		value = decimal.NewFromFloat(v)
-	case int:
-		value = decimal.NewFromInt(int64(v))
-	case json.Number:
-		parsed, err := decimal.NewFromString(v.String())
-		if err != nil {
-			return decimal.Zero, false
-		}
-		value = parsed
-	case string:
-		parsed, err := decimal.NewFromString(strings.TrimSpace(v))
-		if err != nil {
-			return decimal.Zero, false
-		}
-		value = parsed
-	default:
+	value, ok := raw.(float64)
+	if !ok {
 		return decimal.Zero, false
 	}
-	if value.IsNegative() {
+	percent := decimal.NewFromFloat(value)
+	if percent.IsNegative() {
 		return decimal.Zero, false
 	}
-	return value, true
+	return percent, true
+}
+
+// categoryMarkupsNeedParents 判断按分类算价是否真的需要父分类链。
+// 该分类自己就配了加价时不必向上找，可以省掉一次 ListCategories。
+// 上游分类 ID 为 0（未分类）时也无需继承——ResolveCategoryMarkup 直接返回默认值。
+func categoryMarkupsNeedParents(markups jsonmap.JSON, upstreamCategoryID uint) bool {
+	if len(markups) == 0 || upstreamCategoryID == 0 {
+		return false
+	}
+	if _, ok := markups[strconv.FormatUint(uint64(upstreamCategoryID), 10)]; ok {
+		return false
+	}
+	return true
 }
 
 // ResolveCategoryMarkup 返回上游分类应使用的加价百分比。

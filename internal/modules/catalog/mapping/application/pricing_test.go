@@ -85,7 +85,7 @@ func TestResolveCategoryMarkup(t *testing.T) {
 	def := decimal.RequireFromString("10")
 	markups := jsonmap.JSON{
 		"5": float64(50), // 父分类
-		"7": "20",        // 字符串也要能解析
+		"7": "20",        // 非 float64（生产中不会出现）：视为未配置，向上继承
 		"8": float64(0),  // 显式 0：该分类不加价，不能回落到默认
 		"9": float64(-5), // 负数视为未配置
 		"x": float64(99), // 非法键被忽略
@@ -102,7 +102,7 @@ func TestResolveCategoryMarkup(t *testing.T) {
 		{"no config uses default", nil, 5, parents, "10"},
 		{"uncategorized uses default", markups, 0, parents, "10"},
 		{"own config wins", markups, 5, parents, "50"},
-		{"string value parsed", markups, 7, parents, "20"},
+		{"non-numeric value ignored, inherits parent", markups, 7, parents, "50"},
 		{"explicit zero is respected", markups, 8, parents, "0"},
 		{"child inherits parent", markups, 6, parents, "50"},
 		{"grandchild inherits ancestor", markups, 10, parents, "50"},

@@ -135,7 +135,8 @@ func (s *Service) importUpstreamProduct(connectionID uint, upstreamProductID uin
 
 	// 解析价格（先汇率转换，再应用加价比例）
 	exchangeRate := conn.ExchangeRate
-	// 加价按上游分类解析：分类自身 → 父分类 → 连接默认加价
+	// 加价按上游分类解析：分类自身 → 父分类 → 连接默认加价。
+	// 配置了分类加价却拿不到分类树时，宁可整条导入失败，也不能按默认加价把价格写低。
 	var categoryParents map[uint]uint
 	if len(conn.CategoryMarkups) > 0 {
 		if catMap != nil {
@@ -144,7 +145,11 @@ func (s *Service) importUpstreamProduct(connectionID uint, upstreamProductID uin
 				categoryParents[id] = c.ParentID
 			}
 		} else {
-			categoryParents = s.upstreamCategoryParents(ctx, adapter, conn)
+			parents, ok := s.upstreamCategoryParents(ctx, adapter, conn)
+			if !ok {
+				return nil, mappingcontract.ErrUpstreamCategoryUnavailable
+			}
+			categoryParents = parents
 		}
 	}
 	markupPercent := ResolveCategoryMarkup(conn.PriceMarkupPercent, conn.CategoryMarkups, upProduct.CategoryID, categoryParents)
@@ -303,22 +308,26 @@ func (s *Service) importUpstreamProduct(connectionID uint, upstreamProductID uin
 }
 
 // upstreamCategoryParents 返回「上游分类 ID → 父分类 ID」，供分类加价继承使用。
-// 连接没有配置分类加价时不拉取（返回 nil）；拉取失败只记告警并返回 nil，
-// 此时各分类只看自身配置，不继承父分类。
-func (s *Service) upstreamCategoryParents(ctx context.Context, adapter upstream.Adapter, conn *siteconnectiondomain.Connection) map[uint]uint {
+//
+// 返回值 ok=false 表示这一轮不能安全地算价：连接配置了分类加价，但分类树拉不到。
+// 此时绝不能退回连接默认加价——那会把「父分类 50%」的商品按 0% 写成成本价卖。
+// 调用方必须跳过改价（库存照常同步），等下一轮再试。
+//
+// 连接没配分类加价时返回 (nil, true)：加价与分类无关，按默认算即可。
+func (s *Service) upstreamCategoryParents(ctx context.Context, adapter upstream.Adapter, conn *siteconnectiondomain.Connection) (map[uint]uint, bool) {
 	if conn == nil || len(conn.CategoryMarkups) == 0 {
-		return nil
+		return nil, true
 	}
 	catMap, err := s.fetchUpstreamCategoryMap(ctx, adapter)
 	if err != nil {
 		logger.Warnw("fetch_upstream_category_parents_failed", "connection_id", conn.ID, "error", err)
-		return nil
+		return nil, false
 	}
 	parents := make(map[uint]uint, len(catMap))
 	for id, c := range catMap {
 		parents[id] = c.ParentID
 	}
-	return parents
+	return parents, true
 }
 
 // fetchUpstreamCategoryMap 拉取上游分类列表并构建 ID → 分类映射，供批量导入预取共用。

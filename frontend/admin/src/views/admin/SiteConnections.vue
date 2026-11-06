@@ -236,10 +236,17 @@ const buildPayload = () => {
   }
 }
 
-// 空输入表示沿用默认加价，不写入；始终提交对象（可为空）以便清空已有配置
+// 空输入表示沿用默认加价，不写入；始终提交对象（可为空）以便清空已有配置。
+//
+// 加载过上游分类树时，只提交仍然存在的分类：上游删掉的分类在界面上看不到，
+// 不这样过滤的话它的旧配置会一直被原样提交回去、也永远删不掉。
 const buildCategoryMarkups = () => {
+  const known = upstreamCategoriesLoaded.value
+    ? new Set(upstreamCategories.value.map((c) => String(c.id)))
+    : null
   const result: Record<string, number> = {}
   for (const [key, value] of Object.entries(categoryMarkupInputs)) {
+    if (known && !known.has(key)) continue
     if (value === '' || value === null || value === undefined) continue
     const n = Number(value)
     if (Number.isFinite(n) && n >= 0) result[key] = n

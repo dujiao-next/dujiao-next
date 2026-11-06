@@ -76,6 +76,13 @@ func (r *MappingStore) Update(mapping *mappingdomain.Mapping) error {
 	return r.db.Save(mapping).Error
 }
 
+// UpdateUpstreamCategoryID 只写 upstream_category_id 一列，供回填旧映射使用。
+func (r *MappingStore) UpdateUpstreamCategoryID(id uint, upstreamCategoryID uint) error {
+	return r.db.Model(&mappingdomain.Mapping{}).
+		Where("id = ? AND deleted_at IS NULL", id).
+		UpdateColumn("upstream_category_id", upstreamCategoryID).Error
+}
+
 func (r *MappingStore) Delete(id uint) error {
 	return r.db.Model(&mappingdomain.Mapping{}).
 		Where("id = ? AND deleted_at IS NULL", id).

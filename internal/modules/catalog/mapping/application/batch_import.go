@@ -59,23 +59,30 @@ func (s *Service) BatchImportUpstreamProducts(
 	}
 	defer release()
 
+	conn, err := s.connections.GetByID(connectionID)
+	if err != nil {
+		return nil, err
+	}
+	if conn == nil {
+		return nil, siteconnectioncontract.ErrNotFound
+	}
+
+	// 需要上游分类树的两种情况，都只在整批开始前拉一次：
+	//   1. 开自动创建分类（要给每个商品找到/建本地分类）；
+	//   2. 连接配了分类加价（要按分类算价，含父分类继承）。
+	// 否则每个商品都会各自 ListCategories 一次，200 个商品就是 200 次请求。
+	needCatMap := (autoCreateCategory && categoryID == 0) || len(conn.CategoryMarkups) > 0
 	var catMap map[uint]upstream.UpstreamCategory
-	if autoCreateCategory && categoryID == 0 {
-		conn, err := s.connections.GetByID(connectionID)
-		if err != nil {
-			return nil, err
-		}
-		if conn == nil {
-			return nil, siteconnectioncontract.ErrNotFound
-		}
-		adapter, err := s.connections.GetAdapter(conn)
-		if err != nil {
-			return nil, err
+	if needCatMap {
+		adapter, adapterErr := s.connections.GetAdapter(conn)
+		if adapterErr != nil {
+			return nil, adapterErr
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		fetched, fetchErr := s.fetchUpstreamCategoryMap(ctx, adapter)
 		if fetchErr != nil {
+			// 配了分类加价时拿不到分类树就不能算价，整批拒绝比写入错价安全。
 			return nil, fmt.Errorf("prefetch upstream categories: %w", fetchErr)
 		}
 		catMap = fetched
@@ -155,18 +162,24 @@ func (s *Service) BatchImportByCategory(
 	categoryID := localCategoryID
 	categoryName := ""
 
-	if autoCreateCategory && categoryID == 0 {
-		// 拉取上游分类列表用于自动创建
+	// 分类树只拉这一次：自动创建要用它，配了分类加价的连接算价也要用它。
+	// 之前只在自动创建分支里拉，其他情况每个商品各自拉一遍，200 个商品就是 200 次请求。
+	needCatMap := (autoCreateCategory && categoryID == 0) || len(conn.CategoryMarkups) > 0
+	var catMap map[uint]upstream.UpstreamCategory
+	if needCatMap {
 		catCtx, catCancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer catCancel()
 		catResult, catErr := adapter.ListCategories(catCtx)
 		if catErr != nil {
 			return nil, fmt.Errorf("fetch upstream categories: %w", catErr)
 		}
-		catMap := make(map[uint]upstream.UpstreamCategory)
+		catMap = make(map[uint]upstream.UpstreamCategory, len(catResult.Categories))
 		for _, c := range catResult.Categories {
 			catMap[c.ID] = c
 		}
+	}
+
+	if autoCreateCategory && categoryID == 0 {
 		cat, createErr := s.findOrCreateCategoryFromUpstream(upstreamCategoryID, catMap)
 		if createErr != nil {
 			return nil, fmt.Errorf("auto create category: %w", createErr)
@@ -186,7 +199,7 @@ func (s *Service) BatchImportByCategory(
 		CategoryName: categoryName,
 	}
 	for _, p := range targetProducts {
-		_, importErr := s.ImportUpstreamProduct(connectionID, p.ID, categoryID, "")
+		_, importErr := s.importUpstreamProduct(connectionID, p.ID, categoryID, "", autoCreateCategory, catMap)
 		if importErr != nil {
 			if errors.Is(importErr, mappingcontract.ErrMappingAlreadyExists) {
 				result.SuccessCount++ // 已映射的算成功
