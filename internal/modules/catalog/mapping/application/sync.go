@@ -726,45 +726,45 @@ func (s *Service) syncProductFromData(mapping *mappingdomain.Mapping, conn *site
 
 	// 上游新增 SKU。这一轮不能安全算价时先不建：上游价已变，按错误的加价建出来
 	// 就是一个错价的本地 SKU，比晚一轮更糟。下一轮同步再补。
-	if !applyPrice {
-		return
-	}
-	for _, upSKU := range upProduct.SKUs {
-		if _, exists := existingByUpstreamID[upSKU.ID]; exists {
-			continue
+	// 注意这里不能整函数 return：后面还有映射状态（恢复 active、同步时间）要更新。
+	if applyPrice {
+		for _, upSKU := range upProduct.SKUs {
+			if _, exists := existingByUpstreamID[upSKU.ID]; exists {
+				continue
+			}
+			skuPrice, priceErr := decimal.NewFromString(upSKU.PriceAmount)
+			if priceErr != nil {
+				logger.Warnw("sync_new_sku_price_parse_error",
+					"upstream_sku_id", upSKU.ID,
+					"price_amount", upSKU.PriceAmount,
+					"error", priceErr,
+				)
+				continue
+			}
+			localPrice := CalculateLocalPrice(skuPrice, conn.ExchangeRate, markupPercent, conn.PriceRoundingMode)
+			newLocalSKU := productdomain.ProductSKU{
+				ProductID:       mapping.LocalProductID,
+				SKUCode:         upSKU.SKUCode,
+				SpecValuesJSON:  upSKU.SpecValues,
+				PriceAmount:     money.FromDecimal(localPrice.Round(2)),
+				CostPriceAmount: money.FromDecimal(convertCurrency(skuPrice, conn.ExchangeRate).Round(2)),
+				IsActive:        upSKU.IsActive,
+				SortOrder:       0,
+			}
+			if err := s.skus.Create(&newLocalSKU); err != nil {
+				continue
+			}
+			newSKUMapping := &mappingdomain.SKUMapping{
+				ProductMappingID: mapping.ID,
+				LocalSKUID:       newLocalSKU.ID,
+				UpstreamSKUID:    upSKU.ID,
+				UpstreamPrice:    money.FromDecimal(skuPrice.Round(2)),
+				UpstreamIsActive: upSKU.IsActive,
+				UpstreamStock:    upSKU.StockQuantity,
+				StockSyncedAt:    now,
+			}
+			_ = s.skuMappings.Create(newSKUMapping)
 		}
-		skuPrice, priceErr := decimal.NewFromString(upSKU.PriceAmount)
-		if priceErr != nil {
-			logger.Warnw("sync_new_sku_price_parse_error",
-				"upstream_sku_id", upSKU.ID,
-				"price_amount", upSKU.PriceAmount,
-				"error", priceErr,
-			)
-			continue
-		}
-		localPrice := CalculateLocalPrice(skuPrice, conn.ExchangeRate, markupPercent, conn.PriceRoundingMode)
-		newLocalSKU := productdomain.ProductSKU{
-			ProductID:       mapping.LocalProductID,
-			SKUCode:         upSKU.SKUCode,
-			SpecValuesJSON:  upSKU.SpecValues,
-			PriceAmount:     money.FromDecimal(localPrice.Round(2)),
-			CostPriceAmount: money.FromDecimal(convertCurrency(skuPrice, conn.ExchangeRate).Round(2)),
-			IsActive:        upSKU.IsActive,
-			SortOrder:       0,
-		}
-		if err := s.skus.Create(&newLocalSKU); err != nil {
-			continue
-		}
-		newSKUMapping := &mappingdomain.SKUMapping{
-			ProductMappingID: mapping.ID,
-			LocalSKUID:       newLocalSKU.ID,
-			UpstreamSKUID:    upSKU.ID,
-			UpstreamPrice:    money.FromDecimal(skuPrice.Round(2)),
-			UpstreamIsActive: upSKU.IsActive,
-			UpstreamStock:    upSKU.StockQuantity,
-			StockSyncedAt:    now,
-		}
-		_ = s.skuMappings.Create(newSKUMapping)
 	}
 
 	// 同步价格（这一轮若不能安全算价，保持原价不动）
