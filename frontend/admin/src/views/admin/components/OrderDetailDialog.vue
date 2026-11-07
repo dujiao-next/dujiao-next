@@ -26,6 +26,7 @@ import { formatDate, formatMoney, getLocalizedText, hasPositiveAmount } from '@/
 import { resolveSkuCodeFromSnapshot, resolveSkuSpecFromSnapshot } from '@/utils/sku'
 import { adminUrl } from '@/utils/adminBase'
 import { confirmAction } from '@/utils/confirm'
+import { buildItemRefundAllocation, calcItemProfit } from '@/utils/orderProfit'
 
 const props = defineProps<{
   modelValue: boolean
@@ -124,76 +125,26 @@ const paymentChannelTypeLabel = (payment: AdminPayment) => {
   return channelTypeLabel(value)
 }
 
-const itemRevenueAmount = (item: AdminOrderItem) => {
-  return parseMoneyValue(item.total_price) - parseMoneyValue(item.coupon_discount_amount)
-}
+// 退款分摊按订单缓存；父订单的分摊同时覆盖其子订单项（按 item.id 查）。
+const refundAllocationCache = new WeakMap<AdminOrder, Map<number, number>>()
 
-const itemBaseProfit = (item: AdminOrderItem) => {
-  const cost = parseMoneyValue(item.cost_price) * (item.quantity || 1)
-  return itemRevenueAmount(item) - cost
-}
-
-const refundedAmount = (order: AdminOrder | null) => {
-  if (!order) return 0
-  return Math.max(parseMoneyValue(order.refunded_amount), 0)
-}
-
-const toCents = (amount: number) => Math.round(amount * 100)
-const fromCents = (cents: number) => Number((cents / 100).toFixed(2))
-
-const refundAllocationCache = new WeakMap<AdminOrder, Map<AdminOrderItem, number>>()
-
-const buildRefundAllocation = (order: AdminOrder | null) => {
-  const allocation = new Map<AdminOrderItem, number>()
-  if (!order || !Array.isArray(order.items) || order.items.length === 0) return allocation
-
-  const refundedCents = toCents(refundedAmount(order))
-  if (refundedCents <= 0) return allocation
-
-  const items = order.items
-  const weights = items.map((item) => Math.max(itemRevenueAmount(item), 0))
-  const totalWeight = weights.reduce((sum, value) => sum + value, 0)
-
-  if (totalWeight <= 0) {
-    const base = Math.floor(refundedCents / items.length)
-    let remainder = refundedCents - base * items.length
-    items.forEach((item) => {
-      const extra = remainder > 0 ? 1 : 0
-      if (remainder > 0) remainder -= 1
-      allocation.set(item, fromCents(base + extra))
-    })
-    return allocation
+const refundAllocationOf = (order: AdminOrder) => {
+  let allocation = refundAllocationCache.get(order)
+  if (!allocation) {
+    allocation = buildItemRefundAllocation(order)
+    refundAllocationCache.set(order, allocation)
   }
-
-  let assigned = 0
-  items.forEach((item, index) => {
-    let shareCents = 0
-    if (index === items.length - 1) {
-      shareCents = Math.max(refundedCents - assigned, 0)
-    } else {
-      shareCents = Math.floor((refundedCents * (weights[index] ?? 0)) / totalWeight)
-      assigned += shareCents
-    }
-    allocation.set(item, fromCents(shareCents))
-  })
-
   return allocation
 }
 
 const itemRefundAmount = (order: AdminOrder | null, item: AdminOrderItem) => {
   if (!order) return 0
-  const cached = refundAllocationCache.get(order)
-  if (cached) {
-    return cached.get(item) || 0
-  }
-  const allocation = buildRefundAllocation(order)
-  refundAllocationCache.set(order, allocation)
-  return allocation.get(item) || 0
+  return refundAllocationOf(order).get(item.id) || 0
 }
 
 const itemProfit = (order: AdminOrder | null, item: AdminOrderItem) => {
-  const profit = itemBaseProfit(item) - itemRefundAmount(order, item)
-  return Number(profit.toFixed(2))
+  if (!order) return 0
+  return calcItemProfit(order, item, refundAllocationOf(order), order.refund_reverses_cost === true)
 }
 
 const orderPaymentFee = (order: AdminOrder | null) => {
@@ -1073,11 +1024,11 @@ watch(
                         <div class="font-medium text-foreground">
                           {{ t('orderDetail.itemPaidAmountLabel') }}：{{ formatItemPaidAmount(item, selectedOrder.currency) }}
                         </div>
-                        <div v-if="hasPositiveAmount(itemRefundAmount(child, item))" class="text-blue-700">
-                          {{ t('admin.orders.itemRefund') }}：{{ formatMoney(itemRefundAmount(child, item).toFixed(2), selectedOrder.currency) }}
+                        <div v-if="hasPositiveAmount(itemRefundAmount(selectedOrder, item))" class="text-blue-700">
+                          {{ t('admin.orders.itemRefund') }}：{{ formatMoney(itemRefundAmount(selectedOrder, item).toFixed(2), selectedOrder.currency) }}
                         </div>
                         <div class="font-medium text-emerald-700">
-                          {{ t('admin.orders.itemProfit') }}：{{ formatMoney(itemProfit(child, item).toFixed(2), selectedOrder.currency) }}
+                          {{ t('admin.orders.itemProfit') }}：{{ formatMoney(itemProfit(selectedOrder, item).toFixed(2), selectedOrder.currency) }}
                         </div>
                       </div>
                     </div>
