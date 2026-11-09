@@ -50,6 +50,32 @@ describe('订单详情利润', () => {
     const order = makeOrder({ total_amount: 100, refunded_amount: 100, items: [item] })
     expect(profitOf(order, item, true)).toBe(0)
   })
+
+  it('实付为 0 的订单项整单退款时也要冲回成本', () => {
+    // A：实付 50、成本 30；B：原价 10 被定向优惠券抵成 0、成本 6。
+    // 整单退 50：仪表盘成本基数 36 全部冲回，利润 0；订单详情两边必须一致。
+    const a = makeItem(1, 50, 30)
+    const b = { ...makeItem(2, 10, 6), coupon_discount_amount: 10 } as unknown as AdminOrderItem
+    const order = familyOf(
+      [
+        makeOrder({ id: 11, total_amount: 50, items: [a] }),
+        makeOrder({ id: 12, total_amount: 0, items: [b] }),
+      ],
+      { total_amount: 50, refunded_amount: 50 },
+    )
+    // A 分到 50，利润 50-30-50+30 = 0
+    expect(profitOf(order, a, true)).toBe(0)
+    // B 实付 0 分不到退款，但同样要冲回成本：0-6-0+6 = 0
+    expect(profitOf(order, b, true)).toBe(0)
+    // 关闭冲回成本时 B 保持成本已发生
+    expect(profitOf(order, b, false)).toBe(-6)
+  })
+
+  it('实付为 0 且未退款时不冲回成本', () => {
+    const b = { ...makeItem(2, 10, 6), coupon_discount_amount: 10 } as unknown as AdminOrderItem
+    const order = makeOrder({ total_amount: 0, refunded_amount: 0, items: [b] })
+    expect(profitOf(order, b, true)).toBe(-6)
+  })
 })
 
 describe('父子订单退款分摊', () => {

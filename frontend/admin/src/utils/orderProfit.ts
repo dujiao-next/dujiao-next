@@ -4,7 +4,9 @@ import type { AdminOrder, AdminOrderItem } from '@/api/types'
 // 并按「退款冲回成本」开关决定是否同比例冲回成本，口径与后台仪表盘一致
 // （internal/modules/dashboard/infrastructure/gormstore/profit.go）。
 
-const toNumber = (value?: string | number | null) => {
+// toNumber 把金额字段（字符串或数字）安全转成数值，空值与非法值算 0。
+// 订单详情弹窗也用它解析金额，避免两处各写一份。
+export const toNumber = (value?: string | number | null) => {
   if (value === null || value === undefined || value === '') return 0
   const parsed = Number(value)
   return Number.isNaN(parsed) ? 0 : parsed
@@ -96,7 +98,9 @@ export const calcItemProfit = (
   const cost = itemCostAmount(item)
   const refund = allocation.get(item.id) || 0
   let reversed = 0
-  if (reversesCost && refund > 0 && cost !== 0) {
+  // 实付为 0 的订单项（例如被定向优惠券抵成 0）分不到退款，
+  // 但它整单退款时同样要冲回成本，否则利润永远比仪表盘少一块。
+  if (reversesCost && cost !== 0 && (refund > 0 || revenue <= 0)) {
     let ratio: number
     if (revenue > 0) {
       ratio = refund / revenue

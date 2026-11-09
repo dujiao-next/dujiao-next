@@ -26,7 +26,7 @@ import { formatDate, formatMoney, getLocalizedText, hasPositiveAmount } from '@/
 import { resolveSkuCodeFromSnapshot, resolveSkuSpecFromSnapshot } from '@/utils/sku'
 import { adminUrl } from '@/utils/adminBase'
 import { confirmAction } from '@/utils/confirm'
-import { buildItemRefundAllocation, calcItemProfit } from '@/utils/orderProfit'
+import { buildItemRefundAllocation, calcItemProfit, toNumber } from '@/utils/orderProfit'
 
 const props = defineProps<{
   modelValue: boolean
@@ -151,7 +151,7 @@ const orderPaymentFee = (order: AdminOrder | null) => {
   if (!order?.payments?.length) return 0
   const fee = order.payments.reduce((sum, payment) => {
     if (payment.status !== 'success' || payment.fee_policy !== 'merchant_absorbed') return sum
-    return sum + Math.max(parseMoneyValue(payment.fee_amount), 0)
+    return sum + Math.max(toNumber(payment.fee_amount), 0)
   }, 0)
   return Number(fee.toFixed(2))
 }
@@ -384,13 +384,6 @@ const handleDownloadFulfillment = async (orderId: number, orderNo: string) => {
   }
 }
 
-const parseMoneyValue = (value?: string | number) => {
-  if (value === null || value === undefined || value === '') return 0
-  const parsed = Number(value)
-  if (Number.isNaN(parsed)) return 0
-  return parsed
-}
-
 const isPaidOrder = (order: AdminOrder | null) => {
   if (!order) return false
   return Boolean(order.paid_at)
@@ -421,8 +414,8 @@ const isOrderRefundWindowExpired = (order: AdminOrder | null) => {
 const refundableAmountValue = (order: AdminOrder | null) => {
   if (!order) return 0
   if (!isPaidOrder(order)) return 0
-  const total = parseMoneyValue(order.total_amount)
-  const refunded = parseMoneyValue(order.refunded_amount)
+  const total = toNumber(order.total_amount)
+  const refunded = toNumber(order.refunded_amount)
   const value = total - refunded
   if (!Number.isFinite(value)) return 0
   return Number(Math.max(value, 0).toFixed(2))
