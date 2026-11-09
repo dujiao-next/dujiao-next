@@ -50,6 +50,8 @@ func categoryMarkupsEqual(a, b jsonmap.JSON) bool {
 // 由 Catalog Mapping 应用服务实现，通过 setter 注入以避免与本服务的循环依赖。
 type MarkupReapplier interface {
 	ReapplyMarkup(connectionID uint) (int, error)
+	// ReapplyMarkupLocal 只用本地已知数据重算，不访问上游，供保存请求这种必须快速返回的路径使用。
+	ReapplyMarkupLocal(connectionID uint) (int, error)
 }
 
 // Service 对接连接服务。
@@ -206,7 +208,10 @@ func (s *Service) Update(id uint, input UpdateInput) (*siteconnectiondomain.Conn
 		conn.PriceRoundingMode != prevRoundingMode ||
 		!categoryMarkupsEqual(conn.CategoryMarkups, prevCategoryMarkups)
 	if priceConfigChanged && s.markupReapplier != nil {
-		if _, err := s.markupReapplier.ReapplyMarkup(conn.ID); err != nil {
+		// 保存请求里只能用本地数据重算：完整重算要拉上游全部商品和分类树，
+		// 最长可到 5 分钟，会把保存请求拖到反向代理超时、价格只改一半。
+		// 需要补齐分类 ID 的场景留给「重新应用加价」按钮。
+		if _, err := s.markupReapplier.ReapplyMarkupLocal(conn.ID); err != nil {
 			logger.Warnw("reapply_markup_after_connection_update_failed",
 				"connection_id", conn.ID, "error", err)
 		}

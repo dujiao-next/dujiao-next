@@ -238,10 +238,14 @@ const buildPayload = () => {
 
 // 空输入表示沿用默认加价，不写入；始终提交对象（可为空）以便清空已有配置。
 //
-// 加载过上游分类树时，只提交仍然存在的分类：上游删掉的分类在界面上看不到，
-// 不这样过滤的话它的旧配置会一直被原样提交回去、也永远删不掉。
+// 只有「上游支持分类 + 确实拿到了分类列表」时才按已知分类过滤：
+// 上游返回 supported=false 或空列表时，known 集合会是空的，一旦用来过滤就会把
+// 已配置的加价全部丢掉，保存时被后端当成「清空」并触发重算。
 const buildCategoryMarkups = () => {
-  const known = upstreamCategoriesLoaded.value
+  const canFilter = upstreamCategoriesLoaded.value &&
+    upstreamCategoriesSupported.value &&
+    upstreamCategories.value.length > 0
+  const known = canFilter
     ? new Set(upstreamCategories.value.map((c) => String(c.id)))
     : null
   const result: Record<string, number> = {}

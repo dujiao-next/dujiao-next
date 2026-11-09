@@ -98,6 +98,10 @@ func (r staticMappingRepo) GetByID(_ uint) (*mappingdomain.Mapping, error) {
 	return r.mapping, nil
 }
 
+func (r staticMappingRepo) Update(_ *mappingdomain.Mapping) error {
+	return nil
+}
+
 // recordingSKURepo 记录被写回的 SKU，用来断言价格没被动过。
 type recordingSKURepo struct {
 	mappingcontract.SKURepository
@@ -117,6 +121,7 @@ func (r *recordingSKURepo) GetByID(_ uint) (*productdomain.ProductSKU, error) {
 // 分类接口报错时，已启用自动同步价格的商品售价必须保持不变。
 // 这是修复前最危险的行为：拿不到父分类就退回连接默认加价（可能是 0%），
 // 把「父分类 +50%」的商品按成本价写回数据库。
+// 同时不能返回错误：库存同步与上下架判断必须照常进行（与 SyncConnectionStock 一致）。
 func TestSyncProductKeepsPriceWhenCategoryTreeUnavailable(t *testing.T) {
 	markups := jsonmap.JSON{"1": float64(50)}
 	conn := &siteconnectiondomain.Connection{
@@ -137,14 +142,166 @@ func TestSyncProductKeepsPriceWhenCategoryTreeUnavailable(t *testing.T) {
 	svc := &Service{
 		mappings:    staticMappingRepo{mapping: mapping},
 		connections: staticConnectionProvider{conn: conn, adapter: adapter},
+		products:    staticProductRepo{},
 		skus:        skus,
+		skuMappings: &recordingSKUMappingRepo{},
 	}
 
-	err := svc.SyncProduct(1)
-	if !errors.Is(err, mappingcontract.ErrUpstreamCategoryUnavailable) {
-		t.Fatalf("error = %v, want ErrUpstreamCategoryUnavailable", err)
+	if err := svc.SyncProduct(1); err != nil {
+		t.Fatalf("category tree failure must not abort the sync, got %v", err)
 	}
 	if len(skus.updates) != 0 {
 		t.Fatalf("price must not be written when the category tree is unavailable, got %d SKU updates", len(skus.updates))
 	}
+}
+
+// 分类接口报错时，上游已下架的商品仍要被停用——这一步不能因为拿不到分类树而被跳过。
+func TestSyncProductStillMarksInactiveWhenCategoryTreeUnavailable(t *testing.T) {
+	conn := &siteconnectiondomain.Connection{
+		ID:                 1,
+		ExchangeRate:       decimal.NewFromInt(1),
+		PriceMarkupPercent: decimal.Zero,
+		CategoryMarkups:    jsonmap.JSON{"1": float64(50)},
+		AutoSyncPrice:      true,
+	}
+	mapping := &mappingdomain.Mapping{ID: 1, ConnectionID: 1, LocalProductID: 10, UpstreamProductID: 20}
+	adapter := failingCategoryAdapter{product: &upstream.UpstreamProduct{
+		ID:         20,
+		CategoryID: 2,
+		IsActive:   false,
+	}}
+	mappings := &recordingMappingRepo{mapping: mapping}
+	svc := &Service{
+		mappings:    mappings,
+		connections: staticConnectionProvider{conn: conn, adapter: adapter},
+		products:    staticProductRepo{},
+		skus:        &recordingSKURepo{},
+		skuMappings: &recordingSKUMappingRepo{},
+	}
+
+	if err := svc.SyncProduct(1); err != nil {
+		t.Fatalf("inactive product must be handled even without a category tree, got %v", err)
+	}
+	if mapping.UpstreamStatus != mappingdomain.UpstreamStatusInactive {
+		t.Fatalf("upstream status = %q, want inactive", mapping.UpstreamStatus)
+	}
+}
+
+// 关闭「自动同步价格」时，上游新增的 SKU 仍要按父分类的加价建出来，
+// 不能按连接默认加价（这里是 0%）写成一个错价的已上架 SKU。
+func TestSyncProductNewSKUUsesParentCategoryMarkupWhenAutoSyncDisabled(t *testing.T) {
+	// 父分类 1 配 50%，分类 2 没配；商品属于分类 2。
+	conn := &siteconnectiondomain.Connection{
+		ID:                 1,
+		ExchangeRate:       decimal.NewFromInt(1),
+		PriceMarkupPercent: decimal.Zero,
+		CategoryMarkups:    jsonmap.JSON{"1": float64(50)},
+		AutoSyncPrice:      false,
+		PriceRoundingMode:  "none",
+	}
+	mapping := &mappingdomain.Mapping{ID: 1, ConnectionID: 1, LocalProductID: 10, UpstreamProductID: 20}
+	adapter := &parentCategoryAdapter{product: &upstream.UpstreamProduct{
+		ID:          20,
+		CategoryID:  2,
+		IsActive:    true,
+		PriceAmount: "10",
+		SKUs:        []upstream.UpstreamSKU{{ID: 99, SKUCode: "NEW", PriceAmount: "10", IsActive: true}},
+	}}
+	skus := &creatingSKURepo{}
+	svc := &Service{
+		mappings:    staticMappingRepo{mapping: mapping},
+		connections: staticConnectionProvider{conn: conn, adapter: adapter},
+		products:    staticProductRepo{},
+		skus:        skus,
+		skuMappings: &recordingSKUMappingRepo{},
+	}
+
+	if err := svc.SyncProduct(1); err != nil {
+		t.Fatalf("sync failed: %v", err)
+	}
+	if len(skus.created) != 1 {
+		t.Fatalf("expected the new SKU to be created, got %d", len(skus.created))
+	}
+	// 成本 10 × (1 + 50%) = 15
+	if got := skus.created[0].PriceAmount.String(); got != "15.00" {
+		t.Fatalf("new SKU price = %s, want 15.00 (parent category markup 50%%)", got)
+	}
+}
+
+// parentCategoryAdapter 返回「分类 2 的父分类是 1」的分类树，商品接口正常返回。
+type parentCategoryAdapter struct {
+	upstream.Adapter
+	product *upstream.UpstreamProduct
+}
+
+func (a *parentCategoryAdapter) ListCategories(_ context.Context) (*upstream.CategoryListResult, error) {
+	return &upstream.CategoryListResult{
+		Supported: true,
+		Categories: []upstream.UpstreamCategory{
+			{ID: 1, Name: jsonmap.JSON{"zh-CN": "游戏"}},
+			{ID: 2, ParentID: 1, Name: jsonmap.JSON{"zh-CN": "子类"}},
+		},
+	}, nil
+}
+
+func (a *parentCategoryAdapter) GetProduct(_ context.Context, _ uint) (*upstream.UpstreamProduct, error) {
+	return a.product, nil
+}
+
+// creatingSKURepo 记录被创建的新 SKU。
+type creatingSKURepo struct {
+	mappingcontract.SKURepository
+	created []*productdomain.ProductSKU
+}
+
+func (r *creatingSKURepo) Create(item *productdomain.ProductSKU) error {
+	copied := *item
+	copied.ID = uint(len(r.created) + 100)
+	r.created = append(r.created, &copied)
+	return nil
+}
+
+func (r *creatingSKURepo) GetByID(_ uint) (*productdomain.ProductSKU, error) {
+	return nil, nil
+}
+
+// recordingSKUMappingRepo 接受新映射写入，不关心内容。
+type recordingSKUMappingRepo struct {
+	mappingcontract.SKUMappingRepository
+}
+
+func (r *recordingSKUMappingRepo) ListByProductMapping(_ uint) ([]mappingdomain.SKUMapping, error) {
+	return nil, nil
+}
+
+func (r *recordingSKUMappingRepo) Create(_ *mappingdomain.SKUMapping) error {
+	return nil
+}
+
+// staticProductRepo 返回一个固定的本地商品，供 SyncProduct 走完商品同步阶段。
+type staticProductRepo struct {
+	mappingcontract.ProductRepository
+}
+
+func (staticProductRepo) GetByID(_ string) (*productdomain.Product, error) {
+	return &productdomain.Product{ID: 10}, nil
+}
+
+func (staticProductRepo) Update(_ *productdomain.Product) error {
+	return nil
+}
+
+// recordingMappingRepo 把映射状态更新记录下来。
+type recordingMappingRepo struct {
+	mappingcontract.MappingRepository
+	mapping *mappingdomain.Mapping
+}
+
+func (r *recordingMappingRepo) GetByID(_ uint) (*mappingdomain.Mapping, error) {
+	return r.mapping, nil
+}
+
+func (r *recordingMappingRepo) Update(item *mappingdomain.Mapping) error {
+	r.mapping = item
+	return nil
 }

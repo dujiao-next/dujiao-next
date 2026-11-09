@@ -69,25 +69,33 @@ func (s *Service) SyncProduct(mappingID uint) error {
 
 	now := time.Now()
 
-	// 记录上游分类并按分类解析加价（分类自身 → 父分类 → 连接默认）。
-	// 只有「这一轮真的要改价」且「该分类需要向父分类继承」时才拉分类树：
-	// SyncProduct 也会被下单前的实时库存检查调用，那里不需要改价，没必要多打一次上游。
-	mapping.UpstreamCategoryID = upProduct.CategoryID
-	var categoryParents map[uint]uint
-	if conn.AutoSyncPrice && categoryMarkupsNeedParents(conn.CategoryMarkups, upProduct.CategoryID) {
-		parents, parentsOK := s.upstreamCategoryParents(ctx, adapter, conn)
-		if !parentsOK {
-			// 配置了分类加价却拿不到分类树：不能按默认加价把价格改低。
-			return mappingcontract.ErrUpstreamCategoryUnavailable
-		}
-		categoryParents = parents
-	}
-	markupPercent := ResolveCategoryMarkup(conn.PriceMarkupPercent, conn.CategoryMarkups, upProduct.CategoryID, categoryParents)
-
-	// 上游 200 但 is_active=false → 视为下架
+	// 上游 200 但 is_active=false → 视为下架。
+	// 放在拉分类树之前：分类接口出问题时，上游下架的商品在本地仍然要能正常停用。
 	if !upProduct.IsActive {
 		return s.markUpstreamUnavailable(mapping, mappingdomain.UpstreamStatusInactive, now)
 	}
+
+	// 记录上游分类并按分类解析加价（分类自身 → 父分类 → 连接默认）。
+	// 只要该分类需要向父分类继承就拉分类树：即使 AutoSyncPrice 关闭，下面「上游新增 SKU」
+	// 和批发价同步仍会用 markupPercent 算价，按默认加价写进去就是错价。
+	mapping.UpstreamCategoryID = upProduct.CategoryID
+	var categoryParents map[uint]uint
+	// 分类树是否可用：false 表示这一轮不能安全算价，下游只同步库存/上下架，不改售价。
+	markupReady := true
+	if categoryMarkupsNeedParents(conn.CategoryMarkups, upProduct.CategoryID) {
+		parents, parentsOK := s.upstreamCategoryParents(ctx, adapter, conn)
+		if !parentsOK {
+			// 配置了分类加价却拿不到分类树：不能按默认加价把价格改低。
+			// 与 SyncConnectionStock / syncProductFromData 保持一致：不返回错误，
+			// 库存与上下架照常同步，只跳过改价，下一轮同步再补。
+			markupReady = false
+			logger.Warnw("sync_skip_price_recalc_category_tree_unavailable",
+				"mapping_id", mapping.ID, "upstream_category_id", upProduct.CategoryID)
+		} else {
+			categoryParents = parents
+		}
+	}
+	markupPercent := ResolveCategoryMarkup(conn.PriceMarkupPercent, conn.CategoryMarkups, upProduct.CategoryID, categoryParents)
 
 	// ── 1. 同步本地商品字段（表单配置、上下架状态） ──
 	localProduct, err := s.products.GetByID(strconv.FormatUint(uint64(mapping.LocalProductID), 10))
@@ -157,8 +165,9 @@ func (s *Service) SyncProduct(mappingID uint) error {
 		if localSKU != nil {
 			localSKU.SpecValuesJSON = upSKU.SpecValues
 			localSKU.IsActive = upSKU.IsActive
-			// 如果启用了自动同步价格，按加价比例更新本地售价和成本价
-			if conn.AutoSyncPrice {
+			// 如果启用了自动同步价格，按加价比例更新本地售价和成本价。
+			// 分类树拿不到时跳过改价，避免按默认加价把售价改低。
+			if conn.AutoSyncPrice && markupReady {
 				newLocalPrice := CalculateLocalPrice(upPrice, conn.ExchangeRate, markupPercent, conn.PriceRoundingMode)
 				localSKU.PriceAmount = money.FromDecimal(newLocalPrice.Round(2))
 				localSKU.CostPriceAmount = money.FromDecimal(convertCurrency(upPrice, conn.ExchangeRate).Round(2))
@@ -168,8 +177,12 @@ func (s *Service) SyncProduct(mappingID uint) error {
 	}
 
 	// 2b. 上游新增的 SKU → 创建本地 SKU + 映射
+	// 分类树拿不到时不建：按错误的加价建出来就是一个已上架的错价 SKU，比晚一轮更糟。
 	for _, upSKU := range upProduct.SKUs {
 		if _, exists := existingByUpstreamID[upSKU.ID]; exists {
+			continue
+		}
+		if !markupReady {
 			continue
 		}
 
@@ -201,12 +214,12 @@ func (s *Service) SyncProduct(mappingID uint) error {
 	}
 
 	// ── 2c. 如果启用了自动同步价格，更新 Product.PriceAmount 为最低 SKU 价格 ──
-	if conn.AutoSyncPrice && localProduct != nil {
+	if conn.AutoSyncPrice && markupReady && localProduct != nil {
 		s.recalcProductPrice(localProduct)
 	}
 
 	// 上游未返回批发价时不覆盖本地配置，避免运营手动配置被同步任务清空。
-	if len(upProduct.WholesalePrices) > 0 && localProduct != nil {
+	if markupReady && len(upProduct.WholesalePrices) > 0 && localProduct != nil {
 		if err := s.syncUpstreamWholesalePrices(mapping, localProduct.ID, conn, upProduct, markupPercent); err != nil {
 			logger.Warnw("sync_upstream_wholesale_prices_failed",
 				"mapping_id", mapping.ID,

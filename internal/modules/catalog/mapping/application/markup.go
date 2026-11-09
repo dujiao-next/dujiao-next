@@ -86,6 +86,12 @@ func (s *Service) reapplyMarkupPrices(conn *siteconnectiondomain.Connection, cat
 		if skipUnknownCategory && hasCategoryMarkups && mapping.UpstreamCategoryID == 0 {
 			continue
 		}
+		// 没有分类树（本地重算路径）且该分类需要向父分类继承时，算出来的加价可能是错的：
+		// 跳过它，留给「重新应用加价」拉完分类树再算。
+		if categoryParents == nil && hasCategoryMarkups &&
+			categoryMarkupsNeedParents(conn.CategoryMarkups, mapping.UpstreamCategoryID) {
+			continue
+		}
 		skuMappings, err := s.skuMappings.ListByProductMapping(mapping.ID)
 		if err != nil {
 			continue
