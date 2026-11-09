@@ -223,6 +223,7 @@ func TestPreviewOrderAppliesMemberDiscountForManualProductBeforeFormCompleted(t 
 		&userdomain.User{},
 		&memberleveldomain.MemberLevel{},
 		&memberleveldomain.MemberLevelPrice{},
+		&memberleveldomain.UserProductPrice{},
 	); err != nil {
 		t.Fatalf("auto migrate failed: %v", err)
 	}
@@ -354,6 +355,7 @@ func TestBuildOrderResultStacksPromotionAndMemberDiscount(t *testing.T) {
 		&userdomain.User{},
 		&memberleveldomain.MemberLevel{},
 		&memberleveldomain.MemberLevelPrice{},
+		&memberleveldomain.UserProductPrice{},
 	); err != nil {
 		t.Fatalf("auto migrate failed: %v", err)
 	}

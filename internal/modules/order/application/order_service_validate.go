@@ -15,6 +15,7 @@ import (
 	couponapp "github.com/dujiao-next/internal/modules/coupon/application"
 	couponcontract "github.com/dujiao-next/internal/modules/coupon/contract"
 	coupondomain "github.com/dujiao-next/internal/modules/coupon/domain"
+	memberlevelapp "github.com/dujiao-next/internal/modules/memberlevel/application"
 	promotionapp "github.com/dujiao-next/internal/modules/promotion/application"
 	promotiondomain "github.com/dujiao-next/internal/modules/promotion/domain"
 	"github.com/dujiao-next/internal/shared/jsonmap"
@@ -85,6 +86,17 @@ func (s *OrderService) buildOrderResult(input orderCreateParams) (*orderBuildRes
 	if !resellerOrder {
 		promotionService = promotionapp.NewService(s.promotionRepo)
 	}
+
+	// 循环前一次性读出用户专属价快照，避免每个 SKU 各查一次库（N+1）。
+	var userPriceBook memberlevelapp.UserPriceBook
+	if !resellerOrder && input.UserID > 0 && s.memberLevelService != nil {
+		var err error
+		userPriceBook, err = s.memberLevelService.LoadUserPriceBook(input.UserID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	manualFormData := input.ManualFormData
 	if manualFormData == nil {
 		manualFormData = map[string]jsonmap.JSON{}
@@ -123,8 +135,8 @@ func (s *OrderService) buildOrderResult(input orderCreateParams) (*orderBuildRes
 		// 用户会比走普通优惠的用户付得更多。
 		var userUnitPrice decimal.Decimal
 		userPriceHit := false
-		if !resellerOrder && input.UserID > 0 && s.memberLevelService != nil {
-			userUnitPrice, userPriceHit = s.memberLevelService.ResolveUserPrice(input.UserID, product.ID, sku.ID, basePrice)
+		if userPriceBook != nil {
+			userUnitPrice, userPriceHit = userPriceBook.Resolve(product.ID, sku.ID, basePrice)
 		}
 
 		// 1. 计算活动价

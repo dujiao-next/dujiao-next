@@ -76,6 +76,7 @@ func (s *Service) LoadUserPriceBook(userID uint) (UserPriceBook, error) {
 }
 
 // Resolve 在快照里取专属价，优先级 SKU 级 > 商品级，且必须低于 base。
+// SKU 级那行的价格无效（≤0）或高于 base 时不再回退商品级，与下单口径一致。
 func (b UserPriceBook) Resolve(productID, skuID uint, base decimal.Decimal) (decimal.Decimal, bool) {
 	if len(b) == 0 {
 		return base, false
@@ -92,30 +93,4 @@ func (b UserPriceBook) Resolve(productID, skuID uint, base decimal.Decimal) (dec
 		return price, true
 	}
 	return base, false
-}
-
-// ResolveUserPrice 解析用户专属一口价。
-// 优先级：SKU 级专属价 > 商品级专属价。
-// 只有专属价低于当前基础价时才生效（返回 true），避免基础价下调后用户反而多付钱；
-// 命中后调用方应直接以返回价结算，不再叠加活动价、批发价和会员等级价。
-func (s *Service) ResolveUserPrice(userID, productID, skuID uint, basePrice decimal.Decimal) (decimal.Decimal, bool) {
-	if userID == 0 || productID == 0 {
-		return basePrice, false
-	}
-	scopes := []uint{0}
-	if skuID > 0 {
-		scopes = []uint{skuID, 0}
-	}
-	for _, scope := range scopes {
-		row, err := s.userPriceRepo.GetByUserAndProductAndSKU(userID, productID, scope)
-		if err != nil || row == nil {
-			continue
-		}
-		price := row.PriceAmount.Decimal.Round(2)
-		if price.GreaterThan(decimal.Zero) && price.LessThan(basePrice) {
-			return price, true
-		}
-		return basePrice, false
-	}
-	return basePrice, false
 }

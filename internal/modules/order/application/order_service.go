@@ -11,6 +11,7 @@ import (
 	couponcontract "github.com/dujiao-next/internal/modules/coupon/contract"
 	coupondomain "github.com/dujiao-next/internal/modules/coupon/domain"
 	usercontract "github.com/dujiao-next/internal/modules/identity/user/contract"
+	memberlevelapp "github.com/dujiao-next/internal/modules/memberlevel/application"
 	ordercontract "github.com/dujiao-next/internal/modules/order/contract"
 	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
 	orderriskcontract "github.com/dujiao-next/internal/modules/orderrisk/contract"
@@ -55,7 +56,7 @@ type OrderService struct {
 
 type OrderMemberLevelService interface {
 	ResolveMemberPrice(levelID, productID, skuID uint, basePrice decimal.Decimal) (decimal.Decimal, decimal.Decimal)
-	ResolveUserPrice(userID, productID, skuID uint, basePrice decimal.Decimal) (decimal.Decimal, bool)
+	LoadUserPriceBook(userID uint) (memberlevelapp.UserPriceBook, error)
 	OnOrderPaid(userID uint, amount decimal.Decimal) error
 }
 

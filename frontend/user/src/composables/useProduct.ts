@@ -2,6 +2,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '../stores/app'
 import { amountToCents, centsToAmount } from '../utils/money'
+import { resolveMemberPriceAmount } from '../utils/productPricing'
 import { useUserAuthStore } from '../stores/userAuth'
 import { useUserProfileStore } from '../stores/userProfile'
 
@@ -179,59 +180,28 @@ export function useProductLabels() {
     return centsToAmount(matchedCents)
   }
 
-  // 用户专属一口价：命中后直接作为最终价，不再叠加批发价、活动价与会员等级价（口径与下单一致）。
-  // 仅当专属价低于该 SKU 的原价时生效；已存在 SKU 级专属价时不回退到商品级。
-  const resolveUserPriceAmount = (product: any, skuId: any, userPrices?: any[]) => {
-    if (!Array.isArray(userPrices) || userPrices.length === 0) return null
-    const productId = Number(product?.id || 0)
-    const normalizedSkuId = Number(skuId || 0)
-    if (productId <= 0) return null
-    const rows = userPrices.filter((p: any) => Number(p?.product_id || 0) === productId)
-    const row = (normalizedSkuId > 0 ? rows.find((p: any) => Number(p?.sku_id || 0) === normalizedSkuId) : undefined)
-      ?? rows.find((p: any) => Number(p?.sku_id || 0) === 0)
-    const priceCents = parsePriceAmount(row?.price_amount)
-    if (priceCents === null || priceCents <= 0) return null
-    const skus = Array.isArray(product?.skus) ? product.skus : []
-    const sku = skus.find((s: any) => Number(s?.id || 0) === normalizedSkuId)
-    const skuBase = parsePriceAmount(sku?.price_amount ?? product?.price_amount)
-    if (skuBase === null || priceCents >= skuBase) return null
-    return centsToAmount(priceCents)
-  }
-
-  const resolveMemberPriceAmount = (product: any, skuId: any, basePrice: any, memberLevelId: any, discountRate?: any, userPrices?: any[]) => {
-    const exclusive = resolveUserPriceAmount(product, skuId, userPrices)
-    if (exclusive !== null) return exclusive
-
-    const base = parsePriceAmount(basePrice)
-    const levelId = Number(memberLevelId || 0)
-    if (base === null || base <= 0 || !Number.isFinite(levelId) || levelId <= 0) return null
-
-    const prices = Array.isArray(product?.member_prices) ? product.member_prices : []
-    const normalizedSkuId = Number(skuId || 0)
-    const skuPrice = prices.find((p: any) => Number(p?.member_level_id || 0) === levelId && Number(p?.sku_id || 0) === normalizedSkuId)
-    const productPrice = prices.find((p: any) => Number(p?.member_level_id || 0) === levelId && Number(p?.sku_id || 0) === 0)
-    const overrideCents = parsePriceAmount(skuPrice?.price_amount ?? productPrice?.price_amount)
-    if (overrideCents !== null && overrideCents > 0) {
-      return overrideCents < base ? centsToAmount(overrideCents) : null
-    }
-
-    const rate = Number(discountRate || 0)
-    if (!Number.isFinite(rate) || rate <= 0 || rate >= 100) return null
-    const memberCents = Math.round((base * rate) / 100)
-    return memberCents < base ? centsToAmount(memberCents) : null
-  }
-
-  // 列表卡片展示价：用户有专属一口价时优先于活动价；取各 SKU 中最低的专属价，且必须低于当前展示价才生效。
+  // 列表卡片展示价：取专属价与会员价中更低者，且必须低于活动价/原价才展示。
+  // 口径与详情页和后端下单保持一致。
   const getCardExclusivePrice = (product: any): string | null => {
     if (!userAuthStore.isAuthenticated) return null
-    const prices = userProfileStore.myProductPrices
-    if (!Array.isArray(prices) || prices.length === 0) return null
+    const userPrices = userProfileStore.myProductPrices
+    const memberLevelId = Number(userAuthStore.user?.member_level_id || 0)
+    const memberLevels: any[] = userProfileStore.memberLevels ?? []
+    const level = memberLevelId > 0 ? memberLevels.find((l: any) => Number(l?.id || 0) === memberLevelId) : null
+    const discountRate = level ? Number(level.discount_rate || 0) : 0
+
     const skus = (Array.isArray(product?.skus) ? product.skus : []).filter((s: any) => s?.is_active !== false)
-    const skuIds: any[] = skus.length > 0 ? skus.map((s: any) => s.id) : [0]
+    const candidates: Array<{ id: any; price: any }> = skus.length > 0
+      ? skus.map((s: any) => ({ id: s.id, price: s.price_amount }))
+      : [{ id: 0, price: product?.price_amount }]
     let best: number | null = null
-    for (const id of skuIds) {
-      const cents = parsePriceAmount(resolveUserPriceAmount(product, id, prices))
-      if (cents !== null && (best === null || cents < best)) best = cents
+    for (const sku of candidates) {
+      const baseForSku = parsePriceAmount(sku.price ?? product?.price_amount)
+      if (baseForSku === null) continue
+      const resolved = parsePriceAmount(
+        resolveMemberPriceAmount(product, sku.id, baseForSku, memberLevelId, discountRate, Array.isArray(userPrices) ? userPrices : [])
+      )
+      if (resolved !== null && resolved < baseForSku && (best === null || resolved < best)) best = resolved
     }
     if (best === null) return null
     const current = parsePriceAmount(hasPromotionPrice(product) ? getPromotionPriceAmount(product) : product?.price_amount)

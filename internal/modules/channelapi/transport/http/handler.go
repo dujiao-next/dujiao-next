@@ -181,7 +181,6 @@ type IdentityService interface {
 
 type MemberLevelService interface {
 	ResolveMemberPrice(levelID, productID, skuID uint, basePrice decimal.Decimal) (decimal.Decimal, decimal.Decimal)
-	ResolveUserPrice(userID, productID, skuID uint, basePrice decimal.Decimal) (decimal.Decimal, bool)
 	// ResolveCatalogPrice 是目录与下单共用的取价规则（专属价与会员价取更低者）。
 	ResolveCatalogPrice(book memberlevelapp.UserPriceBook, levelID, productID, skuID uint, base decimal.Decimal) (price decimal.Decimal, hit bool, exclusive bool)
 	LoadUserPriceBook(userID uint) (memberlevelapp.UserPriceBook, error)

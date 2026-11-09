@@ -64,38 +64,66 @@ func (h *AdminHandler) GetUserPrices(c *gin.Context) {
 	response.SuccessWithPage(c, views, response.BuildPagination(page, pageSize, total))
 }
 
+// resolveProductAndSKUMaps 按去重后的 ID 批量解析商品与 SKU 摘要。
+// 查询失败不阻断调用方：对应的 map 为空时按"未找到"处理；
+// skuOK 表示 SKU 查询成功，调用方据此区分"SKU 已删除"与"查询失败"。
+func resolveProductAndSKUMaps(
+	dir memberlevelcontract.ProductDirectory,
+	productIDs, skuIDs []uint,
+) (productMap map[uint]memberlevelcontract.ProductSummary, skuMap map[uint]memberlevelcontract.SKUSummary, skuOK bool) {
+	productMap = map[uint]memberlevelcontract.ProductSummary{}
+	skuMap = map[uint]memberlevelcontract.SKUSummary{}
+	if dir == nil {
+		return productMap, skuMap, false
+	}
+	if len(productIDs) > 0 {
+		if resolved, err := dir.ResolveProducts(productIDs); err == nil && resolved != nil {
+			productMap = resolved
+		}
+	}
+	if len(skuIDs) == 0 {
+		return productMap, skuMap, true
+	}
+	resolved, err := dir.ResolveSKUs(skuIDs)
+	if err != nil || resolved == nil {
+		return productMap, skuMap, false
+	}
+	return productMap, resolved, true
+}
+
+// collectUserPriceIDs 收集商品与 SKU 的去重 ID，供批量解析使用。
+func collectUserPriceIDs(prices []memberleveldomain.UserProductPrice) (productIDs, skuIDs []uint) {
+	productIDs = make([]uint, 0, len(prices))
+	skuIDs = make([]uint, 0, len(prices))
+	seenProduct := map[uint]struct{}{}
+	seenSKU := map[uint]struct{}{}
+	for _, p := range prices {
+		if _, dup := seenProduct[p.ProductID]; !dup {
+			seenProduct[p.ProductID] = struct{}{}
+			productIDs = append(productIDs, p.ProductID)
+		}
+		if p.SKUID > 0 {
+			if _, dup := seenSKU[p.SKUID]; !dup {
+				seenSKU[p.SKUID] = struct{}{}
+				skuIDs = append(skuIDs, p.SKUID)
+			}
+		}
+	}
+	return productIDs, skuIDs
+}
+
 // attachProductSummaries 按当前页一次性批量解析商品与 SKU 摘要并写回视图。
 // 解析失败不阻断列表：摘要是展示用的附加信息。
 func (h *AdminHandler) attachProductSummaries(views []adminUserPriceView) {
 	if h.products == nil || len(views) == 0 {
 		return
 	}
-	productIDs := make([]uint, 0, len(views))
-	skuIDs := make([]uint, 0, len(views))
-	seenProduct := map[uint]struct{}{}
-	seenSKU := map[uint]struct{}{}
+	prices := make([]memberleveldomain.UserProductPrice, 0, len(views))
 	for _, v := range views {
-		if _, dup := seenProduct[v.ProductID]; !dup {
-			seenProduct[v.ProductID] = struct{}{}
-			productIDs = append(productIDs, v.ProductID)
-		}
-		if v.SKUID > 0 {
-			if _, dup := seenSKU[v.SKUID]; !dup {
-				seenSKU[v.SKUID] = struct{}{}
-				skuIDs = append(skuIDs, v.SKUID)
-			}
-		}
+		prices = append(prices, v.UserProductPrice)
 	}
-
-	productMap, err := h.products.ResolveProducts(productIDs)
-	if err != nil {
-		return
-	}
-	skuMap, err := h.products.ResolveSKUs(skuIDs)
-	if err != nil {
-		skuMap = nil
-	}
-
+	productIDs, skuIDs := collectUserPriceIDs(prices)
+	productMap, skuMap, _ := resolveProductAndSKUMaps(h.products, productIDs, skuIDs)
 	for i := range views {
 		if product, found := productMap[views[i].ProductID]; found {
 			views[i].ProductTitle = product.Title
@@ -189,6 +217,7 @@ type userPriceView struct {
 
 // ListMyPrices GET /me/product-prices 返回当前用户的全部专属价，前台据此展示一口价。
 // 商品标题、slug 与 SKU 规格仅用于个人中心展示；解析失败不阻断主体返回。
+// sku_id > 0 但查不到对应 SKU 的行不返回（SKU 已被删除，下单时也不会生效）。
 func (h *UserHandler) ListMyPrices(c *gin.Context) {
 	userID, ok := ginutil.GetUserID(c)
 	if !ok {
@@ -199,9 +228,17 @@ func (h *UserHandler) ListMyPrices(c *gin.Context) {
 		ginutil.RespondError(c, response.CodeInternal, "error.user_product_price_fetch_failed", err)
 		return
 	}
-	productMap, skuMap := h.resolveDirectory(prices)
+	productIDs, skuIDs := collectUserPriceIDs(prices)
+	productMap, skuMap, skuOK := resolveProductAndSKUMaps(h.products, productIDs, skuIDs)
 	views := make([]userPriceView, 0, len(prices))
 	for _, p := range prices {
+		// SKU 级专属价若 SKU 已确认被删除，则跳过（下单时不会生效，展示了反而让人困惑）。
+		// 目录查询失败时 skuOK 为 false，此时保留该行，退化为只显示价格。
+		if p.SKUID > 0 && skuOK {
+			if _, found := skuMap[p.SKUID]; !found {
+				continue
+			}
+		}
 		view := userPriceView{ProductID: p.ProductID, SKUID: p.SKUID, PriceAmount: p.PriceAmount}
 		if product, found := productMap[p.ProductID]; found {
 			view.ProductSlug = product.Slug
@@ -215,37 +252,4 @@ func (h *UserHandler) ListMyPrices(c *gin.Context) {
 		views = append(views, view)
 	}
 	response.Success(c, views)
-}
-
-func (h *UserHandler) resolveDirectory(prices []memberleveldomain.UserProductPrice) (map[uint]memberlevelcontract.ProductSummary, map[uint]memberlevelcontract.SKUSummary) {
-	productMap := map[uint]memberlevelcontract.ProductSummary{}
-	skuMap := map[uint]memberlevelcontract.SKUSummary{}
-	if h.products == nil || len(prices) == 0 {
-		return productMap, skuMap
-	}
-	productIDs := make([]uint, 0, len(prices))
-	skuIDs := make([]uint, 0, len(prices))
-	seenProduct := map[uint]struct{}{}
-	seenSKU := map[uint]struct{}{}
-	for _, p := range prices {
-		if _, dup := seenProduct[p.ProductID]; !dup {
-			seenProduct[p.ProductID] = struct{}{}
-			productIDs = append(productIDs, p.ProductID)
-		}
-		if p.SKUID > 0 {
-			if _, dup := seenSKU[p.SKUID]; !dup {
-				seenSKU[p.SKUID] = struct{}{}
-				skuIDs = append(skuIDs, p.SKUID)
-			}
-		}
-	}
-	if resolved, err := h.products.ResolveProducts(productIDs); err == nil && resolved != nil {
-		productMap = resolved
-	}
-	if len(skuIDs) > 0 {
-		if resolved, err := h.products.ResolveSKUs(skuIDs); err == nil && resolved != nil {
-			skuMap = resolved
-		}
-	}
-	return productMap, skuMap
 }

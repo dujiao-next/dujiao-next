@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	memberlevelapp "github.com/dujiao-next/internal/modules/memberlevel/application"
 	memberlevelcontract "github.com/dujiao-next/internal/modules/memberlevel/contract"
 	memberleveldomain "github.com/dujiao-next/internal/modules/memberlevel/domain"
 	"github.com/dujiao-next/internal/shared/money"
@@ -12,7 +13,7 @@ import (
 
 func newUserPriceServiceForTest(t *testing.T) (userID uint, svc interface {
 	BatchUpsertUserPrices([]memberleveldomain.UserProductPrice) error
-	ResolveUserPrice(userID, productID, skuID uint, base decimal.Decimal) (decimal.Decimal, bool)
+	LoadUserPriceBook(userID uint) (memberlevelapp.UserPriceBook, error)
 	DeleteUserPrice(id uint) error
 	ListUserPrices(userID uint, page, pageSize int) ([]memberleveldomain.UserProductPrice, int64, error)
 }) {
@@ -34,7 +35,7 @@ func userPrice(userID, productID, skuID uint, amount string) memberleveldomain.U
 	}
 }
 
-func TestResolveUserPricePrefersSKUOverProductAndOnlyLowersPrice(t *testing.T) {
+func TestUserPriceBookPrefersSKUOverProductAndOnlyLowersPrice(t *testing.T) {
 	userID, svc := newUserPriceServiceForTest(t)
 	if err := svc.BatchUpsertUserPrices([]memberleveldomain.UserProductPrice{
 		userPrice(userID, 10, 0, "95"),
@@ -42,23 +43,32 @@ func TestResolveUserPricePrefersSKUOverProductAndOnlyLowersPrice(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("upsert failed: %v", err)
 	}
+	book, err := svc.LoadUserPriceBook(userID)
+	if err != nil {
+		t.Fatalf("load book failed: %v", err)
+	}
 	base := decimal.NewFromInt(100)
 
-	if got, ok := svc.ResolveUserPrice(userID, 10, 7, base); !ok || !got.Equal(decimal.NewFromInt(90)) {
+	if got, ok := book.Resolve(10, 7, base); !ok || !got.Equal(decimal.NewFromInt(90)) {
 		t.Fatalf("sku-level price = (%s, %v), want (90, true)", got, ok)
 	}
-	if got, ok := svc.ResolveUserPrice(userID, 10, 8, base); !ok || !got.Equal(decimal.NewFromInt(95)) {
+	if got, ok := book.Resolve(10, 8, base); !ok || !got.Equal(decimal.NewFromInt(95)) {
 		t.Fatalf("product-level fallback = (%s, %v), want (95, true)", got, ok)
 	}
 	// 基础价降到专属价以下时不得反向加价。
-	if got, ok := svc.ResolveUserPrice(userID, 10, 7, decimal.NewFromInt(80)); ok || !got.Equal(decimal.NewFromInt(80)) {
+	if got, ok := book.Resolve(10, 7, decimal.NewFromInt(80)); ok || !got.Equal(decimal.NewFromInt(80)) {
 		t.Fatalf("price above base = (%s, %v), want (80, false)", got, ok)
 	}
-	if _, ok := svc.ResolveUserPrice(userID+1, 10, 7, base); ok {
-		t.Fatal("other user must not see this user's price")
-	}
-	if _, ok := svc.ResolveUserPrice(userID, 11, 0, base); ok {
+	if _, ok := book.Resolve(11, 0, base); ok {
 		t.Fatal("other product must not match")
+	}
+	// 其他用户读到的快照里没有这条专属价。
+	otherBook, err := svc.LoadUserPriceBook(userID + 1)
+	if err != nil {
+		t.Fatalf("load other book failed: %v", err)
+	}
+	if _, ok := otherBook.Resolve(10, 7, base); ok {
+		t.Fatal("other user must not see this user's price")
 	}
 }
 
@@ -106,13 +116,21 @@ func TestDeleteUserPriceThenReUpsertRevivesRow(t *testing.T) {
 	if err := svc.DeleteUserPrice(rows[0].ID); err != nil {
 		t.Fatalf("delete failed: %v", err)
 	}
-	if _, ok := svc.ResolveUserPrice(userID, 10, 0, decimal.NewFromInt(100)); ok {
+	book, err := svc.LoadUserPriceBook(userID)
+	if err != nil {
+		t.Fatalf("load book failed: %v", err)
+	}
+	if _, ok := book.Resolve(10, 0, decimal.NewFromInt(100)); ok {
 		t.Fatal("deleted price must not resolve")
 	}
 	if err := svc.BatchUpsertUserPrices([]memberleveldomain.UserProductPrice{userPrice(userID, 10, 0, "90")}); err != nil {
 		t.Fatalf("re-upsert after soft delete failed (unique key collision?): %v", err)
 	}
-	if got, ok := svc.ResolveUserPrice(userID, 10, 0, decimal.NewFromInt(100)); !ok || !got.Equal(decimal.NewFromInt(90)) {
+	book, err = svc.LoadUserPriceBook(userID)
+	if err != nil {
+		t.Fatalf("reload book failed: %v", err)
+	}
+	if got, ok := book.Resolve(10, 0, decimal.NewFromInt(100)); !ok || !got.Equal(decimal.NewFromInt(90)) {
 		t.Fatalf("revived price = (%s, %v), want (90, true)", got, ok)
 	}
 }
