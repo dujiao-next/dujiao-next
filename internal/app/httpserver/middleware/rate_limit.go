@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -210,9 +211,9 @@ func RateLimitMiddleware(client *redis.Client, rule RateLimitRule, keyFunc RateL
 			}
 			msg := i18n.Sprintf(i18n.ResolveLocale(c), msgKey, waitSeconds)
 			if isChannelAPIRequest(c) {
-				response.ChannelError(c, 429, response.CodeTooManyRequests, msg, "rate_limit_exceeded")
+				response.ChannelError(c, http.StatusTooManyRequests, response.CodeTooManyRequests, msg, "rate_limit_exceeded")
 			} else {
-				response.ErrorWithHTTPStatus(c, 429, response.CodeTooManyRequests, msg)
+				response.ErrorWithHTTPStatus(c, http.StatusTooManyRequests, response.CodeTooManyRequests, msg)
 			}
 			c.Abort()
 			return
