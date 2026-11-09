@@ -163,6 +163,33 @@ func TestSendVerifyCodePropagatesRequestTenantBrandToSender(t *testing.T) {
 	}
 }
 
+type countingVerificationEmailSender struct{ sent int }
+
+func (s *countingVerificationEmailSender) SendVerifyCode(_, _, _, _ string, _ mailbrand.Brand) error {
+	s.sent++
+	return nil
+}
+
+// 更换邮箱用途只能走登录态接口，公开发信入口必须拒绝且不发信。
+func TestSendVerifyCodeRejectsChangeEmailPurposes(t *testing.T) {
+	for _, purpose := range []string{
+		constants.VerifyPurposeChangeEmailOld,
+		constants.VerifyPurposeChangeEmailNew,
+		"  CHANGE_EMAIL_NEW ",
+	} {
+		sender := &countingVerificationEmailSender{}
+		svc, _, _ := newRegistrationDomainPolicyAuthServiceWithSender(t, sender)
+
+		err := svc.SendVerifyCode(context.Background(), "stranger@example.com", purpose, constants.LocaleZhCN, "")
+		if !errors.Is(err, userauthapp.ErrInvalidVerifyPurpose) {
+			t.Fatalf("purpose %q: expected ErrInvalidVerifyPurpose, got %v", purpose, err)
+		}
+		if sender.sent != 0 {
+			t.Fatalf("purpose %q: email must not be sent, sent=%d", purpose, sender.sent)
+		}
+	}
+}
+
 type toggleVerificationEmailSender struct{ fail bool }
 
 func (s *toggleVerificationEmailSender) SendVerifyCode(_, _, _, _ string, _ mailbrand.Brand) error {
