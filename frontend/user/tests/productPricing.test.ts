@@ -95,13 +95,23 @@ test('卡片展示价：没有会员价和专属价时不展示', () => {
   assert.equal(resolveCardDisplayPrice(product, 0, 0, []), null)
 })
 
-test('卡片展示价：会员折扣没有低于活动价时不展示', () => {
-  // 原价 100 活动价 70，会员 8 折 = 80 高于活动价 → 不展示会员价
-  const promoProduct = { ...product, promotion_price_amount: '70.00' }
-  assert.equal(resolveCardDisplayPrice(promoProduct, 3, 80, []), null)
-  // 专属价 60 低于活动价 70 → 展示
+test('卡片展示价：有活动价时会员折扣叠加在活动价上', () => {
+  // 原价 100 活动价 70，会员 8 折：后端按 70 × 0.8 = 56 结算，卡片也要显示 56
+  const promoProduct = {
+    ...product,
+    promotion_price_amount: '70.00',
+    skus: [
+      { id: 19, price_amount: '100.00', promotion_price_amount: '70.00', is_active: true },
+      { id: 20, price_amount: '200.00', is_active: true },
+    ],
+  }
+  assert.equal(resolveCardDisplayPrice(promoProduct, 3, 80, []), '56.00')
+  // 专属价 60 高于叠加后的 56 → 仍显示 56
   const userPrices = [{ product_id: 18, sku_id: 0, price_amount: '60.00' }]
-  assert.equal(resolveCardDisplayPrice(promoProduct, 3, 80, userPrices), '60.00')
+  assert.equal(resolveCardDisplayPrice(promoProduct, 3, 80, userPrices), '56.00')
+  // 没有会员等级：专属价 60 低于活动价 70 → 显示 60；专属价 75 不低于活动价 → 不展示
+  assert.equal(resolveCardDisplayPrice(promoProduct, 0, 0, userPrices), '60.00')
+  assert.equal(resolveCardDisplayPrice(promoProduct, 0, 0, [{ product_id: 18, sku_id: 0, price_amount: '75.00' }]), null)
 })
 
 test('无效输入返回 null', () => {

@@ -92,6 +92,7 @@ export const resolveMemberPriceAmount = (
  * 口径与详情页、后端下单一致。
  *
  * 注意第三参数传的是「元」：resolveMemberPriceAmount 内部会自己转分。
+ * 有活动价的 SKU 以活动价为基数，因为后端的会员折扣是叠加在活动价上的。
  */
 export const resolveCardDisplayPrice = (
   product: any,
@@ -100,16 +101,20 @@ export const resolveCardDisplayPrice = (
   userPrices?: any[],
 ): string | null => {
   const skus = (Array.isArray(product?.skus) ? product.skus : []).filter((s: any) => s?.is_active !== false)
-  const candidates: Array<{ id: any; amount: any }> = skus.length > 0
-    ? skus.map((s: any) => ({ id: s.id, amount: s.price_amount }))
-    : [{ id: 0, amount: product?.price_amount }]
+  const candidates: Array<{ id: any; amount: any; promo: any }> = skus.length > 0
+    ? skus.map((s: any) => ({ id: s.id, amount: s.price_amount, promo: s.promotion_price_amount }))
+    : [{ id: 0, amount: product?.price_amount, promo: product?.promotion_price_amount }]
 
   let best: number | null = null
   for (const sku of candidates) {
-    const baseCents = amountToCents(sku.amount ?? product?.price_amount)
+    const amount = sku.amount ?? product?.price_amount
+    const baseCents = amountToCents(amount)
     if (baseCents === null) continue
+    // 后端的会员折扣叠加在活动价上，有活动价时要以活动价为基数，否则卡片会比实收贵。
+    const promoCents = amountToCents(sku.promo)
+    const effective = promoCents !== null && promoCents > 0 && promoCents < baseCents ? sku.promo : amount
     const resolved = amountToCents(
-      resolveMemberPriceAmount(product, sku.id, sku.amount ?? product?.price_amount, memberLevelId, discountRate, userPrices),
+      resolveMemberPriceAmount(product, sku.id, effective, memberLevelId, discountRate, userPrices),
     )
     if (resolved !== null && resolved < baseCents && (best === null || resolved < best)) best = resolved
   }
