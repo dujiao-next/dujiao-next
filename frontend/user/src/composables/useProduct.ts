@@ -2,7 +2,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '../stores/app'
 import { amountToCents, centsToAmount } from '../utils/money'
-import { resolveMemberPriceAmount } from '../utils/productPricing'
+import { resolveCardDisplayPrice, resolveMemberPriceAmount } from '../utils/productPricing'
 import { useUserAuthStore } from '../stores/userAuth'
 import { useUserProfileStore } from '../stores/userProfile'
 
@@ -188,32 +188,15 @@ export function useProductLabels() {
   }
 
   // 列表卡片展示价：取专属价与会员价中更低者，且必须低于活动价/原价才展示。
-  // 口径与详情页和后端下单保持一致。
+  // 口径与详情页和后端下单保持一致，具体规则见 resolveCardDisplayPrice。
   const getCardExclusivePrice = (product: any): string | null => {
     if (!userAuthStore.isAuthenticated) return null
-    const userPrices = userProfileStore.myProductPrices
     const memberLevelId = Number(userAuthStore.user?.member_level_id || 0)
     const memberLevels: any[] = userProfileStore.memberLevels ?? []
     const level = memberLevelId > 0 ? memberLevels.find((l: any) => Number(l?.id || 0) === memberLevelId) : null
     const discountRate = level ? Number(level.discount_rate || 0) : 0
-
-    const skus = (Array.isArray(product?.skus) ? product.skus : []).filter((s: any) => s?.is_active !== false)
-    const candidates: Array<{ id: any; price: any }> = skus.length > 0
-      ? skus.map((s: any) => ({ id: s.id, price: s.price_amount }))
-      : [{ id: 0, price: product?.price_amount }]
-    let best: number | null = null
-    for (const sku of candidates) {
-      const baseForSku = parsePriceAmount(sku.price ?? product?.price_amount)
-      if (baseForSku === null) continue
-      const resolved = parsePriceAmount(
-        resolveMemberPriceAmount(product, sku.id, baseForSku, memberLevelId, discountRate, Array.isArray(userPrices) ? userPrices : [])
-      )
-      if (resolved !== null && resolved < baseForSku && (best === null || resolved < best)) best = resolved
-    }
-    if (best === null) return null
-    const current = parsePriceAmount(hasPromotionPrice(product) ? getPromotionPriceAmount(product) : product?.price_amount)
-    if (current !== null && best >= current) return null
-    return centsToAmount(best)
+    const userPrices = Array.isArray(userProfileStore.myProductPrices) ? userProfileStore.myProductPrices : []
+    return resolveCardDisplayPrice(product, memberLevelId, discountRate, userPrices)
   }
 
   return {

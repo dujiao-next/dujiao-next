@@ -169,7 +169,8 @@ export function usePersonalCenter(sectionGetter: () => PersonalSection) {
     const [profileOk] = await Promise.all([
       userProfileStore.loadProfile(),
       userProfileStore.loadRecentOrders(5),
-      userProfileStore.loadMemberLevels(),
+      // 个人中心每次进入都强制刷新，后台改了折扣率/专属价不用整页刷新才能看到
+      userProfileStore.loadMemberLevels(true),
       userProfileStore.loadMyProductPrices(true),
     ])
     if (!profileOk) {

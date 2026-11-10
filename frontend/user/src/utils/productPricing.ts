@@ -85,3 +85,42 @@ export const resolveMemberPriceAmount = (
   if (memberCents !== null) return centsToAmount(memberCents)
   return null
 }
+
+/**
+ * 商品列表卡片的展示价：取各生效 SKU 中最低的「专属价 / 会员价」，且必须低于
+ * 当前展示价（有活动价时是活动价，否则是原价）才返回；否则返回 null 表示不展示。
+ * 口径与详情页、后端下单一致。
+ *
+ * 注意第三参数传的是「元」：resolveMemberPriceAmount 内部会自己转分。
+ */
+export const resolveCardDisplayPrice = (
+  product: any,
+  memberLevelId: any,
+  discountRate: any,
+  userPrices?: any[],
+): string | null => {
+  const skus = (Array.isArray(product?.skus) ? product.skus : []).filter((s: any) => s?.is_active !== false)
+  const candidates: Array<{ id: any; amount: any }> = skus.length > 0
+    ? skus.map((s: any) => ({ id: s.id, amount: s.price_amount }))
+    : [{ id: 0, amount: product?.price_amount }]
+
+  let best: number | null = null
+  for (const sku of candidates) {
+    const baseCents = amountToCents(sku.amount ?? product?.price_amount)
+    if (baseCents === null) continue
+    const resolved = amountToCents(
+      resolveMemberPriceAmount(product, sku.id, sku.amount ?? product?.price_amount, memberLevelId, discountRate, userPrices),
+    )
+    if (resolved !== null && resolved < baseCents && (best === null || resolved < best)) best = resolved
+  }
+  if (best === null) return null
+
+  // 有活动价时门槛是活动价：专属价/会员价没比活动价更低就不展示。
+  const originalCents = amountToCents(product?.price_amount)
+  const promotionCents = amountToCents(product?.promotion_price_amount)
+  const currentCents = promotionCents !== null && originalCents !== null && promotionCents < originalCents
+    ? promotionCents
+    : originalCents
+  if (currentCents !== null && best >= currentCents) return null
+  return centsToAmount(best)
+}

@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  resolveCardDisplayPrice,
   resolveMemberPriceAmount,
   resolveMemberLevelPriceCents,
   resolveUserPriceCents,
@@ -76,6 +77,31 @@ test('专属价高于传入的活动价/批发价时不使用专属价', () => {
   // 专属价 70 仍低于活动价 80 → 使用专属价
   const cheaper = [{ product_id: 18, sku_id: 0, price_amount: '70.00' }]
   assert.equal(resolveMemberPriceAmount(product, 19, '80.00', 0, 0, cheaper), '70.00')
+})
+
+test('卡片展示价：原价 100、专属价 95、会员 8 折时显示 80', () => {
+  // 曾经的 bug：baseForSku 已是「分」却被当成「元」传进去，内部再乘 100，
+  // 导致会员价永远大于原价而不展示，卡片显示专属价 95 但下单实收 80。
+  const userPrices = [{ product_id: 18, sku_id: 0, price_amount: '95.00' }]
+  assert.equal(resolveCardDisplayPrice(product, 3, 80, userPrices), '80.00')
+})
+
+test('卡片展示价：专属价更低时显示专属价', () => {
+  const userPrices = [{ product_id: 18, sku_id: 0, price_amount: '70.00' }]
+  assert.equal(resolveCardDisplayPrice(product, 3, 80, userPrices), '70.00')
+})
+
+test('卡片展示价：没有会员价和专属价时不展示', () => {
+  assert.equal(resolveCardDisplayPrice(product, 0, 0, []), null)
+})
+
+test('卡片展示价：会员折扣没有低于活动价时不展示', () => {
+  // 原价 100 活动价 70，会员 8 折 = 80 高于活动价 → 不展示会员价
+  const promoProduct = { ...product, promotion_price_amount: '70.00' }
+  assert.equal(resolveCardDisplayPrice(promoProduct, 3, 80, []), null)
+  // 专属价 60 低于活动价 70 → 展示
+  const userPrices = [{ product_id: 18, sku_id: 0, price_amount: '60.00' }]
+  assert.equal(resolveCardDisplayPrice(promoProduct, 3, 80, userPrices), '60.00')
 })
 
 test('无效输入返回 null', () => {

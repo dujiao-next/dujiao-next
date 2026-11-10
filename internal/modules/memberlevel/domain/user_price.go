@@ -7,7 +7,9 @@ import (
 )
 
 // UserProductPrice 用户专属商品价（一口价）。
-// 命中后直接作为该用户的结算单价，不再叠加活动价、批发价和会员等级价。
+// 下单时按「基础价 → 活动价 → 批发价 → 会员等级价」算出最终单价后，仅当专属价
+// 严格低于该单价时才用它覆盖，并把活动价、批发价、会员等级价带来的优惠清零；
+// 专属价更高时以原流程的价格结算。
 type UserProductPrice struct {
 	ID          uint         `gorm:"primarykey" json:"id"`
 	UserID      uint         `gorm:"uniqueIndex:idx_user_product_price;not null" json:"user_id"`                        // 关联用户
