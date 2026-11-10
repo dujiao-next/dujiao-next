@@ -13,6 +13,7 @@ import type {
     UserLoginLogItem,
     UserProfileData,
 } from '../api'
+import { useAppStore } from './app'
 import { useUserAuthStore } from './userAuth'
 
 interface PersonalOrderSummary {
@@ -115,7 +116,8 @@ export const useUserProfileStore = defineStore('user-profile', () => {
 
     const loadMyProductPrices = async (force = false) => {
         const userId = Number(userAuthStore.user?.id || 0)
-        if (!userAuthStore.isAuthenticated || userId <= 0) {
+        // 分销店铺的订单后端不使用专属价，前台也不展示，避免显示价低于实收
+        if (!userAuthStore.isAuthenticated || userId <= 0 || useAppStore().isResellerTenant) {
             myProductPrices.value = []
             myProductPricesLoadedFor = 0
             myProductPricesInflight = null
