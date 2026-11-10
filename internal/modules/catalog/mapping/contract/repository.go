@@ -23,6 +23,9 @@ type MappingRepository interface {
 	GetByConnectionAndUpstreamID(connectionID, upstreamProductID uint) (*mappingdomain.Mapping, error)
 	Create(mapping *mappingdomain.Mapping) error
 	Update(mapping *mappingdomain.Mapping) error
+	// UpdateUpstreamCategoryID 只刷新上游分类 ID 这一列，避免整行写回覆盖
+	// 并发同步刚更新的下架状态 / 同步时间。
+	UpdateUpstreamCategoryID(id uint, upstreamCategoryID uint) error
 	Delete(id uint) error
 	DeleteByLocalProduct(productID uint) error
 	List(filter ListFilter) ([]mappingdomain.Mapping, int64, error)
