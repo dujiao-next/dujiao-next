@@ -169,14 +169,11 @@ func (s *Service) BatchImportByCategory(
 	if needCatMap {
 		catCtx, catCancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer catCancel()
-		catResult, catErr := adapter.ListCategories(catCtx)
+		fetched, catErr := s.fetchUpstreamCategoryMap(catCtx, adapter)
 		if catErr != nil {
 			return nil, fmt.Errorf("fetch upstream categories: %w", catErr)
 		}
-		catMap = make(map[uint]upstream.UpstreamCategory, len(catResult.Categories))
-		for _, c := range catResult.Categories {
-			catMap[c.ID] = c
-		}
+		catMap = fetched
 	}
 
 	if autoCreateCategory && categoryID == 0 {

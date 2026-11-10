@@ -206,6 +206,7 @@ const openEditModal = (conn: AdminSiteConnection) => {
     auto_sync_price: conn.auto_sync_price ? 'true' : 'false',
   })
   resetCategoryMarkups(conn.category_markups)
+  pricingSnapshot = pricingKey(buildPayload())
   showModal.value = true
 }
 
@@ -258,6 +259,12 @@ const buildCategoryMarkups = () => {
   return result
 }
 
+// 定价相关字段的快照：只有它们变了，保存后才补一次完整重算，
+// 否则只改名称/密钥也会把手动调过的售价全部覆盖。
+let pricingSnapshot = ''
+const pricingKey = (p: ReturnType<typeof buildPayload>) =>
+  JSON.stringify([p.exchange_rate, p.price_markup_percent, p.price_rounding_mode, p.category_markups])
+
 const handleSubmit = async () => {
   if (!validate({ ...form } as Record<string, unknown>)) return
   try {
@@ -274,7 +281,8 @@ const handleSubmit = async () => {
 
     // 保存时后端只按本地已知分类 ID 重算，继承父分类、分类未配置和分类 ID 还是 0 的
     // 旧映射会被跳过。这里补一次完整重算（会拉分类树），否则页面显示成功但价格没变。
-    if (savedId && Object.keys(payload.category_markups ?? {}).length > 0) {
+    const pricingChanged = !isEditing.value || pricingKey(payload) !== pricingSnapshot
+    if (savedId && pricingChanged && Object.keys(payload.category_markups ?? {}).length > 0) {
       try {
         const res = await adminAPI.reapplyConnectionMarkup(savedId)
         const count = (res.data?.data as { updated_products?: number } | undefined)?.updated_products ?? 0

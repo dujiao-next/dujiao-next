@@ -305,3 +305,18 @@ func (r *recordingMappingRepo) Update(item *mappingdomain.Mapping) error {
 	r.mapping = item
 	return nil
 }
+
+// unsupportedCategoryAdapter 模拟分类接口 404：适配器返回 Supported=false 的空列表而不是错误。
+type unsupportedCategoryAdapter struct{ upstream.Adapter }
+
+func (unsupportedCategoryAdapter) ListCategories(_ context.Context) (*upstream.CategoryListResult, error) {
+	return &upstream.CategoryListResult{Supported: false}, nil
+}
+
+// 配了分类加价时，「上游不支持分类」不能当成一棵空树，否则子分类商品会按默认加价改价。
+func TestUpstreamCategoryParentsRejectsUnsupportedUpstream(t *testing.T) {
+	conn := &siteconnectiondomain.Connection{ID: 1, CategoryMarkups: jsonmap.JSON{"1": float64(50)}}
+	if _, ok := (&Service{}).upstreamCategoryParents(context.Background(), unsupportedCategoryAdapter{}, conn); ok {
+		t.Fatal("expected ok=false when upstream does not support categories")
+	}
+}

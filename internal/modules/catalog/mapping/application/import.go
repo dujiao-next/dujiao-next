@@ -336,6 +336,11 @@ func (s *Service) fetchUpstreamCategoryMap(ctx context.Context, adapter upstream
 	if err != nil {
 		return nil, err
 	}
+	// 适配器把分类接口 404 当成「旧版上游不支持」返回空列表；这里不能当成一棵空树，
+	// 否则继承父分类加价的商品会被按默认加价改价。
+	if !catResult.Supported {
+		return nil, errors.New("upstream does not support categories")
+	}
 	catMap := make(map[uint]upstream.UpstreamCategory, len(catResult.Categories))
 	for _, c := range catResult.Categories {
 		catMap[c.ID] = c
