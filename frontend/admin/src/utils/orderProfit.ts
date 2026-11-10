@@ -78,10 +78,23 @@ export const buildItemRefundAllocation = (order: AdminOrder | null | undefined) 
       distributeCents(group.ownRefundCents, weightsOf(group.items)).forEach((value, index) => add(group.items[index]!, value))
     })
   }
-  distributeCents(Math.max(refundedCents - ownTotal, 0), weightsOf(allItems)).forEach((value, index) => add(allItems[index]!, value))
+  // 第二步的权重是「实付 - 已分到的退款」：先退过子订单再退父订单时，
+  // 同一笔钱不能再按原始实付分一次，否则该订单项分到的退款会超过实付。
+  const remainingWeights = allItems.map((item) => Math.max(toCents(itemRevenueAmount(item)) - (cents.get(item.id) || 0), 0))
+  distributeCents(Math.max(refundedCents - ownTotal, 0), remainingWeights).forEach((value, index) => add(allItems[index]!, value))
 
   cents.forEach((value, id) => allocation.set(id, fromCents(value)))
   return allocation
+}
+
+/**
+ * 父订单层的退款额 = 父订单已退 - 各子订单自己已退之和。
+ * 直接退子订单时两边都会累加，所以要先减掉；只退了子订单时这里为 0。
+ */
+const parentLevelRefundAmount = (order: AdminOrder | null | undefined) => {
+  const children = order?.children || []
+  const ownTotal = children.reduce((sum, child) => sum + Math.max(toNumber(child.refunded_amount), 0), 0)
+  return Math.max(toNumber(order?.refunded_amount) - ownTotal, 0)
 }
 
 /**
@@ -105,9 +118,10 @@ export const calcItemProfit = (
     if (revenue > 0) {
       ratio = refund / revenue
     } else {
-      // 实付为 0 的订单项没有可比金额，按订单整体退款比例冲回，与后端一致。
+      // 实付为 0 的订单项没有可比金额，按父订单层退款比例冲回，与后端一致。
+      // 只看父订单层的退款：单独退了别的子订单不会让它跟着冲回成本。
       const total = toNumber(order?.total_amount)
-      ratio = total > 0 ? toNumber(order?.refunded_amount) / total : 0
+      ratio = total > 0 ? parentLevelRefundAmount(order) / total : 0
     }
     reversed = cost * Math.min(Math.max(ratio, 0), 1)
   }

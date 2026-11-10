@@ -71,6 +71,22 @@ describe('订单详情利润', () => {
     expect(profitOf(order, b, false)).toBe(-6)
   })
 
+  it('只退其他子订单时，实付为 0 的订单项不冲回成本', () => {
+    // A 实付 60、成本 30；B 被优惠券抵成 0、成本 6。只直接退子订单 A 60（父订单总额 100）。
+    // 这笔退款在仪表盘里只冲回 A 的成本，B 不应跟着冲回。
+    const a = makeItem(1, 60, 30)
+    const b = { ...makeItem(2, 10, 6), coupon_discount_amount: 10 } as unknown as AdminOrderItem
+    const order = familyOf(
+      [
+        makeOrder({ id: 11, total_amount: 60, refunded_amount: 60, items: [a] }),
+        makeOrder({ id: 12, total_amount: 0, refunded_amount: 0, items: [b] }),
+      ],
+      { total_amount: 100, refunded_amount: 60 },
+    )
+    expect(profitOf(order, a, true)).toBe(0)
+    expect(profitOf(order, b, true)).toBe(-6)
+  })
+
   it('实付为 0 且未退款时不冲回成本', () => {
     const b = { ...makeItem(2, 10, 6), coupon_discount_amount: 10 } as unknown as AdminOrderItem
     const order = makeOrder({ total_amount: 0, refunded_amount: 0, items: [b] })
@@ -112,6 +128,26 @@ describe('父子订单退款分摊', () => {
     expect(allocation.get(2) || 0).toBe(0)
     expect(profitOf(order, a, true)).toBe(0)
     expect(profitOf(order, b, true)).toBe(30)
+  })
+
+  it('先退子订单再退父订单：父订单层退款不再按原始实付重复分摊', () => {
+    // A 实付 60、成本 30；B 实付 40、成本 10。先直接退子订单 A 60，再退父订单剩下的 40。
+    // 第一步 A 已分到 60，第二步若仍按原始实付 60/40 分配，A 会多拿 24；
+    // 按「实付 - 已分到」加权后 A 权重 0、B 权重 40，正好各 60 / 40。
+    const a = makeItem(1, 60, 30)
+    const b = makeItem(2, 40, 10)
+    const order = familyOf(
+      [
+        makeOrder({ id: 11, total_amount: 60, refunded_amount: 60, items: [a] }),
+        makeOrder({ id: 12, total_amount: 40, refunded_amount: 0, items: [b] }),
+      ],
+      { total_amount: 100, refunded_amount: 100 },
+    )
+    const allocation = buildItemRefundAllocation(order)
+    expect(allocation.get(1)).toBe(60)
+    expect(allocation.get(2)).toBe(40)
+    expect(profitOf(order, a, true)).toBe(0)
+    expect(profitOf(order, b, true)).toBe(0)
   })
 
   it('分摊总和等于已退款金额，尾差不丢失', () => {
