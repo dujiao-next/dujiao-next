@@ -150,6 +150,41 @@ describe('父子订单退款分摊', () => {
     expect(profitOf(order, b, true)).toBe(0)
   })
 
+  it('先退子订单再退完父订单：实付为 0 的订单项成本全部冲回', () => {
+    // A 实付 60、成本 30；B 实付 40、成本 10；Z 实付 0、成本 6。
+    // 先退子订单 A 60，再退父订单剩下的 40，整单已全额退款，利润应为 0。
+    const a = makeItem(1, 60, 30)
+    const b = makeItem(2, 40, 10)
+    const z = makeItem(3, 0, 6)
+    const order = familyOf(
+      [
+        makeOrder({ id: 11, total_amount: 60, refunded_amount: 60, items: [a] }),
+        makeOrder({ id: 12, total_amount: 40, refunded_amount: 0, items: [b] }),
+        makeOrder({ id: 13, total_amount: 0, refunded_amount: 0, items: [z] }),
+      ],
+      { total_amount: 100, refunded_amount: 100 },
+    )
+    expect(profitOf(order, a, true)).toBe(0)
+    expect(profitOf(order, b, true)).toBe(0)
+    expect(profitOf(order, z, true)).toBe(0)
+  })
+
+  it('尾差不落到已退满的订单项上', () => {
+    // 三个 10 元子订单 + 一个已退满 60 的末项，父订单再退 10：
+    // 除不尽的 1 分钱给最后一个还没退满的项，末项保持 60。
+    const items = [makeItem(1, 10, 5), makeItem(2, 10, 5), makeItem(3, 10, 5), makeItem(4, 60, 30)]
+    const order = familyOf(
+      items.map((item, index) =>
+        makeOrder({ id: 10 + index, total_amount: Number(item.total_price), refunded_amount: index === 3 ? 60 : 0, items: [item] }),
+      ),
+      { total_amount: 90, refunded_amount: 70 },
+    )
+    const allocation = buildItemRefundAllocation(order)
+    expect(allocation.get(4)).toBe(60)
+    expect(allocation.get(3)).toBe(3.34)
+    expect(profitOf(order, items[3]!, true)).toBe(0)
+  })
+
   it('分摊总和等于已退款金额，尾差不丢失', () => {
     const items = [makeItem(1, 33.33, 10), makeItem(2, 33.33, 10), makeItem(3, 33.34, 10)]
     const order = familyOf(
