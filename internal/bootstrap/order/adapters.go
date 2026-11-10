@@ -25,6 +25,7 @@ import (
 	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
 
 	"github.com/dujiao-next/internal/constants"
+	"github.com/dujiao-next/internal/logger"
 	captchaapp "github.com/dujiao-next/internal/modules/captcha/application"
 	captchahttp "github.com/dujiao-next/internal/modules/captcha/transport/http"
 	couponcontract "github.com/dujiao-next/internal/modules/coupon/contract"
@@ -32,6 +33,7 @@ import (
 	orderriskcontract "github.com/dujiao-next/internal/modules/orderrisk/contract"
 	promotioncontract "github.com/dujiao-next/internal/modules/promotion/contract"
 	reseller "github.com/dujiao-next/internal/modules/reseller/contract"
+	settingsstorefront "github.com/dujiao-next/internal/modules/settings/schema/storefront"
 	walletcontract "github.com/dujiao-next/internal/modules/wallet/contract"
 	"github.com/dujiao-next/internal/queue"
 	"github.com/dujiao-next/internal/shared/money"
@@ -110,6 +112,25 @@ type orderAdminPaymentChannelAdapter struct {
 
 func (a orderAdminPaymentChannelAdapter) ListByIDs(ids []uint) ([]paymentdomain.PaymentChannel, error) {
 	return a.channels.ListByIDs(ids)
+}
+
+// orderAdminDashboardSettingReader 是订单适配器读取仪表盘统计口径所需的最小设置接口。
+type orderAdminDashboardSettingReader interface {
+	GetDashboardSetting() (settingsstorefront.DashboardSetting, error)
+}
+
+type orderAdminAccountingAdapter struct {
+	settings orderAdminDashboardSettingReader
+}
+
+// RefundReversesCost 读取仪表盘“退款冲回成本”开关；读取失败时按默认（关闭）处理，不影响订单详情。
+func (a orderAdminAccountingAdapter) RefundReversesCost() bool {
+	setting, err := a.settings.GetDashboardSetting()
+	if err != nil {
+		logger.Warnw("order_admin_load_dashboard_setting_failed", "error", err)
+		return false
+	}
+	return setting.Accounting.RefundReversesCost
 }
 
 type orderUserQueryAdapter struct {
