@@ -66,6 +66,7 @@ type Dependencies struct {
 	CardSecretBatches CardSecretBatchStore
 	Categories        categorycontract.Repository
 	MemberLevelPrices memberLevelPriceCleaner
+	UserPrices        memberLevelPriceCleaner
 	Carts             *cartgormstore.Store
 	ProductMappings   MappingStore
 	Orders            OrderReader
@@ -129,6 +130,7 @@ type productAdminUnitOfWork struct {
 	cardSecrets       CardSecretStore
 	cardSecretBatches CardSecretBatchStore
 	memberLevelPrices memberLevelPriceCleaner
+	userPrices        memberLevelPriceCleaner
 	carts             *cartgormstore.Store
 	productMappings   MappingStore
 }
@@ -139,6 +141,7 @@ func newProductAdminUnitOfWork(
 	cardSecrets CardSecretStore,
 	cardSecretBatches CardSecretBatchStore,
 	memberLevelPrices memberLevelPriceCleaner,
+	userPrices memberLevelPriceCleaner,
 	carts *cartgormstore.Store,
 	productMappings MappingStore,
 ) productadmin.UnitOfWork {
@@ -148,6 +151,7 @@ func newProductAdminUnitOfWork(
 		cardSecrets:       cardSecrets,
 		cardSecretBatches: cardSecretBatches,
 		memberLevelPrices: memberLevelPrices,
+		userPrices:        userPrices,
 		carts:             carts,
 		productMappings:   productMappings,
 	}
@@ -166,7 +170,8 @@ func (unit *productAdminUnitOfWork) WithinTransaction(fn func(productadmin.Delet
 			CardSecrets:       unit.cardSecrets.BindTx(tx),
 			CardSecretBatches: unit.cardSecretBatches.BindTx(tx),
 			SKUs:              unit.productSKUs.BindTx(tx),
-			MemberLevelPrices: memberLevelPriceDeleteAdapter{tx: tx, cleaner: unit.memberLevelPrices},
+			MemberLevelPrices: priceDeleteAdapter{tx: tx, cleaner: unit.memberLevelPrices},
+			UserPrices:        priceDeleteAdapter{tx: tx, cleaner: unit.userPrices},
 			Carts:             unit.carts.WithTx(tx),
 			ProductMappings:   bindMappingDeleteTx(unit.productMappings, tx),
 		})
@@ -180,12 +185,14 @@ func bindMappingDeleteTx(repo MappingStore, tx *gorm.DB) productadmin.ProductMap
 	return repo.BindTx(tx)
 }
 
-type memberLevelPriceDeleteAdapter struct {
+// priceDeleteAdapter 把「事务内删除某商品的价格行」适配成商品级联删除所需的窄端口。
+// 会员等级价与用户专属价的清理签名完全一致，共用这一个适配器。
+type priceDeleteAdapter struct {
 	tx      *gorm.DB
 	cleaner memberLevelPriceCleaner
 }
 
-func (adapter memberLevelPriceDeleteAdapter) DeleteByProduct(productID uint) error {
+func (adapter priceDeleteAdapter) DeleteByProduct(productID uint) error {
 	return adapter.cleaner.DeleteByProductInTx(adapter.tx, productID)
 }
 
@@ -201,7 +208,7 @@ func New(dependencies Dependencies) Services {
 		Categories:   dependencies.Categories,
 		CardSecrets:  dependencies.CardSecrets,
 		Orders:       dependencies.Orders,
-		Transactions: newProductAdminUnitOfWork(dependencies.Products, dependencies.SKUs, dependencies.CardSecrets, dependencies.CardSecretBatches, dependencies.MemberLevelPrices, dependencies.Carts, dependencies.ProductMappings),
+		Transactions: newProductAdminUnitOfWork(dependencies.Products, dependencies.SKUs, dependencies.CardSecrets, dependencies.CardSecretBatches, dependencies.MemberLevelPrices, dependencies.UserPrices, dependencies.Carts, dependencies.ProductMappings),
 	})
 	write := productwrite.NewWriteService(productwrite.Options{
 		Products:        dependencies.Products,

@@ -99,13 +99,79 @@ export const useUserProfileStore = defineStore('user-profile', () => {
         }
     })
 
-    const loadMemberLevels = async () => {
-        try {
-            const response = await memberLevelAPI.list()
-            memberLevels.value = Array.isArray(response.data.data) ? response.data.data : []
-        } catch {
-            memberLevels.value = []
+    const myProductPrices = ref<Array<{
+        product_id: number
+        sku_id: number
+        price_amount: string | number
+        product_slug?: string
+        product_title?: Record<string, string>
+        product_active?: boolean
+        sku_code?: string
+        sku_spec_values?: Record<string, unknown>
+    }>>([])
+    let myProductPricesLoadedFor = 0
+    // 进行中的请求连同它属于哪个用户一起存，切换账号后不能复用上一个用户的 Promise
+    let myProductPricesInflight: { userId: number; promise: Promise<void> } | null = null
+
+    const loadMyProductPrices = async (force = false) => {
+        const userId = Number(userAuthStore.user?.id || 0)
+        if (!userAuthStore.isAuthenticated || userId <= 0) {
+            myProductPrices.value = []
+            myProductPricesLoadedFor = 0
+            myProductPricesInflight = null
+            return
         }
+        if (!force && myProductPricesLoadedFor === userId) return
+        // 同一用户已有正在进行中的请求，直接复用，不再并发发出第二个
+        if (!force && myProductPricesInflight && myProductPricesInflight.userId === userId) {
+            return myProductPricesInflight.promise
+        }
+        // 切换账号时先清掉上一个账号的列表，但不要立刻记下 loadedFor：
+        // 上一个账号的慢请求如果晚到，不能把当前账号的数据覆盖掉。
+        if (myProductPricesLoadedFor !== userId) {
+            myProductPrices.value = []
+            myProductPricesInflight = null
+        }
+        const doLoad = async () => {
+            try {
+                const response = await userProfileAPI.productPrices()
+                // 等待期间账号可能已经切换，结果不再属于当前用户就丢弃。
+                const currentUserId = Number(userAuthStore.user?.id || 0)
+                if (currentUserId !== userId) return
+                myProductPricesLoadedFor = userId
+                myProductPrices.value = Array.isArray(response.data.data) ? response.data.data : []
+            } catch {
+                myProductPrices.value = []
+                myProductPricesLoadedFor = 0
+            } finally {
+                if (myProductPricesInflight?.userId === userId) {
+                    myProductPricesInflight = null
+                }
+            }
+        }
+        const promise = doLoad()
+        myProductPricesInflight = { userId, promise }
+        return promise
+    }
+
+    let memberLevelsInflight: Promise<void> | null = null
+
+    const loadMemberLevels = async (force = false) => {
+        if (!force && memberLevels.value.length > 0) return
+        // 商品卡片会并发调用，避免一页发出几十个相同请求
+        if (!force && memberLevelsInflight) return memberLevelsInflight
+        const doLoad = async () => {
+            try {
+                const response = await memberLevelAPI.list()
+                memberLevels.value = Array.isArray(response.data.data) ? response.data.data : []
+            } catch {
+                memberLevels.value = []
+            } finally {
+                memberLevelsInflight = null
+            }
+        }
+        memberLevelsInflight = doLoad()
+        return memberLevelsInflight
     }
 
     const clearProfileError = () => {
@@ -387,6 +453,8 @@ export const useUserProfileStore = defineStore('user-profile', () => {
         changePassword,
         loadRecentOrders,
         loadMemberLevels,
+        myProductPrices,
+        loadMyProductPrices,
         loadRecentLoginLogs,
         loadTelegramBinding,
         bindTelegram,

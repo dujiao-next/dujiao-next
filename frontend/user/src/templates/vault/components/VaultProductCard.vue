@@ -37,7 +37,11 @@
     <div class="mt-auto flex items-end justify-between gap-2 px-1">
       <div class="flex min-w-0 flex-col gap-1">
         <div class="flex flex-wrap items-baseline gap-x-1.5">
-          <template v-if="promo">
+          <template v-if="exclusivePrice !== null">
+            <span class="text-xl font-extrabold tabular-nums text-[color:var(--gold-strong)]">{{ formatPrice(exclusivePrice, siteCurrency) }}</span>
+            <span class="text-sm font-semibold text-muted-foreground line-through">{{ formatPrice(product.price_amount, siteCurrency) }}</span>
+          </template>
+          <template v-else-if="promo">
             <span class="text-xl font-extrabold tabular-nums text-primary">{{ formatPrice(getPromotionPriceAmount(product), siteCurrency) }}</span>
             <span class="text-sm font-semibold text-muted-foreground line-through">{{ formatPrice(product.price_amount, siteCurrency) }}</span>
           </template>
@@ -75,7 +79,7 @@ const { t } = useI18n()
 const { getLocalizedText, siteCurrency, formatPrice } = useLocalized()
 const {
   getStockStatusLabel, getPurchaseTypeLabel, getFulfillmentTypeLabel,
-  isSoldOut, hasPromotionPrice, getPromotionPriceAmount, hasWholesalePrices, hasPromotionRules,
+  isSoldOut, hasPromotionPrice, getPromotionPriceAmount, hasWholesalePrices, hasPromotionRules, getCardExclusivePrice,
 } = useProductLabels()
 
 // 封面渐变（对应原 cover-red/teal/plum/gold/ink）
@@ -92,6 +96,7 @@ const title = computed(() => getLocalizedText(props.product?.title))
 const categoryName = computed(() => getLocalizedText(props.product?.category?.name))
 const soldOut = computed(() => isSoldOut(props.product))
 const promo = computed(() => hasPromotionPrice(props.product))
+const exclusivePrice = computed(() => getCardExclusivePrice(props.product))
 
 const imageErrored = ref(false)
 const coverImage = computed(() => {
@@ -114,6 +119,7 @@ const stockPill = computed<{ tone: string; icon: Component; label: string }>(() 
 
 // 价签徽章：促销 / 批发 / 活动（择一，对齐 classic 优先级）
 const priceSignal = computed<{ tone: string; label: string } | null>(() => {
+  if (exclusivePrice.value !== null) return { tone: 'bg-[color:var(--gold-soft)] text-[color:var(--gold-strong)]', label: t('products.memberPriceTag') }
   if (promo.value) return { tone: 'bg-primary/10 text-primary', label: t('products.promotionTag') }
   if (hasWholesalePrices(props.product)) return { tone: 'bg-[color:var(--teal-soft)] text-[color:var(--teal-strong)]', label: t('products.wholesaleTag') }
   if (hasPromotionRules(props.product)) return { tone: 'bg-[color:var(--gold-soft)] text-[color:var(--gold-strong)]', label: t('products.promotionBadge') }

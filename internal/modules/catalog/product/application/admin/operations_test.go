@@ -36,6 +36,7 @@ func TestAdminServiceDeleteUsesAllCascadePorts(t *testing.T) {
 		CardSecretBatches: productRelationDeleteStub{name: "card_secret_batches", deleted: deleted},
 		SKUs:              productRelationDeleteStub{name: "skus", deleted: deleted},
 		MemberLevelPrices: productRelationDeleteStub{name: "member_level_prices", deleted: deleted},
+		UserPrices:        productRelationDeleteStub{name: "user_prices", deleted: deleted},
 		Carts:             productRelationDeleteStub{name: "carts", deleted: deleted},
 		ProductMappings:   productMappingDeleteStub{deleted: deleted},
 	}
@@ -53,7 +54,7 @@ func TestAdminServiceDeleteUsesAllCascadePorts(t *testing.T) {
 	if !transactions.called {
 		t.Fatal("expected cascade to run inside the unit of work")
 	}
-	for _, name := range []string{"product", "card_secrets", "card_secret_batches", "skus", "member_level_prices", "carts", "product_mappings"} {
+	for _, name := range []string{"product", "card_secrets", "card_secret_batches", "skus", "member_level_prices", "user_prices", "carts", "product_mappings"} {
 		if deleted[name] != 1 {
 			t.Errorf("expected %s delete once, got %d", name, deleted[name])
 		}

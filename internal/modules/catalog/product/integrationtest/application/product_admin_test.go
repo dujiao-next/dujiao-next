@@ -207,6 +207,7 @@ func TestProductServiceDeleteRollsBackCascadeWhenProductDeleteFails(t *testing.T
 		CardSecretBatches: cardsecretgormstore.NewBatch(db),
 		Categories:        categorygormstore.NewCategoryStore(db),
 		MemberLevelPrices: memberlevelgormstore.NewPriceStore(db),
+		UserPrices:        memberlevelgormstore.NewUserPriceStore(db),
 		Carts:             cartgormstore.New(db),
 		ProductMappings:   mappinggormstore.NewMappingStore(db),
 		Orders:            ordergormstore.New(db, "test-guest-credential-secret-with-32-bytes"),

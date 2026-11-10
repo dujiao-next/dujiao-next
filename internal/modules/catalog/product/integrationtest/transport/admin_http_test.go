@@ -289,6 +289,52 @@ func TestBatchUpdateProductStockDisplay(t *testing.T) {
 	}
 }
 
+func TestBatchUpdateProductPurchaseType(t *testing.T) {
+	h, db := setupAdminProductHandlerTest(t)
+
+	product := productdomain.Product{
+		Slug:            "batch-purchase-type-product",
+		TitleJSON:       jsonmap.JSON{"zh-CN": "batch-purchase-type-product"},
+		PriceAmount:     money.FromDecimal(decimal.NewFromInt(10)),
+		FulfillmentType: constants.FulfillmentTypeUpstream,
+		IsMapped:        true,
+		PurchaseType:    constants.ProductPurchaseMember,
+	}
+	if err := db.Create(&product).Error; err != nil {
+		t.Fatalf("create product failed: %v", err)
+	}
+
+	post := func(body string) int {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/products/batch-purchase-type", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = req
+		h.BatchUpdateProductPurchaseType(c)
+		var resp struct {
+			StatusCode int `json:"status_code"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("decode response failed: %v body=%s", err, w.Body.String())
+		}
+		return resp.StatusCode
+	}
+
+	if code := post(fmt.Sprintf(`{"ids":[%d],"purchase_type":"bogus"}`, product.ID)); code == 0 {
+		t.Fatal("expected invalid purchase type to be rejected")
+	}
+	if code := post(fmt.Sprintf(`{"ids":[%d],"purchase_type":"guest"}`, product.ID)); code != 0 {
+		t.Fatalf("expected success, got status_code %d", code)
+	}
+	var reloaded productdomain.Product
+	if err := db.First(&reloaded, product.ID).Error; err != nil {
+		t.Fatalf("reload product failed: %v", err)
+	}
+	if reloaded.PurchaseType != constants.ProductPurchaseGuest {
+		t.Fatalf("expected guest, got %q", reloaded.PurchaseType)
+	}
+}
+
 func TestUpdateProductWholesalePricesHandlerUpdatesTiers(t *testing.T) {
 	h, db := setupAdminProductHandlerTest(t)
 
