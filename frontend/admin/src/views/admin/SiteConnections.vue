@@ -262,14 +262,30 @@ const handleSubmit = async () => {
   if (!validate({ ...form } as Record<string, unknown>)) return
   try {
     const payload = buildPayload()
+    let savedId = editingId.value
     if (isEditing.value && editingId.value) {
       await adminAPI.updateSiteConnection(editingId.value, payload)
     } else {
-      await adminAPI.createSiteConnection(payload)
+      const res = await adminAPI.createSiteConnection(payload)
+      savedId = (res.data?.data as { id?: number } | undefined)?.id ?? null
     }
     closeModal()
     fetchConnections(isEditing.value ? pagination.page : 1)
-    notifySuccess()
+
+    // 保存时后端只按本地已知分类 ID 重算，继承父分类、分类未配置和分类 ID 还是 0 的
+    // 旧映射会被跳过。这里补一次完整重算（会拉分类树），否则页面显示成功但价格没变。
+    if (savedId && Object.keys(payload.category_markups ?? {}).length > 0) {
+      try {
+        const res = await adminAPI.reapplyConnectionMarkup(savedId)
+        const count = (res.data?.data as { updated_products?: number } | undefined)?.updated_products ?? 0
+        notifySuccess(t('siteConnections.reapplyMarkup.success', { count }))
+      } catch (err: any) {
+        // 连接本身已保存成功，这里只提示重算失败，避免让人以为保存没生效。
+        notifyError(t('siteConnections.reapplyMarkup.autoFailed') + ': ' + (err?.response?.data?.message || err?.message || ''))
+      }
+    } else {
+      notifySuccess()
+    }
   } catch (err: any) {
     notifyError(err?.response?.data?.message || err?.message)
   }

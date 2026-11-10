@@ -76,13 +76,31 @@ func (s *Service) SyncProduct(mappingID uint) error {
 	}
 
 	// 记录上游分类并按分类解析加价（分类自身 → 父分类 → 连接默认）。
-	// 只要该分类需要向父分类继承就拉分类树：即使 AutoSyncPrice 关闭，下面「上游新增 SKU」
-	// 和批发价同步仍会用 markupPercent 算价，按默认加价写进去就是错价。
 	mapping.UpstreamCategoryID = upProduct.CategoryID
+
+	// 先算出这一轮是否真的要用加价改价，再决定要不要拉分类树。
+	// SyncProduct 也会被下单前的实时库存检查调用，无条件拉分类树会让每次检查都多一次上游请求。
+	skuMappings, err := s.skuMappings.ListByProductMapping(mappingID)
+	if err != nil {
+		return err
+	}
+	existingUpstreamSKU := make(map[uint]struct{}, len(skuMappings))
+	for _, sm := range skuMappings {
+		existingUpstreamSKU[sm.UpstreamSKUID] = struct{}{}
+	}
+	hasNewSKU := false
+	for _, upSKU := range upProduct.SKUs {
+		if _, ok := existingUpstreamSKU[upSKU.ID]; !ok {
+			hasNewSKU = true
+			break
+		}
+	}
+	needsPricing := conn.AutoSyncPrice || hasNewSKU || len(upProduct.WholesalePrices) > 0
+
 	var categoryParents map[uint]uint
 	// 分类树是否可用：false 表示这一轮不能安全算价，下游只同步库存/上下架，不改售价。
 	markupReady := true
-	if categoryMarkupsNeedParents(conn.CategoryMarkups, upProduct.CategoryID) {
+	if needsPricing && categoryMarkupsNeedParents(conn.CategoryMarkups, upProduct.CategoryID) {
 		parents, parentsOK := s.upstreamCategoryParents(ctx, adapter, conn)
 		if !parentsOK {
 			// 配置了分类加价却拿不到分类树：不能按默认加价把价格改低。
@@ -115,10 +133,7 @@ func (s *Service) SyncProduct(mappingID uint) error {
 	}
 
 	// ── 2. 同步 SKU：新增 / 更新 / 停用 ──
-	skuMappings, err := s.skuMappings.ListByProductMapping(mappingID)
-	if err != nil {
-		return err
-	}
+	// skuMappings 已在上面判断是否需要算价时读取过。
 
 	// 构建上游 SKU 查找表
 	upstreamSKUMap := make(map[uint]upstream.UpstreamSKU, len(upProduct.SKUs))

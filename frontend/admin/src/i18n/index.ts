@@ -319,6 +319,7 @@ const messages = {
       reapplyMarkup: {
         confirm: '确认对「{name}」的所有映射商品重新应用加价规则？此操作将覆盖所有已映射商品的本地售价。',
         success: '已成功更新 {count} 个商品价格',
+        autoFailed: '连接已保存，但自动重算价格失败',
       },
       empty: '暂无数据',
     },
@@ -4875,6 +4876,7 @@ const messages = {
       reapplyMarkup: {
         confirm: '確認對「{name}」的所有映射商品重新套用加價規則？此操作將覆蓋所有已映射商品的本地售價。',
         success: '已成功更新 {count} 個商品價格',
+        autoFailed: '連線已儲存，但自動重算價格失敗',
       },
       empty: '暫無資料',
     },
@@ -9431,6 +9433,7 @@ const messages = {
       reapplyMarkup: {
         confirm: 'Reapply markup rules to all mapped products of "{name}"? This will overwrite all local prices.',
         success: 'Successfully updated {count} product prices',
+        autoFailed: 'Connection saved, but recalculating prices failed',
       },
       empty: 'No data',
     },

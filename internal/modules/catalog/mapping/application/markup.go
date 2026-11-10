@@ -54,7 +54,7 @@ func (s *Service) ReapplyMarkup(connectionID uint) (int, error) {
 		categoryParents = parents
 	}
 
-	return s.reapplyMarkupPrices(conn, categoryParents, false)
+	return s.reapplyMarkupPrices(conn, categoryParents)
 }
 
 // ReapplyMarkupLocal 只用本地已知的分类 ID 重算，不访问上游。
@@ -69,12 +69,14 @@ func (s *Service) ReapplyMarkupLocal(connectionID uint) (int, error) {
 	if conn == nil {
 		return 0, siteconnectioncontract.ErrNotFound
 	}
-	return s.reapplyMarkupPrices(conn, nil, true)
+	return s.reapplyMarkupPrices(conn, nil)
 }
 
 // reapplyMarkupPrices 按解析好的分类加价重算本地售价。
-// skipUnknownCategory=true 时跳过上游分类 ID 为 0 的映射（见 ReapplyMarkupLocal 说明）。
-func (s *Service) reapplyMarkupPrices(conn *siteconnectiondomain.Connection, categoryParents map[uint]uint, skipUnknownCategory bool) (int, error) {
+// categoryParents 为 nil 表示这批加价没有分类树（本地重算路径）：此时无法判断
+// 分类 ID 为 0 或需要向父分类继承的映射该用哪个加价，按默认价写回就是错价，
+// 一律跳过，留给「重新应用加价」拉完分类树再算。
+func (s *Service) reapplyMarkupPrices(conn *siteconnectiondomain.Connection, categoryParents map[uint]uint) (int, error) {
 	mappings, err := s.mappings.ListActiveByConnection(conn.ID)
 	if err != nil {
 		return 0, err
@@ -83,13 +85,9 @@ func (s *Service) reapplyMarkupPrices(conn *siteconnectiondomain.Connection, cat
 
 	updated := 0
 	for _, mapping := range mappings {
-		if skipUnknownCategory && hasCategoryMarkups && mapping.UpstreamCategoryID == 0 {
-			continue
-		}
-		// 没有分类树（本地重算路径）且该分类需要向父分类继承时，算出来的加价可能是错的：
-		// 跳过它，留给「重新应用加价」拉完分类树再算。
 		if categoryParents == nil && hasCategoryMarkups &&
-			categoryMarkupsNeedParents(conn.CategoryMarkups, mapping.UpstreamCategoryID) {
+			(mapping.UpstreamCategoryID == 0 ||
+				categoryMarkupsNeedParents(conn.CategoryMarkups, mapping.UpstreamCategoryID)) {
 			continue
 		}
 		skuMappings, err := s.skuMappings.ListByProductMapping(mapping.ID)
