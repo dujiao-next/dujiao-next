@@ -93,6 +93,7 @@ func BuiltinRoleSeeds() []RoleSeed {
 				{Object: "/admin/member-user-prices", Action: "GET"},
 				{Object: "/admin/member-user-prices/batch", Action: "POST"},
 				{Object: "/admin/member-user-prices/:id", Action: "DELETE"},
+				{Object: "/admin/users", Action: "GET"}, // 用户专属价页面要先搜索用户
 				{Object: "/admin/post-categories", Action: "GET"},
 				{Object: "/admin/post-categories", Action: "POST"},
 				{Object: "/admin/post-categories/:id", Action: "PUT"},
