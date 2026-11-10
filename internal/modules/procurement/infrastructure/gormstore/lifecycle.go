@@ -88,29 +88,49 @@ func (s *Store) NewLifecycle(
 	return NewLifecycle(s.db, queueClient, settings, defaultEmailConfig)
 }
 
-func (l *Lifecycle) CreateUpstreamFulfillment(orderID uint, fulfillment *procurementcontract.Fulfillment, now time.Time) error {
-	deliveredAt := fulfillment.DeliveredAt
-	if deliveredAt == nil {
-		deliveredAt = &now
-	}
-	return l.db.Transaction(func(tx *gorm.DB) error {
-		var existing lifecycleFulfillmentRecord
-		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("order_id = ?", orderID).
-			First(&existing).Error
-		if err == nil {
-			return nil
-		}
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
+func (l *Lifecycle) DeliverUpstreamOrder(orderID uint, fulfillment *procurementcontract.Fulfillment, now time.Time) (bool, error) {
+	delivered := false
+	err := l.db.Transaction(func(tx *gorm.DB) error {
+		// 先锁订单再复核状态（与退款的加锁顺序一致）：退款先提交时不能再交付，也不能覆盖退款状态。
+		var order lifecycleOrderRecord
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&order, orderID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
 			return err
 		}
-		return tx.Create(&lifecycleFulfillmentRecord{
-			OrderID: orderID, Type: constants.FulfillmentTypeUpstream,
-			Status: constants.FulfillmentStatusDelivered, Payload: fulfillment.Payload,
-			LogisticsJSON: fulfillment.DeliveryData, DeliveredAt: deliveredAt,
-			CreatedAt: now, UpdatedAt: now,
+		if order.Status == constants.OrderStatusRefunded || order.Status == constants.OrderStatusCanceled {
+			return nil
+		}
+		if fulfillment != nil {
+			var existing lifecycleFulfillmentRecord
+			err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+				Where("order_id = ?", orderID).
+				First(&existing).Error
+			if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+			if err != nil {
+				deliveredAt := fulfillment.DeliveredAt
+				if deliveredAt == nil {
+					deliveredAt = &now
+				}
+				if err := tx.Create(&lifecycleFulfillmentRecord{
+					OrderID: orderID, Type: constants.FulfillmentTypeUpstream,
+					Status: constants.FulfillmentStatusDelivered, Payload: fulfillment.Payload,
+					LogisticsJSON: fulfillment.DeliveryData, DeliveredAt: deliveredAt,
+					CreatedAt: now, UpdatedAt: now,
+				}).Error; err != nil {
+					return err
+				}
+			}
+		}
+		delivered = true
+		return tx.Table(order.TableName()).Where("id = ?", orderID).Updates(map[string]interface{}{
+			"status": constants.OrderStatusDelivered, "updated_at": now,
 		}).Error
 	})
+	return delivered, err
 }
 
 func (l *Lifecycle) SyncParentStatus(parentID uint, now time.Time) (string, error) {
