@@ -145,6 +145,9 @@ func (s *PaymentService) CreatePayment(input CreatePaymentInput) (*CreatePayment
 				legacyFeePayment := existing.FeeAmount.Decimal.IsPositive() &&
 					(existing.FeePolicy == "" || existing.FeePolicy == constants.PaymentFeePolicyLegacyCustomerSurcharge)
 				if !legacyFeePayment || feeConfig.ReuseLegacyOrderFeePayment {
+					if _, err := paymentRepo.SupersedePendingByOrderID(lockedOrder.ID, existing.ID, time.Now()); err != nil {
+						return ErrPaymentCreateFailed
+					}
 					reusedPending = true
 					payment = existing
 					order = &lockedOrder
@@ -244,6 +247,8 @@ func (s *PaymentService) CreatePayment(input CreatePaymentInput) (*CreatePayment
 		if shouldUseCNYPaymentCurrency(channel) {
 			payment.Currency = "CNY"
 		}
+		// 先落库网关订单号，早于创建响应到达的回调才能定位到这条支付。
+		payment.GatewayOrderNo = resolveGatewayOrderNo(channel, payment)
 
 		if err := paymentRepo.Create(payment); err != nil {
 			return ErrPaymentCreateFailed
@@ -268,9 +273,6 @@ func (s *PaymentService) CreatePayment(input CreatePaymentInput) (*CreatePayment
 	}
 
 	if reusedPending {
-		if _, err := s.paymentRepo.SupersedePendingByOrderID(order.ID, payment.ID, time.Now()); err != nil {
-			return nil, ErrPaymentCreateFailed
-		}
 		log.Infow("payment_create_reuse_pending",
 			"payment_id", payment.ID,
 			"provider_type", payment.ProviderType,
@@ -309,26 +311,28 @@ func (s *PaymentService) CreatePayment(input CreatePaymentInput) (*CreatePayment
 		return nil, ErrPaymentCreateFailed
 	}
 
+	// takenOver 非空表示网关请求期间订单已被并发支付接管，记录接管后的订单快照。
+	var takenOver *orderdomain.Order
 	if err := s.applyProviderPayment(input, order, channel, payment); err != nil {
 		rollbackErr := s.paymentRepo.WithinTransaction(func(tx paymentcontract.Transaction) error {
-			paymentRepo := tx.Payments()
-			payment.Status = constants.PaymentStatusFailed
-			payment.UpdatedAt = time.Now()
-			if updateErr := paymentRepo.Update(payment); updateErr != nil {
-				return updateErr
+			lockedOrder, current, newerID, lockErr := lockPaymentAttempt(tx, order.ID, payment.ID)
+			if lockErr != nil {
+				return lockErr
 			}
-			if s.walletSvc == nil {
+			// 已被钱包支付/新尝试替代或已回调：不能改写它，更不能退还别人的钱包占款。
+			if current.Status != constants.PaymentStatusInitiated {
+				takenOver = lockedOrder
 				return nil
 			}
-			preloaded, findErr := tx.Orders().GetByIDForUpdate(order.ID)
-			if findErr != nil {
-				return findErr
+			current.Status = constants.PaymentStatusFailed
+			current.UpdatedAt = time.Now()
+			if updateErr := tx.Payments().Update(current); updateErr != nil {
+				return updateErr
 			}
-			if preloaded == nil {
-				return orderapp.ErrOrderNotFound
+			if s.walletSvc == nil || newerID != 0 || lockedOrder.Status != constants.OrderStatusPendingPayment {
+				return nil
 			}
-			lockedOrder := *preloaded
-			_, refundErr := orderapp.ReleaseWalletBalance(s.walletSvc, tx, &lockedOrder, constants.WalletTxnTypeOrderRefund, "在线支付创建失败，退回余额")
+			_, refundErr := orderapp.ReleaseWalletBalance(s.walletSvc, tx, lockedOrder, constants.WalletTxnTypeOrderRefund, "在线支付创建失败，退回余额")
 			return refundErr
 		})
 		if rollbackErr != nil {
@@ -348,15 +352,45 @@ func (s *PaymentService) CreatePayment(input CreatePaymentInput) (*CreatePayment
 				"error", err,
 			)
 		}
+		if rollbackErr == nil && takenOver != nil {
+			return takenOverResult(takenOver)
+		}
 		return nil, err
 	}
-	if _, err := s.paymentRepo.SupersedePendingByOrderID(order.ID, payment.ID, time.Now()); err != nil {
+	if err := s.paymentRepo.WithinTransaction(func(tx paymentcontract.Transaction) error {
+		lockedOrder, current, newerID, err := lockPaymentAttempt(tx, order.ID, payment.ID)
+		if err != nil {
+			return err
+		}
+		now := time.Now()
+		// 网关迟到成功：订单已不再归这次尝试所有时，作废自己的链接而不是作废更新的支付。
+		if lockedOrder.Status != constants.OrderStatusPendingPayment || newerID != 0 || current.Status != constants.PaymentStatusPending {
+			takenOver = lockedOrder
+			if current.Status != constants.PaymentStatusPending {
+				return nil
+			}
+			current.Status = constants.PaymentStatusExpired
+			current.ExpiredAt = &now
+			current.UpdatedAt = now
+			if newerID != 0 {
+				current.SupersededAt = &now
+				current.SupersededByPaymentID = &newerID
+			}
+			return tx.Payments().Update(current)
+		}
+		_, err = tx.Payments().SupersedePendingByOrderID(order.ID, payment.ID, now)
+		return err
+	}); err != nil {
 		log.Errorw("payment_create_supersede_previous_failed",
 			"payment_id", payment.ID,
 			"order_id", order.ID,
 			"error", err,
 		)
 		return nil, ErrPaymentCreateFailed
+	}
+	if takenOver != nil {
+		log.Warnw("payment_create_stale_provider_success", "payment_id", payment.ID, "order_id", order.ID)
+		return takenOverResult(takenOver)
 	}
 
 	log.Infow("payment_create_success",
@@ -376,4 +410,47 @@ func (s *PaymentService) CreatePayment(input CreatePaymentInput) (*CreatePayment
 		WalletPaidAmount: order.WalletPaidAmount,
 		OnlinePayAmount:  order.OnlinePaidAmount,
 	}, nil
+}
+
+// lockPaymentAttempt 网关返回后按"先订单后支付"重新加锁读取（与创建、钱包支付、回调同序），
+// 并返回同订单上比该尝试更新且仍有效的支付 ID；非零说明钱包占款与订单已归更新的尝试所有。
+func lockPaymentAttempt(tx paymentcontract.Transaction, orderID, paymentID uint) (*orderdomain.Order, *paymentdomain.Payment, uint, error) {
+	order, err := tx.Orders().GetByIDForUpdate(orderID)
+	if err != nil {
+		return nil, nil, 0, orderapp.ErrOrderFetchFailed
+	}
+	if order == nil {
+		return nil, nil, 0, orderapp.ErrOrderNotFound
+	}
+	current, err := tx.Payments().GetByIDForUpdate(paymentID)
+	if err != nil {
+		return nil, nil, 0, ErrPaymentUpdateFailed
+	}
+	if current == nil {
+		return nil, nil, 0, ErrPaymentNotFound
+	}
+	payments, err := tx.Payments().ListByOrderID(orderID)
+	if err != nil {
+		return nil, nil, 0, ErrPaymentUpdateFailed
+	}
+	return order, current, newerActivePaymentID(payments, paymentID), nil
+}
+
+// newerActivePaymentID 返回同订单上比 paymentID 更新且仍有效的支付；非零时钱包占款已不归 paymentID。
+func newerActivePaymentID(payments []paymentdomain.Payment, paymentID uint) uint {
+	for _, p := range payments {
+		if p.ID > paymentID && (p.Status == constants.PaymentStatusInitiated || p.Status == constants.PaymentStatusPending || p.Status == constants.PaymentStatusSuccess) {
+			return p.ID
+		}
+	}
+	return 0
+}
+
+// takenOverResult 旧尝试被并发支付接管：订单已付清就如实返回已支付（与钱包全额支付同形），
+// 否则返回各入口（网页、Bot、钱包）都已映射的订单状态错误，提示用户刷新。
+func takenOverResult(order *orderdomain.Order) (*CreatePaymentResult, error) {
+	if order.PaidAt != nil {
+		return &CreatePaymentResult{OrderPaid: true, WalletPaidAmount: order.WalletPaidAmount, OnlinePayAmount: order.OnlinePaidAmount}, nil
+	}
+	return nil, orderapp.ErrOrderStatusInvalid
 }

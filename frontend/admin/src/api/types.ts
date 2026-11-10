@@ -186,6 +186,8 @@ export interface AdminOrder {
   payments?: AdminPayment[]
   user_display_name?: string
   user_email?: string
+  // 订单详情接口返回：退款时是否按比例冲回成本（仪表盘统计口径）
+  refund_reverses_cost?: boolean
 }
 
 export interface AdminUserOAuthIdentity {
@@ -246,6 +248,7 @@ export interface AdminCoupon {
   member_levels?: number[]
   scope_type: string
   scope_ref_ids: number[] | string
+  scope_sku_ids?: number[] | string
   starts_at?: string
   ends_at?: string
   is_active: boolean
@@ -591,6 +594,7 @@ export interface AdminSiteConnection {
   exchange_rate?: number
   price_markup_percent?: number
   price_rounding_mode?: string
+  category_markups?: Record<string, number> | null
   auto_sync_price?: boolean
   created_at: string
   updated_at: string

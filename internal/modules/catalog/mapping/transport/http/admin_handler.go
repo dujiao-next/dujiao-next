@@ -163,6 +163,10 @@ func (h *AdminHandler) ImportUpstreamProduct(c *gin.Context) {
 			ginutil.RespondError(c, response.CodeBadRequest, "error.product_category_invalid", nil)
 			return
 		}
+		if errors.Is(err, mappingcontract.ErrUpstreamProductNoCategory) {
+			ginutil.RespondError(c, response.CodeBadRequest, "error.mapping_upstream_no_category", nil)
+			return
+		}
 		ginutil.RespondError(c, response.CodeInternal, "error.mapping_import_failed", err)
 		return
 	}
@@ -452,7 +456,7 @@ func (h *AdminHandler) ListUpstreamCategoryCounts(c *gin.Context) {
 // BatchImportByCategoryRequest 按分类批量导入请求
 type BatchImportByCategoryRequest struct {
 	ConnectionID       uint `json:"connection_id" binding:"required"`
-	UpstreamCategoryID uint `json:"upstream_category_id" binding:"required"`
+	UpstreamCategoryID uint `json:"upstream_category_id"` // 0 表示上游「未分类」商品
 	AutoCreateCategory bool `json:"auto_create_category"`
 	LocalCategoryID    uint `json:"local_category_id"`
 }
@@ -478,6 +482,10 @@ func (h *AdminHandler) BatchImportByCategory(c *gin.Context) {
 		}
 		if errors.Is(err, mappingcontract.ErrBatchImportInProgress) {
 			ginutil.RespondError(c, response.CodeBadRequest, "error.mapping_batch_import_in_progress", nil)
+			return
+		}
+		if errors.Is(err, mappingcontract.ErrUpstreamProductNoCategory) {
+			ginutil.RespondError(c, response.CodeBadRequest, "error.mapping_upstream_no_category", nil)
 			return
 		}
 		ginutil.RespondError(c, response.CodeInternal, "error.category_import_failed", err)

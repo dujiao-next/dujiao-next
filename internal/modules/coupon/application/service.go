@@ -177,6 +177,11 @@ func (s *Service) resolveCouponEligibility(coupon *coupondomain.Coupon, items []
 	if len(ids) == 0 {
 		return couponEligibility{}, couponcontract.ErrScopeInvalid
 	}
+	// 规格限制为空时只按商品判断；非空时订单项的规格也必须在范围内。
+	skuIDs, err := coupondomain.DecodeScopeIDs(coupon.ScopeSKUIDs)
+	if err != nil {
+		return couponEligibility{}, couponcontract.ErrScopeInvalid
+	}
 
 	eligible := decimal.Zero
 	eligibleQuantity := 0
@@ -185,6 +190,11 @@ func (s *Service) resolveCouponEligibility(coupon *coupondomain.Coupon, items []
 	for _, item := range items {
 		if _, ok := ids[item.ProductID]; !ok {
 			continue
+		}
+		if len(skuIDs) > 0 {
+			if _, ok := skuIDs[item.SKUID]; !ok {
+				continue
+			}
 		}
 		scopeMatched++
 		if coupon.DisabledWholesalePrice && item.WholesaleDiscount.Decimal.GreaterThan(decimal.Zero) {

@@ -42,6 +42,8 @@ var (
 	ErrPaymentChannelNotAllowedForRecharge = errors.New("payment channel not allowed for wallet recharge")
 	ErrProductFetchFailed                  = errors.New("product fetch failed")
 	ErrQueueUnavailable                    = errors.New("queue unavailable")
+	ErrPaymentUnderpaidCredited            = errors.New("payment underpaid already credited to wallet")
+	ErrPaymentCanceledOrderUnderpaid       = errors.New("canceled order payment does not cover total")
 )
 
 // PaymentService 支付服务

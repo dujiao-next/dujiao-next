@@ -145,7 +145,7 @@ export function usePayment() {
       const allowedSet = new Set(allowedIds.map(Number))
       filtered = filtered.filter((ch: any) => allowedSet.has(Number(ch?.id)))
     }
-    return filtered
+    return filtered.filter((ch: any) => !isChannelHiddenForAmount(ch))
   }
 
   const configReady = computed(() => !appStore.loading && (!!appStore.config || (!isGuest.value && orderPaymentChannelsLoaded.value)))
@@ -451,6 +451,17 @@ export function usePayment() {
       hideAmountOutRange: Boolean(channel?.hide_amount_out_range),
     }
   }
+  const isChannelHiddenForAmount = (channel?: any) => {
+    if (!channel?.hide_amount_out_range) return false
+    if (!requiresOnlineChannel.value) return false
+    const targetAmount = expectedOnlinePayCents.value
+    if (targetAmount <= 0) return false
+    const meta = channelLimitMeta(channel)
+    const lessThanMin = meta.hasMin && meta.minCents !== null && targetAmount < meta.minCents
+    const greaterThanMax = meta.hasMax && meta.maxCents !== null && targetAmount > meta.maxCents
+    return lessThanMin || greaterThanMax
+  }
+
   const isChannelDisabledForAmount = (channel?: any) => {
     if (!requiresOnlineChannel.value) return false
     const targetAmount = expectedOnlinePayCents.value

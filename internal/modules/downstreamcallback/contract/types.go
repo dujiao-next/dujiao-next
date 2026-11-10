@@ -37,6 +37,8 @@ type Credential struct {
 	ID        uint
 	APIKey    string
 	APISecret string
+	// Active 与 API 鉴权同一标准：已审批、已启用且所属用户未禁用。
+	Active bool
 }
 
 // CallbackPayload 是发送给下游站点的稳定 JSON 合同。

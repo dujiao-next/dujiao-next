@@ -1,6 +1,7 @@
 package integrationtest
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -287,5 +288,63 @@ func TestCouponServiceApplyCouponPercentIgnoresPerItemDiscount(t *testing.T) {
 	}
 	if !discount.Decimal.Equal(decimal.NewFromInt(30)) {
 		t.Fatalf("expected percent discount 30, got %s", discount.String())
+	}
+}
+
+func TestCouponServiceApplyCouponRespectsScopeSKUIDs(t *testing.T) {
+	svc, db := newCouponServiceForTest(t)
+	items := []couponcontract.EligibilityItem{
+		{ProductID: 100, SKUID: 1, Quantity: 1, TotalPrice: money.FromDecimal(decimal.NewFromInt(100))},
+		{ProductID: 100, SKUID: 2, Quantity: 1, TotalPrice: money.FromDecimal(decimal.NewFromInt(200))},
+	}
+	subtotal := money.FromDecimal(decimal.NewFromInt(300))
+
+	// 未限制规格：商品下全部规格参与，10% of 300 = 30。
+	_ = createCouponFixture(t, db, coupondomain.Coupon{
+		Code:        "SKU_ALL",
+		Type:        constants.CouponTypePercent,
+		Value:       money.FromDecimal(decimal.NewFromInt(10)),
+		ScopeType:   constants.ScopeTypeProduct,
+		ScopeRefIDs: "[100]",
+		IsActive:    true,
+	})
+	discount, _, err := svc.ApplyCoupon(subtotal, "SKU_ALL", 0, items, false, 0)
+	if err != nil {
+		t.Fatalf("apply coupon without sku scope failed: %v", err)
+	}
+	if !discount.Decimal.Equal(decimal.NewFromInt(30)) {
+		t.Fatalf("expected discount 30, got %s", discount.String())
+	}
+
+	// 限定规格 2：只对 200 打折，10% = 20。
+	_ = createCouponFixture(t, db, coupondomain.Coupon{
+		Code:        "SKU_ONE",
+		Type:        constants.CouponTypePercent,
+		Value:       money.FromDecimal(decimal.NewFromInt(10)),
+		ScopeType:   constants.ScopeTypeProduct,
+		ScopeRefIDs: "[100]",
+		ScopeSKUIDs: "[2]",
+		IsActive:    true,
+	})
+	discount, _, err = svc.ApplyCoupon(subtotal, "SKU_ONE", 0, items, false, 0)
+	if err != nil {
+		t.Fatalf("apply coupon with sku scope failed: %v", err)
+	}
+	if !discount.Decimal.Equal(decimal.NewFromInt(20)) {
+		t.Fatalf("expected sku-scoped discount 20, got %s", discount.String())
+	}
+
+	// 限定规格 3：订单里没有该规格，应判定不适用。
+	_ = createCouponFixture(t, db, coupondomain.Coupon{
+		Code:        "SKU_MISS",
+		Type:        constants.CouponTypePercent,
+		Value:       money.FromDecimal(decimal.NewFromInt(10)),
+		ScopeType:   constants.ScopeTypeProduct,
+		ScopeRefIDs: "[100]",
+		ScopeSKUIDs: "[3]",
+		IsActive:    true,
+	})
+	if _, _, err = svc.ApplyCoupon(subtotal, "SKU_MISS", 0, items, false, 0); !errors.Is(err, couponcontract.ErrScopeInvalid) {
+		t.Fatalf("expected ErrScopeInvalid for unmatched sku, got %v", err)
 	}
 }

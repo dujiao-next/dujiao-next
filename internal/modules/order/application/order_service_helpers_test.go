@@ -71,6 +71,27 @@ func TestApplyCouponDiscountToItems(t *testing.T) {
 	if !plans[2].CouponDiscount.Equal(decimal.Zero) {
 		t.Fatalf("expected 0, got %s", plans[2].CouponDiscount.String())
 	}
+
+	// 限定了规格时，分摊必须和优惠总额算的是同一批订单项：
+	// 未勾选规格的订单项不能分到任何优惠。
+	skuPlans := []childOrderPlan{
+		{Item: orderdomain.OrderItem{ProductID: 1, SKUID: 1}, TotalAmount: decimal.NewFromInt(80)},
+		{Item: orderdomain.OrderItem{ProductID: 1, SKUID: 2}, TotalAmount: decimal.NewFromInt(40)},
+	}
+	skuCoupon := &coupondomain.Coupon{
+		ScopeType:   constants.ScopeTypeProduct,
+		ScopeRefIDs: "[1]",
+		ScopeSKUIDs: "[2]",
+	}
+	if err := applyCouponDiscountToItems(skuPlans, skuCoupon, decimal.NewFromInt(20)); err != nil {
+		t.Fatalf("applyCouponDiscountToItems with sku scope error: %v", err)
+	}
+	if !skuPlans[0].CouponDiscount.Equal(decimal.Zero) {
+		t.Fatalf("expected sku 1 discount 0, got %s", skuPlans[0].CouponDiscount.String())
+	}
+	if !skuPlans[1].CouponDiscount.Equal(decimal.NewFromInt(20)) {
+		t.Fatalf("expected sku 2 discount 20, got %s", skuPlans[1].CouponDiscount.String())
+	}
 }
 
 func TestResolveManualFormSubmissionPreferOrderItemKey(t *testing.T) {

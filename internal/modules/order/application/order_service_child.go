@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	cardsecretcontract "github.com/dujiao-next/internal/modules/cardsecret/contract"
+	coupondomain "github.com/dujiao-next/internal/modules/coupon/domain"
 	ordercontract "github.com/dujiao-next/internal/modules/order/contract"
 	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
 
@@ -479,4 +481,132 @@ func IsTransitionAllowed(current, target string) bool {
 		return false
 	}
 	return nexts[target]
+}
+
+// ReopenCanceledOrderInTx 在调用方事务内把已取消（且从未支付）的父订单重开为待支付：
+// 父子订单状态回到 pending_payment，并重新占用自动发货卡密与优惠券用量。
+//
+// 它只做"撤销取消"，不处理支付事实；调用方必须在同一事务内紧接着把订单标记为已支付。
+// 卡密库存不足时返回 ErrCardSecretInsufficient，由事务整体回滚。
+// 优惠券用量不重新校验上限：订单下单时已合规，客户也已付款，不能因为名额被后来者占满而拒绝履约。
+func ReopenCanceledOrderInTx(tx ordercontract.Transaction, order *orderdomain.Order, now time.Time) error {
+	if tx == nil || order == nil {
+		return ErrOrderNotFound
+	}
+	if order.ParentID != nil || order.PaidAt != nil || order.Status != constants.OrderStatusCanceled {
+		return ErrOrderStatusInvalid
+	}
+
+	orderStore := tx.Orders()
+	reopenUpdates := func() map[string]interface{} {
+		return map[string]interface{}{"canceled_at": nil, "updated_at": now}
+	}
+	if err := orderStore.UpdateStatus(order.ID, constants.OrderStatusPendingPayment, reopenUpdates()); err != nil {
+		return ErrOrderUpdateFailed
+	}
+	order.Status = constants.OrderStatusPendingPayment
+	order.CanceledAt = nil
+	order.UpdatedAt = now
+
+	// 重新占用自动发货卡密与人工库存：取消时两者都已释放。
+	// 人工库存必须在这里重新占用，否则随后 markOrderPaid 的 ConsumeManualStock 只看 locked 总量，
+	// 会扣掉其他待支付订单占着的库存。库存不足时整体回滚。
+	secretRepo := tx.CardSecrets()
+	productRepo := tx.Products()
+	productSKURepo := tx.ProductSKUs()
+	if len(order.Children) > 0 {
+		for idx := range order.Children {
+			child := &order.Children[idx]
+			if err := orderStore.UpdateStatus(child.ID, constants.OrderStatusPendingPayment, reopenUpdates()); err != nil {
+				return ErrOrderUpdateFailed
+			}
+			child.Status = constants.OrderStatusPendingPayment
+			child.CanceledAt = nil
+			child.UpdatedAt = now
+			if err := reserveAutoSecretsByItems(secretRepo, child.ID, child.Items, now); err != nil {
+				return err
+			}
+			if err := reserveManualStockByItems(productRepo, productSKURepo, child.Items); err != nil {
+				return err
+			}
+		}
+	} else {
+		if err := reserveAutoSecretsByItems(secretRepo, order.ID, order.Items, now); err != nil {
+			return err
+		}
+		if err := reserveManualStockByItems(productRepo, productSKURepo, order.Items); err != nil {
+			return err
+		}
+	}
+
+	return restoreCouponUsageInTx(tx, order, now)
+}
+
+// reserveAutoSecretsByItems 为自动发货订单项占用可用卡密。
+// 先释放该订单名下残留的占用，避免与新占用叠加造成泄漏。
+func reserveAutoSecretsByItems(secretRepo cardsecretcontract.Repository, ownerOrderID uint, items []orderdomain.OrderItem, now time.Time) error {
+	if _, err := secretRepo.ReleaseByOrder(ownerOrderID); err != nil {
+		return err
+	}
+	for _, item := range items {
+		if strings.TrimSpace(item.FulfillmentType) != constants.FulfillmentTypeAuto {
+			continue
+		}
+		if item.ProductID == 0 || item.Quantity <= 0 {
+			continue
+		}
+		rows, err := secretRepo.ListAvailableByProductForUpdate(item.ProductID, item.SKUID, item.Quantity)
+		if err != nil {
+			return err
+		}
+		if len(rows) < item.Quantity {
+			return ErrCardSecretInsufficient
+		}
+		ids := make([]uint, 0, len(rows))
+		for _, row := range rows {
+			ids = append(ids, row.ID)
+		}
+		affected, err := secretRepo.Reserve(ids, ownerOrderID, now)
+		if err != nil {
+			return err
+		}
+		if int(affected) != len(ids) {
+			return ErrCardSecretInsufficient
+		}
+	}
+	return nil
+}
+
+// restoreCouponUsageInTx 恢复取消订单时回滚掉的优惠券使用记录与计数。
+// 已存在使用记录（例如单订单取消并未回滚优惠券）或优惠券已被删除时不重复处理。
+func restoreCouponUsageInTx(tx ordercontract.Transaction, order *orderdomain.Order, now time.Time) error {
+	if order.CouponID == nil || *order.CouponID == 0 {
+		return nil
+	}
+	usageRepo := tx.CouponUsages()
+	usages, err := usageRepo.ListByOrderID(order.ID)
+	if err != nil {
+		return err
+	}
+	if len(usages) > 0 {
+		return nil
+	}
+	couponRepo := tx.Coupons()
+	coupon, err := couponRepo.GetByIDForUpdate(*order.CouponID)
+	if err != nil {
+		return err
+	}
+	if coupon == nil {
+		return nil
+	}
+	if err := usageRepo.Create(&coupondomain.CouponUsage{
+		CouponID:       coupon.ID,
+		UserID:         order.UserID,
+		OrderID:        order.ID,
+		DiscountAmount: order.DiscountAmount,
+		CreatedAt:      now,
+	}); err != nil {
+		return err
+	}
+	return couponRepo.IncrementUsedCount(coupon.ID, 1)
 }

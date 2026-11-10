@@ -98,7 +98,7 @@ const stripeConfig = reactive({
   success_url: '',
   cancel_url: '',
   api_base_url: 'https://api.stripe.com',
-  payment_method_types: 'card',
+  payment_method_types: '',
   target_currency: '',
   exchange_rate: '',
 })
@@ -370,7 +370,7 @@ const resetStripeConfig = () => {
   stripeConfig.success_url = ''
   stripeConfig.cancel_url = ''
   stripeConfig.api_base_url = 'https://api.stripe.com'
-  stripeConfig.payment_method_types = 'card'
+  stripeConfig.payment_method_types = ''
   stripeConfig.target_currency = ''
   stripeConfig.exchange_rate = ''
 }
@@ -513,7 +513,7 @@ const applyStripeConfig = (raw: Record<string, unknown>) => {
   const methodTypes = Array.isArray(raw.payment_method_types)
     ? (raw.payment_method_types as unknown[]).map((item) => String(item || '').trim()).filter(Boolean)
     : []
-  stripeConfig.payment_method_types = methodTypes.length > 0 ? methodTypes.join(',') : 'card'
+  stripeConfig.payment_method_types = methodTypes.length > 0 ? methodTypes.join(',') : ''
   stripeConfig.target_currency = String(raw.target_currency || '')
   stripeConfig.exchange_rate = String(raw.exchange_rate || '')
 }
@@ -673,9 +673,7 @@ const buildStripeConfig = () => {
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean)
-  if (methodTypes.length > 0) {
-    config.payment_method_types = methodTypes
-  }
+  config.payment_method_types = methodTypes
   setIfNotEmpty('target_currency', stripeConfig.target_currency)
   setIfNotEmpty('exchange_rate', stripeConfig.exchange_rate)
   return config

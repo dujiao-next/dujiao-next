@@ -445,6 +445,9 @@ func (h *AdminHandler) SetAuthzAdminRoles(c *gin.Context) {
 		ginutil.RespondError(c, response.CodeBadRequest, "error.admin_id_invalid", nil)
 		return
 	}
+	if rejectNonSuperEscalation(c, admin.IsSuper) {
+		return
+	}
 
 	var req authzSetAdminRolesPayload
 	if err := c.ShouldBindJSON(&req); err != nil {

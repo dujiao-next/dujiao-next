@@ -77,19 +77,99 @@ type paymentRechargeMeta struct {
 	UserID     uint
 }
 
-// AdminHandler 处理后台支付只读 HTTP。
-type AdminHandler struct {
-	payments AdminPaymentQuery
-	channels AdminChannelLookup
-	orders   AdminOrderLookup
-	recharge AdminRechargeLookup
+// 人工确认支付相关错误（由 bootstrap 层从应用层错误映射而来）。
+var (
+	// ErrCardSecretInsufficient 人工确认支付重开订单时自动发货卡密库存不足。
+	ErrCardSecretInsufficient = errors.New("card secret insufficient")
+	// ErrManualStockInsufficient 人工确认支付重开订单时人工交付库存不足。
+	ErrManualStockInsufficient = errors.New("manual stock insufficient")
+	// ErrPaymentUnderpaidCredited 该支付记录是欠付，款项已转入用户余额，不能再用于人工确认。
+	ErrPaymentUnderpaidCredited = errors.New("payment underpaid already credited to wallet")
+	// ErrPaymentCanceledOrderUnderpaid 已取消订单的支付金额不足以覆盖订单总额（余额部分取消时已退回）。
+	ErrPaymentCanceledOrderUnderpaid = errors.New("canceled order payment does not cover total")
+)
+
+// ManualConfirmPaymentInput 后台人工确认支付输入。
+type ManualConfirmPaymentInput struct {
+	OrderID     uint
+	PaymentID   uint
+	AdminID     uint
+	ProviderRef string
+	Remark      string
 }
 
-func NewAdminHandler(payments AdminPaymentQuery, channels AdminChannelLookup, orders AdminOrderLookup, recharge AdminRechargeLookup) *AdminHandler {
+// AdminPaymentConfirmer 后台人工确认支付端口。
+type AdminPaymentConfirmer interface {
+	ManualConfirmPayment(input ManualConfirmPaymentInput) (*paymentdomain.Payment, error)
+}
+
+// AdminHandler 处理后台支付 HTTP。
+type AdminHandler struct {
+	payments  AdminPaymentQuery
+	channels  AdminChannelLookup
+	orders    AdminOrderLookup
+	recharge  AdminRechargeLookup
+	confirmer AdminPaymentConfirmer
+}
+
+// AdminManualConfirmPaymentRequest 人工确认支付请求。
+type AdminManualConfirmPaymentRequest struct {
+	PaymentID   uint   `json:"payment_id" binding:"required,gt=0"`
+	ProviderRef string `json:"provider_ref" binding:"max=255"`
+	Remark      string `json:"remark" binding:"max=500"`
+}
+
+// AdminManualConfirmPayment 管理员核实到账后人工确认订单支付，并继续正常履约流程。
+func (h *AdminHandler) AdminManualConfirmPayment(c *gin.Context) {
+	adminID, ok := ginutil.GetAdminID(c)
+	if !ok {
+		return
+	}
+	orderID, err := ginutil.ParseParamUint(c, "id")
+	if err != nil {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.order_item_invalid", nil)
+		return
+	}
+	var req AdminManualConfirmPaymentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		ginutil.RespondBindError(c, err)
+		return
+	}
+	payment, err := h.confirmer.ManualConfirmPayment(ManualConfirmPaymentInput{
+		OrderID:     orderID,
+		PaymentID:   req.PaymentID,
+		AdminID:     adminID,
+		ProviderRef: req.ProviderRef,
+		Remark:      req.Remark,
+	})
+	if err != nil {
+		respondWithMappedError(c, err, adminManualConfirmErrorRules, response.CodeInternal, "error.payment_callback_failed")
+		return
+	}
+	response.Success(c, redactAdminPayment(*payment))
+}
+
+var adminManualConfirmErrorRules = []mappedError{
+	{target: ErrPaymentInvalid, code: response.CodeBadRequest, key: "error.payment_invalid"},
+	{target: ErrPaymentNotFound, code: response.CodeNotFound, key: "error.payment_not_found"},
+	{target: ErrOrderNotFound, code: response.CodeNotFound, key: "error.order_not_found"},
+	{target: ErrOrderStatusInvalid, code: response.CodeBadRequest, key: "error.order_status_invalid"},
+	{target: ErrPaymentAmountMismatch, code: response.CodeBadRequest, key: "error.payment_amount_mismatch"},
+	{target: ErrPaymentCurrencyMismatch, code: response.CodeBadRequest, key: "error.payment_currency_mismatch"},
+	{target: ErrCardSecretInsufficient, code: response.CodeBadRequest, key: "error.card_secret_insufficient"},
+	{target: ErrManualStockInsufficient, code: response.CodeBadRequest, key: "error.manual_stock_insufficient"},
+	{target: ErrPaymentUnderpaidCredited, code: response.CodeBadRequest, key: "error.payment_underpaid_credited"},
+	{target: ErrPaymentCanceledOrderUnderpaid, code: response.CodeBadRequest, key: "error.payment_canceled_order_underpaid"},
+}
+
+func NewAdminHandler(payments AdminPaymentQuery, channels AdminChannelLookup, orders AdminOrderLookup, recharge AdminRechargeLookup, confirmer AdminPaymentConfirmer) *AdminHandler {
 	if payments == nil {
 		panic("payment admin handler: payments is nil")
 	}
-	return &AdminHandler{payments: payments, channels: channels, orders: orders, recharge: recharge}
+	if confirmer == nil {
+		panic("payment admin handler: confirmer is nil")
+	}
+	return &AdminHandler{payments: payments, channels: channels, orders: orders, recharge: recharge, confirmer: confirmer}
 }
 
 // GetAdminPayments 获取支付记录列表

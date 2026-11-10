@@ -2,6 +2,8 @@ package cache
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -194,4 +196,38 @@ func buildKey(key string) string {
 		return redisPrefix
 	}
 	return fmt.Sprintf("%s:%s", redisPrefix, trimmed)
+}
+
+// unlockScript 只删除自己持有的锁：锁过期后被别人拿到时不能误删。
+var unlockScript = redis.NewScript(`if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) end return 0`)
+
+// AcquireLock 获取分布式互斥锁；被占用时每 50ms 重试一次，直到拿到或 ctx 结束（返回 ctx 的错误）。
+// ttl 是持锁上限，防止进程崩溃后死锁。Redis 未启用时不加锁，直接返回空的解锁函数。
+func AcquireLock(ctx context.Context, key string, ttl time.Duration) (unlock func(), err error) {
+	if !Enabled() {
+		return func() {}, nil
+	}
+	fullKey := buildKey(key)
+	tokenBytes := make([]byte, 16)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		return nil, err
+	}
+	token := hex.EncodeToString(tokenBytes)
+	for {
+		err := redisClient.SetArgs(ctx, fullKey, token, redis.SetArgs{Mode: "NX", TTL: ttl}).Err()
+		if err == nil {
+			return func() {
+				// 解锁不受请求 ctx 取消影响
+				_ = unlockScript.Run(context.Background(), redisClient, []string{fullKey}, token).Err()
+			}, nil
+		}
+		if !errors.Is(err, redis.Nil) {
+			return nil, err
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
 }

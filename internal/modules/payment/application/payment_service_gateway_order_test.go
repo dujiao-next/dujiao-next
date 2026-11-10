@@ -15,7 +15,9 @@ import (
 	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
 
 	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
+	orderapp "github.com/dujiao-next/internal/modules/order/application"
 	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
+	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/shared/jsonmap"
@@ -1419,5 +1421,280 @@ func TestSupersededPaymentLateSuccessIsRecordedWithoutDuplicateFulfillment(t *te
 	}
 	if duplicate.Status != constants.PaymentStatusSuccess || duplicate.ExceptionCode != constants.PaymentExceptionDuplicateSucceeded {
 		t.Fatalf("duplicate payment was not flagged: %+v", duplicate)
+	}
+}
+
+// scriptedGateway 第 N 次网关调用执行 steps[N]，用来在旧请求等待网关期间插入并发操作。
+type scriptedGateway struct {
+	steps []func(paymentcontract.GatewayCreateInput) error
+	calls *int
+}
+
+func (g scriptedGateway) Type() string                              { return "scripted" }
+func (g scriptedGateway) ValidateConfig(jsonmap.JSON, string) error { return nil }
+func (g scriptedGateway) CreatePayment(_ context.Context, _ jsonmap.JSON, input paymentcontract.GatewayCreateInput) (*paymentcontract.GatewayCreateResult, error) {
+	n := *g.calls
+	*g.calls++
+	if n < len(g.steps) && g.steps[n] != nil {
+		if err := g.steps[n](input); err != nil {
+			return nil, err
+		}
+	}
+	return &paymentcontract.GatewayCreateResult{QRCodeURL: "weixin://wxpay/bizpayurl?pr=scripted"}, nil
+}
+
+var errScriptedGatewayDown = errors.New("gateway 502")
+
+func setupCreateRaceFixture(t *testing.T, balance int64, steps ...func(paymentcontract.GatewayCreateInput) error) (*PaymentService, *gorm.DB, *orderdomain.Order, *paymentdomain.PaymentChannel) {
+	t.Helper()
+	svc, db := setupPaymentServiceWalletTest(t)
+	now := time.Now()
+	user := &userdomain.User{Email: "race@example.com", PasswordHash: "hash", Status: constants.UserStatusActive, CreatedAt: now, UpdatedAt: now}
+	if err := db.Create(user).Error; err != nil {
+		t.Fatalf("create user failed: %v", err)
+	}
+	if err := db.Create(&walletdomain.Account{UserID: user.ID, Balance: money.FromDecimal(decimal.NewFromInt(balance)), CreatedAt: now, UpdatedAt: now}).Error; err != nil {
+		t.Fatalf("create wallet account failed: %v", err)
+	}
+	channel, order := createFeePolicyOrderFixture(t, db, "Race Gateway", "DJ-CREATE-RACE")
+	if err := db.Model(order).Updates(map[string]interface{}{
+		"user_id": user.ID, "total_amount": "50.00", "original_amount": "50.00", "online_paid_amount": "50.00",
+	}).Error; err != nil {
+		t.Fatalf("update order failed: %v", err)
+	}
+	if err := db.Model(channel).Updates(map[string]interface{}{"fee_rate": "0", "fixed_fee": "0"}).Error; err != nil {
+		t.Fatalf("update channel failed: %v", err)
+	}
+	calls := 0
+	registerTestGateway(t, svc, channel.ProviderType, channel.ChannelType, scriptedGateway{steps: steps, calls: &calls})
+	return svc, db, order, channel
+}
+
+func payByWalletDuringGateway(t *testing.T, svc *PaymentService, orderID uint) {
+	t.Helper()
+	result, err := svc.CreatePayment(CreatePaymentInput{OrderID: orderID, UseBalance: true, Context: context.Background()})
+	if err != nil || !result.OrderPaid {
+		t.Fatalf("concurrent wallet payment failed: result=%+v err=%v", result, err)
+	}
+}
+
+func loadRaceState(t *testing.T, db *gorm.DB, orderID uint) (orderdomain.Order, walletdomain.Account, []paymentdomain.Payment, int64) {
+	t.Helper()
+	var order orderdomain.Order
+	if err := db.First(&order, orderID).Error; err != nil {
+		t.Fatalf("reload order failed: %v", err)
+	}
+	var account walletdomain.Account
+	if err := db.Where("user_id = ?", order.UserID).First(&account).Error; err != nil {
+		t.Fatalf("reload account failed: %v", err)
+	}
+	var payments []paymentdomain.Payment
+	if err := db.Where("order_id = ?", orderID).Order("id asc").Find(&payments).Error; err != nil {
+		t.Fatalf("reload payments failed: %v", err)
+	}
+	var refunds int64
+	if err := db.Model(&walletdomain.Transaction{}).Where("type = ?", constants.WalletTxnTypeOrderRefund).Count(&refunds).Error; err != nil {
+		t.Fatalf("count refunds failed: %v", err)
+	}
+	return order, account, payments, refunds
+}
+
+func assertSupersededBy(t *testing.T, p paymentdomain.Payment, replacementID uint) {
+	t.Helper()
+	if p.Status != constants.PaymentStatusExpired || p.SupersededByPaymentID == nil || *p.SupersededByPaymentID != replacementID {
+		t.Fatalf("payment %d want expired superseded by %d, got status=%s superseded_by=%v", p.ID, replacementID, p.Status, p.SupersededByPaymentID)
+	}
+}
+
+func TestCreatePaymentGatewayFailureAfterWalletPayKeepsWalletDebit(t *testing.T) {
+	var svc *PaymentService
+	var orderID uint
+	svc, db, order, channel := setupCreateRaceFixture(t, 100, func(paymentcontract.GatewayCreateInput) error {
+		payByWalletDuringGateway(t, svc, orderID)
+		return errScriptedGatewayDown
+	})
+	orderID = order.ID
+
+	assertReportedOrderPaid(t, svc, order.ID, channel.ID)
+
+	stored, account, payments, refunds := loadRaceState(t, db, order.ID)
+	if got := account.Balance.StringFixed(2); got != "50.00" {
+		t.Fatalf("wallet balance want 50.00 got %s", got)
+	}
+	if refunds != 0 {
+		t.Fatalf("stale gateway failure must not refund wallet, got %d refunds", refunds)
+	}
+	if stored.Status != constants.OrderStatusPaid || stored.WalletPaidAmount.StringFixed(2) != "50.00" || stored.OnlinePaidAmount.StringFixed(2) != "0.00" {
+		t.Fatalf("order allocation changed: status=%s wallet=%s online=%s", stored.Status, stored.WalletPaidAmount.String(), stored.OnlinePaidAmount.String())
+	}
+	if len(payments) != 2 {
+		t.Fatalf("want 2 payments got %d", len(payments))
+	}
+	assertSupersededBy(t, payments[0], payments[1].ID)
+}
+
+func TestCreatePaymentLateGatewaySuccessAfterWalletPayStaysSuperseded(t *testing.T) {
+	var svc *PaymentService
+	var orderID uint
+	svc, db, order, channel := setupCreateRaceFixture(t, 100, func(paymentcontract.GatewayCreateInput) error {
+		payByWalletDuringGateway(t, svc, orderID)
+		return nil
+	})
+	orderID = order.ID
+
+	assertReportedOrderPaid(t, svc, order.ID, channel.ID)
+
+	_, account, payments, _ := loadRaceState(t, db, order.ID)
+	if got := account.Balance.StringFixed(2); got != "50.00" {
+		t.Fatalf("wallet balance want 50.00 got %s", got)
+	}
+	assertSupersededBy(t, payments[0], payments[1].ID)
+}
+
+func TestCreatePaymentStaleFailureKeepsNewerMixedPaymentWallet(t *testing.T) {
+	var svc *PaymentService
+	var orderID, channelID uint
+	svc, db, order, channel := setupCreateRaceFixture(t, 30, func(paymentcontract.GatewayCreateInput) error {
+		if _, err := svc.CreatePayment(CreatePaymentInput{OrderID: orderID, ChannelID: channelID, UseBalance: true, Context: context.Background()}); err != nil {
+			t.Fatalf("newer mixed payment failed: %v", err)
+		}
+		return errScriptedGatewayDown
+	})
+	orderID, channelID = order.ID, channel.ID
+
+	if _, err := svc.CreatePayment(CreatePaymentInput{OrderID: order.ID, ChannelID: channel.ID, Context: context.Background()}); !errors.Is(err, orderapp.ErrOrderStatusInvalid) {
+		t.Fatalf("taken-over attempt want ErrOrderStatusInvalid got %v", err)
+	}
+
+	stored, account, payments, refunds := loadRaceState(t, db, order.ID)
+	if got := account.Balance.StringFixed(2); got != "0.00" || refunds != 0 {
+		t.Fatalf("newer attempt's wallet debit was released: balance=%s refunds=%d", got, refunds)
+	}
+	if stored.WalletPaidAmount.StringFixed(2) != "30.00" || stored.OnlinePaidAmount.StringFixed(2) != "20.00" {
+		t.Fatalf("order allocation changed: wallet=%s online=%s", stored.WalletPaidAmount.String(), stored.OnlinePaidAmount.String())
+	}
+	assertSupersededBy(t, payments[0], payments[1].ID)
+	if payments[1].Status != constants.PaymentStatusPending || payments[1].Amount.StringFixed(2) != "20.00" {
+		t.Fatalf("newer attempt want pending 20.00 got %s %s", payments[1].Status, payments[1].Amount.String())
+	}
+}
+
+func TestCreatePaymentLateSuccessDoesNotSupersedeNewerAttempt(t *testing.T) {
+	var db *gorm.DB
+	var newer paymentdomain.Payment
+	svc, db, order, channel := setupCreateRaceFixture(t, 30, func(input paymentcontract.GatewayCreateInput) error {
+		// 模拟一条仍在等待网关的更新尝试。
+		if err := db.First(&newer, input.PaymentID).Error; err != nil {
+			t.Fatalf("load attempt failed: %v", err)
+		}
+		newer.ID, newer.GatewayOrderNo, newer.Status = 0, "", constants.PaymentStatusInitiated
+		if err := db.Create(&newer).Error; err != nil {
+			t.Fatalf("create newer attempt failed: %v", err)
+		}
+		return nil
+	})
+
+	if _, err := svc.CreatePayment(CreatePaymentInput{OrderID: order.ID, ChannelID: channel.ID, Context: context.Background()}); !errors.Is(err, orderapp.ErrOrderStatusInvalid) {
+		t.Fatalf("older attempt must not hand out its link after a newer attempt, got %v", err)
+	}
+
+	_, _, payments, _ := loadRaceState(t, db, order.ID)
+	assertSupersededBy(t, payments[0], newer.ID)
+	if payments[1].Status != constants.PaymentStatusInitiated {
+		t.Fatalf("newer attempt want untouched initiated got %s", payments[1].Status)
+	}
+}
+
+func TestStalePaymentFailedCallbackKeepsNewerAttemptWallet(t *testing.T) {
+	var svc *PaymentService
+	var db *gorm.DB
+	var oldPaymentID uint
+	svc, db, order, channel := setupCreateRaceFixture(t, 30, nil, func(paymentcontract.GatewayCreateInput) error {
+		// 新的混合支付还在等网关时，网关推来旧链接的失败通知。
+		var old paymentdomain.Payment
+		if err := db.First(&old, oldPaymentID).Error; err != nil {
+			t.Fatalf("load old payment failed: %v", err)
+		}
+		if _, err := svc.HandleCallback(PaymentCallbackInput{
+			PaymentID: old.ID, OrderNo: old.GatewayOrderNo, ChannelID: old.ChannelID,
+			Status: constants.PaymentStatusFailed, Amount: old.Amount, Currency: old.Currency,
+		}); err != nil {
+			t.Fatalf("old payment failed callback: %v", err)
+		}
+		return nil
+	})
+	first, err := svc.CreatePayment(CreatePaymentInput{OrderID: order.ID, ChannelID: channel.ID, Context: context.Background()})
+	if err != nil {
+		t.Fatalf("create old online payment failed: %v", err)
+	}
+	oldPaymentID = first.Payment.ID
+	second := *channel
+	second.ID, second.Name = 0, "Race Gateway 2"
+	if err := db.Create(&second).Error; err != nil {
+		t.Fatalf("create second channel failed: %v", err)
+	}
+
+	if _, err := svc.CreatePayment(CreatePaymentInput{OrderID: order.ID, ChannelID: second.ID, UseBalance: true, Context: context.Background()}); err != nil {
+		t.Fatalf("newer mixed payment failed: %v", err)
+	}
+
+	stored, account, _, refunds := loadRaceState(t, db, order.ID)
+	if got := account.Balance.StringFixed(2); got != "0.00" || refunds != 0 {
+		t.Fatalf("stale failed callback released newer attempt's wallet: balance=%s refunds=%d", got, refunds)
+	}
+	if stored.WalletPaidAmount.StringFixed(2) != "30.00" {
+		t.Fatalf("order wallet allocation want 30.00 got %s", stored.WalletPaidAmount.String())
+	}
+}
+
+func assertReportedOrderPaid(t *testing.T, svc *PaymentService, orderID, channelID uint) {
+	t.Helper()
+	result, err := svc.CreatePayment(CreatePaymentInput{OrderID: orderID, ChannelID: channelID, Context: context.Background()})
+	if err != nil || result == nil || !result.OrderPaid || result.Payment != nil {
+		t.Fatalf("taken-over attempt on a paid order want order_paid without link, got result=%+v err=%v", result, err)
+	}
+}
+
+func TestCreateWalletRechargeGatewayFailureAfterEarlyCallbackKeepsSuccess(t *testing.T) {
+	var svc *PaymentService
+	var db *gorm.DB
+	svc, db, _, channel := setupCreateRaceFixture(t, 0, func(input paymentcontract.GatewayCreateInput) error {
+		var payment paymentdomain.Payment
+		if err := db.First(&payment, input.PaymentID).Error; err != nil {
+			t.Fatalf("early callback cannot locate payment: %v", err)
+		}
+		if payment.GatewayOrderNo == "" || payment.GatewayOrderNo != input.OrderNo {
+			t.Fatalf("gateway order no must be persisted before the gateway request, db=%q sent=%q", payment.GatewayOrderNo, input.OrderNo)
+		}
+		var recharge walletdomain.RechargeOrder
+		if err := db.Where("payment_id = ?", payment.ID).First(&recharge).Error; err != nil {
+			t.Fatalf("load recharge failed: %v", err)
+		}
+		if _, err := svc.HandleCallback(buildWalletRechargeCallbackInput(&payment, &recharge, constants.PaymentStatusSuccess, "EARLY-1")); err != nil {
+			t.Fatalf("early callback failed: %v", err)
+		}
+		return errScriptedGatewayDown
+	})
+	var user userdomain.User
+	if err := db.Where("email = ?", "race@example.com").First(&user).Error; err != nil {
+		t.Fatalf("load user failed: %v", err)
+	}
+
+	if _, err := svc.CreateWalletRechargePayment(CreateWalletRechargePaymentInput{
+		UserID: user.ID, ChannelID: channel.ID, Amount: money.FromDecimal(decimal.NewFromInt(100)), Currency: "CNY", Context: context.Background(),
+	}); err == nil {
+		t.Fatal("expected gateway failure")
+	}
+
+	var payment paymentdomain.Payment
+	if err := db.Where("channel_id = ? AND order_id = 0", channel.ID).First(&payment).Error; err != nil {
+		t.Fatalf("reload payment failed: %v", err)
+	}
+	var recharge walletdomain.RechargeOrder
+	if err := db.Where("payment_id = ?", payment.ID).First(&recharge).Error; err != nil {
+		t.Fatalf("reload recharge failed: %v", err)
+	}
+	if payment.Status != constants.PaymentStatusSuccess || recharge.Status != constants.WalletRechargeStatusSuccess {
+		t.Fatalf("credited recharge was overwritten: payment=%s recharge=%s", payment.Status, recharge.Status)
 	}
 }

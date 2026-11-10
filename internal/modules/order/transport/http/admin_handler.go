@@ -78,6 +78,12 @@ type PaymentChannelDirectory interface {
 	ListByIDs(ids []uint) ([]paymentdomain.PaymentChannel, error)
 }
 
+// AccountingPolicy 订单利润统计口径端口。
+type AccountingPolicy interface {
+	// RefundReversesCost 退款时是否按比例冲回成本，与仪表盘利润口径保持一致。
+	RefundReversesCost() bool
+}
+
 // AdminHandler 处理后台订单 HTTP。
 type AdminHandler struct {
 	orders     OrderQuery
@@ -86,6 +92,7 @@ type AdminHandler struct {
 	promotions PromotionLookup
 	payments   PaymentDirectory
 	channels   PaymentChannelDirectory
+	accounting AccountingPolicy
 }
 
 func NewAdminHandler(
@@ -95,8 +102,9 @@ func NewAdminHandler(
 	promotions PromotionLookup,
 	payments PaymentDirectory,
 	channels PaymentChannelDirectory,
+	accounting AccountingPolicy,
 ) *AdminHandler {
-	if orders == nil || users == nil || coupons == nil || promotions == nil || payments == nil || channels == nil {
+	if orders == nil || users == nil || coupons == nil || promotions == nil || payments == nil || channels == nil || accounting == nil {
 		panic("order admin handler: required dependency is nil")
 	}
 	return &AdminHandler{
@@ -106,6 +114,7 @@ func NewAdminHandler(
 		promotions: promotions,
 		payments:   payments,
 		channels:   channels,
+		accounting: accounting,
 	}
 }
 
@@ -131,6 +140,8 @@ type AdminOrderDetail struct {
 	CouponCode      string                  `json:"coupon_code,omitempty"`
 	PromotionName   string                  `json:"promotion_name,omitempty"`
 	Payments        []AdminOrderPaymentItem `json:"payments,omitempty"`
+	// RefundReversesCost 为 true 时，订单详情利润在退款时按比例冲回成本。
+	RefundReversesCost bool `json:"refund_reverses_cost"`
 }
 
 // AdminListOrders 管理端订单列表
@@ -357,6 +368,8 @@ func (h *AdminHandler) AdminGetOrder(c *gin.Context) {
 		CouponCode:      couponCode,
 		PromotionName:   promotionName,
 		Payments:        paymentItems,
+
+		RefundReversesCost: h.accounting.RefundReversesCost(),
 	})
 }
 

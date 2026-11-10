@@ -203,6 +203,7 @@ func BuiltinRoleSeeds() []RoleSeed {
 				{Object: "/admin/orders/:id", Action: "PATCH"},
 				{Object: "/admin/orders/:id/refund-to-wallet", Action: "POST"},
 				{Object: "/admin/orders/:id/manual-refund", Action: "POST"},
+				{Object: "/admin/orders/:id/manual-confirm-payment", Action: "POST"},
 				{Object: "/admin/order-refunds", Action: "GET"},
 				{Object: "/admin/order-refunds/:id", Action: "GET"},
 				{Object: "/admin/order-refunds/:id/payment-fee", Action: "PATCH"},

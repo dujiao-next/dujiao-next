@@ -52,6 +52,20 @@ func releaseManualStockByItems(productRepo productcontract.Repository, productSK
 	return applyManualStockByItems(productRepo, productSKURepo, items, skuOp, productOp, false)
 }
 
+// reserveManualStockByItems 重新占用人工库存，库存不足时返回 ErrManualStockInsufficient。
+// 用于重开已取消订单：取消时占用已释放，重开必须重新占用，否则后续消耗会扣掉其他待支付订单的占用。
+func reserveManualStockByItems(productRepo productcontract.Repository, productSKURepo productcontract.SKURepository, items []orderdomain.OrderItem) error {
+	var skuOp func(uint, int) (int64, error)
+	if productSKURepo != nil {
+		skuOp = productSKURepo.ReserveManualStock
+	}
+	var productOp func(uint, int) (int64, error)
+	if productRepo != nil {
+		productOp = productRepo.ReserveManualStock
+	}
+	return applyManualStockByItems(productRepo, productSKURepo, items, skuOp, productOp, true)
+}
+
 func ConsumeManualStockByItems(productRepo productcontract.Repository, productSKURepo productcontract.SKURepository, items []orderdomain.OrderItem) error {
 	var skuOp func(uint, int) (int64, error)
 	if productSKURepo != nil {

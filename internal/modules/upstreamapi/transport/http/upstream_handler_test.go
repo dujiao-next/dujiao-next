@@ -2,10 +2,14 @@ package upstreamhttp
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -349,4 +353,130 @@ func TestUpstreamCatalogPriceTakesLowerOfUserPriceAndLevelPrice(t *testing.T) {
 			t.Fatalf("no discount price = %s member=%q, want 100.00 and empty", none.PriceAmount, none.MemberPrice)
 		}
 	})
+}
+
+// idempotencyOrders / idempotencyRefs / countingPayments 用内存状态模拟订单、引用表和支付，
+// 用来验证同一幂等键只会下一单、扣一次款。
+type idempotencyOrders struct {
+	Orders
+	mu       sync.Mutex
+	created  int
+	canceled int
+}
+
+func (s *idempotencyOrders) CreateOrder(CreateOrderInput) (*orderdomain.Order, error) {
+	time.Sleep(10 * time.Millisecond) // 放大「先查后建」的窗口
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.created++
+	return &orderdomain.Order{ID: uint(100 + s.created), OrderNo: "IDEM", Status: constants.OrderStatusPendingPayment}, nil
+}
+
+func (s *idempotencyOrders) GetOrderByUser(orderID, _ uint) (*orderdomain.Order, error) {
+	return &orderdomain.Order{ID: orderID, OrderNo: "IDEM", Status: constants.OrderStatusPaid}, nil
+}
+
+func (s *idempotencyOrders) CancelOrder(orderID, _ uint) (*orderdomain.Order, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.canceled++
+	return &orderdomain.Order{ID: orderID, Status: constants.OrderStatusCanceled}, nil
+}
+
+type idempotencyRefs struct {
+	mu        sync.Mutex
+	refs      map[string]*downstreamcallbackdomain.OrderRef
+	createErr error
+}
+
+func (s *idempotencyRefs) Create(ref *downstreamcallbackdomain.OrderRef) error {
+	if s.createErr != nil {
+		return s.createErr
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.refs[ref.DownstreamOrderNo] = ref
+	return nil
+}
+
+func (s *idempotencyRefs) GetByCredentialAndDownstreamNo(_ uint, no string) (*downstreamcallbackdomain.OrderRef, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.refs[no], nil
+}
+
+type countingPayments struct{ calls atomic.Int32 }
+
+func (s *countingPayments) CreatePayment(CreatePaymentInput) (*CreatePaymentResult, error) {
+	s.calls.Add(1)
+	return &CreatePaymentResult{OrderPaid: true}, nil
+}
+
+func postDownstreamOrder(handler *Handler, downstreamOrderNo string) *httptest.ResponseRecorder {
+	body, _ := json.Marshal(map[string]interface{}{"sku_id": 19, "quantity": 1, "downstream_order_no": downstreamOrderNo})
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/v1/upstream/orders", bytes.NewReader(body))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	ctx.Set(upstreamUserIDKey, uint(1))
+	ctx.Set(upstreamCredentialIDKey, uint(1))
+	handler.CreateOrder(ctx)
+	return recorder
+}
+
+// 同一凭证、同一下游单号的并发请求只能创建一笔订单、执行一次支付。
+func TestCreateOrderConcurrentSameDownstreamNoCreatesOnce(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	orders := &idempotencyOrders{}
+	payments := &countingPayments{}
+	handler := &Handler{Dependencies: Dependencies{
+		ProductRepository: formTestProducts{productdomain.Product{ID: 18, IsActive: true, FulfillmentType: constants.FulfillmentTypeAuto}},
+		SKUs:              formTestSKUs{}, Orders: orders, Payments: payments,
+		DownstreamRefs: &idempotencyRefs{refs: map[string]*downstreamcallbackdomain.OrderRef{}}, Settings: formTestSettings{},
+	}}
+
+	// 测试环境没有 Redis：用内存互斥锁顶替，验证的是「拿到锁之后再做幂等检查」这条流程。
+	var mu sync.Mutex
+	original := acquireDownstreamOrderLock
+	acquireDownstreamOrderLock = func(context.Context, string, time.Duration) (func(), error) {
+		mu.Lock()
+		return mu.Unlock, nil
+	}
+	t.Cleanup(func() { acquireDownstreamOrderLock = original })
+
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if recorder := postDownstreamOrder(handler, "DUP-1"); recorder.Code != http.StatusOK {
+				t.Errorf("status=%d body=%s", recorder.Code, recorder.Body.String())
+			}
+		}()
+	}
+	wg.Wait()
+
+	if orders.created != 1 || payments.calls.Load() != 1 {
+		t.Fatalf("want 1 order and 1 payment, got %d orders and %d payments", orders.created, payments.calls.Load())
+	}
+}
+
+// 引用写入失败时必须停在扣款之前，并取消刚创建的订单。
+func TestCreateOrderStopsBeforePaymentWhenRefCreateFails(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	orders := &idempotencyOrders{}
+	payments := &countingPayments{}
+	handler := &Handler{Dependencies: Dependencies{
+		ProductRepository: formTestProducts{productdomain.Product{ID: 18, IsActive: true, FulfillmentType: constants.FulfillmentTypeAuto}},
+		SKUs:              formTestSKUs{}, Orders: orders, Payments: payments,
+		DownstreamRefs: &idempotencyRefs{createErr: errors.New("db down")}, Settings: formTestSettings{},
+	}}
+
+	recorder := postDownstreamOrder(handler, "REF-FAIL-1")
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if payments.calls.Load() != 0 || orders.canceled != 1 {
+		t.Fatalf("want 0 payments and 1 canceled order, got %d payments and %d canceled", payments.calls.Load(), orders.canceled)
+	}
 }

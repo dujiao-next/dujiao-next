@@ -5,6 +5,8 @@ import (
 	"time"
 
 	admindomain "github.com/dujiao-next/internal/modules/identity/admin/domain"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 type bootstrapStoreStub struct {
@@ -73,7 +75,7 @@ func (s *bootstrapStoreStub) UpdatePassword(uint, string) error                 
 
 func TestInitDefaultAdminMarksBootstrapAdminAsSuper(t *testing.T) {
 	store := newBootstrapStoreStub()
-	if err := InitDefaultAdmin(store, "root-admin", "secret123"); err != nil {
+	if _, err := InitDefaultAdmin(store, "root-admin", "secret123"); err != nil {
 		t.Fatalf("init default admin failed: %v", err)
 	}
 	admin, err := store.GetByUsername("root-admin")
@@ -91,7 +93,7 @@ func TestInitDefaultAdminRepairsExistingBootstrapAdminSuperFlag(t *testing.T) {
 	if err := store.Create(admin); err != nil {
 		t.Fatalf("create bootstrap admin failed: %v", err)
 	}
-	if err := InitDefaultAdmin(store, "root-admin", "ignored"); err != nil {
+	if _, err := InitDefaultAdmin(store, "root-admin", "ignored"); err != nil {
 		t.Fatalf("repair bootstrap admin failed: %v", err)
 	}
 	refreshed, err := store.GetByID(admin.ID)
@@ -109,7 +111,7 @@ func TestInitDefaultAdminLeavesOtherExistingAdminsUnchanged(t *testing.T) {
 	if err := store.Create(existing); err != nil {
 		t.Fatalf("create existing admin: %v", err)
 	}
-	if err := InitDefaultAdmin(store, "root-admin", "ignored"); err != nil {
+	if _, err := InitDefaultAdmin(store, "root-admin", "ignored"); err != nil {
 		t.Fatalf("init with missing bootstrap admin: %v", err)
 	}
 	count, err := store.Count()
@@ -118,5 +120,27 @@ func TestInitDefaultAdminLeavesOtherExistingAdminsUnchanged(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("count = %d, want 1", count)
+	}
+}
+
+func TestInitDefaultAdminGeneratesRandomPasswordWhenEmpty(t *testing.T) {
+	store := newBootstrapStoreStub()
+	generated, err := InitDefaultAdmin(store, "", "")
+	if err != nil {
+		t.Fatalf("init default admin failed: %v", err)
+	}
+	if len(generated) < 16 || generated == "admin123" {
+		t.Fatalf("generated password = %q, want a long random value", generated)
+	}
+	admin, _ := store.GetByUsername("admin")
+	if admin == nil || bcrypt.CompareHashAndPassword([]byte(admin.PasswordHash), []byte(generated)) != nil {
+		t.Fatal("bootstrap admin should be created with the generated password")
+	}
+	if bcrypt.CompareHashAndPassword([]byte(admin.PasswordHash), []byte("admin123")) == nil {
+		t.Fatal("bootstrap admin must not fall back to admin123")
+	}
+
+	if again, err := InitDefaultAdmin(newBootstrapStoreStub(), "", "configured-Strong-1"); err != nil || again != "" {
+		t.Fatalf("configured password should not be reported as generated: %q, %v", again, err)
 	}
 }

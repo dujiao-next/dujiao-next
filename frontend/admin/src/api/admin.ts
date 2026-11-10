@@ -211,6 +211,12 @@ export interface AdminManualRefundPayload {
   payment_fee_refunded?: boolean
 }
 
+export interface AdminManualConfirmPaymentPayload {
+  payment_id: number
+  provider_ref?: string
+  remark?: string
+}
+
 export interface AdminUpdateRefundPaymentFeePayload {
   payment_fee_refunded: boolean
 }
@@ -532,6 +538,8 @@ export const adminAPI = {
     api.post(`/admin/orders/${id}/refund-to-wallet`, data),
   manualRefundOrder: (id: number, data: AdminManualRefundPayload) =>
     api.post(`/admin/orders/${id}/manual-refund`, data),
+  manualConfirmOrderPayment: (id: number, data: AdminManualConfirmPaymentPayload) =>
+    api.post(`/admin/orders/${id}/manual-confirm-payment`, data),
   getOrderRefunds: (params?: Record<string, unknown>) => api.get('/admin/order-refunds', { params }),
   getOrderRefund: (id: number) => api.get(`/admin/order-refunds/${id}`),
   updateOrderRefundPaymentFee: (id: number, data: AdminUpdateRefundPaymentFeePayload) =>

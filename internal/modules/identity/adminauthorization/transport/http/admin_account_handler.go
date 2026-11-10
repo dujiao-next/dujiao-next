@@ -44,6 +44,9 @@ func (h *AdminHandler) CreateAuthzAdmin(c *gin.Context) {
 		ginutil.RespondError(c, response.CodeBadRequest, "error.admin_username_invalid", err)
 		return
 	}
+	if rejectNonSuperEscalation(c, (req.IsSuper != nil && *req.IsSuper) || isProtectedSuperAdminUsername(username)) {
+		return
+	}
 	password := strings.TrimSpace(req.Password)
 	if password == "" {
 		ginutil.RespondError(c, response.CodeBadRequest, "error.password_weak", nil)
@@ -136,6 +139,11 @@ func (h *AdminHandler) UpdateAuthzAdmin(c *gin.Context) {
 	var req authzUpdateAdminPayload
 	if err := c.ShouldBindJSON(&req); err != nil {
 		ginutil.RespondBindError(c, err)
+		return
+	}
+	if rejectNonSuperEscalation(c, admin.IsSuper ||
+		(req.IsSuper != nil && *req.IsSuper) ||
+		(req.Username != nil && isProtectedSuperAdminUsername(*req.Username))) {
 		return
 	}
 
@@ -260,6 +268,9 @@ func (h *AdminHandler) DeleteAuthzAdmin(c *gin.Context) {
 		ginutil.RespondError(c, response.CodeBadRequest, "error.admin_delete_self_forbidden", nil)
 		return
 	}
+	if rejectNonSuperEscalation(c, admin.IsSuper) {
+		return
+	}
 	if strings.EqualFold(strings.TrimSpace(admin.Username), protectedSuperAdminUsername) {
 		ginutil.RespondError(c, response.CodeBadRequest, "error.admin_delete_protected", nil)
 		return
@@ -305,6 +316,20 @@ func (h *AdminHandler) DeleteAuthzAdmin(c *gin.Context) {
 	)
 
 	response.Success(c, nil)
+}
+
+// rejectNonSuperEscalation 拦截非超管越权：RBAC 只管能不能进接口，授予超管、改动超管账号
+// 以及占用保留用户名（启动时会被自动提权为超管）必须由超管本人操作。
+func rejectNonSuperEscalation(c *gin.Context, touchesSuper bool) bool {
+	if !touchesSuper || ginutil.IsSuperAdmin(c) {
+		return false
+	}
+	ginutil.RespondError(c, response.CodeForbidden, "error.forbidden", nil)
+	return true
+}
+
+func isProtectedSuperAdminUsername(username string) bool {
+	return strings.EqualFold(strings.TrimSpace(username), protectedSuperAdminUsername)
 }
 
 func normalizeAdminUsername(username string) (string, error) {

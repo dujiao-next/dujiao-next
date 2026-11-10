@@ -45,7 +45,7 @@ user_jwt:
 
 bootstrap:
   default_admin_username: ""  # 首次初始化管理员用户名（可选）
-  default_admin_password: ""  # 首次初始化管理员密码（建议生产配置）
+  default_admin_password: ""  # 首次初始化管理员密码；留空则随机生成并在启动输出中显示一次
 
 telegram_auth:
   enabled: false
