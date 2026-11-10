@@ -247,13 +247,6 @@ type catalogPriceLevels struct {
 	levelPrice decimal.Decimal
 }
 
-func (l catalogPriceLevels) ResolveUserPrice(userID, _, _ uint, base decimal.Decimal) (decimal.Decimal, bool) {
-	if userID == 7 && l.userPrice.LessThan(base) {
-		return l.userPrice, true
-	}
-	return base, false
-}
-
 func (l catalogPriceLevels) ResolveMemberPrice(levelID, _, _ uint, base decimal.Decimal) (decimal.Decimal, decimal.Decimal) {
 	if levelID == 3 && l.levelPrice.LessThan(base) {
 		return l.levelPrice, base.Sub(l.levelPrice)

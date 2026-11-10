@@ -39,7 +39,6 @@ type PriceRepository interface {
 
 // UserPriceRepository 持久化用户专属商品价（一口价）。
 type UserPriceRepository interface {
-	GetByUserAndProductAndSKU(userID, productID, skuID uint) (*memberleveldomain.UserProductPrice, error)
 	ListByUser(userID uint, page, pageSize int) ([]memberleveldomain.UserProductPrice, int64, error)
 	BatchUpsert(prices []memberleveldomain.UserProductPrice) error
 	Delete(id uint) error

@@ -110,7 +110,8 @@ export const useUserProfileStore = defineStore('user-profile', () => {
         sku_spec_values?: Record<string, unknown>
     }>>([])
     let myProductPricesLoadedFor = 0
-    let myProductPricesInflight: Promise<void> | null = null
+    // 进行中的请求连同它属于哪个用户一起存，切换账号后不能复用上一个用户的 Promise
+    let myProductPricesInflight: { userId: number; promise: Promise<void> } | null = null
 
     const loadMyProductPrices = async (force = false) => {
         const userId = Number(userAuthStore.user?.id || 0)
@@ -122,7 +123,9 @@ export const useUserProfileStore = defineStore('user-profile', () => {
         }
         if (!force && myProductPricesLoadedFor === userId) return
         // 同一用户已有正在进行中的请求，直接复用，不再并发发出第二个
-        if (!force && myProductPricesInflight) return myProductPricesInflight
+        if (!force && myProductPricesInflight && myProductPricesInflight.userId === userId) {
+            return myProductPricesInflight.promise
+        }
         // 切换账号时先清掉上一个账号的列表，但不要立刻记下 loadedFor：
         // 上一个账号的慢请求如果晚到，不能把当前账号的数据覆盖掉。
         if (myProductPricesLoadedFor !== userId) {
@@ -141,11 +144,14 @@ export const useUserProfileStore = defineStore('user-profile', () => {
                 myProductPrices.value = []
                 myProductPricesLoadedFor = 0
             } finally {
-                myProductPricesInflight = null
+                if (myProductPricesInflight?.userId === userId) {
+                    myProductPricesInflight = null
+                }
             }
         }
-        myProductPricesInflight = doLoad()
-        return myProductPricesInflight
+        const promise = doLoad()
+        myProductPricesInflight = { userId, promise }
+        return promise
     }
 
     let memberLevelsInflight: Promise<void> | null = null

@@ -41,7 +41,8 @@ const searchUsers = async () => {
   try {
     const res = await adminAPI.getUsers({ page: 1, page_size: 8, keyword })
     userResults.value = res.data.data || []
-  } catch {
+  } catch (err: any) {
+    notifyError(err?.response?.data?.message || err?.message)
     userResults.value = []
   } finally {
     userSearching.value = false
@@ -72,18 +73,15 @@ const productCache = reactive<Record<number, AdminProduct | null>>({})
 const pagination = reactive({ page: 1, page_size: 20, total: 0, total_page: 0 })
 const pageSizeOptions = [10, 20, 50, 100]
 
-const loadProducts = async (ids: number[]) => {
-  const missing = Array.from(new Set(ids)).filter((id) => !(id in productCache))
-  await Promise.all(
-    missing.map(async (id) => {
-      try {
-        const res = await adminAPI.getProduct(id)
-        productCache[id] = (res.data.data as AdminProduct) || null
-      } catch {
-        productCache[id] = null
-      }
-    }),
-  )
+// 只给编辑弹窗加载那一个商品
+const loadProduct = async (id: number) => {
+  if (id in productCache) return
+  try {
+    const res = await adminAPI.getProduct(id)
+    productCache[id] = (res.data.data as AdminProduct) || null
+  } catch {
+    productCache[id] = null
+  }
 }
 
 const fetchPrices = async () => {
@@ -196,7 +194,7 @@ const openModal = () => {
 }
 
 const openEdit = async (row: AdminUserProductPrice) => {
-  await loadProducts([row.product_id])
+  await loadProduct(row.product_id)
   const product = productCache[row.product_id]
   if (!product) return
   productKeyword.value = ''

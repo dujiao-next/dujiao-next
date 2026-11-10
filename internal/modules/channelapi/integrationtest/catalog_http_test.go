@@ -315,13 +315,6 @@ func (s priceTestIdentity) ResolveTelegramChannelIdentity(in channeltransport.Te
 
 type priceTestLevels struct{}
 
-func (priceTestLevels) ResolveUserPrice(userID, _, _ uint, base decimal.Decimal) (decimal.Decimal, bool) {
-	if userID == 7 {
-		return decimal.NewFromInt(95), true
-	}
-	return base, false
-}
-
 func (priceTestLevels) ResolveMemberPrice(levelID, _, _ uint, base decimal.Decimal) (decimal.Decimal, decimal.Decimal) {
 	if levelID == 3 {
 		return decimal.NewFromInt(90), base.Sub(decimal.NewFromInt(90))

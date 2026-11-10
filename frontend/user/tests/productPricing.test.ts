@@ -69,6 +69,15 @@ test('会员等级覆盖价优先于折扣率', () => {
   assert.equal(resolveMemberLevelPriceCents(highOverride, 19, 10000, 3, 80), null)
 })
 
+test('专属价高于传入的活动价/批发价时不使用专属价', () => {
+  // 原价 100，活动价 80，专属价 90：后端下单收 80，详情页应回退到活动价
+  const userPrices = [{ product_id: 18, sku_id: 0, price_amount: '90.00' }]
+  assert.equal(resolveMemberPriceAmount(product, 19, '80.00', 0, 0, userPrices), null)
+  // 专属价 70 仍低于活动价 80 → 使用专属价
+  const cheaper = [{ product_id: 18, sku_id: 0, price_amount: '70.00' }]
+  assert.equal(resolveMemberPriceAmount(product, 19, '80.00', 0, 0, cheaper), '70.00')
+})
+
 test('无效输入返回 null', () => {
   assert.equal(resolveMemberPriceAmount(product, 19, '0', 3, 80, []), null)
   assert.equal(resolveMemberPriceAmount(product, 19, undefined, 3, 80, []), null)

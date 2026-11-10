@@ -76,7 +76,8 @@ func (s *Service) LoadUserPriceBook(userID uint) (UserPriceBook, error) {
 }
 
 // Resolve 在快照里取专属价，优先级 SKU 级 > 商品级，且必须低于 base。
-// SKU 级那行的价格无效（≤0）或高于 base 时不再回退商品级，与下单口径一致。
+// SKU 级那行的价格高于 base 时不再回退商品级；无效价（≤0）的行在 LoadUserPriceBook
+// 里已被过滤，因此不会进入快照。
 func (b UserPriceBook) Resolve(productID, skuID uint, base decimal.Decimal) (decimal.Decimal, bool) {
 	if len(b) == 0 {
 		return base, false

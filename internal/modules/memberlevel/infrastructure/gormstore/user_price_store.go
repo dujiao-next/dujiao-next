@@ -19,30 +19,23 @@ func NewUserPriceStore(db *gorm.DB) *UserPriceStore {
 	return &UserPriceStore{db: db}
 }
 
-func (r *UserPriceStore) GetByUserAndProductAndSKU(userID, productID, skuID uint) (*memberleveldomain.UserProductPrice, error) {
-	var price memberleveldomain.UserProductPrice
-	if err := r.db.Where("deleted_at IS NULL AND user_id = ? AND product_id = ? AND sku_id = ?", userID, productID, skuID).First(&price).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return &price, nil
-}
-
-// ListByUser 分页获取用户的专属价。
+// ListByUser 分页获取用户的专属价。不分页时不再单独跑一次 COUNT。
 func (r *UserPriceStore) ListByUser(userID uint, page, pageSize int) ([]memberleveldomain.UserProductPrice, int64, error) {
+	paginated := page > 0 && pageSize > 0
 	query := r.db.Model(&memberleveldomain.UserProductPrice{}).Where("deleted_at IS NULL AND user_id = ?", userID)
 	var total int64
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-	if page > 0 && pageSize > 0 {
+	if paginated {
+		if err := query.Count(&total).Error; err != nil {
+			return nil, 0, err
+		}
 		query = query.Offset((page - 1) * pageSize).Limit(pageSize)
 	}
 	var prices []memberleveldomain.UserProductPrice
 	if err := query.Order("product_id asc, sku_id asc").Find(&prices).Error; err != nil {
 		return nil, 0, err
+	}
+	if !paginated {
+		total = int64(len(prices))
 	}
 	return prices, total, nil
 }

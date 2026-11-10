@@ -77,7 +77,9 @@ export const resolveMemberPriceAmount = (
   const memberCents = resolveMemberLevelPriceCents(product, skuId, baseCents, memberLevelId, discountRate)
   const exclusiveCents = resolveUserPriceCents(product, skuId, userPrices)
 
-  if (exclusiveCents !== null && (memberCents === null || exclusiveCents < memberCents)) {
+  // 专属价还要和传进来的 basePrice（详情页可能是活动价或批发价）比：
+  // 后端下单先算活动价/批发价/会员价，只有专属价更低时才覆盖，否则收的是那个更低的价格。
+  if (exclusiveCents !== null && exclusiveCents < baseCents && (memberCents === null || exclusiveCents < memberCents)) {
     return centsToAmount(exclusiveCents)
   }
   if (memberCents !== null) return centsToAmount(memberCents)

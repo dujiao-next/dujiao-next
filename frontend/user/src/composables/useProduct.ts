@@ -37,7 +37,14 @@ export function useLocalized() {
 export function useProductLabels() {
   const userAuthStore = useUserAuthStore()
   const userProfileStore = useUserProfileStore()
-  if (userAuthStore.isAuthenticated) void userProfileStore.loadMyProductPrices()
+  if (userAuthStore.isAuthenticated) {
+    void userProfileStore.loadMyProductPrices()
+    // 卡片展示会员价需要等级折扣率；只进过列表页时不加载会导致显示原价。
+    // loadMemberLevels 已做去重，重复调用不会多发请求。
+    if (Number(userAuthStore.user?.member_level_id || 0) > 0) {
+      void userProfileStore.loadMemberLevels()
+    }
+  }
   const { t } = useI18n()
 
   const getPurchaseTypeLabel = (purchaseType: string) => {
