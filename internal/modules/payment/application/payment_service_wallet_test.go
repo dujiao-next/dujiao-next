@@ -342,7 +342,7 @@ func TestExpireWalletRechargePaymentSkipsOrderPayment(t *testing.T) {
 	}
 }
 
-func TestWalletRechargeCallbackSuccessAfterExpireCreditsOnce(t *testing.T) {
+func TestWalletRechargeLateSuccessWaitsForManualConfirmation(t *testing.T) {
 	svc, db := setupPaymentServiceWalletTest(t)
 	payment, recharge := createWalletRechargeFixture(t, db, constants.PaymentStatusPending, constants.WalletRechargeStatusPending)
 
@@ -358,6 +358,33 @@ func TestWalletRechargeCallbackSuccessAfterExpireCreditsOnce(t *testing.T) {
 		t.Fatalf("payment status want %s got %s", constants.PaymentStatusSuccess, updated.Status)
 	}
 
+	var beforeConfirm walletdomain.RechargeOrder
+	if err := db.First(&beforeConfirm, recharge.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if beforeConfirm.Status == constants.WalletRechargeStatusSuccess {
+		t.Fatal("late callback credited closed recharge")
+	}
+	var credits int64
+	if err := db.Model(&walletdomain.Transaction{}).Where("user_id = ?", recharge.UserID).Count(&credits).Error; err != nil {
+		t.Fatal(err)
+	}
+	if credits != 0 {
+		t.Fatalf("late callback created %d wallet transactions", credits)
+	}
+	if updated.ExceptionCode != constants.PaymentExceptionClosedOrderSucceeded {
+		t.Fatalf("missing exception: %s", updated.ExceptionCode)
+	}
+	paidAt := *updated.PaidAt
+	for i := 0; i < 2; i++ {
+		confirmed, err := svc.ManualConfirmWalletRecharge(ManualConfirmWalletRechargeInput{RechargeID: recharge.ID, PaymentID: payment.ID, AdminID: 1, Remark: "verified"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !confirmed.PaidAt.Equal(paidAt) || confirmed.ExceptionCode != "" {
+			t.Fatal("manual confirmation lost gateway paid time or exception remains")
+		}
+	}
 	assertWalletRechargeSuccessState(t, db, payment.ID, recharge.ID, recharge.UserID, recharge.Amount.Decimal)
 }
 
@@ -556,7 +583,7 @@ func TestWalletRechargeCallbackTerminalStateMatrixDoesNotReopen(t *testing.T) {
 	}
 }
 
-func TestWalletRechargeCallbackSuccessAfterFailedCreditsOnce(t *testing.T) {
+func TestWalletRechargeFailedSuccessWaitsForManualConfirmation(t *testing.T) {
 	svc, db := setupPaymentServiceWalletTest(t)
 	payment, recharge := createWalletRechargeFixture(t, db, constants.PaymentStatusFailed, constants.WalletRechargeStatusFailed)
 
@@ -568,6 +595,33 @@ func TestWalletRechargeCallbackSuccessAfterFailedCreditsOnce(t *testing.T) {
 		t.Fatalf("payment status want %s got %s", constants.PaymentStatusSuccess, updated.Status)
 	}
 
+	var beforeConfirm walletdomain.RechargeOrder
+	if err := db.First(&beforeConfirm, recharge.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if beforeConfirm.Status == constants.WalletRechargeStatusSuccess {
+		t.Fatal("late callback credited closed recharge")
+	}
+	var credits int64
+	if err := db.Model(&walletdomain.Transaction{}).Where("user_id = ?", recharge.UserID).Count(&credits).Error; err != nil {
+		t.Fatal(err)
+	}
+	if credits != 0 {
+		t.Fatalf("late callback created %d wallet transactions", credits)
+	}
+	if updated.ExceptionCode != constants.PaymentExceptionClosedOrderSucceeded {
+		t.Fatalf("missing exception: %s", updated.ExceptionCode)
+	}
+	paidAt := *updated.PaidAt
+	for i := 0; i < 2; i++ {
+		confirmed, err := svc.ManualConfirmWalletRecharge(ManualConfirmWalletRechargeInput{RechargeID: recharge.ID, PaymentID: payment.ID, AdminID: 1, Remark: "verified"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !confirmed.PaidAt.Equal(paidAt) || confirmed.ExceptionCode != "" {
+			t.Fatal("manual confirmation lost gateway paid time or exception remains")
+		}
+	}
 	assertWalletRechargeSuccessState(t, db, payment.ID, recharge.ID, recharge.UserID, recharge.Amount.Decimal)
 
 	reference := fmt.Sprintf("recharge:%d:success", recharge.ID)
@@ -1605,5 +1659,111 @@ func TestEnqueueOrderPaidAsyncRetriesFailedAffiliateCommission(t *testing.T) {
 	svc.enqueueOrderPaidAsync(order, nil, zap.NewNop().Sugar())
 	if len(queue.retried) != 1 || queue.retried[0] != 42 {
 		t.Fatalf("expected affiliate retry enqueued for order 42, got %v", queue.retried)
+	}
+}
+
+func TestManualConfirmWalletRechargeCreditsOnce(t *testing.T) {
+	for _, status := range []string{constants.WalletRechargeStatusPending, constants.WalletRechargeStatusExpired, constants.WalletRechargeStatusFailed} {
+		t.Run(status, func(t *testing.T) {
+			svc, db := setupPaymentServiceWalletTest(t)
+			payment, recharge := createWalletRechargeFixture(t, db, status, status)
+			if _, err := svc.ManualConfirmWalletRecharge(ManualConfirmWalletRechargeInput{RechargeID: recharge.ID, PaymentID: payment.ID}); !errors.Is(err, ErrPaymentInvalid) {
+				t.Fatalf("missing admin: %v", err)
+			}
+			for i := 0; i < 2; i++ {
+				if _, err := svc.ManualConfirmWalletRecharge(ManualConfirmWalletRechargeInput{RechargeID: recharge.ID, PaymentID: payment.ID, AdminID: 1, Remark: "verified"}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			assertWalletRechargeSuccessState(t, db, payment.ID, recharge.ID, recharge.UserID, recharge.Amount.Decimal)
+		})
+	}
+}
+
+func TestWalletRechargeConcurrentLateCallbacksAndManualConfirmCreditOnce(t *testing.T) {
+	svc, db := setupPaymentServiceWalletTest(t)
+	raw, err := db.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw.SetMaxOpenConns(1)
+	t.Cleanup(func() { _ = raw.Close() })
+	payment, recharge := createWalletRechargeFixture(t, db, constants.PaymentStatusExpired, constants.WalletRechargeStatusExpired)
+	var wg sync.WaitGroup
+	errs := make(chan error, 8)
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			var err error
+			if i%2 == 0 {
+				_, err = svc.ManualConfirmWalletRecharge(ManualConfirmWalletRechargeInput{RechargeID: recharge.ID, PaymentID: payment.ID, AdminID: 1, Remark: "verified"})
+			} else {
+				_, err = svc.HandleCallback(buildWalletRechargeCallbackInput(payment, recharge, constants.PaymentStatusSuccess, "LATE-SUCCESS"))
+			}
+			if err != nil {
+				errs <- err
+			}
+		}(i)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Error(err)
+	}
+	assertWalletRechargeSuccessState(t, db, payment.ID, recharge.ID, recharge.UserID, recharge.Amount.Decimal)
+	var count int64
+	if err := db.Model(&walletdomain.Transaction{}).Where("reference = ?", fmt.Sprintf("recharge:%d:success", recharge.ID)).Count(&count).Error; err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("wallet credits: %d", count)
+	}
+}
+
+func TestManualConfirmWalletRechargeValidatesPaymentAndRecordsProviderRef(t *testing.T) {
+	for _, existingRef := range []string{"", "GATEWAY-ORDER-123"} {
+		t.Run(existingRef, func(t *testing.T) {
+			svc, db := setupPaymentServiceWalletTest(t)
+			payment, recharge := createWalletRechargeFixture(t, db, constants.PaymentStatusExpired, constants.WalletRechargeStatusExpired)
+			if err := db.Model(payment).Update("provider_ref", existingRef).Error; err != nil {
+				t.Fatal(err)
+			}
+			input := ManualConfirmWalletRechargeInput{RechargeID: recharge.ID, AdminID: 1, ProviderRef: " TX-HASH-001 ", Remark: "verified receipt"}
+			if _, err := svc.ManualConfirmWalletRecharge(input); !errors.Is(err, ErrPaymentInvalid) {
+				t.Fatalf("missing payment: %v", err)
+			}
+			input.PaymentID = payment.ID + 1
+			if _, err := svc.ManualConfirmWalletRecharge(input); !errors.Is(err, ErrPaymentInvalid) {
+				t.Fatalf("other payment: %v", err)
+			}
+			var count int64
+			if err := db.Model(&walletdomain.Transaction{}).Count(&count).Error; err != nil {
+				t.Fatal(err)
+			}
+			if count != 0 {
+				t.Fatal("invalid payment credited wallet")
+			}
+			input.PaymentID = payment.ID
+			if _, err := svc.ManualConfirmWalletRecharge(input); err != nil {
+				t.Fatal(err)
+			}
+			var updated paymentdomain.Payment
+			if err := db.First(&updated, payment.ID).Error; err != nil {
+				t.Fatal(err)
+			}
+			wantRef := existingRef
+			if wantRef == "" {
+				wantRef = "TX-HASH-001"
+			}
+			if updated.ProviderRef != wantRef {
+				t.Fatalf("provider ref: %s", updated.ProviderRef)
+			}
+			audit, ok := updated.ProviderPayload["manual_confirm"].(map[string]interface{})
+			if !ok || audit["provider_ref"] != "TX-HASH-001" || audit["remark"] != input.Remark {
+				t.Fatalf("audit: %+v", updated.ProviderPayload)
+			}
+			assertWalletRechargeSuccessState(t, db, payment.ID, recharge.ID, recharge.UserID, recharge.Amount.Decimal)
+		})
 	}
 }

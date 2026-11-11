@@ -344,3 +344,23 @@ func (s *Store) GetRechargeOrdersByPaymentIDs(paymentIDs []uint) ([]walletdomain
 	}
 	return orders, nil
 }
+
+func (s *Store) GetRechargeOrderByID(id uint) (*walletdomain.RechargeOrder, error) {
+	if id == 0 {
+		return nil, nil
+	}
+	var order walletdomain.RechargeOrder
+	if err := s.db.Where("id = ? AND deleted_at IS NULL", id).First(&order).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &order, nil
+}
+
+func (s *Store) ListRechargeRefunds(id uint) ([]walletdomain.Transaction, error) {
+	rows := []walletdomain.Transaction{}
+	err := s.db.Where("recharge_order_id = ? AND type = ? AND deleted_at IS NULL", id, "admin_refund").Order("id DESC").Find(&rows).Error
+	return rows, err
+}
