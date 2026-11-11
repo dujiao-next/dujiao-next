@@ -29,56 +29,9 @@ func (OrderRefundRecord) TableName() string {
 	return "order_refund_records"
 }
 
-// CalculatePaymentFeeRefundAmount allocates the original payment fee to one
-// refund. It uses cumulative values so the final refund absorbs rounding
-// differences without ever returning more than the original payment fee.
+// CalculatePaymentFeeRefundAmount 按退款比例分摊原支付手续费，并处理累计退款的舍入尾差。
 func CalculatePaymentFeeRefundAmount(
-	paymentAmount decimal.Decimal,
-	paymentFee decimal.Decimal,
-	refundedPrincipalBefore decimal.Decimal,
-	refundedFeeBefore decimal.Decimal,
-	refundAmount decimal.Decimal,
+	paymentAmount, paymentFee, refundedPrincipalBefore, refundedFeeBefore, refundAmount decimal.Decimal,
 ) decimal.Decimal {
-	paymentAmount = paymentAmount.Round(2)
-	paymentFee = paymentFee.Round(2)
-	refundedPrincipalBefore = refundedPrincipalBefore.Round(2)
-	refundedFeeBefore = refundedFeeBefore.Round(2)
-	refundAmount = refundAmount.Round(2)
-	if paymentAmount.LessThanOrEqual(decimal.Zero) ||
-		paymentFee.LessThanOrEqual(decimal.Zero) ||
-		refundAmount.LessThanOrEqual(decimal.Zero) {
-		return decimal.Zero
-	}
-
-	if refundedPrincipalBefore.IsNegative() {
-		refundedPrincipalBefore = decimal.Zero
-	}
-	if refundedFeeBefore.IsNegative() {
-		refundedFeeBefore = decimal.Zero
-	}
-	if refundedPrincipalBefore.GreaterThan(paymentAmount) {
-		refundedPrincipalBefore = paymentAmount
-	}
-	if refundedFeeBefore.GreaterThan(paymentFee) {
-		refundedFeeBefore = paymentFee
-	}
-
-	cumulativePrincipal := refundedPrincipalBefore.Add(refundAmount)
-	if cumulativePrincipal.GreaterThan(paymentAmount) {
-		cumulativePrincipal = paymentAmount
-	}
-	targetRefundedFee := paymentFee.Mul(cumulativePrincipal).Div(paymentAmount).Round(2)
-	if cumulativePrincipal.GreaterThanOrEqual(paymentAmount) {
-		targetRefundedFee = paymentFee
-	}
-
-	current := targetRefundedFee.Sub(refundedFeeBefore).Round(2)
-	if current.IsNegative() {
-		return decimal.Zero
-	}
-	remaining := paymentFee.Sub(refundedFeeBefore).Round(2)
-	if current.GreaterThan(remaining) {
-		return remaining
-	}
-	return current
+	return money.CalculatePaymentFeeRefundAmount(paymentAmount, paymentFee, refundedPrincipalBefore, refundedFeeBefore, refundAmount)
 }

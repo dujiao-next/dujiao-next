@@ -40,28 +40,6 @@ func (s *PaymentService) handleWalletRechargeCallback(payment *paymentdomain.Pay
 		return nil, err
 	}
 
-	// 幂等处理：已成功状态仅更新回调元信息。
-	if payment.Status == constants.PaymentStatusSuccess {
-		log.Infow("wallet_recharge_callback_idempotent_success",
-			"current_status", payment.Status,
-		)
-		return s.updateCallbackMeta(payment, constants.PaymentStatusSuccess, input)
-	}
-	if payment.Status == status {
-		log.Infow("wallet_recharge_callback_idempotent_same_status",
-			"current_status", payment.Status,
-		)
-		return s.updateCallbackMeta(payment, status, input)
-	}
-	if !canApplyWalletRechargeCallback(payment.Status, recharge.Status, status) {
-		log.Infow("wallet_recharge_callback_ignored_terminal_transition",
-			"current_payment_status", payment.Status,
-			"current_recharge_status", recharge.Status,
-			"target_status", status,
-		)
-		return s.updateCallbackMeta(payment, payment.Status, input)
-	}
-
 	now := time.Now()
 	updated, newlySucceeded, err := s.applyWalletRechargePaymentUpdate(payment, status, input, now)
 	if err != nil {
@@ -126,13 +104,18 @@ func (s *PaymentService) applyWalletRechargePaymentUpdate(payment *paymentdomain
 		if err := validateWalletCallbackPaymentFacts(lockedPayment, recharge.RechargeNo, status, input); err != nil {
 			return err
 		}
+		if input.manualConfirm && recharge.Status != constants.WalletRechargeStatusPending &&
+			recharge.Status != constants.WalletRechargeStatusExpired && recharge.Status != constants.WalletRechargeStatusFailed &&
+			recharge.Status != constants.WalletRechargeStatusSuccess {
+			return walletcontract.ErrRechargeStatusInvalid
+		}
 		adoptVerifiedLegacyDujiaoPayCurrency(lockedPayment, status, input)
 		paymentVal = lockedPayment
-		if lockedPayment.Status == constants.PaymentStatusSuccess {
+		if lockedPayment.Status == constants.PaymentStatusSuccess && (!input.manualConfirm || recharge.Status == constants.WalletRechargeStatusSuccess) {
 			_, err := updateCallbackMetaWithRepo(paymentRepo, lockedPayment, constants.PaymentStatusSuccess, input)
 			return err
 		}
-		if lockedPayment.Status == status {
+		if lockedPayment.Status == status && !input.manualConfirm {
 			_, err := updateCallbackMetaWithRepo(paymentRepo, lockedPayment, status, input)
 			return err
 		}
@@ -147,9 +130,21 @@ func (s *PaymentService) applyWalletRechargePaymentUpdate(payment *paymentdomain
 			if input.PaidAt != nil {
 				paidAt = *input.PaidAt
 			}
-			lockedPayment.PaidAt = &paidAt
+			if !input.manualConfirm || lockedPayment.PaidAt == nil {
+				lockedPayment.PaidAt = &paidAt
+			}
 		case constants.PaymentStatusExpired:
 			lockedPayment.ExpiredAt = &now
+		}
+		canCredit := status == constants.PaymentStatusSuccess && (input.manualConfirm ||
+			(recharge.Status == constants.WalletRechargeStatusPending && lockedPayment.ExpiredAt == nil &&
+				(lockedPayment.Status == constants.PaymentStatusPending || lockedPayment.Status == constants.PaymentStatusInitiated)))
+		if status == constants.PaymentStatusSuccess {
+			if canCredit {
+				lockedPayment.ExceptionCode = ""
+			} else {
+				lockedPayment.ExceptionCode = constants.PaymentExceptionClosedOrderSucceeded
+			}
 		}
 		lockedPayment.Status = status
 		lockedPayment.CallbackAt = &now
@@ -169,6 +164,10 @@ func (s *PaymentService) applyWalletRechargePaymentUpdate(payment *paymentdomain
 
 		switch status {
 		case constants.PaymentStatusSuccess:
+			// 渠道到账与钱包入账分开：关闭的充值单等待管理员确认。
+			if !canCredit {
+				return nil
+			}
 			if s.walletSvc == nil {
 				return walletcontract.ErrAccountNotFound
 			}
@@ -202,7 +201,7 @@ func (s *PaymentService) applyWalletRechargePaymentUpdate(payment *paymentdomain
 }
 
 func canApplyWalletRechargeCallback(paymentStatus string, rechargeStatus string, targetStatus string) bool {
-	// 成功回调允许覆盖终态（支付网关存在延迟成功通知场景）。
+	// 成功回调记录渠道实际到账；是否给钱包入账由事务内的充值状态决定。
 	if targetStatus == constants.PaymentStatusSuccess {
 		return true
 	}

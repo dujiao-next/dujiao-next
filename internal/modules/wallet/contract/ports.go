@@ -22,6 +22,8 @@ type Repository interface {
 	CountOrderTransactionsByType(orderID uint, transactionType string) (int64, error)
 	ListTransactions(filter TransactionListFilter) ([]walletdomain.Transaction, int64, error)
 
+	ListRechargeRefunds(id uint) ([]walletdomain.Transaction, error)
+	GetRechargeOrderByID(id uint) (*walletdomain.RechargeOrder, error)
 	CreateRechargeOrder(order *walletdomain.RechargeOrder) error
 	UpdateRechargeOrder(order *walletdomain.RechargeOrder) error
 	GetRechargeOrderByRechargeNo(userID uint, rechargeNo string) (*walletdomain.RechargeOrder, error)

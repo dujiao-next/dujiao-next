@@ -5,23 +5,22 @@ import (
 	"strings"
 	"time"
 
-	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
-
-	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
-
-	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
-
-	ginutil "github.com/dujiao-next/internal/platform/http/ginutil"
-	"github.com/dujiao-next/internal/shared/money"
-
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/platform/http/response"
-
+	"github.com/dujiao-next/internal/shared/money"
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
+
+	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
+	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
+	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
+	ginutil "github.com/dujiao-next/internal/platform/http/ginutil"
 )
 
 var ErrInsufficientBalance = errors.New("wallet insufficient balance")
+var ErrRechargeRefundExceeded = errors.New("recharge refund exceeded")
+var ErrRechargeStatusInvalid = errors.New("recharge status invalid")
+var ErrRechargeRefundExpired = errors.New("recharge refund expired")
 
 // AdminWalletService 是后台钱包管理所需的最小端口。
 type AdminWalletService interface {
@@ -29,6 +28,11 @@ type AdminWalletService interface {
 	ListAdminTransactions(userID uint, page, pageSize int, typ, direction string) ([]walletdomain.Transaction, int64, error)
 	ListRechargeOrdersAdmin(filter AdminRechargeListFilter) ([]walletdomain.RechargeOrder, int64, error)
 	AdminAdjustBalance(input AdjustBalanceInput) (*walletdomain.Account, *walletdomain.Transaction, error)
+	GetRechargeDetail(id uint) (*walletdomain.RechargeOrder, *paymentdomain.Payment, error)
+	ListRechargeRefunds(id uint) ([]walletdomain.Transaction, error)
+	IsRechargeRefundWindowExpired(recharge *walletdomain.RechargeOrder) (bool, error)
+	ConfirmRecharge(input ConfirmRechargeInput) error
+	RefundRecharge(input RechargeRefundInput) error
 }
 
 // AdminUserReader 是后台钱包所需的用户读取端口。
@@ -74,6 +78,25 @@ type AdjustBalanceInput struct {
 	Remark          string
 }
 
+// ConfirmRechargeInput 管理端人工确认充值支付的输入。
+type ConfirmRechargeInput struct {
+	RechargeID  uint
+	PaymentID   uint
+	AdminID     uint
+	ProviderRef string
+	Remark      string
+}
+
+// RechargeRefundInput 管理端登记充值手动退款的输入。
+type RechargeRefundInput struct {
+	PaymentFeeRefunded bool
+	RechargeID         uint
+	AdminID            uint
+	Amount             money.Amount
+	Remark             string
+	RequestID          string
+}
+
 // AdminAdjustUserWalletRequest 管理端用户余额调整请求
 type AdminAdjustUserWalletRequest struct {
 	Amount    string `json:"amount" binding:"required"`
@@ -82,12 +105,29 @@ type AdminAdjustUserWalletRequest struct {
 	Remark    string `json:"remark"`
 }
 
+// AdminConfirmRechargeRequest 管理端人工确认充值支付的请求。
+type AdminConfirmRechargeRequest struct {
+	PaymentID   uint   `json:"payment_id" binding:"required"`
+	ProviderRef string `json:"provider_ref" binding:"max=255"`
+	Remark      string `json:"remark" binding:"max=500"`
+}
+
+// AdminRefundRechargeRequest 管理端登记充值手动退款的请求。
+type AdminRefundRechargeRequest struct {
+	PaymentFeeRefunded bool   `json:"payment_fee_refunded"`
+	Amount             string `json:"amount" binding:"required,max=32"`
+	Remark             string `json:"remark" binding:"max=255"`
+	RequestID          string `json:"request_id" binding:"required,min=16,max=64,alphanumunicode|uuid"`
+}
+
+// adminWalletRechargeUser 后台充值记录关联的用户信息。
 type adminWalletRechargeUser struct {
 	ID          uint   `json:"id"`
 	Email       string `json:"email"`
 	DisplayName string `json:"display_name"`
 }
 
+// adminWalletRechargeItem 后台充值记录的展示信息。
 type adminWalletRechargeItem struct {
 	walletdomain.RechargeOrder
 	User          *adminWalletRechargeUser `json:"user,omitempty"`
@@ -384,4 +424,130 @@ func (h *AdminHandler) AdjustUserWallet(c *gin.Context) {
 		"account":     account,
 		"transaction": txn,
 	})
+}
+
+// GetRechargeDetail 管理端获取充值单详情、关联支付及退款记录。
+func (h *AdminHandler) GetRechargeDetail(c *gin.Context) {
+	id, err := ginutil.ParseParamUint(c, "id")
+	if err != nil {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", err)
+		return
+	}
+	recharge, payment, err := h.wallets.GetRechargeDetail(id)
+	if err != nil {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.payment_fetch_failed", err)
+		return
+	}
+	item := adminWalletRechargeItem{RechargeOrder: *recharge}
+	users, err := h.users.ListByIDs([]uint{recharge.UserID})
+	if err != nil {
+		ginutil.RespondError(c, response.CodeInternal, "error.user_fetch_failed", err)
+		return
+	}
+	for _, user := range users {
+		item.User = &adminWalletRechargeUser{ID: user.ID, Email: user.Email, DisplayName: user.DisplayName}
+	}
+	channels, err := h.channels.ListByIDs([]uint{recharge.ChannelID})
+	if err != nil {
+		ginutil.RespondError(c, response.CodeInternal, "error.payment_fetch_failed", err)
+		return
+	}
+	for _, channel := range channels {
+		item.ChannelName = channel.Name
+	}
+	if payment != nil {
+		copy := *payment
+		copy.ProviderPayload = nil
+		copy.PayURL = ""
+		copy.QRCode = ""
+		payment = &copy
+		item.PaymentStatus = payment.Status
+	}
+	refunds, err := h.wallets.ListRechargeRefunds(id)
+	if err != nil {
+		ginutil.RespondError(c, response.CodeInternal, "error.payment_fetch_failed", err)
+		return
+	}
+	refundable := decimal.Zero
+	refundWindowExpired, err := h.wallets.IsRechargeRefundWindowExpired(recharge)
+	if err != nil {
+		ginutil.RespondError(c, response.CodeInternal, "error.payment_fetch_failed", err)
+		return
+	}
+	if !refundWindowExpired && recharge.Status == constants.WalletRechargeStatusSuccess {
+		account, err := h.wallets.GetAccount(recharge.UserID)
+		if err != nil {
+			ginutil.RespondError(c, response.CodeInternal, "error.user_fetch_failed", err)
+			return
+		}
+		if account != nil {
+			refundable = decimal.Max(decimal.Zero, decimal.Min(recharge.Amount.Decimal.Sub(recharge.RefundedAmount.Decimal), account.Balance.Decimal))
+		}
+	}
+	response.Success(c, gin.H{"recharge": item, "payment": payment, "refunds": refunds, "refundable_amount": money.FromDecimal(refundable), "refund_window_expired": refundWindowExpired})
+}
+
+// ConfirmRecharge 管理端核实渠道到账后人工确认充值支付。
+func (h *AdminHandler) ConfirmRecharge(c *gin.Context) {
+	adminID, ok := ginutil.GetAdminID(c)
+	if !ok {
+		return
+	}
+	id, err := ginutil.ParseParamUint(c, "id")
+	if err != nil {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", err)
+		return
+	}
+	var req AdminConfirmRechargeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		ginutil.RespondBindError(c, err)
+		return
+	}
+	if err := h.wallets.ConfirmRecharge(ConfirmRechargeInput{RechargeID: id, PaymentID: req.PaymentID, AdminID: adminID, ProviderRef: req.ProviderRef, Remark: req.Remark}); err != nil {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.payment_update_failed", err)
+		return
+	}
+	response.Success(c, nil)
+}
+
+// RefundRecharge 管理端登记充值手动退款，并同步扣回用户钱包余额。
+func (h *AdminHandler) RefundRecharge(c *gin.Context) {
+	adminID, ok := ginutil.GetAdminID(c)
+	if !ok {
+		return
+	}
+	id, err := ginutil.ParseParamUint(c, "id")
+	if err != nil {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", err)
+		return
+	}
+	var req AdminRefundRechargeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		ginutil.RespondBindError(c, err)
+		return
+	}
+	amount, err := decimal.NewFromString(req.Amount)
+	if err != nil || !amount.GreaterThan(decimal.Zero) || !amount.Equal(amount.Round(2)) {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", nil)
+		return
+	}
+	err = h.wallets.RefundRecharge(RechargeRefundInput{PaymentFeeRefunded: req.PaymentFeeRefunded, RechargeID: id, AdminID: adminID, Amount: money.FromDecimal(amount), Remark: req.Remark, RequestID: req.RequestID})
+	if err != nil {
+		key := "error.payment_update_failed"
+		switch {
+		case errors.Is(err, ErrInsufficientBalance):
+			key = "error.recharge_refund_insufficient"
+		case errors.Is(err, ErrRechargeRefundExceeded):
+			key = "error.recharge_refund_exceeded"
+		case errors.Is(err, ErrRechargeStatusInvalid):
+			key = "error.recharge_status_invalid"
+		case errors.Is(err, ErrRechargeRefundExpired):
+			key = "error.order_refund_expired"
+		case errors.Is(err, ErrInvalidAmount):
+			key = "error.bad_request"
+		}
+		ginutil.RespondError(c, response.CodeBadRequest, key, err)
+		return
+	}
+	response.Success(c, nil)
 }

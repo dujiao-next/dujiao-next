@@ -26,6 +26,9 @@ func RegisterAdminRoutes(paymentProtected gin.IRoutes, handler *AdminHandler) {
 	paymentProtected.GET("/users/:id/wallet/transactions", handler.GetUserTransactions)
 	paymentProtected.POST("/users/:id/wallet/adjust", handler.AdjustUserWallet)
 	paymentProtected.GET("/wallet/recharges", handler.GetRecharges)
+	paymentProtected.GET("/wallet/recharges/:id", handler.GetRechargeDetail)
+	paymentProtected.POST("/wallet/recharges/:id/manual-confirm-payment", handler.ConfirmRecharge)
+	paymentProtected.POST("/wallet/recharges/:id/manual-refund", handler.RefundRecharge)
 }
 
 // RegisterChannelRoutes 注册渠道钱包端点。

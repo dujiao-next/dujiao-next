@@ -13,6 +13,7 @@ var (
 	ErrNotSupportedForGuest    = errors.New("wallet not supported for guest")
 	ErrRechargeNotFound        = errors.New("wallet recharge not found")
 	ErrRechargeStatusInvalid   = errors.New("wallet recharge status invalid")
+	ErrRechargeRefundExpired   = errors.New("wallet recharge refund expired")
 	ErrOnlyPaymentRequired     = errors.New("wallet only payment required")
 	ErrTransactionRequired     = errors.New("wallet transaction required")
 )

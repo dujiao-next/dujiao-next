@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { adminAPI, type AdminWalletRecharge } from '@/api/admin'
+import RechargeDetailDialog from './components/RechargeDetailDialog.vue'
 import IdCell from '@/components/IdCell.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,6 +19,9 @@ import ComplianceGuardWrapper from '@/components/ComplianceGuardWrapper.vue'
 import { adminUrl } from '@/utils/adminBase'
 
 const { t } = useI18n()
+const selectedRecharge = ref<AdminWalletRecharge | null>(null)
+const detailOpen = ref(false)
+const showDetail = (item: AdminWalletRecharge) => { selectedRecharge.value = item; detailOpen.value = true }
 const loading = ref(true)
 const { refreshing, refreshList } = useListRefresh()
 const recharges = ref<AdminWalletRecharge[]>([])
@@ -215,16 +219,17 @@ onMounted(() => {
             <TableHead class="min-w-[140px] px-6 py-3">{{ t('admin.walletRecharges.table.amount') }}</TableHead>
             <TableHead class="min-w-[140px] px-6 py-3">{{ t('admin.walletRecharges.table.paidAt') }}</TableHead>
             <TableHead class="min-w-[140px] px-6 py-3">{{ t('admin.walletRecharges.table.createdAt') }}</TableHead>
+            <TableHead class="px-4 py-3 min-w-[140px] text-right sticky right-0 bg-muted/40 z-10">{{ t('admin.walletRecharges.detail.actions') }}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody class="divide-y divide-border">
           <TableRow v-if="loading">
-            <TableCell :colspan="9" class="p-0">
-              <TableSkeleton :columns="9" :rows="5" />
+            <TableCell :colspan="10" class="p-0">
+              <TableSkeleton :columns="10" :rows="5" />
             </TableCell>
           </TableRow>
           <TableRow v-else-if="recharges.length === 0">
-            <TableCell colspan="9" class="px-6 py-8 text-center text-muted-foreground">{{ t('admin.walletRecharges.empty') }}</TableCell>
+            <TableCell colspan="10" class="px-6 py-8 text-center text-muted-foreground">{{ t('admin.walletRecharges.empty') }}</TableCell>
           </TableRow>
           <TableRow v-for="item in recharges" :key="item.id" class="hover:bg-muted/30">
             <TableCell class="px-6 py-4">
@@ -279,6 +284,11 @@ onMounted(() => {
             </TableCell>
             <TableCell class="min-w-[140px] px-6 py-4 text-xs text-muted-foreground">{{ formatDate(item.paid_at) || '-' }}</TableCell>
             <TableCell class="min-w-[140px] px-6 py-4 text-xs text-muted-foreground">{{ formatDate(item.created_at) }}</TableCell>
+            <TableCell class="min-w-[140px] px-4 py-3 sticky right-0 bg-card z-10">
+              <div class="flex flex-wrap items-center justify-end gap-1.5">
+                <Button size="xs" variant="outline" @click="showDetail(item)">{{ t('admin.walletRecharges.detail.view') }}</Button>
+              </div>
+            </TableCell>
           </TableRow>
         </TableBody>
       </Table>
@@ -294,5 +304,6 @@ onMounted(() => {
       />
     </div>
   </div>
+  <RechargeDetailDialog v-model="detailOpen" :recharge="selectedRecharge" @updated="refresh" />
   </ComplianceGuardWrapper>
 </template>

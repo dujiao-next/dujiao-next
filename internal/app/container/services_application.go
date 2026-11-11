@@ -3,15 +3,16 @@ package container
 import (
 	"context"
 
+	"github.com/dujiao-next/internal/logger"
+	"github.com/dujiao-next/internal/modules/content/infrastructure/gormstore"
+	"github.com/dujiao-next/internal/platform/database/gormdb"
+
 	adproxyapp "github.com/dujiao-next/internal/modules/adproxy/application"
 	adproxygateway "github.com/dujiao-next/internal/modules/adproxy/infrastructure/adgateway"
-	categoryapp "github.com/dujiao-next/internal/modules/catalog/category/application"
-
-	"github.com/dujiao-next/internal/logger"
 	cardsecretapp "github.com/dujiao-next/internal/modules/cardsecret/application"
 	cartapp "github.com/dujiao-next/internal/modules/cart/application"
+	categoryapp "github.com/dujiao-next/internal/modules/catalog/category/application"
 	contentapp "github.com/dujiao-next/internal/modules/content/application"
-	"github.com/dujiao-next/internal/modules/content/infrastructure/gormstore"
 	couponapp "github.com/dujiao-next/internal/modules/coupon/application"
 	couponproductadapter "github.com/dujiao-next/internal/modules/coupon/infrastructure/productadapter"
 	fulfillmentapp "github.com/dujiao-next/internal/modules/fulfillment/application"
@@ -30,7 +31,6 @@ import (
 	sitemapcache "github.com/dujiao-next/internal/modules/sitemap/infrastructure/cacheadapter"
 	sitemapcatalog "github.com/dujiao-next/internal/modules/sitemap/infrastructure/catalogreader"
 	walletapp "github.com/dujiao-next/internal/modules/wallet/application"
-	"github.com/dujiao-next/internal/platform/database/gormdb"
 	giftcardredeemgormuow "github.com/dujiao-next/internal/workflows/giftcardredeem/infrastructure/gormuow"
 )
 
@@ -76,7 +76,7 @@ func (c *Container) initApplicationServices() {
 	c.SitemapService = sitemapService
 	c.CartService = cartapp.NewService(c.CartRepo, c.ProductRepo, c.ProductSKURepo, c.PromotionRepo, c.SettingService)
 	c.WalletService = walletapp.NewService(walletapp.Options{
-		Repository: c.WalletRepo, Transactions: c.WalletRepo,
+		Repository: c.WalletRepo, Transactions: c.WalletRepo, RefundConfig: c.SettingService,
 	})
 	c.OrderRefundService = orderrefund.New(
 		c.OrderStore,
