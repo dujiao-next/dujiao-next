@@ -23,6 +23,7 @@ import {
   fulfillmentTypeLabel as fulfillmentTypeLabelMap,
 } from '@/utils/fulfillment'
 import { formatDate, formatMoney, getLocalizedText, hasPositiveAmount } from '@/utils/format'
+import { providerTypeLabel as providerTypeLabelMap, paymentChannelTypeLabel as paymentChannelTypeLabelMap, formatFeeRate } from '@/utils/paymentChannelDisplay'
 import { resolveSkuCodeFromSnapshot, resolveSkuSpecFromSnapshot } from '@/utils/sku'
 import { adminUrl } from '@/utils/adminBase'
 import { confirmAction } from '@/utils/confirm'
@@ -88,42 +89,8 @@ const fulfillmentStatusLabel = (status: string) => fulfillmentStatusLabelMap(t, 
 const paymentStatusLabel = (status: string) => paymentStatusLabelMap(t, status)
 const paymentStatusClass = (status: string) => paymentStatusClassMap(status)
 
-const providerTypeLabel = (value?: string) => {
-  const map: Record<string, string> = {
-    official: t('admin.paymentChannels.providerTypes.official'),
-    epay: t('admin.paymentChannels.providerTypes.epay'),
-    bepusdt: t('admin.paymentChannels.providerTypes.bepusdt'),
-    epusdt: t('admin.paymentChannels.providerTypes.epusdt'),
-    tokenpay: t('admin.paymentChannels.providerTypes.tokenpay'),
-    wallet: t('admin.paymentChannels.providerTypes.wallet'),
-  }
-  if (!value) return '-'
-  return map[value] || value
-}
-
-const channelTypeLabel = (value?: string) => {
-  const map: Record<string, string> = {
-    wechat: t('admin.paymentChannels.channelTypes.wechat'),
-    alipay: t('admin.paymentChannels.channelTypes.alipay'),
-    qqpay: t('admin.paymentChannels.channelTypes.qqpay'),
-    paypal: t('admin.paymentChannels.channelTypes.paypal'),
-    stripe: t('admin.paymentChannels.channelTypes.stripe'),
-    usdt: t('admin.paymentChannels.channelTypes.usdt'),
-    'usdt-trc20': t('admin.paymentChannels.channelTypes.usdtTrc20'),
-    'usdc-trc20': t('admin.paymentChannels.channelTypes.usdcTrc20'),
-    trx: t('admin.paymentChannels.channelTypes.trx'),
-    bepusdt: t('admin.paymentChannels.channelTypes.bepusdtCashier'),
-    epusdt: t('admin.paymentChannels.channelTypes.epusdtCashier'),
-    balance: t('admin.paymentChannels.channelTypes.balance'),
-  }
-  if (!value) return '-'
-  return map[value] || value
-}
-
-const paymentChannelTypeLabel = (payment: AdminPayment) => {
-  const value = String(payment.display_channel_type || payment.channel_type || '').trim()
-  return channelTypeLabel(value)
-}
+const providerTypeLabel = (value?: string) => providerTypeLabelMap(t, value)
+const paymentChannelTypeLabel = (payment: AdminPayment) => paymentChannelTypeLabelMap(t, payment)
 
 // 退款分摊按订单缓存；父订单的分摊同时覆盖其子订单项（按 item.id 查）。
 const refundAllocationCache = new WeakMap<AdminOrder, Map<number, number>>()
@@ -523,32 +490,6 @@ const submitManualConfirm = async () => {
   } finally {
     manualConfirmSubmitting.value = false
   }
-}
-
-const formatFeeRate = (channel: AdminPayment | { fee_rate: number | string; fixed_fee?: number | string }) => {
-  const feeRate = channel.fee_rate
-  const fixedFee = channel.fixed_fee
-
-  let display = '-'
-  if (feeRate !== undefined && feeRate !== null && feeRate !== '') {
-    const rateParsed = Number(feeRate)
-    if (!Number.isNaN(rateParsed)) {
-      display = `${rateParsed.toFixed(2)}%`
-    }
-  }
-
-  if (fixedFee !== undefined && fixedFee !== null && fixedFee !== '') {
-    const fixedParsed = Number(fixedFee)
-    if (!Number.isNaN(fixedParsed) && fixedParsed > 0) {
-      if (display === '-') {
-        display = fixedParsed.toFixed(2)
-      } else {
-        display += ` + ${fixedParsed.toFixed(2)}`
-      }
-    }
-  }
-
-  return display
 }
 
 const fetchOrderDetail = async (orderId: number) => {
