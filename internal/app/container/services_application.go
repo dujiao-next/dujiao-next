@@ -76,7 +76,7 @@ func (c *Container) initApplicationServices() {
 	c.SitemapService = sitemapService
 	c.CartService = cartapp.NewService(c.CartRepo, c.ProductRepo, c.ProductSKURepo, c.PromotionRepo, c.SettingService)
 	c.WalletService = walletapp.NewService(walletapp.Options{
-		Repository: c.WalletRepo, Transactions: c.WalletRepo,
+		Repository: c.WalletRepo, Transactions: c.WalletRepo, RefundConfig: c.SettingService,
 	})
 	c.OrderRefundService = orderrefund.New(
 		c.OrderStore,

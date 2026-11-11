@@ -7,6 +7,7 @@ import (
 	"time"
 
 	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
+	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 
 	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
 
@@ -38,7 +39,7 @@ func setupDashboardRepositoryTest(t *testing.T) (*Store, *gorm.DB) {
 	if err := db.AutoMigrate(&productdomain.ProductSKU{}); err != nil {
 		t.Fatalf("migrate dashboard sku models failed: %v", err)
 	}
-	if err := db.AutoMigrate(&paymentdomain.PaymentChannel{}, &paymentdomain.Payment{}, &orderdomain.OrderRefundRecord{}); err != nil {
+	if err := db.AutoMigrate(&paymentdomain.PaymentChannel{}, &paymentdomain.Payment{}, &orderdomain.OrderRefundRecord{}, &walletdomain.Transaction{}); err != nil {
 		t.Fatalf("migrate dashboard models failed: %v", err)
 	}
 	return New(db), db

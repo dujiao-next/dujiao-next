@@ -142,6 +142,7 @@ func (s *PaymentService) CreateWalletRechargePayment(input CreateWalletRechargeP
 		}
 		recharge = &walletdomain.RechargeOrder{
 			RechargeNo:      rechargeNo,
+			ClientIP:        strings.TrimSpace(input.ClientIP),
 			UserID:          input.UserID,
 			PaymentID:       payment.ID,
 			ChannelID:       channel.ID,
