@@ -31,8 +31,19 @@ import (
 	sitemapcatalog "github.com/dujiao-next/internal/modules/sitemap/infrastructure/catalogreader"
 	walletapp "github.com/dujiao-next/internal/modules/wallet/application"
 	"github.com/dujiao-next/internal/platform/database/gormdb"
+	"github.com/dujiao-next/internal/queue"
 	giftcardredeemgormuow "github.com/dujiao-next/internal/workflows/giftcardredeem/infrastructure/gormuow"
 )
+
+// walletRefundEmailQueue 将钱包退款邮件端口适配到异步任务队列。
+type walletRefundEmailQueue struct {
+	client *queue.Client
+}
+
+// EnqueueRechargeRefundEmail 为本次退款建立独立的通知任务。
+func (q walletRefundEmailQueue) EnqueueRechargeRefundEmail(rechargeID, refundID uint, status string) error {
+	return q.client.EnqueueWalletRechargeRefundEmail(queue.WalletRechargeRefundEmailPayload{RechargeID: rechargeID, RefundID: refundID, Status: status})
+}
 
 // initApplicationServices 装配内容、购物车、订单、履约和营销用例。
 func (c *Container) initApplicationServices() {
@@ -77,6 +88,7 @@ func (c *Container) initApplicationServices() {
 	c.CartService = cartapp.NewService(c.CartRepo, c.ProductRepo, c.ProductSKURepo, c.PromotionRepo, c.SettingService)
 	c.WalletService = walletapp.NewService(walletapp.Options{
 		Repository: c.WalletRepo, Transactions: c.WalletRepo, RefundConfig: c.SettingService,
+		RefundEmails: walletRefundEmailQueue{client: c.QueueClient},
 	})
 	c.OrderRefundService = orderrefund.New(
 		c.OrderStore,
