@@ -15,18 +15,20 @@ type Options struct {
 	Repository   walletcontract.Repository
 	Transactions walletcontract.UnitOfWork
 	RefundConfig settingscontract.OrderRefundConfigReader
+	RefundEmails walletcontract.RechargeRefundEmailQueue
 }
 
 type Service struct {
 	repository   walletcontract.Repository
 	transactions walletcontract.UnitOfWork
 	refundConfig settingscontract.OrderRefundConfigReader
+	refundEmails walletcontract.RechargeRefundEmailQueue
 }
 
 var _ walletcontract.UseCase = (*Service)(nil)
 
 func NewService(options Options) *Service {
-	return &Service{repository: options.Repository, transactions: options.Transactions, refundConfig: options.RefundConfig}
+	return &Service{repository: options.Repository, transactions: options.Transactions, refundConfig: options.RefundConfig, refundEmails: options.RefundEmails}
 }
 
 // getRechargeRefundConfig 在进入钱包事务前读取退款期限配置。

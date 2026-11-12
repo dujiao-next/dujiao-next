@@ -24,6 +24,72 @@ import (
 	walletgormstore "github.com/dujiao-next/internal/modules/wallet/infrastructure/gormstore"
 )
 
+// rechargeRefundEmailQueueStub 记录退款邮件任务并验证入队时事务已提交。
+type rechargeRefundEmailQueueStub struct {
+	calls     int
+	statuses  []string
+	refundIDs []uint
+	check     func(uint, uint)
+	err       error
+}
+
+// EnqueueRechargeRefundEmail 捕获退款邮件并返回指定的队列错误。
+func (q *rechargeRefundEmailQueueStub) EnqueueRechargeRefundEmail(rechargeID, refundID uint, status string) error {
+	q.calls++
+	q.statuses = append(q.statuses, status)
+	q.refundIDs = append(q.refundIDs, refundID)
+	if q.check != nil {
+		q.check(rechargeID, refundID)
+	}
+	return q.err
+}
+
+func TestRechargeRefundEmailsOnlyAfterCommitAndOncePerRefund(t *testing.T) {
+	_, db, recharge := setupRechargeRefund(t)
+	repo := walletgormstore.New(db)
+	emails := &rechargeRefundEmailQueueStub{check: func(rechargeID, refundID uint) {
+		var record walletdomain.Transaction
+		if err := db.First(&record, refundID).Error; err != nil {
+			t.Fatal(err)
+		}
+		if record.RechargeOrderID == nil || *record.RechargeOrderID != rechargeID {
+			t.Fatalf("wrong refund: %+v", record)
+		}
+	}}
+	svc := walletapp.NewService(walletapp.Options{Repository: repo, Transactions: repo, RefundEmails: emails})
+	for i, amount := range []int64{40, 60} {
+		input := walletcontract.RechargeRefundInput{RechargeID: recharge.ID, AdminID: 1, Amount: money.FromDecimal(decimal.NewFromInt(amount)), RequestID: fmt.Sprintf("refund-email-request-%04d", i)}
+		for retry := 0; retry < 2; retry++ {
+			if err := svc.RefundRecharge(input); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if emails.calls != 2 || emails.statuses[0] != constants.WalletRechargeStatusPartiallyRefunded || emails.statuses[1] != constants.WalletRechargeStatusRefunded || emails.refundIDs[0] == emails.refundIDs[1] {
+		t.Fatalf("emails: %+v", emails)
+	}
+	if err := svc.RefundRecharge(walletcontract.RechargeRefundInput{RechargeID: recharge.ID, AdminID: 1, Amount: money.FromDecimal(decimal.NewFromInt(1)), RequestID: "refund-email-exceeded"}); !errors.Is(err, walletcontract.ErrRefundExceeded) {
+		t.Fatal(err)
+	}
+	if emails.calls != 2 {
+		t.Fatal("rejected refund sent email")
+	}
+}
+
+func TestRechargeRefundEmailQueueFailureDoesNotFailRefund(t *testing.T) {
+	_, db, recharge := setupRechargeRefund(t)
+	repo := walletgormstore.New(db)
+	emails := &rechargeRefundEmailQueueStub{err: errors.New("queue unavailable")}
+	svc := walletapp.NewService(walletapp.Options{Repository: repo, Transactions: repo, RefundEmails: emails})
+	if err := svc.RefundRecharge(walletcontract.RechargeRefundInput{RechargeID: recharge.ID, AdminID: 1, Amount: money.FromDecimal(decimal.NewFromInt(20)), RequestID: "refund-email-queue-error"}); err != nil {
+		t.Fatal(err)
+	}
+	account, err := svc.GetAccount(recharge.UserID)
+	if err != nil || account.Balance.String() != "80.00" || emails.calls != 1 {
+		t.Fatalf("refund state: %+v error=%v emails=%d", account, err, emails.calls)
+	}
+}
+
 func TestWalletTransactionsDoNotRequestASecondConnection(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skip in short mode")
@@ -334,6 +400,9 @@ func TestRechargeRefundConcurrentRequestsCannotOverdraw(t *testing.T) {
 
 func TestRechargeRefundRollsBackDebitWhenRecordUpdateFails(t *testing.T) {
 	svc, db, recharge := setupRechargeRefund(t)
+	emails := &rechargeRefundEmailQueueStub{}
+	repo := walletgormstore.New(db)
+	svc = walletapp.NewService(walletapp.Options{Repository: repo, Transactions: repo, RefundEmails: emails})
 	failure := errors.New("refund record write failed")
 	if err := db.Callback().Update().Before("gorm:update").Register("test_refund_failure", func(tx *gorm.DB) {
 		if tx.Statement.Table == "wallet_recharge_orders" {
@@ -363,6 +432,9 @@ func TestRechargeRefundRollsBackDebitWhenRecordUpdateFails(t *testing.T) {
 	rows, err := svc.ListRechargeRefunds(recharge.ID)
 	if err != nil || len(rows) != 0 {
 		t.Fatalf("refund not rolled back: %v %v", rows, err)
+	}
+	if emails.calls != 0 {
+		t.Fatal("rolled back refund sent an email")
 	}
 }
 

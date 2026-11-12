@@ -3,8 +3,9 @@ package contract
 import (
 	"time"
 
-	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 	"github.com/dujiao-next/internal/shared/money"
+
+	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 )
 
 // Repository owns all wallet aggregate persistence. Transactional callers
@@ -43,6 +44,11 @@ type Transaction interface {
 
 type UnitOfWork interface {
 	WithinTransaction(fn func(Transaction) error) error
+}
+
+// RechargeRefundEmailQueue 将已完成的充值退款邮件加入异步队列。
+type RechargeRefundEmailQueue interface {
+	EnqueueRechargeRefundEmail(rechargeID, refundID uint, status string) error
 }
 
 type UseCase interface {

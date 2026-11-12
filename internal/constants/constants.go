@@ -383,6 +383,7 @@ const (
 const (
 	QueueDefault                    = "default"
 	TaskOrderStatusEmail            = "order:status_email"
+	TaskWalletRechargeRefundEmail   = "wallet:recharge_refund_email"
 	TaskOrderAutoFulfill            = "order:auto_fulfill"
 	TaskOrderTimeoutCancel          = "order:timeout_cancel"
 	TaskWalletRechargeExpire        = "wallet_recharge:timeout_expire"

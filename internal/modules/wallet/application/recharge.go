@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/dujiao-next/internal/constants"
+	"github.com/dujiao-next/internal/logger"
 	"github.com/dujiao-next/internal/shared/money"
 	"github.com/shopspring/decimal"
 
@@ -55,7 +56,9 @@ func (s *Service) RefundRecharge(input walletcontract.RechargeRefundInput) error
 	if err != nil {
 		return err
 	}
-	return s.transactions.WithinTransaction(func(tx walletcontract.Transaction) error {
+	var refundID uint
+	var refundStatus string
+	err = s.transactions.WithinTransaction(func(tx walletcontract.Transaction) error {
 		repo := tx.Wallets()
 		locked, err := repo.GetRechargeOrderByPaymentIDForUpdate(recharge.PaymentID)
 		if err != nil {
@@ -132,8 +135,22 @@ func (s *Service) RefundRecharge(input walletcontract.RechargeRefundInput) error
 			locked.Status = constants.WalletRechargeStatusRefunded
 		}
 		locked.UpdatedAt = now
-		return repo.UpdateRechargeOrder(locked)
+		if err := repo.UpdateRechargeOrder(locked); err != nil {
+			return err
+		}
+		refundID, refundStatus = transaction.ID, locked.Status
+		return nil
 	})
+	if err != nil {
+		return err
+	}
+	// 仅在新退款事务提交后通知；幂等重试不重复发送，队列失败不回滚已完成的退款。
+	if refundID > 0 && s.refundEmails != nil {
+		if err := s.refundEmails.EnqueueRechargeRefundEmail(recharge.ID, refundID, refundStatus); err != nil {
+			logger.Warnw("wallet_recharge_refund_enqueue_email_failed", "recharge_id", recharge.ID, "refund_id", refundID, "error", err)
+		}
+	}
+	return nil
 }
 
 func (s *Service) ListRechargeRefunds(id uint) ([]walletdomain.Transaction, error) {
