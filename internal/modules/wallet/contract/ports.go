@@ -45,6 +45,11 @@ type UnitOfWork interface {
 	WithinTransaction(fn func(Transaction) error) error
 }
 
+// RechargeRefundEmailQueue 将已完成的充值退款邮件加入异步队列。
+type RechargeRefundEmailQueue interface {
+	EnqueueRechargeRefundEmail(rechargeID, refundID uint, status string) error
+}
+
 type UseCase interface {
 	GetAccount(userID uint) (*walletdomain.Account, error)
 	ListTransactions(filter TransactionListFilter) ([]walletdomain.Transaction, int64, error)
