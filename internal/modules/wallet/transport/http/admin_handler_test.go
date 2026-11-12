@@ -92,7 +92,7 @@ type rechargeDetailWalletStub struct {
 }
 
 func (s *rechargeDetailWalletStub) GetRechargeDetail(id uint) (*walletdomain.RechargeOrder, *paymentdomain.Payment, error) {
-	return &walletdomain.RechargeOrder{ID: id, UserID: 7, ChannelID: 2, Status: "success", Amount: money.FromDecimal(decimal.NewFromInt(100)), RefundedAmount: money.FromDecimal(decimal.RequireFromString(s.refunded))}, nil, nil
+	return &walletdomain.RechargeOrder{ID: id, UserID: 7, ChannelID: 2, Status: s.status, Amount: money.FromDecimal(decimal.NewFromInt(100)), RefundedAmount: money.FromDecimal(decimal.RequireFromString(s.refunded))}, nil, nil
 }
 func (s *rechargeDetailWalletStub) ListRechargeRefunds(id uint) ([]walletdomain.Transaction, error) {
 	return nil, nil
@@ -123,11 +123,13 @@ func TestGetRechargeDetailLimitsRefundableAmountByOrderAndWallet(t *testing.T) {
 		expired                               bool
 	}{
 		{"wallet_balance", "success", "0", "20", "20", false},
-		{"remaining_recharge", "success", "60", "100", "40", false},
+		{"remaining_recharge", "partially_refunded", "60", "100", "40", false},
+		{"partial_with_low_balance", "partially_refunded", "60", "15", "15", false},
 		{"original_recharge", "success", "0", "200", "100", false},
 		{"empty_wallet", "success", "0", "0", "0", false},
-		{"fully_refunded", "success", "100", "200", "0", false},
+		{"fully_refunded", "refunded", "100", "200", "0", false},
 		{"expired", "success", "0", "200", "0", true},
+		{"partial_expired", "partially_refunded", "60", "200", "0", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			handler := &AdminHandler{wallets: &rechargeDetailWalletStub{status: tc.status, refunded: tc.refunded, balance: tc.balance, expired: tc.expired}, users: rechargeDetailUsersStub{}, channels: rechargeDetailChannelsStub{}}

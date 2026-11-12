@@ -474,7 +474,7 @@ func (h *AdminHandler) GetRechargeDetail(c *gin.Context) {
 		ginutil.RespondError(c, response.CodeInternal, "error.payment_fetch_failed", err)
 		return
 	}
-	if !refundWindowExpired && recharge.Status == constants.WalletRechargeStatusSuccess {
+	if !refundWindowExpired && (recharge.Status == constants.WalletRechargeStatusSuccess || recharge.Status == constants.WalletRechargeStatusPartiallyRefunded) {
 		account, err := h.wallets.GetAccount(recharge.UserID)
 		if err != nil {
 			ginutil.RespondError(c, response.CodeInternal, "error.user_fetch_failed", err)

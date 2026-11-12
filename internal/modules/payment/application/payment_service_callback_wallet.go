@@ -4,11 +4,10 @@ import (
 	"strings"
 	"time"
 
-	paymentcontract "github.com/dujiao-next/internal/modules/payment/contract"
-
-	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
-
 	"github.com/dujiao-next/internal/constants"
+
+	paymentcontract "github.com/dujiao-next/internal/modules/payment/contract"
+	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
 	walletcontract "github.com/dujiao-next/internal/modules/wallet/contract"
 )
 
@@ -201,6 +200,10 @@ func (s *PaymentService) applyWalletRechargePaymentUpdate(payment *paymentdomain
 }
 
 func canApplyWalletRechargeCallback(paymentStatus string, rechargeStatus string, targetStatus string) bool {
+	// 退款后的充值单不再接受支付状态变更，避免重新入账或覆盖退款状态。
+	if rechargeStatus == constants.WalletRechargeStatusPartiallyRefunded || rechargeStatus == constants.WalletRechargeStatusRefunded {
+		return false
+	}
 	// 成功回调记录渠道实际到账；是否给钱包入账由事务内的充值状态决定。
 	if targetStatus == constants.PaymentStatusSuccess {
 		return true

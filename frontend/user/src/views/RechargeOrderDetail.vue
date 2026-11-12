@@ -56,6 +56,10 @@
               <div class="text-xs text-muted-foreground">{{ t('personalCenter.wallet.payAmountLabel') }}</div>
               <div class="text-foreground font-mono mt-1 font-bold">{{ formatMoney(recharge.payable_amount, recharge.currency) }}</div>
             </div>
+            <div v-if="Number(recharge.refunded_amount) > 0" class="border rounded-xl p-4">
+              <div class="text-xs text-muted-foreground">{{ t('orderDetail.amountRefunded') }}</div>
+              <div class="text-foreground font-mono mt-1">{{ formatMoney(recharge.refunded_amount, recharge.currency) }}</div>
+            </div>
           </div>
         </div>
 

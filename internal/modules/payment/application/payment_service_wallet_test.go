@@ -302,6 +302,69 @@ func TestExpireWalletRechargePaymentDoesNotOverrideSuccess(t *testing.T) {
 	}
 }
 
+func TestRefundedWalletRechargeCannotBeReopenedByPaymentUpdates(t *testing.T) {
+	for _, amount := range []int64{40, 88} {
+		t.Run(fmt.Sprintf("refund_%d", amount), func(t *testing.T) {
+			svc, db := setupPaymentServiceWalletTest(t)
+			raw, err := db.DB()
+			if err != nil {
+				t.Fatal(err)
+			}
+			raw.SetMaxOpenConns(1)
+			t.Cleanup(func() { _ = raw.Close() })
+			payment, recharge := createWalletRechargeFixture(t, db, constants.PaymentStatusPending, constants.WalletRechargeStatusPending)
+			if _, err := svc.HandleCallback(buildWalletRechargeCallbackInput(payment, recharge, constants.PaymentStatusSuccess, payment.ProviderRef)); err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.walletSvc.RefundRecharge(walletcontract.RechargeRefundInput{
+				RechargeID: recharge.ID, AdminID: 1, Amount: money.FromDecimal(decimal.NewFromInt(amount)), RequestID: "refund-status-test-0001",
+			}); err != nil {
+				t.Fatal(err)
+			}
+			for _, status := range []string{constants.PaymentStatusSuccess, constants.PaymentStatusPending, constants.PaymentStatusFailed, constants.PaymentStatusExpired} {
+				if _, err := svc.HandleCallback(buildWalletRechargeCallbackInput(payment, recharge, status, payment.ProviderRef)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := svc.ManualConfirmWalletRecharge(ManualConfirmWalletRechargeInput{RechargeID: recharge.ID, PaymentID: payment.ID, AdminID: 1}); !errors.Is(err, walletcontract.ErrRechargeStatusInvalid) {
+				t.Fatalf("manual confirmation after refund: %v", err)
+			}
+			if _, err := svc.ExpireWalletRechargePayment(payment.ID); err != nil {
+				t.Fatal(err)
+			}
+			// 模拟网关请求的旧支付快照，失败处理也不能覆盖退款终态。
+			if err := db.Model(payment).Update("status", constants.PaymentStatusPending).Error; err != nil {
+				t.Fatal(err)
+			}
+			svc.failRechargeAttempt(payment.ID)
+			for _, status := range []string{constants.PaymentStatusSuccess, constants.PaymentStatusFailed} {
+				if _, err := svc.HandleCallback(buildWalletRechargeCallbackInput(payment, recharge, status, payment.ProviderRef)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			current, err := svc.walletRepo.GetRechargeOrderByPaymentID(payment.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := constants.WalletRechargeStatusPartiallyRefunded
+			if amount == 88 {
+				want = constants.WalletRechargeStatusRefunded
+			}
+			if current.Status != want || !current.RefundedAmount.Decimal.Equal(decimal.NewFromInt(amount)) {
+				t.Fatalf("refund state overwritten: %+v", current)
+			}
+			account, err := svc.walletSvc.GetAccount(recharge.UserID)
+			if err != nil || !account.Balance.Decimal.Equal(decimal.NewFromInt(88-amount)) {
+				t.Fatalf("refund balance changed: %+v error=%v", account, err)
+			}
+			var credits int64
+			if err := db.Model(&walletdomain.Transaction{}).Where("type = ?", constants.WalletTxnTypeRecharge).Count(&credits).Error; err != nil || credits != 1 {
+				t.Fatalf("recharge credits: %d error=%v", credits, err)
+			}
+		})
+	}
+}
+
 func TestExpireWalletRechargePaymentSkipsOrderPayment(t *testing.T) {
 	svc, db := setupPaymentServiceWalletTest(t)
 	now := time.Now()

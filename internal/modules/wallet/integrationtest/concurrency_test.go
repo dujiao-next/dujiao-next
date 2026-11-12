@@ -112,16 +112,17 @@ func setupRechargeRefund(t *testing.T) (*walletapp.Service, *gorm.DB, walletdoma
 
 func TestRechargeRefundUsesOrderRefundWindowWithoutASecondConnection(t *testing.T) {
 	for _, tc := range []struct {
-		name                      string
-		days, createdAgo, paidAgo int
-		missingPaid, readError    bool
-		expired                   bool
+		name                            string
+		days, createdAgo, paidAgo       int
+		missingPaid, partial, readError bool
+		expired                         bool
 	}{
 		{name: "paid_expired", days: 1, createdAgo: 3, paidAgo: 2, expired: true},
 		{name: "paid_takes_priority", days: 1, createdAgo: 90, paidAgo: 0},
 		{name: "created_fallback", days: 1, createdAgo: 2, missingPaid: true, expired: true},
 		{name: "unlimited", days: 0, createdAgo: 400, paidAgo: 400},
 		{name: "custom_window", days: 3, createdAgo: 4, paidAgo: 2},
+		{name: "partial_expired", days: 1, createdAgo: 3, paidAgo: 2, partial: true, expired: true},
 		{name: "config_failure", days: 0, readError: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -138,6 +139,10 @@ func TestRechargeRefundUsesOrderRefundWindowWithoutASecondConnection(t *testing.
 			recharge.PaidAt = &paid
 			if tc.missingPaid {
 				recharge.PaidAt = nil
+			}
+			if tc.partial {
+				recharge.Status = constants.WalletRechargeStatusPartiallyRefunded
+				recharge.RefundedAmount = money.FromDecimal(decimal.NewFromInt(20))
 			}
 			if err := db.Save(&recharge).Error; err != nil {
 				t.Fatal(err)
@@ -306,6 +311,13 @@ func TestRechargeRefundConcurrentRequestsCannotOverdraw(t *testing.T) {
 	if !account.Balance.Decimal.IsZero() {
 		t.Fatalf("balance: %s", account.Balance)
 	}
+	var current walletdomain.RechargeOrder
+	if err := db.First(&current, recharge.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if current.Status != constants.WalletRechargeStatusRefunded || current.RefundedAmount.String() != "100.00" {
+		t.Fatalf("fully refunded recharge: %+v", current)
+	}
 
 	records, err := svc.ListRechargeRefunds(recharge.ID)
 	if err != nil {
@@ -340,6 +352,13 @@ func TestRechargeRefundRollsBackDebitWhenRecordUpdateFails(t *testing.T) {
 	}
 	if !account.Balance.Decimal.Equal(decimal.NewFromInt(100)) {
 		t.Fatalf("debit not rolled back: %s", account.Balance)
+	}
+	var current walletdomain.RechargeOrder
+	if err := db.First(&current, recharge.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if current.Status != constants.WalletRechargeStatusSuccess || !current.RefundedAmount.Decimal.IsZero() {
+		t.Fatalf("recharge state not rolled back: %+v", current)
 	}
 	rows, err := svc.ListRechargeRefunds(recharge.ID)
 	if err != nil || len(rows) != 0 {
@@ -388,6 +407,25 @@ func TestRechargeRefundAllocatesFeeAndAbsorbsRounding(t *testing.T) {
 			if err := svc.RefundRecharge(input); err != nil {
 				t.Fatal(err)
 			}
+		}
+		wantStatus := constants.WalletRechargeStatusPartiallyRefunded
+		if i == 1 {
+			wantStatus = constants.WalletRechargeStatusRefunded
+		}
+		var current walletdomain.RechargeOrder
+		if err := db.First(&current, recharge.ID).Error; err != nil {
+			t.Fatal(err)
+		}
+		if current.Status != wantStatus {
+			t.Fatalf("refund %d: status = %s, want %s", i, current.Status, wantStatus)
+		}
+		rows, total, err := svc.ListUserRechargeOrders(recharge.UserID, 1, 20, wantStatus, "")
+		if err != nil || total != 1 || len(rows) != 1 || rows[0].Status != wantStatus {
+			t.Fatalf("refund status filter: rows=%+v total=%d error=%v", rows, total, err)
+		}
+		stats, err := svc.StatsUserRechargeOrders(recharge.UserID, "")
+		if err != nil || stats[wantStatus] != 1 || stats[constants.WalletRechargeStatusSuccess] != 0 {
+			t.Fatalf("refund status stats: %+v error=%v", stats, err)
 		}
 	}
 	records, err := svc.ListRechargeRefunds(recharge.ID)

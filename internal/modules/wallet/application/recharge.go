@@ -75,7 +75,8 @@ func (s *Service) RefundRecharge(input walletcontract.RechargeRefundInput) error
 			}
 			return nil
 		}
-		if locked.Status != constants.WalletRechargeStatusSuccess {
+		if locked.Status != constants.WalletRechargeStatusSuccess &&
+			locked.Status != constants.WalletRechargeStatusPartiallyRefunded && locked.Status != constants.WalletRechargeStatusRefunded {
 			return walletcontract.ErrRechargeStatusInvalid
 		}
 		now := time.Now()
@@ -126,6 +127,10 @@ func (s *Service) RefundRecharge(input walletcontract.RechargeRefundInput) error
 			return err
 		}
 		locked.RefundedAmount = money.FromDecimal(refunded)
+		locked.Status = constants.WalletRechargeStatusPartiallyRefunded
+		if refunded.Equal(locked.Amount.Decimal) {
+			locked.Status = constants.WalletRechargeStatusRefunded
+		}
 		locked.UpdatedAt = now
 		return repo.UpdateRechargeOrder(locked)
 	})
