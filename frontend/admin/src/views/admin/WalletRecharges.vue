@@ -12,7 +12,7 @@ import TableSkeleton from '@/components/TableSkeleton.vue'
 import ListPagination from '@/components/ListPagination.vue'
 import { useListRefresh, type ListFetchOptions } from '@/composables/useListRefresh'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { paymentStatusClass, paymentStatusLabel } from '@/utils/status'
+import { paymentStatusClass, paymentStatusLabel, rechargeStatusClass, rechargeStatusLabel } from '@/utils/status'
 import { formatDate, toRFC3339 } from '@/utils/format'
 import { providerTypeLabel as providerTypeLabelMap, channelTypeLabel as channelTypeLabelMap } from '@/utils/paymentChannelDisplay'
 import ComplianceGuardWrapper from '@/components/ComplianceGuardWrapper.vue'
@@ -160,6 +160,8 @@ onMounted(() => {
               <SelectItem value="__all__">{{ t('admin.walletRecharges.filterStatusAll') }}</SelectItem>
               <SelectItem value="pending">{{ t('payment.status.pending') }}</SelectItem>
               <SelectItem value="success">{{ t('payment.status.success') }}</SelectItem>
+              <SelectItem value="partially_refunded">{{ rechargeStatusLabel(t, 'partially_refunded') }}</SelectItem>
+              <SelectItem value="refunded">{{ rechargeStatusLabel(t, 'refunded') }}</SelectItem>
               <SelectItem value="failed">{{ t('payment.status.failed') }}</SelectItem>
               <SelectItem value="expired">{{ t('payment.status.expired') }}</SelectItem>
             </SelectContent>
@@ -273,8 +275,8 @@ onMounted(() => {
               </div>
             </TableCell>
             <TableCell class="min-w-[90px] px-6 py-4 text-xs">
-              <span class="inline-flex rounded-full border px-2.5 py-1 text-xs" :class="statusClass(item.status)">
-                {{ statusLabel(item.status) }}
+              <span class="inline-flex rounded-full border px-2.5 py-1 text-xs" :class="rechargeStatusClass(item.status)">
+                {{ rechargeStatusLabel(t, item.status) }}
               </span>
             </TableCell>
             <TableCell class="min-w-[140px] px-6 py-4 text-xs text-muted-foreground">

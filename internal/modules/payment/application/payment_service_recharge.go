@@ -308,7 +308,8 @@ func (s *PaymentService) failRechargeAttempt(paymentID uint) {
 		if err != nil {
 			return err
 		}
-		if lockedRecharge != nil && lockedRecharge.Status == constants.WalletRechargeStatusSuccess {
+		if lockedRecharge != nil && (lockedRecharge.Status == constants.WalletRechargeStatusSuccess ||
+			lockedRecharge.Status == constants.WalletRechargeStatusPartiallyRefunded || lockedRecharge.Status == constants.WalletRechargeStatusRefunded) {
 			return nil
 		}
 		failedAt := time.Now()

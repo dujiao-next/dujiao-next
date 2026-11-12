@@ -107,6 +107,7 @@ export function useRechargeOrderDetail() {
   const rechargeStatusVariant = (status?: string): BadgeTone => {
     const normalized = String(status || '').toLowerCase()
     if (normalized === 'success') return 'success'
+    if (normalized === 'refunded') return 'info'
     if (normalized === 'failed' || normalized === 'expired') return 'danger'
     return 'warning'
   }
@@ -172,7 +173,7 @@ export function useRechargeOrderDetail() {
       syncPayload(payload)
 
       const status = String(recharge.value?.status || '').toLowerCase()
-      if (status === 'success' || status === 'failed' || status === 'expired') {
+      if (['success', 'failed', 'expired', 'partially_refunded', 'refunded'].includes(status)) {
         stopPolling()
       } else {
         startPolling()

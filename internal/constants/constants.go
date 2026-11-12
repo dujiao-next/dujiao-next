@@ -140,10 +140,12 @@ const (
 
 // 钱包充值状态常量
 const (
-	WalletRechargeStatusPending = "pending"
-	WalletRechargeStatusSuccess = "success"
-	WalletRechargeStatusFailed  = "failed"
-	WalletRechargeStatusExpired = "expired"
+	WalletRechargeStatusPending           = "pending"
+	WalletRechargeStatusSuccess           = "success"
+	WalletRechargeStatusFailed            = "failed"
+	WalletRechargeStatusExpired           = "expired"
+	WalletRechargeStatusPartiallyRefunded = "partially_refunded"
+	WalletRechargeStatusRefunded          = "refunded"
 )
 
 // 推广返利状态常量

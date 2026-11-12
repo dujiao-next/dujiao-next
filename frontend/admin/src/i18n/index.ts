@@ -1170,6 +1170,10 @@ const messages = {
         detailFetchFailed: '退款详情获取失败',
       },
       walletRecharges: {
+        status: {
+          partially_refunded: '部分退款',
+          refunded: '已退款',
+        },
         detail: {
           actions: '操作',
           view: '查看详情',
@@ -5806,6 +5810,10 @@ const messages = {
         detailFetchFailed: '退款詳情取得失敗',
       },
       walletRecharges: {
+        status: {
+          partially_refunded: '部分退款',
+          refunded: '已退款',
+        },
         detail: {
           actions: '操作',
           view: '查看詳情',
@@ -10442,6 +10450,10 @@ const messages = {
         detailFetchFailed: 'Failed to load refund detail',
       },
       walletRecharges: {
+        status: {
+          partially_refunded: 'Partially Refunded',
+          refunded: 'Refunded',
+        },
         detail: {
           actions: 'Actions',
           view: 'View details',

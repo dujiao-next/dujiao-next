@@ -15,7 +15,7 @@ import { confirmAction } from '@/utils/confirm'
 import { adminUrl } from '@/utils/adminBase'
 import { formatDate, formatMoney, hasPositiveAmount } from '@/utils/format'
 import { providerTypeLabel as providerTypeLabelMap, paymentChannelTypeLabel as paymentChannelTypeLabelMap, formatFeeRate } from '@/utils/paymentChannelDisplay'
-import { paymentStatusClass, paymentStatusLabel } from '@/utils/status'
+import { paymentStatusClass, paymentStatusLabel, rechargeStatusLabel } from '@/utils/status'
 
 const props = defineProps<{ modelValue: boolean; recharge: AdminWalletRecharge | null }>()
 const emit = defineEmits<{ 'update:modelValue': [value: boolean]; updated: [] }>()
@@ -40,8 +40,8 @@ const confirmPaymentID = ref<number | null>(null)
 const requestID = ref('')
 let loadVersion = 0
 const canConfirm = computed(() => ['pending', 'expired', 'failed', 'canceled'].includes(item.value?.status || ''))
-const showRefund = computed(() => !refundWindowExpired.value && item.value?.status === 'success')
-const canRefund = computed(() => showRefund.value && Number(refundableAmount.value) > 0)
+const showRefund = computed(() => !refundWindowExpired.value && ['success', 'partially_refunded', 'refunded'].includes(item.value?.status || ''))
+const canRefund = computed(() => showRefund.value && ['success', 'partially_refunded'].includes(item.value?.status || '') && Number(refundableAmount.value) > 0)
 const money = (value?: string | number) => formatMoney(value, item.value?.currency)
 const providerTypeLabel = (value?: string) => providerTypeLabelMap(t, value)
 const paymentChannelTypeLabel = (payment: AdminPayment) => paymentChannelTypeLabelMap(t, payment)
@@ -160,7 +160,7 @@ const submitManualRefund = async () => {
                 <a :href="adminUrl(`/users/${item.user_id}`)" target="_blank" rel="noopener" class="text-primary hover:underline">#{{ item.user_id }}</a>
                 <div class="break-all">{{ item.user?.display_name }} {{ item.user?.email }}</div>
               </div>
-              <div v-else-if="field === 'status'" class="text-sm text-foreground">{{ paymentStatusLabel(t, item.status) }}</div>
+              <div v-else-if="field === 'status'" class="text-sm text-foreground">{{ rechargeStatusLabel(t, item.status) }}</div>
               <a v-else-if="field === 'channel'" :href="adminUrl(`/payment-channels?channel_id=${item.channel_id}`)" target="_blank" rel="noopener" class="text-primary hover:underline">{{ item.channel_name || `#${item.channel_id}` }}</a>
               <span v-else-if="field === 'createdAt'">{{ formatDate(item.created_at) }}</span>
               <span v-else-if="field === 'paidAt'">{{ formatDate(item.paid_at) || '-' }}</span>
