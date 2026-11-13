@@ -323,9 +323,15 @@ func TestRefundedWalletRechargeCannotBeReopenedByPaymentUpdates(t *testing.T) {
 			if _, err := svc.HandleCallback(buildWalletRechargeCallbackInput(payment, recharge, constants.PaymentStatusSuccess, payment.ProviderRef)); err != nil {
 				t.Fatal(err)
 			}
-			if err := svc.walletSvc.RefundRecharge(walletcontract.RechargeRefundInput{
-				RechargeID: recharge.ID, AdminID: 1, Amount: money.FromDecimal(decimal.NewFromInt(amount)), RequestID: "refund-status-test-0001",
-			}); err != nil {
+			// 构造已退款快照，验证后续支付回调不会覆盖退款状态或重新入账。
+			refundStatus := constants.WalletRechargeStatusPartiallyRefunded
+			if amount == 88 {
+				refundStatus = constants.WalletRechargeStatusRefunded
+			}
+			if err := db.Model(recharge).Updates(map[string]interface{}{"status": refundStatus, "refunded_amount": money.FromDecimal(decimal.NewFromInt(amount))}).Error; err != nil {
+				t.Fatal(err)
+			}
+			if err := db.Model(&walletdomain.Account{}).Where("user_id = ?", recharge.UserID).Update("balance", money.FromDecimal(decimal.NewFromInt(88-amount))).Error; err != nil {
 				t.Fatal(err)
 			}
 			for _, status := range []string{constants.PaymentStatusSuccess, constants.PaymentStatusPending, constants.PaymentStatusFailed, constants.PaymentStatusExpired} {

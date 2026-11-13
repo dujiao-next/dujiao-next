@@ -5,6 +5,7 @@ import (
 
 	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 	"github.com/dujiao-next/internal/shared/money"
+	"github.com/shopspring/decimal"
 )
 
 // Repository owns all wallet aggregate persistence. Transactional callers
@@ -26,6 +27,7 @@ type Repository interface {
 	GetRechargeOrderByID(id uint) (*walletdomain.RechargeOrder, error)
 	CreateRechargeOrder(order *walletdomain.RechargeOrder) error
 	UpdateRechargeOrder(order *walletdomain.RechargeOrder) error
+	DecrementTotalRecharged(userID uint, amount decimal.Decimal) error
 	GetRechargeOrderByRechargeNo(userID uint, rechargeNo string) (*walletdomain.RechargeOrder, error)
 	GetRechargeOrderByPaymentID(paymentID uint) (*walletdomain.RechargeOrder, error)
 	GetRechargeOrderByPaymentIDAndUser(paymentID, userID uint) (*walletdomain.RechargeOrder, error)

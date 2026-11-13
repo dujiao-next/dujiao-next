@@ -50,6 +50,7 @@ type UserRepository interface {
 	GetByID(id uint) (*userdomain.User, error)
 	Update(user *userdomain.User) error
 	IncrementTotalRecharged(userID uint, amount decimal.Decimal) error
+	DecrementTotalRecharged(userID uint, amount decimal.Decimal) error
 	IncrementTotalSpent(userID uint, amount decimal.Decimal) error
 	UpdateMemberLevelIfCurrent(userID, currentLevelID, nextLevelID uint) (int64, error)
 	AssignDefaultMemberLevel(defaultLevelID uint) (int64, error)

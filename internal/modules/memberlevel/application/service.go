@@ -322,6 +322,15 @@ func (s *Service) OnRechargeCompleted(userID uint, amount decimal.Decimal) error
 	return s.CheckAndUpgrade(userID)
 }
 
+// OnRechargeRefunded 扣回本次退款对应的累计充值，保持当前会员等级不变。
+// 调用方须将仓储绑定到退款事务，保证扣款、退款记录与累计充值同步提交。
+func (s *Service) OnRechargeRefunded(userID uint, amount decimal.Decimal) error {
+	if userID == 0 || !amount.Round(2).IsPositive() {
+		return nil
+	}
+	return s.userRepo.DecrementTotalRecharged(userID, amount)
+}
+
 // OnOrderPaid 订单支付成功后触发
 func (s *Service) OnOrderPaid(userID uint, amount decimal.Decimal) error {
 	if userID == 0 {
