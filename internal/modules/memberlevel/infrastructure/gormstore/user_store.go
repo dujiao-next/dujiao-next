@@ -52,8 +52,23 @@ func (r *UserStore) DecrementTotalRecharged(userID uint, amount decimal.Decimal)
 	return DecrementTotalRecharged(r.db, userID, amount)
 }
 
+// DecrementTotalSpent 原子扣回累计消费，历史累计不足时归零。
+func (r *UserStore) DecrementTotalSpent(userID uint, amount decimal.Decimal) error {
+	return DecrementTotalSpent(r.db, userID, amount)
+}
+
 // DecrementTotalRecharged 使用调用方的事务连接扣回累计充值，累计不足时归零。
 func DecrementTotalRecharged(tx *gorm.DB, userID uint, amount decimal.Decimal) error {
+	return decrementMoneyColumn(tx, userID, "total_recharged", amount)
+}
+
+// DecrementTotalSpent 使用调用方的事务连接扣回累计消费，累计不足时归零。
+func DecrementTotalSpent(tx *gorm.DB, userID uint, amount decimal.Decimal) error {
+	return decrementMoneyColumn(tx, userID, "total_spent", amount)
+}
+
+// decrementMoneyColumn 扣减指定累计字段，字段名仅由内部固定调用提供。
+func decrementMoneyColumn(tx *gorm.DB, userID uint, column string, amount decimal.Decimal) error {
 	amount = amount.Round(2)
 	if userID == 0 || !amount.IsPositive() {
 		return nil
@@ -62,8 +77,8 @@ func DecrementTotalRecharged(tx *gorm.DB, userID uint, amount decimal.Decimal) e
 	result := tx.Model(&userdomain.User{}).
 		Where("id = ? AND deleted_at IS NULL", userID).
 		Updates(map[string]interface{}{
-			"total_recharged": gorm.Expr("CASE WHEN total_recharged >= ? THEN total_recharged - ? ELSE 0 END", value, value),
-			"updated_at":      time.Now(),
+			column:       gorm.Expr("CASE WHEN "+column+" >= ? THEN "+column+" - ? ELSE 0 END", value, value),
+			"updated_at": time.Now(),
 		})
 	if result.Error != nil {
 		return result.Error
