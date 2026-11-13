@@ -5,16 +5,17 @@ import (
 	"testing"
 	"time"
 
-	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
-	memberlevelapp "github.com/dujiao-next/internal/modules/memberlevel/application"
-	memberlevelcontract "github.com/dujiao-next/internal/modules/memberlevel/contract"
-	memberleveldomain "github.com/dujiao-next/internal/modules/memberlevel/domain"
 	"github.com/dujiao-next/internal/modules/memberlevel/infrastructure/gormstore"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/money"
 	"github.com/glebarez/sqlite"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
+
+	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
+	memberlevelapp "github.com/dujiao-next/internal/modules/memberlevel/application"
+	memberlevelcontract "github.com/dujiao-next/internal/modules/memberlevel/contract"
+	memberleveldomain "github.com/dujiao-next/internal/modules/memberlevel/domain"
 )
 
 func newMemberLevelServiceForTest(t *testing.T) (*memberlevelapp.Service, *gorm.DB) {
@@ -156,6 +157,11 @@ func (r *concurrentUserRepository) Update(user *userdomain.User) error {
 
 func (r *concurrentUserRepository) IncrementTotalRecharged(userID uint, amount decimal.Decimal) error {
 	return r.base.IncrementTotalRecharged(userID, amount)
+}
+
+// DecrementTotalRecharged 转交事务测试使用的累计充值扣减。
+func (r *concurrentUserRepository) DecrementTotalRecharged(userID uint, amount decimal.Decimal) error {
+	return r.base.DecrementTotalRecharged(userID, amount)
 }
 
 func (r *concurrentUserRepository) IncrementTotalSpent(userID uint, amount decimal.Decimal) error {

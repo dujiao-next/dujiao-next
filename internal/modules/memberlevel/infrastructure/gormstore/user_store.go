@@ -4,12 +4,12 @@ import (
 	"errors"
 	"time"
 
-	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
-
-	memberlevelcontract "github.com/dujiao-next/internal/modules/memberlevel/contract"
 	"github.com/dujiao-next/internal/shared/money"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
+
+	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
+	memberlevelcontract "github.com/dujiao-next/internal/modules/memberlevel/contract"
 )
 
 // UserStore persists only the user fields owned by member-level progression.
@@ -45,6 +45,33 @@ func (r *UserStore) Update(user *userdomain.User) error {
 
 func (r *UserStore) IncrementTotalRecharged(userID uint, amount decimal.Decimal) error {
 	return r.incrementMoneyColumn(userID, "total_recharged", amount)
+}
+
+// DecrementTotalRecharged 原子扣回累计充值，历史累计不足时归零，避免出现负数。
+func (r *UserStore) DecrementTotalRecharged(userID uint, amount decimal.Decimal) error {
+	return DecrementTotalRecharged(r.db, userID, amount)
+}
+
+// DecrementTotalRecharged 使用调用方的事务连接扣回累计充值，累计不足时归零。
+func DecrementTotalRecharged(tx *gorm.DB, userID uint, amount decimal.Decimal) error {
+	amount = amount.Round(2)
+	if userID == 0 || !amount.IsPositive() {
+		return nil
+	}
+	value := money.FromDecimal(amount)
+	result := tx.Model(&userdomain.User{}).
+		Where("id = ? AND deleted_at IS NULL", userID).
+		Updates(map[string]interface{}{
+			"total_recharged": gorm.Expr("CASE WHEN total_recharged >= ? THEN total_recharged - ? ELSE 0 END", value, value),
+			"updated_at":      time.Now(),
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return memberlevelcontract.ErrUserNotFound
+	}
+	return nil
 }
 
 func (r *UserStore) IncrementTotalSpent(userID uint, amount decimal.Decimal) error {

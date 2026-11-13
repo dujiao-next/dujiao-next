@@ -45,6 +45,9 @@ func (s *Service) RefundRecharge(input walletcontract.RechargeRefundInput) error
 		!amount.GreaterThan(decimal.Zero) || !amount.Equal(amount.Round(2)) || len([]rune(input.Remark)) > 255 {
 		return walletcontract.ErrInvalidAmount
 	}
+	if s.transactions == nil {
+		return walletcontract.ErrTransactionRequired
+	}
 	recharge, err := s.repository.GetRechargeOrderByID(input.RechargeID)
 	if err != nil {
 		return err
@@ -136,6 +139,9 @@ func (s *Service) RefundRecharge(input walletcontract.RechargeRefundInput) error
 		}
 		locked.UpdatedAt = now
 		if err := repo.UpdateRechargeOrder(locked); err != nil {
+			return err
+		}
+		if err := repo.DecrementTotalRecharged(locked.UserID, amount); err != nil {
 			return err
 		}
 		refundID, refundStatus = transaction.ID, locked.Status

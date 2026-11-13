@@ -16,6 +16,7 @@ import (
 	"gorm.io/gorm"
 
 	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
+	memberleveldomain "github.com/dujiao-next/internal/modules/memberlevel/domain"
 	settingsapp "github.com/dujiao-next/internal/modules/settings/application"
 	settingsstore "github.com/dujiao-next/internal/modules/settings/infrastructure/gormstore"
 	walletapp "github.com/dujiao-next/internal/modules/wallet/application"
@@ -167,6 +168,10 @@ func setupRechargeRefund(t *testing.T) (*walletapp.Service, *gorm.DB, walletdoma
 	t.Cleanup(func() { _ = raw.Close() })
 	recharge := walletdomain.RechargeOrder{RechargeNo: "refund-test", UserID: 1, PaymentID: 1, Amount: money.FromDecimal(decimal.NewFromInt(100)), PayableAmount: money.FromDecimal(decimal.NewFromInt(103)), Currency: "CNY", Status: constants.WalletRechargeStatusSuccess}
 	if err := db.Create(&recharge).Error; err != nil {
+		t.Fatal(err)
+	}
+	user := userdomain.User{ID: recharge.UserID, Email: "refund-test@example.com", Status: constants.UserStatusActive, TotalRecharged: recharge.Amount}
+	if err := db.Create(&user).Error; err != nil {
 		t.Fatal(err)
 	}
 	account := walletdomain.Account{UserID: 1, Balance: money.FromDecimal(decimal.NewFromInt(100))}
@@ -538,5 +543,196 @@ func TestRechargeRefundUncheckedFeeIsNotReversed(t *testing.T) {
 	}
 	if !total.Equal(decimal.RequireFromString("2.70")) {
 		t.Fatalf("returned fee: %s", total)
+	}
+}
+
+// setupRechargeRefundProgression 构造默认、白银、黄金等级及已充值一百元的用户。
+func setupRechargeRefundProgression(t *testing.T) (*walletapp.Service, *gorm.DB, walletdomain.RechargeOrder, []memberleveldomain.MemberLevel) {
+	t.Helper()
+	_, db, recharge := setupRechargeRefund(t)
+	if err := db.AutoMigrate(&memberleveldomain.MemberLevel{}); err != nil {
+		t.Fatal(err)
+	}
+	levels := make([]memberleveldomain.MemberLevel, 3)
+	for i, threshold := range []int64{0, 50, 100} {
+		levels[i] = memberleveldomain.MemberLevel{Slug: fmt.Sprintf("refund-level-%d", i), NameJSON: jsonmap.JSON{"zh-CN": fmt.Sprintf("等级%d", i)}, SortOrder: i * 10, IsActive: true, IsDefault: i == 0, RechargeThreshold: money.FromDecimal(decimal.NewFromInt(threshold))}
+		if err := db.Create(&levels[i]).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	user := userdomain.User{ID: recharge.UserID, Email: "refund-member@example.com", PasswordHash: "test-hash", Status: constants.UserStatusActive, MemberLevelID: levels[2].ID, TotalRecharged: money.FromDecimal(decimal.NewFromInt(100))}
+	if err := db.Save(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	repo := walletgormstore.New(db)
+	svc := walletapp.NewService(walletapp.Options{Repository: repo, Transactions: repo})
+	return svc, db, recharge, levels
+}
+
+func TestRechargeRefundDecreasesTotalRechargedWithoutDowngrading(t *testing.T) {
+	for _, tc := range []struct {
+		name                     string
+		total, refund, wantTotal int64
+		wantLevel                int
+		spend, manual            bool
+	}{
+		{name: "partial_keeps_level", total: 100, refund: 40, wantTotal: 60, wantLevel: 2},
+		{name: "full_keeps_level", total: 100, refund: 100, wantTotal: 0, wantLevel: 2},
+		{name: "still_qualified", total: 200, refund: 40, wantTotal: 160, wantLevel: 2},
+		{name: "spend_threshold_retained", total: 100, refund: 100, wantTotal: 0, wantLevel: 2, spend: true},
+		{name: "manual_level_retained", total: 100, refund: 100, wantTotal: 0, wantLevel: 2, manual: true},
+		{name: "historical_total_never_negative", total: 10, refund: 40, wantTotal: 0, wantLevel: 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, db, recharge, levels := setupRechargeRefundProgression(t)
+			if err := db.Model(&userdomain.User{}).Where("id = ?", recharge.UserID).Update("total_recharged", tc.total).Error; err != nil {
+				t.Fatal(err)
+			}
+			if tc.spend {
+				if err := db.Model(&userdomain.User{}).Where("id = ?", recharge.UserID).Update("total_spent", 100).Error; err != nil {
+					t.Fatal(err)
+				}
+				if err := db.Model(&levels[2]).Update("spend_threshold", 100).Error; err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.manual {
+				if err := db.Model(&levels[2]).Update("recharge_threshold", 0).Error; err != nil {
+					t.Fatal(err)
+				}
+			}
+			input := walletcontract.RechargeRefundInput{RechargeID: recharge.ID, AdminID: 1, Amount: money.FromDecimal(decimal.NewFromInt(tc.refund)), RequestID: "refund-member-request-0001"}
+			for retry := 0; retry < 2; retry++ {
+				if err := svc.RefundRecharge(input); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var user userdomain.User
+			if err := db.First(&user, recharge.UserID).Error; err != nil {
+				t.Fatal(err)
+			}
+			if !user.TotalRecharged.Decimal.Equal(decimal.NewFromInt(tc.wantTotal)) || user.MemberLevelID != levels[tc.wantLevel].ID {
+				t.Fatalf("membership after refund: %+v", user)
+			}
+			if tc.spend && user.TotalSpent.String() != "100.00" {
+				t.Fatalf("spending changed: %s", user.TotalSpent)
+			}
+			account, err := svc.GetAccount(recharge.UserID)
+			if err != nil || !account.Balance.Decimal.Equal(decimal.NewFromInt(100-tc.refund)) {
+				t.Fatalf("wallet: %+v error=%v", account, err)
+			}
+		})
+	}
+}
+
+func TestRechargeRefundCumulativeTotalFailureRollsBackAllChanges(t *testing.T) {
+	svc, db, recharge, levels := setupRechargeRefundProgression(t)
+	failure := errors.New("cumulative recharge update failed")
+	if err := db.Callback().Update().Before("gorm:update").Register("test_recharge_total_failure", func(tx *gorm.DB) {
+		values, ok := tx.Statement.Dest.(map[string]interface{})
+		if _, changesTotal := values["total_recharged"]; ok && changesTotal && tx.Statement.Table == "users" {
+			tx.AddError(failure)
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	err := svc.RefundRecharge(walletcontract.RechargeRefundInput{RechargeID: recharge.ID, AdminID: 1, Amount: money.FromDecimal(decimal.NewFromInt(40)), RequestID: "refund-member-rollback-0001"})
+	if !errors.Is(err, failure) {
+		t.Fatalf("expected cumulative update failure: %v", err)
+	}
+	var user userdomain.User
+	if err := db.First(&user, recharge.UserID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if user.TotalRecharged.String() != "100.00" || user.MemberLevelID != levels[2].ID {
+		t.Fatalf("membership not rolled back: %+v", user)
+	}
+	account, err := svc.GetAccount(recharge.UserID)
+	if err != nil || account.Balance.String() != "100.00" {
+		t.Fatalf("wallet not rolled back: %+v %v", account, err)
+	}
+	records, err := svc.ListRechargeRefunds(recharge.ID)
+	if err != nil || len(records) != 0 {
+		t.Fatalf("refund records not rolled back: %+v %v", records, err)
+	}
+	var current walletdomain.RechargeOrder
+	if err := db.First(&current, recharge.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if current.Status != constants.WalletRechargeStatusSuccess || current.RefundedAmount.String() != "0.00" {
+		t.Fatalf("recharge not rolled back: %+v", current)
+	}
+}
+
+func TestConcurrentRechargeRefundsOnlyDecrementCumulativeTotalOnce(t *testing.T) {
+	svc, db, recharge, levels := setupRechargeRefundProgression(t)
+	input := walletcontract.RechargeRefundInput{RechargeID: recharge.ID, AdminID: 1, Amount: money.FromDecimal(decimal.NewFromInt(100)), RequestID: "refund-member-concurrent"}
+	errorsCh := make(chan error, 8)
+	var wait sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wait.Add(1)
+		go func() { defer wait.Done(); errorsCh <- svc.RefundRecharge(input) }()
+	}
+	wait.Wait()
+	close(errorsCh)
+	for err := range errorsCh {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	var user userdomain.User
+	if err := db.First(&user, recharge.UserID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if user.TotalRecharged.String() != "0.00" || user.MemberLevelID != levels[2].ID {
+		t.Fatalf("concurrent refund membership: %+v", user)
+	}
+	rows, err := svc.ListRechargeRefunds(recharge.ID)
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("concurrent refund records: %+v %v", rows, err)
+	}
+}
+
+func TestRechargeRefundMissingTransactionDependenciesRollsBack(t *testing.T) {
+	for _, name := range []string{"missing_transactions", "missing_repository", "missing_database"} {
+		t.Run(name, func(t *testing.T) {
+			_, db, recharge := setupRechargeRefund(t)
+			repo := walletgormstore.New(db)
+			var transactions walletcontract.UnitOfWork
+			if name == "missing_repository" {
+				transactions = (*walletgormstore.Store)(nil)
+			}
+			if name == "missing_database" {
+				transactions = walletgormstore.New(nil)
+			}
+			emails := &rechargeRefundEmailQueueStub{}
+			svc := walletapp.NewService(walletapp.Options{Repository: repo, Transactions: transactions, RefundEmails: emails})
+			err := svc.RefundRecharge(walletcontract.RechargeRefundInput{RechargeID: recharge.ID, AdminID: 1, Amount: money.FromDecimal(decimal.NewFromInt(20)), RequestID: "refund-missing-dependency"})
+			if !errors.Is(err, walletcontract.ErrTransactionRequired) {
+				t.Fatalf("expected transaction dependency error: %v", err)
+			}
+			account, err := svc.GetAccount(recharge.UserID)
+			if err != nil || account.Balance.String() != "100.00" {
+				t.Fatalf("wallet changed: %+v %v", account, err)
+			}
+			var user userdomain.User
+			if err := db.First(&user, recharge.UserID).Error; err != nil {
+				t.Fatal(err)
+			}
+			if user.TotalRecharged.String() != "100.00" {
+				t.Fatalf("cumulative recharge changed: %s", user.TotalRecharged)
+			}
+			var current walletdomain.RechargeOrder
+			if err := db.First(&current, recharge.ID).Error; err != nil {
+				t.Fatal(err)
+			}
+			if current.Status != constants.WalletRechargeStatusSuccess || current.RefundedAmount.String() != "0.00" {
+				t.Fatalf("recharge changed: %+v", current)
+			}
+			rows, err := svc.ListRechargeRefunds(recharge.ID)
+			if err != nil || len(rows) != 0 || emails.calls != 0 {
+				t.Fatalf("refund side effects: %+v %v emails=%d", rows, err, emails.calls)
+			}
+		})
 	}
 }

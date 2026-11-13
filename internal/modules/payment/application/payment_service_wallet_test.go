@@ -13,6 +13,15 @@ import (
 	"time"
 
 	"github.com/dujiao-next/internal/constants"
+	"github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/provider"
+	"github.com/dujiao-next/internal/platform/database/gormdb"
+	"github.com/dujiao-next/internal/shared/jsonmap"
+	"github.com/dujiao-next/internal/shared/money"
+	"github.com/glebarez/sqlite"
+	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
+	"gorm.io/gorm"
+
 	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
 	productgormstore "github.com/dujiao-next/internal/modules/catalog/product/store/gormstore"
 	fulfillmentdomain "github.com/dujiao-next/internal/modules/fulfillment/domain"
@@ -32,7 +41,6 @@ import (
 	stripeadapter "github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/adapters/stripe"
 	tokenpayadapter "github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/adapters/tokenpay"
 	wechatpayadapter "github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/adapters/wechatpay"
-	"github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/provider"
 	paymentgormstore "github.com/dujiao-next/internal/modules/payment/infrastructure/gormstore"
 	resellercontract "github.com/dujiao-next/internal/modules/reseller/contract"
 	settingsapp "github.com/dujiao-next/internal/modules/settings/application"
@@ -41,14 +49,6 @@ import (
 	walletcontract "github.com/dujiao-next/internal/modules/wallet/contract"
 	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 	walletgormstore "github.com/dujiao-next/internal/modules/wallet/infrastructure/gormstore"
-	"github.com/dujiao-next/internal/platform/database/gormdb"
-	"github.com/dujiao-next/internal/shared/jsonmap"
-	"github.com/dujiao-next/internal/shared/money"
-
-	"github.com/glebarez/sqlite"
-	"github.com/shopspring/decimal"
-	"go.uber.org/zap"
-	"gorm.io/gorm"
 )
 
 func setupPaymentServiceWalletTest(t *testing.T) (*PaymentService, *gorm.DB) {
@@ -316,9 +316,15 @@ func TestRefundedWalletRechargeCannotBeReopenedByPaymentUpdates(t *testing.T) {
 			if _, err := svc.HandleCallback(buildWalletRechargeCallbackInput(payment, recharge, constants.PaymentStatusSuccess, payment.ProviderRef)); err != nil {
 				t.Fatal(err)
 			}
-			if err := svc.walletSvc.RefundRecharge(walletcontract.RechargeRefundInput{
-				RechargeID: recharge.ID, AdminID: 1, Amount: money.FromDecimal(decimal.NewFromInt(amount)), RequestID: "refund-status-test-0001",
-			}); err != nil {
+			// 构造已退款快照，验证后续支付回调不会覆盖退款状态或重新入账。
+			refundStatus := constants.WalletRechargeStatusPartiallyRefunded
+			if amount == 88 {
+				refundStatus = constants.WalletRechargeStatusRefunded
+			}
+			if err := db.Model(recharge).Updates(map[string]interface{}{"status": refundStatus, "refunded_amount": money.FromDecimal(decimal.NewFromInt(amount))}).Error; err != nil {
+				t.Fatal(err)
+			}
+			if err := db.Model(&walletdomain.Account{}).Where("user_id = ?", recharge.UserID).Update("balance", money.FromDecimal(decimal.NewFromInt(88-amount))).Error; err != nil {
 				t.Fatal(err)
 			}
 			for _, status := range []string{constants.PaymentStatusSuccess, constants.PaymentStatusPending, constants.PaymentStatusFailed, constants.PaymentStatusExpired} {
