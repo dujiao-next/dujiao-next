@@ -10,6 +10,7 @@ import {
 } from '@/api/admin'
 import { useAdminAuthStore } from '@/stores/auth'
 import IdCell from '@/components/IdCell.vue'
+import AdminAPITokens from '@/components/AdminAPITokens.vue'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -1166,5 +1167,10 @@ onMounted(async () => {
         </div>
       </div>
     </section>
+    <AdminAPITokens
+      v-if="selectedAdmin && authStore.hasPermission(`GET:/admin/authz/admins/${selectedAdmin.id}/api-tokens`)"
+      :key="selectedAdmin.id"
+      :admin="selectedAdmin"
+    />
   </div>
 </template>

@@ -13,7 +13,7 @@ import { useListRefresh, type ListFetchOptions } from '@/composables/useListRefr
 import { notifyError } from '@/utils/notify'
 import { formatDate, toRFC3339 } from '@/utils/format'
 
-const { locale } = useI18n()
+const { locale, t } = useI18n()
 const { refreshing, refreshList } = useListRefresh()
 
 const messages = {
@@ -159,7 +159,13 @@ const actionOptions = [
   'policy_grant',
   'policy_revoke',
   'admin_roles_update',
+  'admin_api_token_create',
+  'admin_api_token_revoke',
+  'admin_api_token_rotate',
+  'admin_api_token_request',
 ]
+
+const actionLabel = (action: string) => action.startsWith('admin_api_token_') ? t(`adminApiTokens.auditActions.${action}`) : action
 
 const methodOptions = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', '*']
 
@@ -236,7 +242,7 @@ onMounted(() => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__all__">{{ text.filters.allActions }}</SelectItem>
-            <SelectItem v-for="item in actionOptions" :key="item" :value="item">{{ item }}</SelectItem>
+            <SelectItem v-for="item in actionOptions" :key="item" :value="item">{{ actionLabel(item) }}</SelectItem>
           </SelectContent>
         </Select>
         <Input v-model="filters.role" type="text" :placeholder="text.filters.role" class="h-9" @update:modelValue="debouncedSearch" />
@@ -264,11 +270,13 @@ onMounted(() => {
       </div>
     </section>
 
+    <p class="text-sm text-muted-foreground lg:hidden">{{ t('adminApiTokens.scrollHint') }}</p>
     <section class="rounded-xl border border-border bg-card overflow-hidden overflow-x-auto">
       <Table class="min-w-[1000px]">
         <TableHeader class="border-b border-border bg-muted/40 text-xs uppercase text-muted-foreground">
           <TableRow>
             <TableHead class="px-4 py-3">{{ text.table.id }}</TableHead>
+            <TableHead>{{ t('adminApiTokens.auditDetail') }}</TableHead>
             <TableHead class="min-w-[100px] px-4 py-3">{{ text.table.operator }}</TableHead>
             <TableHead class="min-w-[100px] px-4 py-3">{{ text.table.target }}</TableHead>
             <TableHead class="min-w-[100px] px-4 py-3">{{ text.table.action }}</TableHead>
@@ -281,15 +289,26 @@ onMounted(() => {
         </TableHeader>
         <TableBody class="divide-y divide-border">
           <TableRow v-if="loading">
-            <TableCell :colspan="9" class="p-0">
-              <TableSkeleton :columns="9" :rows="5" />
+            <TableCell :colspan="10" class="p-0">
+              <TableSkeleton :columns="10" :rows="5" />
             </TableCell>
           </TableRow>
           <TableRow v-else-if="logs.length === 0">
-            <TableCell colspan="9" class="px-4 py-6 text-center text-muted-foreground">{{ text.table.empty }}</TableCell>
+            <TableCell colspan="10" class="px-4 py-6 text-center text-muted-foreground">{{ text.table.empty }}</TableCell>
           </TableRow>
           <TableRow v-for="item in logs" :key="item.id" class="hover:bg-muted/30">
             <TableCell class="px-4 py-3"><IdCell :value="item.id" /></TableCell>
+            <TableCell class="min-w-40 max-w-56 break-words text-xs">
+              <template v-if="item.detail?.token_id">
+                <div>#{{ item.detail.token_id }}</div>
+                <div v-if="item.detail.http_status" class="whitespace-nowrap text-muted-foreground">
+                  {{ t('adminApiTokens.auditResult', { http: item.detail.http_status, code: item.detail.status_code }) }}
+                </div>
+                <div v-if="item.detail.client_ip" class="font-mono">{{ item.detail.client_ip }}</div>
+                <div v-if="item.detail.denial_reason === 'ip_not_allowed'" class="font-medium text-foreground">{{ t('adminApiTokens.ipRejected') }}</div>
+              </template>
+              <span v-else>-</span>
+            </TableCell>
             <TableCell class="min-w-[100px] px-4 py-3 text-xs">
               <div class="break-words">#{{ item.operator_admin_id }} {{ item.operator_username || '-' }}</div>
             </TableCell>
@@ -297,7 +316,7 @@ onMounted(() => {
               <span v-if="item.target_admin_id" class="break-words">#{{ item.target_admin_id }} {{ item.target_username || '-' }}</span>
               <span v-else>-</span>
             </TableCell>
-            <TableCell class="min-w-[100px] px-4 py-3 font-medium break-words">{{ item.action }}</TableCell>
+            <TableCell class="min-w-[100px] px-4 py-3 font-medium break-words">{{ actionLabel(item.action) }}</TableCell>
             <TableCell class="min-w-[90px] px-4 py-3 text-xs break-words">{{ item.role || '-' }}</TableCell>
             <TableCell class="min-w-[100px] px-4 py-3 font-mono text-xs text-muted-foreground break-all">{{ item.object || '-' }}</TableCell>
             <TableCell class="min-w-[90px] px-4 py-3">{{ item.method || '-' }}</TableCell>

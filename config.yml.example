@@ -132,6 +132,10 @@ cors:
   max_age: 600
 
 security:
+  # 管理员 API Token：按来源 IP 和已认证 Token 分别限流（非正值回退到默认值）
+  admin_api_rate_limit:
+    window_seconds: 60
+    max_requests: 120
   login_rate_limit:
     window_seconds: 300
     max_attempts: 5

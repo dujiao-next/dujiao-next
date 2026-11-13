@@ -85,6 +85,7 @@ func SuccessWithPage(c *gin.Context, data interface{}, pagination Pagination) {
 
 // Error 错误响应
 func Error(c *gin.Context, statusCode int, msg string) {
+	c.Set("response_status_code", statusCode)
 	c.JSON(http.StatusOK, Response{
 		StatusCode: statusCode,
 		Msg:        msg,
@@ -95,6 +96,7 @@ func Error(c *gin.Context, statusCode int, msg string) {
 // ErrorWithHTTPStatus 返回真实 HTTP 状态码(非 200),body 仍使用统一 Response 结构。
 // 仅基础设施层(recovery、auth 中间件等异常路径)应使用;业务层继续用 Error。
 func ErrorWithHTTPStatus(c *gin.Context, httpStatus, statusCode int, msg string) {
+	c.Set("response_status_code", statusCode)
 	c.AbortWithStatusJSON(httpStatus, Response{
 		StatusCode: statusCode,
 		Msg:        msg,
