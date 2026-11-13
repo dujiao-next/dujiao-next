@@ -111,6 +111,24 @@ export interface AuthzCreateAdminRequest {
   is_super?: boolean
 }
 
+export interface AdminAPIToken {
+  id: number
+  admin_id: number
+  name: string
+  ip_whitelist: string[]
+  expires_at: string
+  last_used_at: string | null
+  revoked_at: string | null
+  created_at: string
+  status: 'active' | 'expired' | 'revoked' | 'invalidated'
+}
+
+export interface CreateAdminAPITokenRequest {
+  name: string
+  expires_at: string
+  ip_whitelist: string[]
+}
+
 export interface AuthzUpdateAdminRequest {
   username?: string
   password?: string
@@ -337,6 +355,10 @@ export const adminAPI = {
   getAuthzMe: () => api.get('/admin/authz/me'),
   listAuthzRoles: () => api.get('/admin/authz/roles', { params: { include_metadata: true } }),
   listAuthzAdmins: () => api.get("/admin/authz/admins"),
+  listAdminAPITokens: (id: number) => api.get(`/admin/authz/admins/${id}/api-tokens`),
+  createAdminAPIToken: (id: number, data: CreateAdminAPITokenRequest) => api.post(`/admin/authz/admins/${id}/api-tokens`, data),
+  revokeAdminAPIToken: (id: number, tokenId: number) => api.delete(`/admin/authz/admins/${id}/api-tokens/${tokenId}`),
+  rotateAdminAPIToken: (id: number, tokenId: number) => api.post(`/admin/authz/admins/${id}/api-tokens/${tokenId}/rotate`),
   createAuthzAdmin: (data: AuthzCreateAdminRequest) => api.post("/admin/authz/admins", data),
   updateAuthzAdmin: (id: number, data: AuthzUpdateAdminRequest) => api.put(`/admin/authz/admins/${id}`, data),
   deleteAuthzAdmin: (id: number) => api.delete(`/admin/authz/admins/${id}`),

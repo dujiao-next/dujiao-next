@@ -258,6 +258,10 @@ func BuiltinRoleSeeds() []RoleSeed {
 				{Object: "/admin/authz/admins", Action: "*"},
 				{Object: "/admin/authz/admins/:id", Action: "*"},
 				{Object: "/admin/authz/admins/:id/roles", Action: "*"},
+				{Object: "/admin/authz/admins/:id/api-tokens", Action: "GET"},
+				{Object: "/admin/authz/admins/:id/api-tokens", Action: "POST"},
+				{Object: "/admin/authz/admins/:id/api-tokens/:token_id", Action: "DELETE"},
+				{Object: "/admin/authz/admins/:id/api-tokens/:token_id/rotate", Action: "POST"},
 				{Object: "/admin/authz/admins/:id/2fa/reset", Action: "POST"}, // 超管重置目标管理员 2FA（handler 仍二次校验 isSuper）
 				{Object: "/admin/authz/policies", Action: "*"},
 				{Object: "/admin/authz/permissions/catalog", Action: "GET"},

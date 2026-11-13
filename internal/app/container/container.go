@@ -38,6 +38,8 @@ import (
 	giftcardapp "github.com/dujiao-next/internal/modules/giftcard/application"
 	giftcardgormstore "github.com/dujiao-next/internal/modules/giftcard/infrastructure/gormstore"
 	admincontract "github.com/dujiao-next/internal/modules/identity/admin/contract"
+	adminapitokenapp "github.com/dujiao-next/internal/modules/identity/adminapitoken/application"
+	adminapitokencontract "github.com/dujiao-next/internal/modules/identity/adminapitoken/contract"
 	adminauthapp "github.com/dujiao-next/internal/modules/identity/adminauth/application"
 	admintotpapp "github.com/dujiao-next/internal/modules/identity/adminauth/totp/application"
 	emailverificationcontract "github.com/dujiao-next/internal/modules/identity/emailverification/contract"
@@ -90,6 +92,8 @@ type Container struct {
 
 	// Repositories
 	AdminStore             admincontract.Store
+	AdminAPITokenStore     adminapitokencontract.Store
+	AdminAPITokenService   *adminapitokenapp.Service
 	UserStore              usercontract.Store
 	ExternalIdentityStore  externalidentitycontract.Store
 	EmailVerificationStore emailverificationcontract.Store

@@ -18,6 +18,7 @@ import (
 	fulfillmentgormstore "github.com/dujiao-next/internal/modules/fulfillment/infrastructure/gormstore"
 	giftcardgormstore "github.com/dujiao-next/internal/modules/giftcard/infrastructure/gormstore"
 	adminstore "github.com/dujiao-next/internal/modules/identity/admin/infrastructure/gormstore"
+	adminapitokenstore "github.com/dujiao-next/internal/modules/identity/adminapitoken/infrastructure/gormstore"
 	emailverificationstore "github.com/dujiao-next/internal/modules/identity/emailverification/infrastructure/gormstore"
 	externalidentitystore "github.com/dujiao-next/internal/modules/identity/externalidentity/infrastructure/gormstore"
 	userstore "github.com/dujiao-next/internal/modules/identity/user/infrastructure/gormstore"
@@ -39,6 +40,7 @@ import (
 func (c *Container) initRepositories() error {
 	db := gormdb.DB
 	c.AdminStore = adminstore.New(db)
+	c.AdminAPITokenStore = adminapitokenstore.New(db)
 	c.UserStore = userstore.New(db)
 	c.ExternalIdentityStore = externalidentitystore.New(db)
 	c.EmailVerificationStore = emailverificationstore.New(db)

@@ -16,6 +16,13 @@ const (
 
 var messages = map[string]map[string]string{
 	LocaleZH: {
+		"error.admin_api_token_ip_whitelist":             "IP 白名单最多 100 项，每项须为有效的 IPv4、IPv6 地址或 CIDR",
+		"error.admin_api_token_ip_forbidden":             "当前来源 IP 不在此 Token 的白名单内",
+		"error.admin_api_token_input":                    "Token 名称须为 1–80 个字符，到期时间须在未来 365 天内",
+		"error.admin_api_token_subaccount":               "API Token 只能绑定非超级管理员子账号",
+		"error.admin_api_token_not_found":                "Token 不存在或已撤销",
+		"error.admin_api_token_rotation":                 "只能轮换有效且未变更的 Token，请刷新列表后重试",
+		"error.admin_api_token_access":                   "此接口不向 API Token 开放",
 		"error.jwt_secret_missing":                       "JWT secret 未配置",
 		"error.auth_header_missing":                      "缺少 Authorization header",
 		"error.auth_header_invalid":                      "Authorization header 格式错误",
@@ -398,6 +405,13 @@ var messages = map[string]map[string]string{
 		"error.invalid_product_status":              "无效的商品状态参数",
 	},
 	LocaleTW: {
+		"error.admin_api_token_ip_whitelist":             "IP 白名單最多 100 項，每項須為有效的 IPv4、IPv6 位址或 CIDR",
+		"error.admin_api_token_ip_forbidden":             "目前來源 IP 不在此 Token 的白名單內",
+		"error.admin_api_token_input":                    "Token 名稱須為 1–80 個字元，到期時間須在未來 365 天內",
+		"error.admin_api_token_subaccount":               "API Token 只能綁定非超級管理員子帳號",
+		"error.admin_api_token_not_found":                "Token 不存在或已撤銷",
+		"error.admin_api_token_rotation":                 "只能輪替有效且未變更的 Token，請重新整理清單後再試",
+		"error.admin_api_token_access":                   "此介面不向 API Token 開放",
 		"error.jwt_secret_missing":                       "JWT secret 未配置",
 		"error.auth_header_missing":                      "缺少 Authorization header",
 		"error.auth_header_invalid":                      "Authorization header 格式錯誤",
@@ -780,6 +794,13 @@ var messages = map[string]map[string]string{
 		"error.invalid_product_status":              "無效的商品狀態參數",
 	},
 	LocaleEN: {
+		"error.admin_api_token_ip_whitelist":             "The IP allowlist accepts up to 100 valid IPv4/IPv6 addresses or CIDR ranges",
+		"error.admin_api_token_ip_forbidden":             "The source IP is not allowed by this token",
+		"error.admin_api_token_input":                    "Token names must contain 1–80 characters and expiry must be within the next 365 days",
+		"error.admin_api_token_subaccount":               "API tokens require a non-super administrator account",
+		"error.admin_api_token_not_found":                "Token not found or already revoked",
+		"error.admin_api_token_rotation":                 "Only active, unchanged tokens can be rotated. Refresh the list and try again.",
+		"error.admin_api_token_access":                   "This endpoint is unavailable to API tokens",
 		"error.jwt_secret_missing":                       "JWT secret is not configured",
 		"error.auth_header_missing":                      "Missing Authorization header",
 		"error.auth_header_invalid":                      "Invalid Authorization header format",
