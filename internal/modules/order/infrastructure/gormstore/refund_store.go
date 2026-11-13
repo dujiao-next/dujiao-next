@@ -5,13 +5,15 @@ import (
 	"strings"
 	"time"
 
-	ordercontract "github.com/dujiao-next/internal/modules/order/contract"
-	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
 	"github.com/dujiao-next/internal/persistence/gormutil"
 	"github.com/dujiao-next/internal/shared/money"
-
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+
+	memberlevelgormstore "github.com/dujiao-next/internal/modules/memberlevel/infrastructure/gormstore"
+	ordercontract "github.com/dujiao-next/internal/modules/order/contract"
+	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
 )
 
 // Create 创建退款记录
@@ -20,6 +22,11 @@ func (r *Store) CreateRefundRecord(record *orderdomain.OrderRefundRecord) error 
 		return nil
 	}
 	return r.db.Create(record).Error
+}
+
+// DecrementTotalSpent 使用当前仓储的事务连接扣回用户累计消费。
+func (r *Store) DecrementTotalSpent(userID uint, amount decimal.Decimal) error {
+	return memberlevelgormstore.DecrementTotalSpent(r.db, userID, amount)
 }
 
 // GetByID 根据 ID 获取退款记录

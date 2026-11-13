@@ -164,6 +164,11 @@ func (r *concurrentUserRepository) DecrementTotalRecharged(userID uint, amount d
 	return r.base.DecrementTotalRecharged(userID, amount)
 }
 
+// DecrementTotalSpent 转交累计消费扣减。
+func (r *concurrentUserRepository) DecrementTotalSpent(userID uint, amount decimal.Decimal) error {
+	return r.base.DecrementTotalSpent(userID, amount)
+}
+
 func (r *concurrentUserRepository) IncrementTotalSpent(userID uint, amount decimal.Decimal) error {
 	if err := r.base.IncrementTotalSpent(userID, amount); err != nil {
 		return err

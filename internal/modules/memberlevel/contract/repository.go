@@ -53,6 +53,7 @@ type UserRepository interface {
 	IncrementTotalRecharged(userID uint, amount decimal.Decimal) error
 	DecrementTotalRecharged(userID uint, amount decimal.Decimal) error
 	IncrementTotalSpent(userID uint, amount decimal.Decimal) error
+	DecrementTotalSpent(userID uint, amount decimal.Decimal) error
 	UpdateMemberLevelIfCurrent(userID, currentLevelID, nextLevelID uint) (int64, error)
 	AssignDefaultMemberLevel(defaultLevelID uint) (int64, error)
 }
