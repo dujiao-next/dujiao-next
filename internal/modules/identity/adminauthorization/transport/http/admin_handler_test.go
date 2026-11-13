@@ -231,5 +231,14 @@ func TestAdminAccountWritesRejectNonSuperEscalation(t *testing.T) {
 		if !dir.admins[3].IsSuper {
 			t.Fatal("super operator should be able to promote")
 		}
+		if dir.admins[3].TokenVersion != 1 {
+			t.Fatal("promotion must invalidate pre-existing machine credentials")
+		}
+		if got := call(engine, http.MethodPut, "/authz/admins/3", `{"is_super":false}`); got != response.CodeOK {
+			t.Fatalf("demotion status_code = %d, want success", got)
+		}
+		if dir.admins[3].IsSuper || dir.admins[3].TokenVersion != 2 {
+			t.Fatal("demotion must not restore credentials issued before promotion")
+		}
 	})
 }

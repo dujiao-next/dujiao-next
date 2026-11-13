@@ -104,6 +104,25 @@ func (s *Service) EnforceAdmin(adminID uint, obj, act string) (bool, error) {
 	return s.Enforce(SubjectForAdmin(adminID), obj, act)
 }
 
+// EnforceAdminFresh loads a request-local policy snapshot for machine
+// credentials. It sees changes from other processes without replacing the
+// shared enforcer while an interactive permission update is in progress.
+func (s *Service) EnforceAdminFresh(adminID uint, obj, act string) (bool, error) {
+	if s == nil || s.enforcer == nil {
+		return false, fmt.Errorf("authz service unavailable")
+	}
+	m, err := model.NewModelFromString(defaultRBACModel)
+	if err != nil {
+		return false, err
+	}
+	enforcer, err := casbin.NewEnforcer(m, s.enforcer.GetAdapter())
+	if err != nil {
+		return false, err
+	}
+	enforcer.AddFunction("keyMatch2", util.KeyMatch2Func)
+	return enforcer.Enforce(SubjectForAdmin(adminID), NormalizeObject(obj), NormalizeAction(act))
+}
+
 // ReloadPolicy 重新加载策略
 func (s *Service) ReloadPolicy() error {
 	if s == nil || s.enforcer == nil {

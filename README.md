@@ -109,6 +109,102 @@ from the live route table, but the **built-in roles are hand-maintained** in
 that route reachable only by the super admin. `internal/app/httpserver/rbac_coverage_test.go`
 checks that every registered route is covered.
 
+### API tokens for admin subaccounts
+
+For unattended scripts, open **Permissions** in the admin panel, create a non-super
+administrator, assign its roles, and select it in the administrator role assignment
+section. Its **API tokens** panel provides creation, listing, rotation and revocation. Token
+management requires an interactive admin login and the corresponding
+`/admin/authz/admins/:id/api-tokens` permissions (included in `system_admin`).
+Super administrators cannot own API tokens.
+
+Set a descriptive name and an expiry within the next 365 days. The full secret is
+shown **once**; save it securely before changing accounts or leaving the page.
+The database stores a SHA-256 digest of a 256-bit random secret. Lost secrets
+cannot be recovered: rotate an active token to obtain a new secret, or revoke it
+and create a replacement.
+
+**Rotate** immediately replaces the secret while preserving the token ID, name,
+expiry and IP allowlist. The new secret is shown once; update all automation
+using it. Rotation resets the last-used timestamp and is available only for
+active tokens. It does not extend expiry or restore revoked or invalidated tokens.
+The management API is `POST /api/v1/admin/authz/admins/:id/api-tokens/:token_id/rotate`,
+requiring an interactive admin JWT and the corresponding role permission.
+
+Each token also supports an optional **IP allowlist**. Enter one IPv4/IPv6 address
+or CIDR per line, up to 100 entries, for example `203.0.113.10`,
+`198.51.100.0/24`, or `2001:db8::/32`. The create API accepts the same entries as
+an `ip_whitelist` string array. Invalid entries are rejected; CIDR host bits are
+normalized and duplicate ranges removed. Empty/omitted lists allow any source
+IP, including for tokens created before this feature. To change a token's
+restrictions, revoke it and create a replacement.
+
+The allowlist is checked on every machine request before executing a business
+handler. A denied source receives HTTP 403 and is recorded in the audit log
+without updating last-used time. Matching uses the client IP resolved by Gin
+according to `server.trusted_proxies`: forwarding headers are accepted only from
+configured proxies. Set that configuration to your actual reverse proxies; a
+direct client cannot bypass the allowlist by forging `X-Forwarded-For` or
+`X-Real-IP`. IPv4-mapped IPv6 sources are treated as IPv4 for matching.
+
+Send the secret as a Bearer credential to the existing API, using your site's
+origin (the configured admin SPA mount path is not part of the API URL):
+
+```bash
+# Supply ADMIN_API_TOKEN from your automation's secret store.
+curl --fail-with-body "$SITE_URL/api/v1/admin/products" \
+  -H "Authorization: Bearer $ADMIN_API_TOKEN"
+```
+
+Token access is the intersection of the subaccount's **current RBAC permissions**
+and the explicit machine endpoint allowlist. It is not a frozen copy of the
+account's roles. Every request reads the token, owner and current database RBAC
+policies, including changes made through another server instance. The normal JWT
+auth-state cache is not used for these requests. Unknown routes and new HTTP
+methods are denied until explicitly added to the allowlist.
+
+| Machine endpoint group (under `/api/v1/admin`) | Available operations |
+| --- | --- |
+| `products`, `categories` | Existing list/detail/create/update/delete endpoints, product batch changes and wholesale prices |
+| `card-secrets` | Existing inventory list/update/import/batch/export/statistics/template endpoints |
+| `orders` | List, detail and fulfillment download |
+| `fulfillments` | Create fulfillment |
+| `order-refunds` | List and detail |
+| `payments` | List and detail; exports and channel configuration are excluded |
+| `users/:id/wallet`, `users/:id/wallet/transactions`, `wallet/recharges` | Read existing wallet and recharge data |
+
+Order status updates, refund-to-wallet, manual refunds, manual payment
+confirmation, refund payment-fee updates and wallet adjustments follow the
+subaccount's role permissions without a separate token switch. Each requires the
+existing payment-compliance acknowledgement; normal business validation remains
+in force. The exact method/template pairs are maintained in
+`internal/modules/identity/adminapitoken/application/access.go`.
+
+Tokens cannot access account/role management, password or 2FA settings, token
+management itself, system settings/updates, or other credential management
+endpoints, even if a custom role grants `/admin/*`.
+
+Revocation and expiry reject subsequent authentication. Deleting the owner,
+changing/resetting its password, resetting/disabling its 2FA (operations that
+increment the existing authentication version), or promoting it to super admin
+invalidates its tokens. Demoting a promoted account does not restore its old
+tokens. An already authenticated in-flight request may finish.
+The panel shows expiry/revocation/account invalidation; last-used timestamps are
+updated at most once per minute.
+
+Machine requests are limited both by source IP before authentication and by
+verified token ID afterward. Configure `security.admin_api_rate_limit` in
+`config.yml` (defaults: 120 requests per 60 seconds per bucket; non-positive values
+fall back to these defaults). Shared Redis coordinates limits across instances;
+without it, or during an outage, the existing bounded per-process limiter applies.
+Limit responses use HTTP 429. API responses retain the existing `status_code`
+envelope, so scripts must also inspect that field for business and RBAC failures.
+
+Creation, rotation, revocation and authenticated machine requests appear in **Permission
+Audit Logs**, including the administrator, token ID, method, route template,
+request ID, HTTP status and business result code. Secrets and request bodies are
+not included.
+
 ## Build Tags
 
 | Tag | Effect |
