@@ -58,7 +58,7 @@ type Store interface {
 	GetByIDForUpdateWithChildren(id uint) (*orderdomain.Order, error)
 
 	CreateRefundRecord(record *orderdomain.OrderRefundRecord) error
-	DecrementTotalSpent(userID uint, amount decimal.Decimal) error
+	ApplyOrderRefund(userID uint, amount decimal.Decimal) error
 	GetRefundRecordByID(id uint) (*orderdomain.OrderRefundRecord, error)
 	GetRefundRecordByIDForUpdate(id uint) (*orderdomain.OrderRefundRecord, error)
 	UpdateRefundRecordPaymentFee(id uint, refunded bool, amount money.Amount, updatedAt time.Time) error

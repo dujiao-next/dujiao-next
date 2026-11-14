@@ -55,18 +55,19 @@ func (r *UserStore) DecrementTotalRecharged(userID uint, amount decimal.Decimal)
 
 // DecrementTotalSpent 原子扣回累计消费，历史累计不足时归零。
 func (r *UserStore) DecrementTotalSpent(userID uint, amount decimal.Decimal) error {
-	return DecrementTotalSpent(r.db, userID, amount)
+	return decrementMoneyColumn(r.db, userID, "total_spent", amount)
+}
+
+// OnOrderRefunded 在调用方的退款事务内扣回累计消费并检查等级回退。
+func OnOrderRefunded(tx *gorm.DB, userID uint, amount decimal.Decimal) error {
+	service := memberlevelapp.NewService(NewLevelStore(tx), NewPriceStore(tx), NewUserStore(tx), NewUserPriceStore(tx))
+	return service.OnOrderRefunded(userID, amount)
 }
 
 // OnRechargeRefunded 在调用方的退款事务内扣回累计充值并检查等级回退。
 func OnRechargeRefunded(tx *gorm.DB, userID uint, amount decimal.Decimal) error {
 	service := memberlevelapp.NewService(NewLevelStore(tx), NewPriceStore(tx), NewUserStore(tx), NewUserPriceStore(tx))
 	return service.OnRechargeRefunded(userID, amount)
-}
-
-// DecrementTotalSpent 使用调用方的事务连接扣回累计消费，累计不足时归零。
-func DecrementTotalSpent(tx *gorm.DB, userID uint, amount decimal.Decimal) error {
-	return decrementMoneyColumn(tx, userID, "total_spent", amount)
 }
 
 // decrementMoneyColumn 扣减指定累计字段，字段名仅由内部固定调用提供。
