@@ -57,8 +57,9 @@ func (h *AdminHandler) Get(c *gin.Context) {
 
 // settingFieldErrorKeys 复用分销站同名字段的文案，两边校验规则一致。
 var settingFieldErrorKeys = map[string]string{
-	"contact_telegram": "error.reseller_support_telegram_invalid",
-	"contact_whatsapp": "error.reseller_support_whatsapp_invalid",
+	"contact_telegram":     "error.reseller_support_telegram_invalid",
+	"contact_whatsapp":     "error.reseller_support_whatsapp_invalid",
+	"contact_custom_links": "error.site_contact_custom_link_invalid",
 }
 
 // dedicatedSettingEndpoints 有专用接口的设置：专用接口负责校验、归一化与运行时生效（如 SMTP、登录方式），

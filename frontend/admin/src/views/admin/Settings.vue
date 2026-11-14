@@ -193,6 +193,7 @@ const form = reactive({
   contact: {
     telegram: '',
     whatsapp: '',
+    custom_links: [] as FooterLinkItem[],
   },
   seo: {
     title: createLocalizedField(),
@@ -399,8 +400,10 @@ const fetchSettings = async () => {
         const rawCurrency = String(data.currency || 'CNY').trim().toUpperCase()
         form.currency = /^[A-Z]{3}$/.test(rawCurrency) ? rawCurrency : 'CNY'
       }
-      if (data.contact) {
-        Object.assign(form.contact, data.contact)
+      const contact = data.contact as Record<string, unknown> | undefined
+      if (contact) {
+        Object.assign(form.contact, contact)
+        form.contact.custom_links = normalizeFooterLinks(contact.custom_links)
       }
       const seo = data.seo as Record<string, unknown> | undefined
       if (seo) {
@@ -680,6 +683,11 @@ const addSiteScriptItem = () => {
 
 const removeSiteScriptItem = (index: number) => {
   form.scripts.splice(index, 1)
+}
+
+const addContactLinkItem = () => {
+  if (form.contact.custom_links.length >= footerLinksMaxCount) return
+  form.contact.custom_links.push(createFooterLinkItem())
 }
 
 const addFooterLinkItem = () => {
@@ -1046,6 +1054,24 @@ onMounted(() => {
           <div class="space-y-2">
             <label class="text-xs font-medium text-muted-foreground">{{ t('admin.settings.contact.whatsapp') }}</label>
             <Input v-model="form.contact.whatsapp" :placeholder="t('admin.settings.contact.whatsappPlaceholder')" />
+          </div>
+          <div class="space-y-4 md:col-span-2">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <label class="text-xs font-medium text-muted-foreground">{{ t('admin.settings.contact.customLinks') }}</label>
+              <Button type="button" size="sm" variant="outline" :disabled="form.contact.custom_links.length >= footerLinksMaxCount" @click="addContactLinkItem">
+                {{ t('admin.settings.contact.addLink') }}
+              </Button>
+            </div>
+            <p class="text-xs text-muted-foreground">{{ t('admin.settings.contact.customLinksHint', { max: footerLinksMaxCount }) }}</p>
+            <div v-for="(link, index) in form.contact.custom_links" :key="index" class="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div class="grid flex-1 grid-cols-1 gap-3 md:grid-cols-2">
+                <Input v-model="link.name" :maxlength="120" :aria-label="t('admin.settings.contact.namePlaceholder')" :placeholder="t('admin.settings.contact.namePlaceholder')" />
+                <Input v-model="link.url" :maxlength="2000" :aria-label="t('admin.settings.contact.urlPlaceholder')" :placeholder="t('admin.settings.contact.urlPlaceholder')" />
+              </div>
+              <Button type="button" size="sm" variant="destructive" @click="form.contact.custom_links.splice(index, 1)">
+                {{ t('admin.common.delete') }}
+              </Button>
+            </div>
           </div>
         </div>
       </div>

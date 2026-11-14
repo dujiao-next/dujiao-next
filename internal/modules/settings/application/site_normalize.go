@@ -2,6 +2,7 @@ package settingsapp
 
 import (
 	settingsvalue "github.com/dujiao-next/internal/modules/settings/schema/value"
+	"net/url"
 	"regexp"
 	"strings"
 
@@ -128,8 +129,9 @@ func normalizeSiteFooterLinks(raw interface{}) []interface{} {
 
 func normalizeSiteContact(raw interface{}) map[string]interface{} {
 	result := map[string]interface{}{
-		"telegram": "",
-		"whatsapp": "",
+		"telegram":     "",
+		"whatsapp":     "",
+		"custom_links": make([]interface{}, 0),
 	}
 	contactMap, ok := raw.(map[string]interface{})
 	if !ok {
@@ -137,6 +139,7 @@ func normalizeSiteContact(raw interface{}) map[string]interface{} {
 	}
 	result["telegram"] = normalizeSettingText(contactMap["telegram"])
 	result["whatsapp"] = normalizeSettingText(contactMap["whatsapp"])
+	result["custom_links"] = normalizeSiteFooterLinks(contactMap["custom_links"])
 	return result
 }
 
@@ -157,6 +160,15 @@ func validateSiteSetting(value jsonmap.JSON) error {
 	}
 	if whatsApp, _ := contact["whatsapp"].(string); whatsApp != "" && !contactlink.IsWhatsApp(whatsApp) {
 		return &SettingFieldError{Field: "contact_whatsapp"}
+	}
+	links, _ := contact["custom_links"].([]interface{})
+	for _, raw := range links {
+		link, _ := raw.(map[string]interface{})
+		target, _ := link["url"].(string)
+		parsed, err := url.Parse(target)
+		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Hostname() == "" || parsed.User != nil {
+			return &SettingFieldError{Field: "contact_custom_links"}
+		}
 	}
 	return nil
 }

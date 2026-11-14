@@ -744,3 +744,66 @@ func TestUpdateSiteSettingValidatesContactLinks(t *testing.T) {
 		t.Fatalf("empty contact links rejected: %v", err)
 	}
 }
+
+func TestUpdateSiteSettingCustomContactLinks(t *testing.T) {
+	repo := newMockSettingRepo()
+	svc := NewService(repo)
+	result, err := svc.Update(constants.SettingKeySiteConfig, map[string]interface{}{
+		"contact": map[string]interface{}{"custom_links": []interface{}{
+			map[string]interface{}{"name": " QQ客服 ", "url": " https://wpa.qq.com/msgrd?v=3&uin=123456 "},
+			map[string]interface{}{"name": " ", "url": ""},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	contact := result["contact"].(map[string]interface{})
+	links, ok := contact["custom_links"].([]interface{})
+	if !ok || len(links) != 1 {
+		t.Fatalf("unexpected custom links: %#v", contact)
+	}
+	link := links[0].(map[string]interface{})
+	if link["name"] != "QQ客服" || link["url"] != "https://wpa.qq.com/msgrd?v=3&uin=123456" {
+		t.Fatalf("unexpected link: %#v", link)
+	}
+	public, err := svc.GetConfig(map[string]interface{}{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(public["contact"].(map[string]interface{})["custom_links"].([]interface{})) != 1 {
+		t.Fatal("custom links missing from public config")
+	}
+	stored, err := svc.GetByKey(constants.SettingKeySiteConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stored["contact"].(map[string]interface{})["custom_links"].([]interface{})) != 1 {
+		t.Fatal("custom links not persisted")
+	}
+	result, err = svc.Update(constants.SettingKeySiteConfig, map[string]interface{}{"contact": map[string]interface{}{"custom_links": []interface{}{}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result["contact"].(map[string]interface{})["custom_links"].([]interface{})) != 0 {
+		t.Fatal("custom links not removed")
+	}
+}
+
+func TestUpdateSiteSettingRejectsUnsafeCustomContactLinks(t *testing.T) {
+	for _, target := range []string{"javascript:alert(1)", "data:text/html,test", "//example.com", "https://", "https://user:pass@example.com", ""} {
+		t.Run(target, func(t *testing.T) {
+			repo := newMockSettingRepo()
+			svc := NewService(repo)
+			_, err := svc.Update(constants.SettingKeySiteConfig, map[string]interface{}{
+				"contact": map[string]interface{}{"custom_links": []interface{}{map[string]interface{}{"name": "QQ", "url": target}}},
+			})
+			var fieldErr *SettingFieldError
+			if !errors.As(err, &fieldErr) || fieldErr.Field != "contact_custom_links" {
+				t.Fatalf("expected custom contact field error, got %v", err)
+			}
+			if _, ok := repo.store[constants.SettingKeySiteConfig]; ok {
+				t.Fatal("invalid custom link persisted")
+			}
+		})
+	}
+}

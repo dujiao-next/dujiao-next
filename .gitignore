@@ -22,3 +22,8 @@ internal/web/dist/
 # Agents 配置
 .agents/
 skills-lock.json
+
+# 其他
+*.zip
+dujiao-next-linux
+dujiao-next-linux-amd64

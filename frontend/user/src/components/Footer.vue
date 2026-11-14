@@ -81,6 +81,12 @@
               <Headphones class="w-5 h-5 text-violet-400" />
               <span>{{ t('footer.supportUrl') }}</span>
             </a>
+            <a v-for="(link, index) in contactLinks" :key="index" :href="link.url" target="_blank"
+              rel="noopener noreferrer"
+              class="flex items-center space-x-3 text-sm hover:text-gray-900 dark:hover:text-white transition-colors p-3 rounded-lg bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 border border-gray-100 dark:border-white/5 hover:border-gray-200 dark:hover:border-white/10">
+              <LinkIcon class="w-5 h-5 shrink-0 text-blue-400" />
+              <span class="min-w-0 break-words">{{ link.name }}</span>
+            </a>
           </div>
         </div>
       </div>
@@ -90,7 +96,7 @@
         class="border-t pt-8 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-muted-foreground">
         <div class="space-y-1 text-center md:text-left">
           <p>&copy; {{ currentYear }} {{ brandSiteName }}. {{ t('footer.rights') }}</p>
-          <p class="flex items-center justify-center gap-1 md:justify-start">
+          <!-- <p class="flex items-center justify-center gap-1 md:justify-start">
             <a
               href="https://github.com/dujiao-next"
               target="_blank"
@@ -103,7 +109,7 @@
               </svg>
               <span>Dujiao-Next</span>
             </a>
-          </p>
+          </p> -->
         </div>
         <div class="flex flex-col items-center gap-2 md:items-end">
           <div class="flex flex-wrap items-center gap-x-4 gap-y-1 justify-center md:justify-end">
@@ -129,7 +135,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Home, LayoutGrid, Newspaper, Info, Mail, Headphones } from 'lucide-vue-next'
+import { Home, LayoutGrid, Newspaper, Info, Mail, Headphones, Link as LinkIcon } from 'lucide-vue-next'
 import { useAppStore } from '../stores/app'
 import { getImageUrl } from '../utils/image'
 import { getLocalizedText } from '../utils/resellerSiteConfig'
@@ -180,6 +186,25 @@ const quickLinks = computed(() => {
     items.push({ path: '/about', label: 'nav.about', icon: Info })
   }
   return items
+})
+
+const contactLinks = computed(() => {
+  const links = config.value?.contact?.custom_links
+  if (!Array.isArray(links)) return []
+  return links.flatMap((item: unknown) => {
+    if (!item || typeof item !== 'object') return []
+    const link = item as Record<string, unknown>
+    const name = typeof link.name === 'string' ? link.name.trim() : ''
+    const url = typeof link.url === 'string' ? link.url.trim() : ''
+    if (!name || !url) return []
+    try {
+      const parsed = new URL(url)
+      if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) return []
+      return [{ name, url }]
+    } catch {
+      return []
+    }
+  })
 })
 
 const footerLinks = computed(() => {
