@@ -174,7 +174,7 @@ func (s *Service) AdminRefundToWallet(
 				return err
 			}
 		}
-		if err := orderRepository.DecrementTotalSpent(order.UserID, amount); err != nil {
+		if err := orderRepository.ApplyOrderRefund(order.UserID, amount); err != nil {
 			return err
 		}
 		transactionResult = transaction

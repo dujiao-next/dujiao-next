@@ -24,9 +24,9 @@ func (r *Store) CreateRefundRecord(record *orderdomain.OrderRefundRecord) error 
 	return r.db.Create(record).Error
 }
 
-// DecrementTotalSpent 使用当前仓储的事务连接扣回用户累计消费。
-func (r *Store) DecrementTotalSpent(userID uint, amount decimal.Decimal) error {
-	return memberlevelgormstore.DecrementTotalSpent(r.db, userID, amount)
+// ApplyOrderRefund 使用当前退款事务扣回用户累计消费并检查等级回退。
+func (r *Store) ApplyOrderRefund(userID uint, amount decimal.Decimal) error {
+	return memberlevelgormstore.OnOrderRefunded(r.db, userID, amount)
 }
 
 // GetByID 根据 ID 获取退款记录
