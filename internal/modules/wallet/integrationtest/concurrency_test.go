@@ -569,19 +569,19 @@ func setupRechargeRefundProgression(t *testing.T) (*walletapp.Service, *gorm.DB,
 	return svc, db, recharge, levels
 }
 
-func TestRechargeRefundDecreasesTotalRechargedWithoutDowngrading(t *testing.T) {
+func TestRechargeRefundDecreasesTotalRechargedAndChecksDowngrade(t *testing.T) {
 	for _, tc := range []struct {
 		name                     string
 		total, refund, wantTotal int64
 		wantLevel                int
 		spend, manual            bool
 	}{
-		{name: "partial_keeps_level", total: 100, refund: 40, wantTotal: 60, wantLevel: 2},
-		{name: "full_keeps_level", total: 100, refund: 100, wantTotal: 0, wantLevel: 2},
+		{name: "partial_downgrades_to_qualified_level", total: 100, refund: 40, wantTotal: 60, wantLevel: 1},
+		{name: "full_returns_to_default", total: 100, refund: 100, wantTotal: 0, wantLevel: 0},
 		{name: "still_qualified", total: 200, refund: 40, wantTotal: 160, wantLevel: 2},
 		{name: "spend_threshold_retained", total: 100, refund: 100, wantTotal: 0, wantLevel: 2, spend: true},
-		{name: "manual_level_retained", total: 100, refund: 100, wantTotal: 0, wantLevel: 2, manual: true},
-		{name: "historical_total_never_negative", total: 10, refund: 40, wantTotal: 0, wantLevel: 2},
+		{name: "zero_threshold_level_not_protected", total: 100, refund: 100, wantTotal: 0, wantLevel: 0, manual: true},
+		{name: "historical_total_never_negative", total: 10, refund: 40, wantTotal: 0, wantLevel: 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			svc, db, recharge, levels := setupRechargeRefundProgression(t)
@@ -684,7 +684,7 @@ func TestConcurrentRechargeRefundsOnlyDecrementCumulativeTotalOnce(t *testing.T)
 	if err := db.First(&user, recharge.UserID).Error; err != nil {
 		t.Fatal(err)
 	}
-	if user.TotalRecharged.String() != "0.00" || user.MemberLevelID != levels[2].ID {
+	if user.TotalRecharged.String() != "0.00" || user.MemberLevelID != levels[0].ID {
 		t.Fatalf("concurrent refund membership: %+v", user)
 	}
 	rows, err := svc.ListRechargeRefunds(recharge.ID)
@@ -732,6 +732,137 @@ func TestRechargeRefundMissingTransactionDependenciesRollsBack(t *testing.T) {
 			rows, err := svc.ListRechargeRefunds(recharge.ID)
 			if err != nil || len(rows) != 0 || emails.calls != 0 {
 				t.Fatalf("refund side effects: %+v %v emails=%d", rows, err, emails.calls)
+			}
+		})
+	}
+}
+
+func TestRechargeRefundDowngradeFallbacks(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		configure func(*testing.T, *gorm.DB, []memberleveldomain.MemberLevel)
+		want      int
+	}{
+		{"no_default", func(t *testing.T, db *gorm.DB, levels []memberleveldomain.MemberLevel) {
+			if err := db.Model(&levels[0]).Update("is_default", false).Error; err != nil {
+				t.Fatal(err)
+			}
+		}, -1},
+		{"disabled_default", func(t *testing.T, db *gorm.DB, levels []memberleveldomain.MemberLevel) {
+			if err := db.Model(&levels[0]).Update("is_active", false).Error; err != nil {
+				t.Fatal(err)
+			}
+		}, -1},
+		{"highest_qualified_by_spending", func(t *testing.T, db *gorm.DB, levels []memberleveldomain.MemberLevel) {
+			if err := db.Model(&userdomain.User{}).Where("id = 1").Update("total_spent", 60).Error; err != nil {
+				t.Fatal(err)
+			}
+			if err := db.Model(&levels[1]).Update("spend_threshold", 50).Error; err != nil {
+				t.Fatal(err)
+			}
+			if err := db.Model(&levels[0]).Update("spend_threshold", 10).Error; err != nil {
+				t.Fatal(err)
+			}
+		}, 1},
+		{"spending_below_threshold", func(t *testing.T, db *gorm.DB, levels []memberleveldomain.MemberLevel) {
+			if err := db.Model(&userdomain.User{}).Where("id = 1").Update("total_spent", 99).Error; err != nil {
+				t.Fatal(err)
+			}
+			if err := db.Model(&levels[2]).Update("spend_threshold", 100).Error; err != nil {
+				t.Fatal(err)
+			}
+		}, 0},
+		{"deleted_current", func(t *testing.T, db *gorm.DB, levels []memberleveldomain.MemberLevel) {
+			if err := db.Delete(&levels[2]).Error; err != nil {
+				t.Fatal(err)
+			}
+		}, 0},
+		{"disabled_current", func(t *testing.T, db *gorm.DB, levels []memberleveldomain.MemberLevel) {
+			if err := db.Model(&levels[2]).Update("is_active", false).Error; err != nil {
+				t.Fatal(err)
+			}
+		}, 0},
+		{"qualified_current_is_not_upgraded", func(t *testing.T, db *gorm.DB, levels []memberleveldomain.MemberLevel) {
+			if err := db.Model(&userdomain.User{}).Where("id = 1").Updates(map[string]interface{}{"member_level_id": levels[1].ID, "total_spent": 100}).Error; err != nil {
+				t.Fatal(err)
+			}
+			if err := db.Model(&memberleveldomain.MemberLevel{}).Where("id IN ?", []uint{levels[1].ID, levels[2].ID}).Update("spend_threshold", 50).Error; err != nil {
+				t.Fatal(err)
+			}
+		}, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, db, recharge, levels := setupRechargeRefundProgression(t)
+			tc.configure(t, db, levels)
+			if err := svc.RefundRecharge(walletcontract.RechargeRefundInput{RechargeID: recharge.ID, AdminID: 1, Amount: money.FromDecimal(decimal.NewFromInt(100)), RequestID: "refund-downgrade-fallback"}); err != nil {
+				t.Fatal(err)
+			}
+			var user userdomain.User
+			if err := db.First(&user, recharge.UserID).Error; err != nil {
+				t.Fatal(err)
+			}
+			var want uint
+			if tc.want >= 0 {
+				want = levels[tc.want].ID
+			}
+			if user.MemberLevelID != want || user.TotalRecharged.String() != "0.00" {
+				t.Fatalf("refund membership: level=%d want=%d total=%s", user.MemberLevelID, want, user.TotalRecharged)
+			}
+		})
+	}
+}
+
+func TestRechargeRefundDowngradeFailureRollsBackEntireRefund(t *testing.T) {
+	for _, failurePoint := range []string{"level_query", "level_update"} {
+		t.Run(failurePoint, func(t *testing.T) {
+			_, db, recharge, levels := setupRechargeRefundProgression(t)
+			failure := errors.New("downgrade failed")
+			if failurePoint == "level_query" {
+				if err := db.Callback().Query().Before("gorm:query").Register("test_downgrade_query_failure", func(tx *gorm.DB) {
+					if tx.Statement.Table == "member_levels" {
+						tx.AddError(failure)
+					}
+				}); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				if err := db.Callback().Update().Before("gorm:update").Register("test_downgrade_update_failure", func(tx *gorm.DB) {
+					values, ok := tx.Statement.Dest.(map[string]interface{})
+					if _, exists := values["member_level_id"]; ok && exists && tx.Statement.Table == "users" {
+						tx.AddError(failure)
+					}
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			emails := &rechargeRefundEmailQueueStub{}
+			repo := walletgormstore.New(db)
+			svc := walletapp.NewService(walletapp.Options{Repository: repo, Transactions: repo, RefundEmails: emails})
+			err := svc.RefundRecharge(walletcontract.RechargeRefundInput{RechargeID: recharge.ID, AdminID: 1, Amount: money.FromDecimal(decimal.NewFromInt(100)), RequestID: "refund-downgrade-rollback"})
+			if !errors.Is(err, failure) {
+				t.Fatalf("refund error: %v", err)
+			}
+			var user userdomain.User
+			if err := db.First(&user, recharge.UserID).Error; err != nil {
+				t.Fatal(err)
+			}
+			if user.TotalRecharged.String() != "100.00" || user.MemberLevelID != levels[2].ID {
+				t.Fatalf("membership not rolled back: %+v", user)
+			}
+			account, err := svc.GetAccount(recharge.UserID)
+			if err != nil || account.Balance.String() != "100.00" {
+				t.Fatalf("wallet not rolled back: %+v %v", account, err)
+			}
+			records, err := svc.ListRechargeRefunds(recharge.ID)
+			if err != nil || len(records) != 0 || emails.calls != 0 {
+				t.Fatalf("unexpected refund side effects: %+v %v calls=%d", records, err, emails.calls)
+			}
+			var current walletdomain.RechargeOrder
+			if err := db.First(&current, recharge.ID).Error; err != nil {
+				t.Fatal(err)
+			}
+			if current.Status != constants.WalletRechargeStatusSuccess || current.RefundedAmount.String() != "0.00" {
+				t.Fatalf("recharge not rolled back: %+v", current)
 			}
 		})
 	}

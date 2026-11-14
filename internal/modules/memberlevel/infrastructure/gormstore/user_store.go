@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm"
 
 	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
+	memberlevelapp "github.com/dujiao-next/internal/modules/memberlevel/application"
 	memberlevelcontract "github.com/dujiao-next/internal/modules/memberlevel/contract"
 )
 
@@ -55,6 +56,12 @@ func (r *UserStore) DecrementTotalRecharged(userID uint, amount decimal.Decimal)
 // DecrementTotalSpent 原子扣回累计消费，历史累计不足时归零。
 func (r *UserStore) DecrementTotalSpent(userID uint, amount decimal.Decimal) error {
 	return DecrementTotalSpent(r.db, userID, amount)
+}
+
+// OnRechargeRefunded 在调用方的退款事务内扣回累计充值并检查等级回退。
+func OnRechargeRefunded(tx *gorm.DB, userID uint, amount decimal.Decimal) error {
+	service := memberlevelapp.NewService(NewLevelStore(tx), NewPriceStore(tx), NewUserStore(tx), NewUserPriceStore(tx))
+	return service.OnRechargeRefunded(userID, amount)
 }
 
 // DecrementTotalRecharged 使用调用方的事务连接扣回累计充值，累计不足时归零。

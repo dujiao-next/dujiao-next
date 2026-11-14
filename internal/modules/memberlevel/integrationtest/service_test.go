@@ -1,6 +1,7 @@
 package integrationtest
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -17,6 +18,18 @@ import (
 	memberlevelcontract "github.com/dujiao-next/internal/modules/memberlevel/contract"
 	memberleveldomain "github.com/dujiao-next/internal/modules/memberlevel/domain"
 )
+
+// conflictingDowngradeRepository 模拟等级条件更新持续发生并发冲突。
+type conflictingDowngradeRepository struct {
+	memberlevelcontract.UserRepository
+	attempts int
+}
+
+// UpdateMemberLevelIfCurrent 始终返回未更新，验证降级失败不会被忽略。
+func (r *conflictingDowngradeRepository) UpdateMemberLevelIfCurrent(userID, currentLevelID, nextLevelID uint) (int64, error) {
+	r.attempts++
+	return 0, nil
+}
 
 func newMemberLevelServiceForTest(t *testing.T) (*memberlevelapp.Service, *gorm.DB) {
 	t.Helper()
@@ -258,5 +271,26 @@ func TestMemberLevelServiceUpdateLevelRejectsActiveSortOrderConflict(t *testing.
 	err := svc.UpdateLevel(&target)
 	if err == nil {
 		t.Fatalf("expected active sort_order conflict to be rejected")
+	}
+}
+
+func TestCheckAndDowngradeReturnsErrorOnPersistentConflict(t *testing.T) {
+	_, db := newMemberLevelServiceForTest(t)
+	_ = createMemberLevelFixture(t, db, "downgrade-default", 0, "0", true)
+	level := createMemberLevelFixture(t, db, "downgrade-gold", 20, "100", false)
+	user := createUserFixture(t, db, "downgrade-conflict@example.com", level.ID)
+	users := &conflictingDowngradeRepository{UserRepository: gormstore.NewUserStore(db)}
+	service := memberlevelapp.NewService(gormstore.NewLevelStore(db), gormstore.NewPriceStore(db), users, gormstore.NewUserPriceStore(db))
+	if err := service.CheckAndDowngrade(user.ID); !errors.Is(err, memberlevelcontract.ErrLevelUpdateConflict) {
+		t.Fatalf("expected update conflict, got %v", err)
+	}
+	if users.attempts != 3 {
+		t.Fatalf("attempts=%d", users.attempts)
+	}
+	if err := db.First(&user, user.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if user.MemberLevelID != level.ID {
+		t.Fatalf("level unexpectedly changed: %d", user.MemberLevelID)
 	}
 }
