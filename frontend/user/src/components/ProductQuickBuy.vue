@@ -433,13 +433,17 @@ const currentMemberDiscountRate = computed(() => {
 })
 
 const ensureMemberLevels = () => {
+  void userProfileStore.loadMyProductPrices()
   if (userMemberLevelId.value > 0 && userProfileStore.memberLevels.length === 0) {
     void userProfileStore.loadMemberLevels()
   }
 }
 
 const getMemberPriceForSku = (skuId: number, basePrice: any): number | null => {
-  const price = resolveMemberPriceAmount(props.product, skuId, basePrice, userMemberLevelId.value, currentMemberDiscountRate.value)
+  const price = resolveMemberPriceAmount(
+    props.product, skuId, basePrice, userMemberLevelId.value, currentMemberDiscountRate.value,
+    userAuthStore.isAuthenticated ? userProfileStore.myProductPrices : [],
+  )
   return price === null ? null : Number(price)
 }
 

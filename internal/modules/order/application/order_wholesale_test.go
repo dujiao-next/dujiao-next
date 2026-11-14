@@ -66,6 +66,7 @@ func setupWholesaleOrderFixture(t *testing.T, name string, wholesalePrices produ
 		&userdomain.User{},
 		&memberleveldomain.MemberLevel{},
 		&memberleveldomain.MemberLevelPrice{},
+		&memberleveldomain.UserProductPrice{},
 	); err != nil {
 		t.Fatalf("auto migrate failed: %v", err)
 	}
@@ -161,7 +162,7 @@ func setupWholesaleOrderFixture(t *testing.T, name string, wholesalePrices produ
 		PromotionRepo:      promotiongormstore.New(db),
 		CouponStore:        coupongormstore.New(db),
 		CouponUsageStore:   coupongormstore.NewUsageStore(db),
-		MemberLevelService: memberlevelapp.NewService(levelRepo, priceRepo, memberlevelgormstore.NewUserStore(db)),
+		MemberLevelService: memberlevelapp.NewService(levelRepo, priceRepo, memberlevelgormstore.NewUserStore(db), memberlevelgormstore.NewUserPriceStore(db)),
 		ExpireMinutes:      15,
 	})
 
@@ -711,5 +712,98 @@ func TestBuildOrderResultValidatesManualFormRestoredByUpstreamSync(t *testing.T)
 	}
 	if got := result.Plans[0].Item.ManualFormSubmissionJSON["x_handle"]; got != "fixture_user" {
 		t.Fatalf("expected submission snapshot, got %#v", result.Plans[0].Item.ManualFormSubmissionJSON)
+	}
+}
+
+// 专属价只有比常规优惠路径（活动价 → 批发价 → 会员等级价）算出的最终单价更低时才生效。
+// 这是 reviewer 指出的资金 bug：原先只要专属价低于基础价就直接套用，会让设了 95 的
+// 用户付 5 × 95 = 475，而完全没有专属价的用户走批发 80 + 会员 8 折只要 5 × 64 = 320。
+func TestBuildOrderResultUserPriceOnlyAppliesWhenCheapest(t *testing.T) {
+	wholesalePrices := productdomain.WholesalePriceTiers{
+		{MinQuantity: 5, UnitPrice: money.FromDecimal(decimal.NewFromInt(80))},
+	}
+	promotionPercent := decimal.NewFromInt(10)
+	memberRate := decimal.NewFromInt(80)
+
+	t.Run("dearer than the normal path is ignored", func(t *testing.T) {
+		fixture := setupWholesaleOrderFixture(t, "user_price_dearer", wholesalePrices, &promotionPercent, &memberRate)
+		if err := fixture.db.Create(&memberleveldomain.UserProductPrice{
+			UserID:      fixture.user.ID,
+			ProductID:   fixture.product.ID,
+			SKUID:       0,
+			PriceAmount: money.FromDecimal(decimal.NewFromInt(95)),
+		}).Error; err != nil {
+			t.Fatalf("create user price failed: %v", err)
+		}
+
+		result, err := fixture.svc.buildOrderResult(orderCreateParams{
+			UserID: fixture.user.ID,
+			Items:  []CreateOrderItem{{ProductID: fixture.product.ID, SKUID: fixture.sku.ID, Quantity: 5}},
+		})
+		if err != nil {
+			t.Fatalf("buildOrderResult failed: %v", err)
+		}
+		// 批发 80 再打会员 8 折 = 64，5 件 320；用 95 的专属价会变成 475。
+		if !result.TotalAmount.Equal(decimal.NewFromInt(320)) {
+			t.Fatalf("expected total 320 (cheaper normal path), got %s", result.TotalAmount.String())
+		}
+	})
+
+	t.Run("cheaper than everything clears the other discounts", func(t *testing.T) {
+		fixture := setupWholesaleOrderFixture(t, "user_price_cheaper", wholesalePrices, &promotionPercent, &memberRate)
+		if err := fixture.db.Create(&memberleveldomain.UserProductPrice{
+			UserID:      fixture.user.ID,
+			ProductID:   fixture.product.ID,
+			SKUID:       0,
+			PriceAmount: money.FromDecimal(decimal.NewFromInt(50)),
+		}).Error; err != nil {
+			t.Fatalf("create user price failed: %v", err)
+		}
+
+		result, err := fixture.svc.buildOrderResult(orderCreateParams{
+			UserID: fixture.user.ID,
+			Items:  []CreateOrderItem{{ProductID: fixture.product.ID, SKUID: fixture.sku.ID, Quantity: 5}},
+		})
+		if err != nil {
+			t.Fatalf("buildOrderResult failed: %v", err)
+		}
+		if !result.TotalAmount.Equal(decimal.NewFromInt(250)) {
+			t.Fatalf("expected total 250 (5 x 50 exclusive), got %s", result.TotalAmount.String())
+		}
+		if !result.WholesaleDiscountAmount.IsZero() || !result.PromotionDiscountAmount.IsZero() {
+			t.Fatalf("user price must not stack wholesale/promotion: wholesale=%s promotion=%s",
+				result.WholesaleDiscountAmount.String(), result.PromotionDiscountAmount.String())
+		}
+		// 一口价的差额记入会员优惠：(100 - 50) × 5 = 250，保持 原价 - 优惠 = 实付。
+		if !result.MemberDiscountAmount.Equal(decimal.NewFromInt(250)) {
+			t.Fatalf("expected member discount 250, got %s", result.MemberDiscountAmount.String())
+		}
+		item := result.Plans[0].Item
+		if item.UnitPrice.String() != "50.00" || item.PromotionID != nil {
+			t.Fatalf("unexpected item: unit=%s promotion=%v", item.UnitPrice.String(), item.PromotionID)
+		}
+	})
+}
+
+func TestBuildOrderResultIgnoresUserPriceNotBelowBasePrice(t *testing.T) {
+	memberRate := decimal.NewFromInt(80)
+	fixture := setupWholesaleOrderFixture(t, "user_price_not_lower", nil, nil, &memberRate)
+	if err := fixture.db.Create(&memberleveldomain.UserProductPrice{
+		UserID:      fixture.user.ID,
+		ProductID:   fixture.product.ID,
+		PriceAmount: money.FromDecimal(decimal.NewFromInt(120)),
+	}).Error; err != nil {
+		t.Fatalf("create user price failed: %v", err)
+	}
+
+	result, err := fixture.svc.buildOrderResult(orderCreateParams{
+		UserID: fixture.user.ID,
+		Items:  []CreateOrderItem{{ProductID: fixture.product.ID, SKUID: fixture.sku.ID, Quantity: 1}},
+	})
+	if err != nil {
+		t.Fatalf("buildOrderResult failed: %v", err)
+	}
+	if !result.TotalAmount.Equal(decimal.NewFromInt(80)) {
+		t.Fatalf("expected normal member price 80, got %s", result.TotalAmount.String())
 	}
 }

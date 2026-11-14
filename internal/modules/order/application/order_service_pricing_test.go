@@ -223,6 +223,7 @@ func TestPreviewOrderAppliesMemberDiscountForManualProductBeforeFormCompleted(t 
 		&userdomain.User{},
 		&memberleveldomain.MemberLevel{},
 		&memberleveldomain.MemberLevelPrice{},
+		&memberleveldomain.UserProductPrice{},
 	); err != nil {
 		t.Fatalf("auto migrate failed: %v", err)
 	}
@@ -308,7 +309,7 @@ func TestPreviewOrderAppliesMemberDiscountForManualProductBeforeFormCompleted(t 
 		ProductStore:       productgormstore.NewProductStore(db),
 		ProductSKUStore:    productgormstore.NewSKUStore(db),
 		PromotionRepo:      promotiongormstore.New(db),
-		MemberLevelService: memberlevelapp.NewService(levelRepo, priceRepo, memberlevelgormstore.NewUserStore(db)),
+		MemberLevelService: memberlevelapp.NewService(levelRepo, priceRepo, memberlevelgormstore.NewUserStore(db), memberlevelgormstore.NewUserPriceStore(db)),
 		ExpireMinutes:      15,
 	})
 
@@ -354,6 +355,7 @@ func TestBuildOrderResultStacksPromotionAndMemberDiscount(t *testing.T) {
 		&userdomain.User{},
 		&memberleveldomain.MemberLevel{},
 		&memberleveldomain.MemberLevelPrice{},
+		&memberleveldomain.UserProductPrice{},
 	); err != nil {
 		t.Fatalf("auto migrate failed: %v", err)
 	}
@@ -439,7 +441,7 @@ func TestBuildOrderResultStacksPromotionAndMemberDiscount(t *testing.T) {
 		ProductStore:       productgormstore.NewProductStore(db),
 		ProductSKUStore:    productgormstore.NewSKUStore(db),
 		PromotionRepo:      promotiongormstore.New(db),
-		MemberLevelService: memberlevelapp.NewService(levelRepo, priceRepo, memberlevelgormstore.NewUserStore(db)),
+		MemberLevelService: memberlevelapp.NewService(levelRepo, priceRepo, memberlevelgormstore.NewUserStore(db), memberlevelgormstore.NewUserPriceStore(db)),
 		ExpireMinutes:      15,
 	})
 

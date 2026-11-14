@@ -56,6 +56,8 @@ const batchOperating = ref(false)
 const batchCategoryId = ref('')
 const batchStockDisplayMode = ref('')
 const stockDisplayModes = ['exact', 'status', 'range', 'hidden']
+const batchPurchaseType = ref('')
+const purchaseTypes = ['member', 'guest']
 
 const allSelected = computed(() => products.value.length > 0 && products.value.every((p) => selectedIds.value.has(p.id)))
 
@@ -98,6 +100,13 @@ const handleBatchStockDisplay = async () => {
   if (!ids.length || !batchStockDisplayMode.value) return
   await runBatch(ids, (ids) => adminAPI.batchUpdateProductStockDisplay(ids, batchStockDisplayMode.value), 'admin.products.batch.stockDisplayResult')
   batchStockDisplayMode.value = ''
+}
+
+const handleBatchPurchaseType = async () => {
+  const ids = Array.from(selectedIds.value)
+  if (!ids.length || !batchPurchaseType.value) return
+  await runBatch(ids, (ids) => adminAPI.batchUpdateProductPurchaseType(ids, batchPurchaseType.value), 'admin.products.batch.purchaseTypeResult')
+  batchPurchaseType.value = ''
 }
 
 const handleBatchDelete = async () => {
@@ -603,6 +612,15 @@ watch(
             </SelectContent>
           </Select>
           <Button size="sm" variant="outline" :disabled="batchOperating || !batchStockDisplayMode" @click="handleBatchStockDisplay">{{ t('admin.products.batch.applyStockDisplay') }}</Button>
+        </div>
+        <div class="flex items-center gap-1">
+          <Select v-model="batchPurchaseType">
+            <SelectTrigger class="h-8 w-[140px] text-xs"><SelectValue :placeholder="t('admin.products.batch.purchaseTypePlaceholder')" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem v-for="type in purchaseTypes" :key="type" :value="type">{{ t(`admin.products.purchaseType.${type}`) }}</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" :disabled="batchOperating || !batchPurchaseType" @click="handleBatchPurchaseType">{{ t('admin.products.batch.applyPurchaseType') }}</Button>
         </div>
         <Button size="sm" variant="destructive" :disabled="batchOperating" @click="handleBatchDelete">{{ t('admin.products.batch.delete') }}</Button>
       </div>

@@ -25,14 +25,14 @@ func newMemberLevelServiceForTest(t *testing.T) (*memberlevelapp.Service, *gorm.
 	if err != nil {
 		t.Fatalf("open sqlite failed: %v", err)
 	}
-	if err := db.AutoMigrate(&userdomain.User{}, &memberleveldomain.MemberLevel{}, &memberleveldomain.MemberLevelPrice{}); err != nil {
+	if err := db.AutoMigrate(&userdomain.User{}, &memberleveldomain.MemberLevel{}, &memberleveldomain.MemberLevelPrice{}, &memberleveldomain.UserProductPrice{}); err != nil {
 		t.Fatalf("auto migrate failed: %v", err)
 	}
 
 	levelRepo := gormstore.NewLevelStore(db)
 	priceRepo := gormstore.NewPriceStore(db)
 	userRepo := gormstore.NewUserStore(db)
-	return memberlevelapp.NewService(levelRepo, priceRepo, userRepo), db
+	return memberlevelapp.NewService(levelRepo, priceRepo, userRepo, gormstore.NewUserPriceStore(db)), db
 }
 
 func createMemberLevelFixture(
@@ -197,6 +197,7 @@ func TestMemberLevelServiceOnOrderPaidDoesNotOverwriteConcurrentHigherLevel(t *t
 		gormstore.NewLevelStore(db),
 		gormstore.NewPriceStore(db),
 		raceRepo,
+		gormstore.NewUserPriceStore(db),
 	)
 
 	if err := svc.OnOrderPaid(user.ID, decimal.RequireFromString("1.00")); err != nil {

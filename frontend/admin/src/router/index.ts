@@ -185,6 +185,12 @@ const routes = [
         meta: { permission: 'GET:/admin/member-levels' },
       },
       {
+        path: 'user-prices',
+        name: 'user-prices',
+        component: () => import('@/views/admin/UserPrices.vue'),
+        meta: { permission: 'GET:/admin/member-user-prices' },
+      },
+      {
         path: 'settings',
         name: 'settings',
         component: () => import('@/views/admin/Settings.vue'),

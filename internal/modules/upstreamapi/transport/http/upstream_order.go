@@ -1,11 +1,14 @@
 package upstreamhttp
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/dujiao-next/internal/cache"
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/logger"
 	downstreamcallbackdomain "github.com/dujiao-next/internal/modules/downstreamcallback/domain"
@@ -23,6 +26,9 @@ type createOrderRequest struct {
 	TraceID           string       `json:"trace_id"`
 	CallbackURL       string       `json:"callback_url"`
 }
+
+// acquireDownstreamOrderLock 让同一幂等键（凭证 + 下游单号）的下单请求串行执行；测试中替换为内存实现。
+var acquireDownstreamOrderLock = cache.AcquireLock
 
 // CreateOrder POST /api/v1/upstream/orders
 func (h *Handler) CreateOrder(c *gin.Context) {
@@ -49,6 +55,20 @@ func (h *Handler) CreateOrder(c *gin.Context) {
 
 	// 幂等性检查：同一 credential 的相同 downstream_order_no 不允许重复创建
 	if strings.TrimSpace(req.DownstreamOrderNo) != "" {
+		// 「先查后建」不是原子的：用 Redis 锁让同一幂等键的请求串行执行，后到的请求会查到先到请求写入的引用。
+		// 最多等 30 秒；锁 60 秒自动过期，覆盖下单 + 钱包扣款的耗时。
+		lockCtx, cancelLock := context.WithTimeout(c.Request.Context(), 30*time.Second)
+		unlock, lockErr := acquireDownstreamOrderLock(lockCtx,
+			fmt.Sprintf("upstream:order_create:%d:%s", credentialID, req.DownstreamOrderNo), 60*time.Second)
+		cancelLock()
+		if lockErr != nil {
+			// 拿不到锁就不能保证幂等，宁可让下游稍后重试，也不能冒重复扣款的风险。
+			logger.Warnw("upstream_order_lock_failed",
+				"credential_id", credentialID, "downstream_order_no", req.DownstreamOrderNo, "error", lockErr)
+			errorResponse(c, http.StatusConflict, "order_in_progress", "an order with the same downstream_order_no is being processed, retry later")
+			return
+		}
+		defer unlock()
 		existingRef, _ := h.DownstreamRefs.GetByCredentialAndDownstreamNo(credentialID, req.DownstreamOrderNo)
 		if existingRef != nil {
 			// 已有相同下游订单号的记录，返回已有订单信息；
@@ -136,13 +156,18 @@ func (h *Handler) CreateOrder(c *gin.Context) {
 			"trace_id", req.TraceID,
 			"error", createErr,
 		)
-	} else {
-		logger.Infow("upstream_downstream_ref_created",
-			"ref_id", ref.ID,
-			"order_id", order.ID,
-			"callback_url", req.CallbackURL,
-		)
+		// 引用没写进去就不能扣款：否则会留下一笔既无法幂等命中、也无法回调下游的已支付订单。
+		if _, cancelErr := h.Orders.CancelOrder(order.ID, userID); cancelErr != nil {
+			logger.Warnw("upstream_cancel_unpaid_order_failed", "order_id", order.ID, "error", cancelErr)
+		}
+		errorResponse(c, http.StatusInternalServerError, "internal_error", "failed to create order")
+		return
 	}
+	logger.Infow("upstream_downstream_ref_created",
+		"ref_id", ref.ID,
+		"order_id", order.ID,
+		"callback_url", req.CallbackURL,
+	)
 
 	// 自动使用钱包余额支付（上游 API 订单默认钱包扣款）
 	payResult, payErr := h.Payments.CreatePayment(CreatePaymentInput{

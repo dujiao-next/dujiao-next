@@ -23,16 +23,22 @@ type AdminService interface {
 	GetLevelPricesByProduct(productID uint) ([]memberleveldomain.MemberLevelPrice, error)
 	BatchUpsertLevelPrices(prices []memberleveldomain.MemberLevelPrice) error
 	DeleteLevelPrice(id uint) error
+	ListUserPrices(userID uint, page, pageSize int) ([]memberleveldomain.UserProductPrice, int64, error)
+	BatchUpsertUserPrices(prices []memberleveldomain.UserProductPrice) error
+	DeleteUserPrice(id uint) error
 	SetUserLevel(userID, levelID uint) error
 	BackfillDefaultLevel() (int64, error)
 }
 
 type AdminHandler struct {
 	service AdminService
+	// products 用于在列表里直接补上商品标题与 SKU 摘要，
+	// 避免后台每行再单独请求一次商品详情。可为 nil。
+	products memberlevelcontract.ProductDirectory
 }
 
-func NewAdminHandler(service AdminService) *AdminHandler {
-	return &AdminHandler{service: service}
+func NewAdminHandler(service AdminService, products memberlevelcontract.ProductDirectory) *AdminHandler {
+	return &AdminHandler{service: service, products: products}
 }
 
 // CreateMemberLevelRequest 创建/更新会员等级请求

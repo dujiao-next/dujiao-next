@@ -119,6 +119,14 @@ func (s *Service) CreateManual(input CreateManualInput) (*fulfillmentdomain.Fulf
 
 	var created *fulfillmentdomain.Fulfillment
 	err = s.orderStore.WithinTransaction(func(tx ordercontract.Transaction) error {
+		// 事务内锁住订单并复核状态：事务外的检查之后退款可能已经提交。
+		locked, err := tx.Orders().GetByIDForUpdate(input.OrderID)
+		if err != nil {
+			return err
+		}
+		if locked == nil || (locked.Status != constants.OrderStatusPaid && locked.Status != constants.OrderStatusFulfilling) {
+			return ErrOrderStatusInvalid
+		}
 		if _, found, err := tx.Fulfillments().FindByOrderIDForUpdate(input.OrderID); err != nil {
 			return err
 		} else if found {
@@ -152,6 +160,9 @@ func (s *Service) CreateManual(input CreateManualInput) (*fulfillmentdomain.Fulf
 	if err != nil {
 		if errors.Is(err, ErrFulfillmentExists) {
 			return nil, ErrFulfillmentExists
+		}
+		if errors.Is(err, ErrOrderStatusInvalid) {
+			return nil, ErrOrderStatusInvalid
 		}
 		if errors.Is(err, ErrOrderUpdateFailed) {
 			return nil, ErrOrderUpdateFailed
@@ -239,6 +250,14 @@ func (s *Service) CreateAuto(orderID uint) (*fulfillmentdomain.Fulfillment, erro
 	now := time.Now()
 	var fulfillment *fulfillmentdomain.Fulfillment
 	err = s.orderStore.WithinTransaction(func(tx ordercontract.Transaction) error {
+		// 事务内锁住订单并复核状态：事务外的检查之后退款可能已经提交。
+		locked, err := tx.Orders().GetByIDForUpdate(orderID)
+		if err != nil {
+			return err
+		}
+		if locked == nil || locked.Status != constants.OrderStatusPaid {
+			return ErrOrderStatusInvalid
+		}
 		if _, found, err := tx.Fulfillments().FindByOrderIDForUpdate(orderID); err != nil {
 			return err
 		} else if found {
@@ -326,6 +345,8 @@ func (s *Service) CreateAuto(orderID uint) (*fulfillmentdomain.Fulfillment, erro
 		switch {
 		case errors.Is(err, ErrFulfillmentExists):
 			return nil, ErrFulfillmentExists
+		case errors.Is(err, ErrOrderStatusInvalid):
+			return nil, ErrOrderStatusInvalid
 		case errors.Is(err, ErrCardSecretInsufficient):
 			return nil, ErrCardSecretInsufficient
 		case errors.Is(err, ErrOrderUpdateFailed):

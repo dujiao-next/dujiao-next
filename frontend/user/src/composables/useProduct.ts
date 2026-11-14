@@ -2,6 +2,9 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '../stores/app'
 import { amountToCents, centsToAmount } from '../utils/money'
+import { resolveCardDisplayPrice, resolveMemberPriceAmount } from '../utils/productPricing'
+import { useUserAuthStore } from '../stores/userAuth'
+import { useUserProfileStore } from '../stores/userProfile'
 
 export function useLocalized() {
   const appStore = useAppStore()
@@ -32,6 +35,16 @@ export function useLocalized() {
 }
 
 export function useProductLabels() {
+  const userAuthStore = useUserAuthStore()
+  const userProfileStore = useUserProfileStore()
+  if (userAuthStore.isAuthenticated) {
+    void userProfileStore.loadMyProductPrices()
+    // 卡片展示会员价需要等级折扣率；只进过列表页时不加载会导致显示原价。
+    // loadMemberLevels 已做去重，重复调用不会多发请求。
+    if (Number(userAuthStore.user?.member_level_id || 0) > 0) {
+      void userProfileStore.loadMemberLevels()
+    }
+  }
   const { t } = useI18n()
 
   const getPurchaseTypeLabel = (purchaseType: string) => {
@@ -174,27 +187,20 @@ export function useProductLabels() {
     return centsToAmount(matchedCents)
   }
 
-  const resolveMemberPriceAmount = (product: any, skuId: any, basePrice: any, memberLevelId: any, discountRate?: any) => {
-    const base = parsePriceAmount(basePrice)
-    const levelId = Number(memberLevelId || 0)
-    if (base === null || base <= 0 || !Number.isFinite(levelId) || levelId <= 0) return null
-
-    const prices = Array.isArray(product?.member_prices) ? product.member_prices : []
-    const normalizedSkuId = Number(skuId || 0)
-    const skuPrice = prices.find((p: any) => Number(p?.member_level_id || 0) === levelId && Number(p?.sku_id || 0) === normalizedSkuId)
-    const productPrice = prices.find((p: any) => Number(p?.member_level_id || 0) === levelId && Number(p?.sku_id || 0) === 0)
-    const overrideCents = parsePriceAmount(skuPrice?.price_amount ?? productPrice?.price_amount)
-    if (overrideCents !== null && overrideCents > 0) {
-      return overrideCents < base ? centsToAmount(overrideCents) : null
-    }
-
-    const rate = Number(discountRate || 0)
-    if (!Number.isFinite(rate) || rate <= 0 || rate >= 100) return null
-    const memberCents = Math.round((base * rate) / 100)
-    return memberCents < base ? centsToAmount(memberCents) : null
+  // 列表卡片展示价：取专属价与会员价中更低者，且必须低于活动价/原价才展示。
+  // 口径与详情页和后端下单保持一致，具体规则见 resolveCardDisplayPrice。
+  const getCardExclusivePrice = (product: any): string | null => {
+    if (!userAuthStore.isAuthenticated) return null
+    const memberLevelId = Number(userAuthStore.user?.member_level_id || 0)
+    const memberLevels: any[] = userProfileStore.memberLevels ?? []
+    const level = memberLevelId > 0 ? memberLevels.find((l: any) => Number(l?.id || 0) === memberLevelId) : null
+    const discountRate = level ? Number(level.discount_rate || 0) : 0
+    const userPrices = Array.isArray(userProfileStore.myProductPrices) ? userProfileStore.myProductPrices : []
+    return resolveCardDisplayPrice(product, memberLevelId, discountRate, userPrices)
   }
 
   return {
+    getCardExclusivePrice,
     getPurchaseTypeLabel,
     getFulfillmentTypeLabel,
     getStockBadgeVariant,

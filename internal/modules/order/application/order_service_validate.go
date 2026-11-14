@@ -15,6 +15,7 @@ import (
 	couponapp "github.com/dujiao-next/internal/modules/coupon/application"
 	couponcontract "github.com/dujiao-next/internal/modules/coupon/contract"
 	coupondomain "github.com/dujiao-next/internal/modules/coupon/domain"
+	memberlevelapp "github.com/dujiao-next/internal/modules/memberlevel/application"
 	promotionapp "github.com/dujiao-next/internal/modules/promotion/application"
 	promotiondomain "github.com/dujiao-next/internal/modules/promotion/domain"
 	"github.com/dujiao-next/internal/shared/jsonmap"
@@ -85,6 +86,17 @@ func (s *OrderService) buildOrderResult(input orderCreateParams) (*orderBuildRes
 	if !resellerOrder {
 		promotionService = promotionapp.NewService(s.promotionRepo)
 	}
+
+	// 循环前一次性读出用户专属价快照，避免每个 SKU 各查一次库（N+1）。
+	var userPriceBook memberlevelapp.UserPriceBook
+	if !resellerOrder && input.UserID > 0 && s.memberLevelService != nil {
+		var err error
+		userPriceBook, err = s.memberLevelService.LoadUserPriceBook(input.UserID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	manualFormData := input.ManualFormData
 	if manualFormData == nil {
 		manualFormData = map[string]jsonmap.JSON{}
@@ -117,6 +129,15 @@ func (s *OrderService) buildOrderResult(input orderCreateParams) (*orderBuildRes
 
 		productCurrency := currency
 		basePrice := sku.PriceAmount.Decimal.Round(2)
+
+		// 0. 用户专属一口价：先查出来，但先不生效。要和下面的活动价、批发价、
+		// 会员等级价算出的最终单价比较，只有确实更低时才采纳 —— 否则设了专属价的
+		// 用户会比走普通优惠的用户付得更多。
+		var userUnitPrice decimal.Decimal
+		userPriceHit := false
+		if userPriceBook != nil {
+			userUnitPrice, userPriceHit = userPriceBook.Resolve(product.ID, sku.ID, basePrice)
+		}
 
 		// 1. 计算活动价
 		priceCarrier := *product
@@ -155,10 +176,6 @@ func (s *OrderService) buildOrderResult(input orderCreateParams) (*orderBuildRes
 			unitPriceAmount = wholesaleUnitPrice
 			promotion = nil
 			promotionDiscount = decimal.Zero
-			wholesaleDiscountAmount = wholesaleDiscountAmount.Add(wholesaleDiscount).Round(2)
-		} else if promotionDiscount.GreaterThan(decimal.Zero) {
-			promotionDiscountAmount = promotionDiscountAmount.Add(promotionDiscount).Round(2)
-			wholesaleDiscount = decimal.Zero
 		} else {
 			wholesaleDiscount = decimal.Zero
 		}
@@ -171,12 +188,28 @@ func (s *OrderService) buildOrderResult(input orderCreateParams) (*orderBuildRes
 				itemMemberDiscount = unitPriceAmount.Sub(memberUnitPrice).
 					Mul(decimal.NewFromInt(int64(item.Quantity))).
 					Round(2)
-				memberDiscountAmount = memberDiscountAmount.Add(itemMemberDiscount).Round(2)
 				unitPriceAmount = memberUnitPrice
 			}
 		}
 
-		// 4. 兼容活动规则命中但未形成实际优惠的情况
+		// 4. 用户专属一口价：只有比上面算出的最终单价更低时才生效。
+		// 一口价不与活动价、批发价、会员等级价叠加，命中后把本行的三项商品级优惠清零，
+		// 差额统一记入会员优惠，保持 原价 - 优惠 = 实付 的账目口径。
+		if userPriceHit && userUnitPrice.LessThan(unitPriceAmount) {
+			unitPriceAmount = userUnitPrice
+			promotion = nil
+			promotionDiscount = decimal.Zero
+			wholesaleDiscount = decimal.Zero
+			itemMemberDiscount = basePrice.Sub(userUnitPrice).
+				Mul(decimal.NewFromInt(int64(item.Quantity))).
+				Round(2)
+		}
+
+		promotionDiscountAmount = promotionDiscountAmount.Add(promotionDiscount).Round(2)
+		wholesaleDiscountAmount = wholesaleDiscountAmount.Add(wholesaleDiscount).Round(2)
+		memberDiscountAmount = memberDiscountAmount.Add(itemMemberDiscount).Round(2)
+
+		// 5. 兼容活动规则命中但未形成实际优惠的情况
 		if promotion != nil && promotionDiscount.IsZero() && !basePrice.GreaterThan(promoUnitPriceAmount) {
 			promotion = nil
 		}

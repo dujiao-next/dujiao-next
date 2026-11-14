@@ -12,6 +12,7 @@ import (
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/logger"
 	domaincatalog "github.com/dujiao-next/internal/modules/catalog"
+	memberlevelapp "github.com/dujiao-next/internal/modules/memberlevel/application"
 	"github.com/dujiao-next/internal/platform/http/ginutil"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/money"
@@ -102,6 +103,19 @@ type channelWholesalePrice struct {
 	UnitPrice   string `json:"unit_price"`
 }
 
+// loadChannelPriceBook 读一次渠道用户的专属价快照；失败按"没有专属价"处理。
+func (h *Handler) loadChannelPriceBook(userID uint) memberlevelapp.UserPriceBook {
+	if h.MemberLevelService == nil || userID == 0 {
+		return memberlevelapp.UserPriceBook{}
+	}
+	book, err := h.MemberLevelService.LoadUserPriceBook(userID)
+	if err != nil {
+		logger.Warnw("channel_catalog_load_user_price_book_failed", "user_id", userID, "error", err)
+		return memberlevelapp.UserPriceBook{}
+	}
+	return book
+}
+
 func normalizeChannelWholesalePrices(tiers productdomain.WholesalePriceTiers) []channelWholesalePrice {
 	if len(tiers) == 0 {
 		return nil
@@ -157,15 +171,17 @@ func (h *Handler) GetProducts(c *gin.Context) {
 	}
 
 	// 可选：通过 channel_user_id 获取用户会员等级
-	var memberLevelID uint
+	var userID, memberLevelID uint
 	if cuid := channelUserIDFromQuery(c); cuid != "" {
 		user, _, err := h.UserAuthService.ResolveTelegramChannelIdentity(TelegramIdentityInput{
 			ChannelUserID: cuid,
 		})
 		if err == nil && user != nil {
-			memberLevelID = user.MemberLevelID
+			userID, memberLevelID = user.ID, user.MemberLevelID
 		}
 	}
+	// 专属价整页读一次，避免每个 SKU 都查库。
+	priceBook := h.loadChannelPriceBook(userID)
 
 	type productItem struct {
 		ID                  uint                    `json:"id"`
@@ -225,9 +241,9 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		}
 
 		// 计算会员价
-		if memberLevelID > 0 && h.MemberLevelService != nil {
-			memberPrice, _ := h.MemberLevelService.ResolveMemberPrice(memberLevelID, p.ID, 0, p.PriceAmount.Decimal)
-			if memberPrice.LessThan(p.PriceAmount.Decimal) {
+		if (userID > 0 || memberLevelID > 0) && h.MemberLevelService != nil {
+			memberPrice, hit, _ := h.MemberLevelService.ResolveCatalogPrice(priceBook, memberLevelID, p.ID, 0, p.PriceAmount.Decimal)
+			if hit && memberPrice.LessThan(p.PriceAmount.Decimal) {
 				item.MemberPriceFrom = money.FromDecimal(memberPrice).String()
 			}
 		}
@@ -291,15 +307,17 @@ func (h *Handler) GetProductDetail(c *gin.Context) {
 	}
 
 	// 可选：通过 channel_user_id 获取用户会员等级
-	var memberLevelID uint
+	var userID, memberLevelID uint
 	if cuid := channelUserIDFromQuery(c); cuid != "" {
 		user, _, err := h.UserAuthService.ResolveTelegramChannelIdentity(TelegramIdentityInput{
 			ChannelUserID: cuid,
 		})
 		if err == nil && user != nil {
-			memberLevelID = user.MemberLevelID
+			userID, memberLevelID = user.ID, user.MemberLevelID
 		}
 	}
+	// 专属价整页读一次，避免每个 SKU 都查库。
+	priceBook := h.loadChannelPriceBook(userID)
 
 	type skuItem struct {
 		ID                  uint   `json:"id"`
@@ -338,9 +356,9 @@ func (h *Handler) GetProductDetail(c *gin.Context) {
 			StockRangeMax:       stockDisplay.RangeMax,
 			StockQuantityHidden: stockDisplay.QuantityHidden,
 		}
-		if memberLevelID > 0 && h.MemberLevelService != nil {
-			memberPrice, _ := h.MemberLevelService.ResolveMemberPrice(memberLevelID, product.ID, sku.ID, sku.PriceAmount.Decimal)
-			if memberPrice.LessThan(sku.PriceAmount.Decimal) {
+		if (userID > 0 || memberLevelID > 0) && h.MemberLevelService != nil {
+			memberPrice, hit, _ := h.MemberLevelService.ResolveCatalogPrice(priceBook, memberLevelID, product.ID, sku.ID, sku.PriceAmount.Decimal)
+			if hit && memberPrice.LessThan(sku.PriceAmount.Decimal) {
 				si.MemberPrice = money.FromDecimal(memberPrice).String()
 			}
 		}
@@ -349,9 +367,9 @@ func (h *Handler) GetProductDetail(c *gin.Context) {
 
 	// 商品级会员价
 	var memberPriceFrom string
-	if memberLevelID > 0 && h.MemberLevelService != nil {
-		mp, _ := h.MemberLevelService.ResolveMemberPrice(memberLevelID, product.ID, 0, product.PriceAmount.Decimal)
-		if mp.LessThan(product.PriceAmount.Decimal) {
+	if (userID > 0 || memberLevelID > 0) && h.MemberLevelService != nil {
+		mp, hit, _ := h.MemberLevelService.ResolveCatalogPrice(priceBook, memberLevelID, product.ID, 0, product.PriceAmount.Decimal)
+		if hit && mp.LessThan(product.PriceAmount.Decimal) {
 			memberPriceFrom = money.FromDecimal(mp).String()
 		}
 	}

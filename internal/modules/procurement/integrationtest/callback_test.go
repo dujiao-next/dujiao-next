@@ -244,3 +244,79 @@ func TestProcurementStoreUpdateStatusIsCompareAndSet(t *testing.T) {
 		t.Fatalf("expected status to stay fulfilled, got %q", reloaded.Status)
 	}
 }
+
+// 本地订单已全额退款后，上游交付回调不能再生成交付记录，也不能把退款状态覆盖成已交付。
+func TestHandleUpstreamCallback_Delivered_AfterLocalRefundDoesNotDeliver(t *testing.T) {
+	db := setupProcurementTestDB(t)
+
+	order := createProcTestOrder(t, db, "PROC-REFUNDED-DELIVER-001", constants.OrderStatusRefunded, constants.FulfillmentTypeUpstream)
+	proc := createTestProcurementOrder(t, db, 1, order.ID, order.OrderNo, "accepted")
+	svc := newTestProcurementService(db, newTestSiteConnectionService(db, "test-key", t.TempDir()))
+
+	fulfillment := &procurementcontract.Fulfillment{
+		Type: constants.FulfillmentTypeUpstream, Status: constants.FulfillmentStatusDelivered, Payload: "CDK-001",
+	}
+	if err := svc.HandleUpstreamCallback(proc.ID, "delivered", fulfillment); err != nil {
+		t.Fatalf("HandleUpstreamCallback: %v", err)
+	}
+
+	var updatedOrder orderdomain.Order
+	if err := db.First(&updatedOrder, order.ID).Error; err != nil {
+		t.Fatalf("load order: %v", err)
+	}
+	if updatedOrder.Status != constants.OrderStatusRefunded {
+		t.Errorf("expected order to stay refunded, got %q", updatedOrder.Status)
+	}
+	var count int64
+	if err := db.Model(&fulfillmentdomain.Fulfillment{}).Where("order_id = ?", order.ID).Count(&count).Error; err != nil {
+		t.Fatalf("count fulfillments: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("expected no fulfillment for a refunded order, got %d", count)
+	}
+	// 采购单进入终态，上游重发的交付回调不会再被处理
+	var updatedProc ProcurementOrder
+	if err := db.First(&updatedProc, proc.ID).Error; err != nil {
+		t.Fatalf("load procurement: %v", err)
+	}
+	if updatedProc.Status != constants.ProcurementStatusFulfilled {
+		t.Errorf("expected procurement status fulfilled, got %q", updatedProc.Status)
+	}
+}
+
+// 全额退款是终态：迟到的部分退款通知不能把它降级，随后的交付通知也不能再发货。
+func TestHandleUpstreamCallback_StalePartialRefundCannotDowngradeRefunded(t *testing.T) {
+	db := setupProcurementTestDB(t)
+
+	order := createProcTestOrder(t, db, "PROC-REFUND-ORDER-001", constants.OrderStatusFulfilling, constants.FulfillmentTypeUpstream)
+	proc := createTestProcurementOrder(t, db, 1, order.ID, order.OrderNo, "accepted")
+	svc := newTestProcurementService(db, newTestSiteConnectionService(db, "test-key", t.TempDir()))
+
+	fulfillment := &procurementcontract.Fulfillment{
+		Type: constants.FulfillmentTypeUpstream, Status: constants.FulfillmentStatusDelivered, Payload: "CDK-001",
+	}
+	for _, status := range []string{"refunded", "partially_refunded", "delivered"} {
+		var payload *procurementcontract.Fulfillment
+		if status == "delivered" {
+			payload = fulfillment
+		}
+		if err := svc.HandleUpstreamCallback(proc.ID, status, payload); err != nil {
+			t.Fatalf("HandleUpstreamCallback(%s): %v", status, err)
+		}
+	}
+
+	var updatedProc ProcurementOrder
+	if err := db.First(&updatedProc, proc.ID).Error; err != nil {
+		t.Fatalf("load procurement: %v", err)
+	}
+	if updatedProc.Status != constants.ProcurementStatusRefunded {
+		t.Errorf("expected procurement to stay refunded, got %q", updatedProc.Status)
+	}
+	var count int64
+	if err := db.Model(&fulfillmentdomain.Fulfillment{}).Where("order_id = ?", order.ID).Count(&count).Error; err != nil {
+		t.Fatalf("count fulfillments: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("expected no fulfillment after full refund, got %d", count)
+	}
+}

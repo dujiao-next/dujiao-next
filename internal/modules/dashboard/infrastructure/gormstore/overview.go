@@ -82,12 +82,6 @@ func (r *Store) GetOverview(startAt, endAt time.Time) (dashboard.OverviewRow, er
 	result.PaymentsSuccess = paymentAgg.PaymentsSuccess
 	result.PaymentsFailed = paymentAgg.PaymentsFailed
 
-	if err := r.db.Model(&userdomain.User{}).
-		Where("created_at >= ? AND created_at < ? AND deleted_at IS NULL", startAt, endAt).
-		Count(&result.NewUsers).Error; err != nil {
-		return result, err
-	}
-
 	timeWhere2, timeArgs2 := timeRangeQuery(r.db, "created_at", startAt, endAt)
 	if err := r.db.Model(&userdomain.User{}).
 		Where("deleted_at IS NULL AND "+timeWhere2, timeArgs2...).

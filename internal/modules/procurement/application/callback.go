@@ -35,9 +35,13 @@ func (s *Service) HandleUpstreamCallback(procurementOrderID uint, upstreamStatus
 
 	switch upstreamStatus {
 	case "delivered", "completed", "fulfilled":
-		// 先创建交付记录（幂等），再推进采购单状态；写入失败时采购单保持非终态以便上游重试
-		if fulfillment != nil && s.orderLifecycle != nil {
-			if err := s.createUpstreamFulfillment(procOrder.LocalOrderID, fulfillment, now); err != nil {
+		// 先在一个事务里复核本地订单、写交付记录并置为已交付（幂等），再推进采购单状态；
+		// 写入失败时采购单保持非终态以便上游重试
+		delivered := true
+		if s.orderLifecycle != nil {
+			var err error
+			delivered, err = s.createUpstreamFulfillment(procOrder.LocalOrderID, fulfillment, now)
+			if err != nil {
 				logger.Warnw("procurement_create_fulfillment_failed",
 					"procurement_order_id", procOrder.ID,
 					"local_order_id", procOrder.LocalOrderID,
@@ -63,10 +67,16 @@ func (s *Service) HandleUpstreamCallback(procurementOrderID uint, upstreamStatus
 			return nil
 		}
 
-		// 更新本地订单状态
-		_ = s.orderRepo.UpdateStatus(procOrder.LocalOrderID, constants.OrderStatusDelivered, map[string]interface{}{
-			"updated_at": now,
-		})
+		if !delivered {
+			// 本地订单已全额退款或取消：上游货已到但不能再发给买家。
+			// 交付内容只留在采购单上，交给管理员人工处理（向上游申请退款等）。
+			logger.Warnw("procurement_fulfilled_after_local_refund",
+				"procurement_order_id", procOrder.ID,
+				"local_order_id", procOrder.LocalOrderID,
+			)
+			s.notifyProcurementFailure(procOrder, "upstream delivered after local order was refunded or canceled")
+			return nil
+		}
 
 		// 如果有父订单，同步父订单状态
 		localOrder, _ := s.orderRepo.GetByID(procOrder.LocalOrderID)
@@ -162,16 +172,19 @@ func (s *Service) HandleUpstreamCallback(procurementOrderID uint, upstreamStatus
 	return nil
 }
 
-// createUpstreamFulfillment 在本地订单上创建上游交付记录
-func (s *Service) createUpstreamFulfillment(orderID uint, uf *procurementcontract.Fulfillment, now time.Time) error {
-	return s.orderLifecycle.CreateUpstreamFulfillment(orderID, uf, now)
+// createUpstreamFulfillment 复核本地订单后写入上游交付记录并置为已交付；订单已退款/取消时返回 false
+func (s *Service) createUpstreamFulfillment(orderID uint, uf *procurementcontract.Fulfillment, now time.Time) (bool, error) {
+	return s.orderLifecycle.DeliverUpstreamOrder(orderID, uf, now)
 }
 
 // isUpstreamTransitionAllowed 上游回调允许的采购单状态转换：
 // 已交付、已全额退款、已取消的采购单不再接受 delivered / canceled；
-// 退款类回调不受限（部分退款可能先于交付到达）。
+// 退款类回调基本不受限（部分退款可能先于交付到达），但全额退款是终态，
+// 迟到的部分退款通知不能把它降级，否则采购单又能接收交付。
 func isUpstreamTransitionAllowed(current, upstreamStatus string) bool {
 	switch upstreamStatus {
+	case "partially_refunded":
+		return current != constants.ProcurementStatusRefunded
 	case "delivered", "completed", "fulfilled", "canceled":
 		switch current {
 		case constants.ProcurementStatusFulfilled, constants.ProcurementStatusCompleted,

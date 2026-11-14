@@ -217,6 +217,66 @@ func TestVerifyAndParseWebhookInvalidSignature(t *testing.T) {
 	}
 }
 
+// TestValidateConfigEmptyPaymentMethodTypes 验证空 payment_method_types（使用 Dashboard 动态支付方式）可以通过校验。
+func TestValidateConfigEmptyPaymentMethodTypes(t *testing.T) {
+	cfg, err := ParseConfig(map[string]interface{}{
+		"secret_key":     "sk_test_123",
+		"webhook_secret": "whsec_123",
+		"success_url":    "https://example.com/payment?stripe_return=1",
+		"cancel_url":     "https://example.com/payment?stripe_cancel=1",
+		// 不传 payment_method_types，对应用户在界面留空的场景
+	})
+	if err != nil {
+		t.Fatalf("parse config failed: %v", err)
+	}
+	if err := ValidateConfig(cfg); err != nil {
+		t.Fatalf("empty payment_method_types should be valid (dynamic payment methods): %v", err)
+	}
+	if len(cfg.PaymentMethodTypes) != 0 {
+		t.Fatalf("expected empty PaymentMethodTypes after Normalize, got %v", cfg.PaymentMethodTypes)
+	}
+}
+
+// TestCreatePaymentNilPaymentMethodTypes 验证 payment_method_types 为空时，CreatePayment 不向 Stripe 发送该参数。
+func TestCreatePaymentNilPaymentMethodTypes(t *testing.T) {
+	var form url.Values
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		form, _ = url.ParseQuery(string(body))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"cs_test_456","url":"https://checkout.stripe.com/c/pay/cs_test_456","status":"open"}`))
+	}))
+	defer server.Close()
+
+	cfg, err := ParseConfig(map[string]interface{}{
+		"secret_key":     "sk_test_123",
+		"webhook_secret": "whsec_123",
+		"success_url":    "https://example.com/payment?stripe_return=1",
+		"cancel_url":     "https://example.com/payment?stripe_cancel=1",
+		"api_base_url":   server.URL,
+		// 不传 payment_method_types
+	})
+	if err != nil {
+		t.Fatalf("parse config failed: %v", err)
+	}
+
+	result, err := CreatePayment(context.Background(), cfg, CreateInput{
+		OrderNo:  "ORDER-2001",
+		Amount:   "9.90",
+		Currency: "USD",
+	})
+	if err != nil {
+		t.Fatalf("create payment failed: %v", err)
+	}
+	if result.SessionID != "cs_test_456" {
+		t.Fatalf("unexpected session id: %s", result.SessionID)
+	}
+	// 新版 API 不允许携带 payment_method_types，验证请求中确实未发送。
+	if _, present := form["payment_method_types[]"]; present {
+		t.Fatalf("payment_method_types[] must not be sent when using dynamic payment methods, got: %v", form["payment_method_types[]"])
+	}
+}
+
 func TestMapPaymentIntentStatus(t *testing.T) {
 	tests := []struct {
 		name   string

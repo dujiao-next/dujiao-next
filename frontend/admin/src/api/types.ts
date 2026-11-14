@@ -186,6 +186,8 @@ export interface AdminOrder {
   payments?: AdminPayment[]
   user_display_name?: string
   user_email?: string
+  // 订单详情接口返回：退款时是否按比例冲回成本（仪表盘统计口径）
+  refund_reverses_cost?: boolean
 }
 
 export interface AdminUserOAuthIdentity {
@@ -310,6 +312,24 @@ export interface AdminMemberLevel {
   is_active: boolean
   created_at: string
   updated_at: string
+}
+
+export interface AdminUserProductPrice {
+  id: number
+  user_id: number
+  product_id: number
+  sku_id: number
+  price_amount: number | string
+  created_at: string
+  updated_at: string
+  // 列表接口随行返回的商品/SKU 摘要，避免后台每行再单独请求商品详情
+  product_title?: Record<string, string>
+  product_slug?: string
+  product_active?: boolean
+  product_price_amount?: number | string
+  sku_code?: string
+  sku_spec_values?: Record<string, string>
+  sku_price_amount?: number | string
 }
 
 export interface AdminMemberLevelPrice {
@@ -574,6 +594,7 @@ export interface AdminSiteConnection {
   exchange_rate?: number
   price_markup_percent?: number
   price_rounding_mode?: string
+  category_markups?: Record<string, number> | null
   auto_sync_price?: boolean
   created_at: string
   updated_at: string

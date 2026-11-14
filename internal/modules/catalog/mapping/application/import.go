@@ -12,6 +12,7 @@ import (
 	mappingdomain "github.com/dujiao-next/internal/modules/catalog/mapping/domain"
 	productcontract "github.com/dujiao-next/internal/modules/catalog/product/contract"
 	siteconnectioncontract "github.com/dujiao-next/internal/modules/siteconnection/contract"
+	siteconnectiondomain "github.com/dujiao-next/internal/modules/siteconnection/domain"
 
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/logger"
@@ -114,6 +115,11 @@ func (s *Service) importUpstreamProduct(connectionID uint, upstreamProductID uin
 		}
 		categoryID = category.ID
 	}
+	// 自动创建分类依赖上游分类；上游商品本身没有分类时无法推断，
+	// 若继续导入会得到无分类（无法上架）的商品，所以让这一条失败并提示手动指定。
+	if autoCreateCategory && categoryID == 0 && upProduct.CategoryID == 0 {
+		return nil, mappingcontract.ErrUpstreamProductNoCategory
+	}
 	if err := productdomain.ValidateCategoryAssignment(s.categories, categoryID, 0, productcontract.ErrProductCategoryInvalid); err != nil {
 		return nil, err
 	}
@@ -129,7 +135,24 @@ func (s *Service) importUpstreamProduct(connectionID uint, upstreamProductID uin
 
 	// 解析价格（先汇率转换，再应用加价比例）
 	exchangeRate := conn.ExchangeRate
-	markupPercent := conn.PriceMarkupPercent
+	// 加价按上游分类解析：分类自身 → 父分类 → 连接默认加价。
+	// 配置了分类加价却拿不到分类树时，宁可整条导入失败，也不能按默认加价把价格写低。
+	var categoryParents map[uint]uint
+	if len(conn.CategoryMarkups) > 0 {
+		if catMap != nil {
+			categoryParents = make(map[uint]uint, len(catMap))
+			for id, c := range catMap {
+				categoryParents[id] = c.ParentID
+			}
+		} else {
+			parents, ok := s.upstreamCategoryParents(ctx, adapter, conn)
+			if !ok {
+				return nil, mappingcontract.ErrUpstreamCategoryUnavailable
+			}
+			categoryParents = parents
+		}
+	}
+	markupPercent := ResolveCategoryMarkup(conn.PriceMarkupPercent, conn.CategoryMarkups, upProduct.CategoryID, categoryParents)
 	roundingMode := conn.PriceRoundingMode
 
 	priceAmount, priceErr := decimal.NewFromString(upProduct.PriceAmount)
@@ -265,6 +288,7 @@ func (s *Service) importUpstreamProduct(connectionID uint, upstreamProductID uin
 			ConnectionID:            connectionID,
 			LocalProductID:          product.ID,
 			UpstreamProductID:       upstreamProductID,
+			UpstreamCategoryID:      upProduct.CategoryID,
 			UpstreamFulfillmentType: upstreamFulfillmentType,
 			IsActive:                true,
 			LastSyncedAt:            &now,
@@ -283,11 +307,39 @@ func (s *Service) importUpstreamProduct(connectionID uint, upstreamProductID uin
 	return mapping, nil
 }
 
+// upstreamCategoryParents 返回「上游分类 ID → 父分类 ID」，供分类加价继承使用。
+//
+// 返回值 ok=false 表示这一轮不能安全地算价：连接配置了分类加价，但分类树拉不到。
+// 此时绝不能退回连接默认加价——那会把「父分类 50%」的商品按 0% 写成成本价卖。
+// 调用方必须跳过改价（库存照常同步），等下一轮再试。
+//
+// 连接没配分类加价时返回 (nil, true)：加价与分类无关，按默认算即可。
+func (s *Service) upstreamCategoryParents(ctx context.Context, adapter upstream.Adapter, conn *siteconnectiondomain.Connection) (map[uint]uint, bool) {
+	if conn == nil || len(conn.CategoryMarkups) == 0 {
+		return nil, true
+	}
+	catMap, err := s.fetchUpstreamCategoryMap(ctx, adapter)
+	if err != nil {
+		logger.Warnw("fetch_upstream_category_parents_failed", "connection_id", conn.ID, "error", err)
+		return nil, false
+	}
+	parents := make(map[uint]uint, len(catMap))
+	for id, c := range catMap {
+		parents[id] = c.ParentID
+	}
+	return parents, true
+}
+
 // fetchUpstreamCategoryMap 拉取上游分类列表并构建 ID → 分类映射，供批量导入预取共用。
 func (s *Service) fetchUpstreamCategoryMap(ctx context.Context, adapter upstream.Adapter) (map[uint]upstream.UpstreamCategory, error) {
 	catResult, err := adapter.ListCategories(ctx)
 	if err != nil {
 		return nil, err
+	}
+	// 适配器把分类接口 404 当成「旧版上游不支持」返回空列表；这里不能当成一棵空树，
+	// 否则继承父分类加价的商品会被按默认加价改价。
+	if !catResult.Supported {
+		return nil, errors.New("upstream does not support categories")
 	}
 	catMap := make(map[uint]upstream.UpstreamCategory, len(catResult.Categories))
 	for _, c := range catResult.Categories {

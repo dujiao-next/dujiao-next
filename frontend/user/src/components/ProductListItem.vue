@@ -71,7 +71,16 @@
     <div class="flex-shrink-0 flex items-center gap-1 sm:gap-3 pr-1.5 sm:pr-4">
       <!-- Price -->
       <div class="text-right">
-        <div v-if="hasPromotionPrice(product)" class="flex flex-col items-end">
+        <div v-if="exclusivePrice !== null" class="flex flex-col items-end">
+          <span class="text-xs sm:text-sm font-bold text-amber-600 dark:text-amber-300 whitespace-nowrap">
+            {{ formatPrice(exclusivePrice, siteCurrency) }}
+          </span>
+          <div class="flex items-center gap-1">
+            <span class="text-[10px] text-muted-foreground line-through">{{ formatPrice(product.price_amount, siteCurrency) }}</span>
+            <Badge variant="warning" size="xs" class="px-1 py-0 text-[9px] leading-tight">{{ t('products.memberPriceTag') }}</Badge>
+          </div>
+        </div>
+        <div v-else-if="hasPromotionPrice(product)" class="flex flex-col items-end">
           <span class="text-xs sm:text-sm font-bold text-destructive whitespace-nowrap">
             {{ formatPrice(getPromotionPriceAmount(product), siteCurrency) }}
           </span>
@@ -113,6 +122,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronRight, Image as ImageIcon, ShoppingCart } from 'lucide-vue-next'
 import { getFirstImageUrl, getImageUrl } from '../utils/image'
@@ -121,7 +131,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   product: any
   index?: number
   animationStep?: number
@@ -137,5 +147,6 @@ defineEmits<{
 
 const { t } = useI18n()
 const { getLocalizedText, siteCurrency, formatPrice } = useLocalized()
-const { getPurchaseTypeLabel, getFulfillmentTypeLabel, getStockBadgeVariant, getStockStatusLabel, isSoldOut, hasPromotionPrice, getPromotionPriceAmount, hasPromotionRules, hasWholesalePrices } = useProductLabels()
+const { getPurchaseTypeLabel, getFulfillmentTypeLabel, getStockBadgeVariant, getStockStatusLabel, isSoldOut, hasPromotionPrice, getPromotionPriceAmount, hasPromotionRules, hasWholesalePrices, getCardExclusivePrice } = useProductLabels()
+const exclusivePrice = computed(() => getCardExclusivePrice(props.product))
 </script>

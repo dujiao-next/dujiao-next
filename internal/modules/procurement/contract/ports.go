@@ -43,7 +43,9 @@ type Enqueuer interface {
 }
 
 type OrderLifecycle interface {
-	CreateUpstreamFulfillment(orderID uint, fulfillment *Fulfillment, now time.Time) error
+	// DeliverUpstreamOrder 在同一事务内复核本地订单状态、写入交付记录（fulfillment 可为 nil）
+	// 并把订单置为已交付。订单已全额退款或已取消时返回 false，不做任何写入。
+	DeliverUpstreamOrder(orderID uint, fulfillment *Fulfillment, now time.Time) (delivered bool, err error)
 	SyncParentStatus(parentID uint, now time.Time) (string, error)
 	EnqueueStatusEmail(orderID uint, status string) (skipped bool, err error)
 }

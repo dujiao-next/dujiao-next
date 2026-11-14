@@ -35,6 +35,28 @@ func TestValidateChannelStripeOfficial(t *testing.T) {
 	}
 }
 
+func TestValidateChannelStripeOfficialDynamicPaymentMethods(t *testing.T) {
+	svc := buildMinimalPaymentServiceWithRegistry(t)
+	channel := &paymentdomain.PaymentChannel{
+		ProviderType:    constants.PaymentProviderOfficial,
+		ChannelType:     constants.PaymentChannelTypeStripe,
+		InteractionMode: constants.PaymentInteractionRedirect,
+		FeeRate:         money.FromDecimal(decimal.Zero),
+		ConfigJSON: jsonmap.JSON{
+			"secret_key":      "sk_test_123456",
+			"webhook_secret":  "whsec_123456",
+			"success_url":     "https://example.com/payment?stripe_return=1",
+			"cancel_url":      "https://example.com/payment?stripe_cancel=1",
+			"api_base_url":    "https://api.stripe.com",
+			"publishable_key": "pk_test_123456",
+			// 不传 payment_method_types，对应新版 API 使用 Dashboard 动态支付方式的场景
+		},
+	}
+	if err := svc.ValidateChannel(channel); err != nil {
+		t.Fatalf("validate stripe channel with dynamic payment methods failed: %v", err)
+	}
+}
+
 func TestValidateChannelStripeInvalidInteractionMode(t *testing.T) {
 	svc := buildMinimalPaymentServiceWithRegistry(t)
 	channel := &paymentdomain.PaymentChannel{

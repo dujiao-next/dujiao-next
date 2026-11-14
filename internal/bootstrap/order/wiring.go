@@ -25,6 +25,7 @@ func New(c *container.Container) Handlers {
 			orderAdminPromotionAdapter{promotions: c.PromotionRepo},
 			orderAdminPaymentAdapter{payments: c.PaymentStore},
 			orderAdminPaymentChannelAdapter{channels: c.PaymentChannelStore},
+			orderAdminAccountingAdapter{settings: c.SettingService},
 		),
 		AdminRefund: NewAdminRefundHandler(c),
 		User: ordertransport.NewUserHandler(
