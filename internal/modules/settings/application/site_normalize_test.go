@@ -7,6 +7,8 @@ import (
 
 	"github.com/dujiao-next/internal/config"
 	"github.com/dujiao-next/internal/constants"
+
+	settingscontract "github.com/dujiao-next/internal/modules/settings/contract"
 )
 
 func TestUpdateOrderSettingNormalized(t *testing.T) {
@@ -489,7 +491,7 @@ func TestUpdateOrderRefundSettingNormalized(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse normalized max_refund_days failed: %v", err)
 	}
-	if maxDays != NormalizeOrderRefundConfig(OrderRefundConfig{MaxRefundDays: 5000}).MaxRefundDays {
+	if maxDays != NormalizeOrderRefundConfig(settingscontract.OrderRefundConfig{MaxRefundDays: 5000}).MaxRefundDays {
 		t.Fatalf("unexpected clamped max_refund_days: %v", result[OrderConfigFieldMaxRefundDays])
 	}
 }

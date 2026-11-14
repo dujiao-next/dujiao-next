@@ -4,12 +4,14 @@ import (
 	"errors"
 	"strings"
 
-	walletcontract "github.com/dujiao-next/internal/modules/wallet/contract"
-	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 	"github.com/dujiao-next/internal/persistence/gormutil"
-
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+
+	memberlevelgormstore "github.com/dujiao-next/internal/modules/memberlevel/infrastructure/gormstore"
+	walletcontract "github.com/dujiao-next/internal/modules/wallet/contract"
+	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 )
 
 type Store struct{ db *gorm.DB }
@@ -40,6 +42,9 @@ func UseTransaction(tx *gorm.DB) walletcontract.Transaction {
 }
 
 func (s *Store) WithinTransaction(fn func(walletcontract.Transaction) error) error {
+	if s == nil || s.db == nil {
+		return walletcontract.ErrTransactionRequired
+	}
 	if fn == nil {
 		return nil
 	}
@@ -185,6 +190,11 @@ func (s *Store) CreateRechargeOrder(order *walletdomain.RechargeOrder) error {
 
 func (s *Store) UpdateRechargeOrder(order *walletdomain.RechargeOrder) error {
 	return s.db.Save(order).Error
+}
+
+// ApplyRechargeRefund 使用当前退款事务扣回用户累计充值并检查等级回退。
+func (s *Store) ApplyRechargeRefund(userID uint, amount decimal.Decimal) error {
+	return memberlevelgormstore.OnRechargeRefunded(s.db, userID, amount)
 }
 
 func (s *Store) GetRechargeOrderByRechargeNo(userID uint, rechargeNo string) (*walletdomain.RechargeOrder, error) {
@@ -343,4 +353,24 @@ func (s *Store) GetRechargeOrdersByPaymentIDs(paymentIDs []uint) ([]walletdomain
 		return nil, err
 	}
 	return orders, nil
+}
+
+func (s *Store) GetRechargeOrderByID(id uint) (*walletdomain.RechargeOrder, error) {
+	if id == 0 {
+		return nil, nil
+	}
+	var order walletdomain.RechargeOrder
+	if err := s.db.Where("id = ? AND deleted_at IS NULL", id).First(&order).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &order, nil
+}
+
+func (s *Store) ListRechargeRefunds(id uint) ([]walletdomain.Transaction, error) {
+	rows := []walletdomain.Transaction{}
+	err := s.db.Where("recharge_order_id = ? AND type = ? AND deleted_at IS NULL", id, "admin_refund").Order("id DESC").Find(&rows).Error
+	return rows, err
 }

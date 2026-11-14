@@ -73,6 +73,18 @@ export const paymentStatusClass = (status?: string) => {
   }
 }
 
+export const rechargeStatusLabel = (t: TranslateFn, status?: string) => {
+  if (status === 'partially_refunded' || status === 'refunded') {
+    return t(`admin.walletRecharges.status.${status}`)
+  }
+  return paymentStatusLabel(t, status)
+}
+
+export const rechargeStatusClass = (status?: string) => {
+  if (status === 'partially_refunded' || status === 'refunded') return orderStatusClass(status)
+  return paymentStatusClass(status)
+}
+
 export const userStatusLabel = (t: TranslateFn, status?: string) => {
   if (!status) return '-'
   const map: Record<string, string> = {

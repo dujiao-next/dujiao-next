@@ -1,21 +1,35 @@
 package integrationtest
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
-	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
-	memberlevelapp "github.com/dujiao-next/internal/modules/memberlevel/application"
-	memberlevelcontract "github.com/dujiao-next/internal/modules/memberlevel/contract"
-	memberleveldomain "github.com/dujiao-next/internal/modules/memberlevel/domain"
 	"github.com/dujiao-next/internal/modules/memberlevel/infrastructure/gormstore"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/money"
 	"github.com/glebarez/sqlite"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
+
+	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
+	memberlevelapp "github.com/dujiao-next/internal/modules/memberlevel/application"
+	memberlevelcontract "github.com/dujiao-next/internal/modules/memberlevel/contract"
+	memberleveldomain "github.com/dujiao-next/internal/modules/memberlevel/domain"
 )
+
+// conflictingDowngradeRepository 模拟等级条件更新持续发生并发冲突。
+type conflictingDowngradeRepository struct {
+	memberlevelcontract.UserRepository
+	attempts int
+}
+
+// UpdateMemberLevelIfCurrent 始终返回未更新，验证降级失败不会被忽略。
+func (r *conflictingDowngradeRepository) UpdateMemberLevelIfCurrent(userID, currentLevelID, nextLevelID uint) (int64, error) {
+	r.attempts++
+	return 0, nil
+}
 
 func newMemberLevelServiceForTest(t *testing.T) (*memberlevelapp.Service, *gorm.DB) {
 	t.Helper()
@@ -158,6 +172,16 @@ func (r *concurrentUserRepository) IncrementTotalRecharged(userID uint, amount d
 	return r.base.IncrementTotalRecharged(userID, amount)
 }
 
+// DecrementTotalRecharged 转交事务测试使用的累计充值扣减。
+func (r *concurrentUserRepository) DecrementTotalRecharged(userID uint, amount decimal.Decimal) error {
+	return r.base.DecrementTotalRecharged(userID, amount)
+}
+
+// DecrementTotalSpent 转交累计消费扣减。
+func (r *concurrentUserRepository) DecrementTotalSpent(userID uint, amount decimal.Decimal) error {
+	return r.base.DecrementTotalSpent(userID, amount)
+}
+
 func (r *concurrentUserRepository) IncrementTotalSpent(userID uint, amount decimal.Decimal) error {
 	if err := r.base.IncrementTotalSpent(userID, amount); err != nil {
 		return err
@@ -247,5 +271,26 @@ func TestMemberLevelServiceUpdateLevelRejectsActiveSortOrderConflict(t *testing.
 	err := svc.UpdateLevel(&target)
 	if err == nil {
 		t.Fatalf("expected active sort_order conflict to be rejected")
+	}
+}
+
+func TestCheckAndDowngradeReturnsErrorOnPersistentConflict(t *testing.T) {
+	_, db := newMemberLevelServiceForTest(t)
+	_ = createMemberLevelFixture(t, db, "downgrade-default", 0, "0", true)
+	level := createMemberLevelFixture(t, db, "downgrade-gold", 20, "100", false)
+	user := createUserFixture(t, db, "downgrade-conflict@example.com", level.ID)
+	users := &conflictingDowngradeRepository{UserRepository: gormstore.NewUserStore(db)}
+	service := memberlevelapp.NewService(gormstore.NewLevelStore(db), gormstore.NewPriceStore(db), users, gormstore.NewUserPriceStore(db))
+	if err := service.CheckAndDowngrade(user.ID); !errors.Is(err, memberlevelcontract.ErrLevelUpdateConflict) {
+		t.Fatalf("expected update conflict, got %v", err)
+	}
+	if users.attempts != 3 {
+		t.Fatalf("attempts=%d", users.attempts)
+	}
+	if err := db.First(&user, user.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if user.MemberLevelID != level.ID {
+		t.Fatalf("level unexpectedly changed: %d", user.MemberLevelID)
 	}
 }

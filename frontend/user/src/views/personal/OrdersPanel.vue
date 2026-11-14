@@ -384,6 +384,8 @@ const rechargeStatusOptions = computed(() => [
   { value: '', label: t('orders.filters.statusAll') },
   { value: 'pending', label: t('personalCenter.wallet.rechargeStatus.pending') },
   { value: 'success', label: t('personalCenter.wallet.rechargeStatus.success') },
+  { value: 'partially_refunded', label: t('personalCenter.wallet.rechargeStatus.partially_refunded') },
+  { value: 'refunded', label: t('personalCenter.wallet.rechargeStatus.refunded') },
   { value: 'failed', label: t('personalCenter.wallet.rechargeStatus.failed') },
   { value: 'expired', label: t('personalCenter.wallet.rechargeStatus.expired') },
 ])
@@ -454,6 +456,7 @@ const rechargeStatusText = (status?: string) => {
 const rechargeStatusVariant = (status?: string): BadgeTone => {
   const normalized = String(status || '').toLowerCase()
   if (normalized === 'success') return 'success'
+  if (normalized === 'refunded') return 'info'
   if (normalized === 'failed' || normalized === 'expired') return 'danger'
   return 'warning'
 }

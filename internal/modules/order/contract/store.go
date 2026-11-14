@@ -3,6 +3,9 @@ package contract
 import (
 	"time"
 
+	"github.com/dujiao-next/internal/shared/money"
+	"github.com/shopspring/decimal"
+
 	affiliatecontract "github.com/dujiao-next/internal/modules/affiliate/contract"
 	cardsecretcontract "github.com/dujiao-next/internal/modules/cardsecret/contract"
 	productcontract "github.com/dujiao-next/internal/modules/catalog/product/contract"
@@ -12,7 +15,6 @@ import (
 	resellercontract "github.com/dujiao-next/internal/modules/reseller/contract"
 	resellerdomain "github.com/dujiao-next/internal/modules/reseller/domain"
 	walletcontract "github.com/dujiao-next/internal/modules/wallet/contract"
-	"github.com/dujiao-next/internal/shared/money"
 )
 
 // Store 是订单应用层所需的完整持久化端口。
@@ -56,6 +58,7 @@ type Store interface {
 	GetByIDForUpdateWithChildren(id uint) (*orderdomain.Order, error)
 
 	CreateRefundRecord(record *orderdomain.OrderRefundRecord) error
+	ApplyOrderRefund(userID uint, amount decimal.Decimal) error
 	GetRefundRecordByID(id uint) (*orderdomain.OrderRefundRecord, error)
 	GetRefundRecordByIDForUpdate(id uint) (*orderdomain.OrderRefundRecord, error)
 	UpdateRefundRecordPaymentFee(id uint, refunded bool, amount money.Amount, updatedAt time.Time) error

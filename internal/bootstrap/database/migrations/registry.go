@@ -2,6 +2,9 @@ package migrations
 
 import (
 	"github.com/dujiao-next/internal/constants"
+	"github.com/dujiao-next/internal/platform/database/gormdb"
+	"gorm.io/gorm"
+
 	affiliatedomain "github.com/dujiao-next/internal/modules/affiliate/domain"
 	apicredentialdomain "github.com/dujiao-next/internal/modules/apicredential/domain"
 	auditlogdomain "github.com/dujiao-next/internal/modules/auditlog/domain"
@@ -35,9 +38,6 @@ import (
 	siteconnectiondomain "github.com/dujiao-next/internal/modules/siteconnection/domain"
 	broadcastdomain "github.com/dujiao-next/internal/modules/telegram/broadcast/domain"
 	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
-	"github.com/dujiao-next/internal/platform/database/gormdb"
-
-	"gorm.io/gorm"
 )
 
 // AutoMigrate owns the application-wide schema registry and ordered data migrations.

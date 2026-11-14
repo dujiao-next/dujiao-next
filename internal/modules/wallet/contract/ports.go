@@ -3,8 +3,10 @@ package contract
 import (
 	"time"
 
-	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 	"github.com/dujiao-next/internal/shared/money"
+	"github.com/shopspring/decimal"
+
+	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 )
 
 // Repository owns all wallet aggregate persistence. Transactional callers
@@ -22,8 +24,11 @@ type Repository interface {
 	CountOrderTransactionsByType(orderID uint, transactionType string) (int64, error)
 	ListTransactions(filter TransactionListFilter) ([]walletdomain.Transaction, int64, error)
 
+	ListRechargeRefunds(id uint) ([]walletdomain.Transaction, error)
+	GetRechargeOrderByID(id uint) (*walletdomain.RechargeOrder, error)
 	CreateRechargeOrder(order *walletdomain.RechargeOrder) error
 	UpdateRechargeOrder(order *walletdomain.RechargeOrder) error
+	ApplyRechargeRefund(userID uint, amount decimal.Decimal) error
 	GetRechargeOrderByRechargeNo(userID uint, rechargeNo string) (*walletdomain.RechargeOrder, error)
 	GetRechargeOrderByPaymentID(paymentID uint) (*walletdomain.RechargeOrder, error)
 	GetRechargeOrderByPaymentIDAndUser(paymentID, userID uint) (*walletdomain.RechargeOrder, error)
@@ -41,6 +46,11 @@ type Transaction interface {
 
 type UnitOfWork interface {
 	WithinTransaction(fn func(Transaction) error) error
+}
+
+// RechargeRefundEmailQueue 将已完成的充值退款邮件加入异步队列。
+type RechargeRefundEmailQueue interface {
+	EnqueueRechargeRefundEmail(rechargeID, refundID uint, status string) error
 }
 
 type UseCase interface {

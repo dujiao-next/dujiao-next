@@ -6,23 +6,19 @@ import (
 	"testing"
 	"time"
 
-	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
-
-	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
-
-	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
-
-	categorydomain "github.com/dujiao-next/internal/modules/catalog/category/domain"
-
-	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
-
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/money"
-
 	"github.com/glebarez/sqlite"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
+
+	categorydomain "github.com/dujiao-next/internal/modules/catalog/category/domain"
+	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
+	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
+	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
+	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
+	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 )
 
 func setupDashboardRepositoryTest(t *testing.T) (*Store, *gorm.DB) {
@@ -38,7 +34,7 @@ func setupDashboardRepositoryTest(t *testing.T) (*Store, *gorm.DB) {
 	if err := db.AutoMigrate(&productdomain.ProductSKU{}); err != nil {
 		t.Fatalf("migrate dashboard sku models failed: %v", err)
 	}
-	if err := db.AutoMigrate(&paymentdomain.PaymentChannel{}, &paymentdomain.Payment{}, &orderdomain.OrderRefundRecord{}); err != nil {
+	if err := db.AutoMigrate(&paymentdomain.PaymentChannel{}, &paymentdomain.Payment{}, &orderdomain.OrderRefundRecord{}, &walletdomain.Transaction{}); err != nil {
 		t.Fatalf("migrate dashboard models failed: %v", err)
 	}
 	return New(db), db

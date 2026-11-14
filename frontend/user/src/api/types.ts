@@ -117,6 +117,7 @@ export interface WalletRechargeOrderData {
     amount: string
     payable_amount: string
     fee_amount: string
+    refunded_amount: string
     currency: string
     status: string
     remark: string

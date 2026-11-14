@@ -4,18 +4,17 @@ import (
 	"errors"
 	"fmt"
 
-	paymentapp "github.com/dujiao-next/internal/modules/payment/application"
-
-	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
-
 	"github.com/dujiao-next/internal/constants"
+	"github.com/dujiao-next/internal/shared/money"
+
 	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
 	orderapp "github.com/dujiao-next/internal/modules/order/application"
+	paymentapp "github.com/dujiao-next/internal/modules/payment/application"
+	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
 	walletapp "github.com/dujiao-next/internal/modules/wallet/application"
 	walletcontract "github.com/dujiao-next/internal/modules/wallet/contract"
 	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 	wallettransport "github.com/dujiao-next/internal/modules/wallet/transport/http"
-	"github.com/dujiao-next/internal/shared/money"
 )
 
 // walletTransportAdapter composes wallet use cases with payment capabilities
@@ -132,6 +131,9 @@ func mapWalletTransportError(err error) error {
 		target error
 	}{
 		{walletcontract.ErrInvalidAmount, wallettransport.ErrInvalidAmount},
+		{walletcontract.ErrRefundExceeded, wallettransport.ErrRechargeRefundExceeded},
+		{walletcontract.ErrRechargeStatusInvalid, wallettransport.ErrRechargeStatusInvalid},
+		{walletcontract.ErrRechargeRefundExpired, wallettransport.ErrRechargeRefundExpired},
 		{walletcontract.ErrInsufficientBalance, wallettransport.ErrInsufficientBalance},
 		{walletcontract.ErrNotSupportedForGuest, wallettransport.ErrNotSupportedForGuest},
 		{walletcontract.ErrRechargeNotFound, wallettransport.ErrRechargeNotFound},
@@ -157,4 +159,37 @@ func mapWalletTransportError(err error) error {
 		}
 	}
 	return err
+}
+
+// GetRechargeDetail 将后台充值详情查询转交支付服务，返回充值单及关联支付记录。
+func (a walletTransportAdapter) GetRechargeDetail(id uint) (*walletdomain.RechargeOrder, *paymentdomain.Payment, error) {
+	return a.payments.GetWalletRechargeDetail(id)
+}
+
+// IsRechargeRefundWindowExpired 使用订单退款配置判断充值单的退款期限。
+func (a walletTransportAdapter) IsRechargeRefundWindowExpired(recharge *walletdomain.RechargeOrder) (bool, error) {
+	return a.wallets.IsRechargeRefundWindowExpired(recharge)
+}
+
+func (a walletTransportAdapter) ConfirmRecharge(input wallettransport.ConfirmRechargeInput) error {
+	_, err := a.payments.ManualConfirmWalletRecharge(paymentapp.ManualConfirmWalletRechargeInput{RechargeID: input.RechargeID, PaymentID: input.PaymentID, AdminID: input.AdminID, ProviderRef: input.ProviderRef, Remark: input.Remark})
+	return err
+}
+
+// RefundRecharge 读取支付手续费快照后登记充值退款，所有快照查询均在钱包事务开始前完成。
+func (a walletTransportAdapter) RefundRecharge(input wallettransport.RechargeRefundInput) error {
+	refund := walletcontract.RechargeRefundInput{
+		PaymentFeeRefunded: input.PaymentFeeRefunded, RechargeID: input.RechargeID, AdminID: input.AdminID, Amount: input.Amount, Remark: input.Remark, RequestID: input.RequestID,
+	}
+	if input.PaymentFeeRefunded {
+		snapshot, err := a.payments.GetWalletRechargeRefundFeeSnapshot(input.RechargeID)
+		if err != nil {
+			return mapWalletTransportError(err)
+		}
+		refund.FeeSnapshot = snapshot
+	}
+	return mapWalletTransportError(a.wallets.RefundRecharge(refund))
+}
+func (a walletTransportAdapter) ListRechargeRefunds(id uint) ([]walletdomain.Transaction, error) {
+	return a.wallets.ListRechargeRefunds(id)
 }
