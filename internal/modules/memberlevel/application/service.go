@@ -413,13 +413,16 @@ func (s *Service) OnOrderPaid(userID uint, amount decimal.Decimal) error {
 	return s.CheckAndUpgrade(userID)
 }
 
-// OnOrderRefunded 扣回本次订单退款对应的累计消费，保持当前会员等级不变。
+// OnOrderRefunded 扣回本次订单退款对应的累计消费，并检查会员等级回退。
 // 调用方须将仓储绑定到订单退款事务。
 func (s *Service) OnOrderRefunded(userID uint, amount decimal.Decimal) error {
 	if userID == 0 || !amount.Round(2).IsPositive() {
 		return nil
 	}
-	return s.userRepo.DecrementTotalSpent(userID, amount)
+	if err := s.userRepo.DecrementTotalSpent(userID, amount); err != nil {
+		return err
+	}
+	return s.CheckAndDowngrade(userID)
 }
 
 // AssignDefaultLevel 为新用户分配默认等级

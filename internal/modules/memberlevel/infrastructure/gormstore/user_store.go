@@ -58,6 +58,12 @@ func (r *UserStore) DecrementTotalSpent(userID uint, amount decimal.Decimal) err
 	return DecrementTotalSpent(r.db, userID, amount)
 }
 
+// OnOrderRefunded 在调用方的退款事务内扣回累计消费并检查等级回退。
+func OnOrderRefunded(tx *gorm.DB, userID uint, amount decimal.Decimal) error {
+	service := memberlevelapp.NewService(NewLevelStore(tx), NewPriceStore(tx), NewUserStore(tx), NewUserPriceStore(tx))
+	return service.OnOrderRefunded(userID, amount)
+}
+
 // OnRechargeRefunded 在调用方的退款事务内扣回累计充值并检查等级回退。
 func OnRechargeRefunded(tx *gorm.DB, userID uint, amount decimal.Decimal) error {
 	service := memberlevelapp.NewService(NewLevelStore(tx), NewPriceStore(tx), NewUserStore(tx), NewUserPriceStore(tx))

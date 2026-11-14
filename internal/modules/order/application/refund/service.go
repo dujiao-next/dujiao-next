@@ -382,7 +382,7 @@ func (s *Service) AdminManualRefund(input AdminManualRefundInput) (*orderdomain.
 				return err
 			}
 		}
-		if err := orders.DecrementTotalSpent(order.UserID, amount); err != nil {
+		if err := orders.ApplyOrderRefund(order.UserID, amount); err != nil {
 			return err
 		}
 		return nil
