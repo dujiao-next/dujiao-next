@@ -192,9 +192,9 @@ func (s *Store) UpdateRechargeOrder(order *walletdomain.RechargeOrder) error {
 	return s.db.Save(order).Error
 }
 
-// DecrementTotalRecharged 使用当前仓储的事务连接扣回用户累计充值。
-func (s *Store) DecrementTotalRecharged(userID uint, amount decimal.Decimal) error {
-	return memberlevelgormstore.DecrementTotalRecharged(s.db, userID, amount)
+// ApplyRechargeRefund 使用当前退款事务扣回用户累计充值并检查等级回退。
+func (s *Store) ApplyRechargeRefund(userID uint, amount decimal.Decimal) error {
+	return memberlevelgormstore.OnRechargeRefunded(s.db, userID, amount)
 }
 
 func (s *Store) GetRechargeOrderByRechargeNo(userID uint, rechargeNo string) (*walletdomain.RechargeOrder, error) {

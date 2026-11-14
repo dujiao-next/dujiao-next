@@ -141,7 +141,7 @@ func (s *Service) RefundRecharge(input walletcontract.RechargeRefundInput) error
 		if err := repo.UpdateRechargeOrder(locked); err != nil {
 			return err
 		}
-		if err := repo.DecrementTotalRecharged(locked.UserID, amount); err != nil {
+		if err := repo.ApplyRechargeRefund(locked.UserID, amount); err != nil {
 			return err
 		}
 		refundID, refundStatus = transaction.ID, locked.Status

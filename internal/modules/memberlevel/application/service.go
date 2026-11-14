@@ -256,6 +256,74 @@ func (s *Service) CheckAndUpgrade(userID uint) error {
 	return nil
 }
 
+// CheckAndDowngrade 根据当前累计金额检查资格，仅在当前等级不再符合条件时回退。
+func (s *Service) CheckAndDowngrade(userID uint) error {
+	const maxDowngradeAttempts = 3
+	for attempt := 0; attempt < maxDowngradeAttempts; attempt++ {
+		user, err := s.userRepo.GetByID(userID)
+		if err != nil {
+			return err
+		}
+		if user == nil {
+			return memberlevelcontract.ErrUserNotFound
+		}
+		if user.MemberLevelID == 0 {
+			return nil
+		}
+		levels, err := s.levelRepo.ListAllActive()
+		if err != nil {
+			return err
+		}
+		var current *memberleveldomain.MemberLevel
+		for i := range levels {
+			if levels[i].ID == user.MemberLevelID {
+				current = &levels[i]
+				if s.meetsThreshold(user, current) {
+					return nil
+				}
+				break
+			}
+		}
+		if current == nil {
+			current, err = s.levelRepo.GetByID(user.MemberLevelID)
+			if err != nil {
+				return err
+			}
+		}
+		var targetID uint
+		for i := range levels {
+			level := &levels[i]
+			if current != nil && level.SortOrder >= current.SortOrder {
+				continue
+			}
+			if s.meetsThreshold(user, level) {
+				targetID = level.ID
+				break
+			}
+		}
+		if targetID == 0 {
+			fallback, err := s.levelRepo.GetDefault()
+			if err != nil {
+				return err
+			}
+			if fallback != nil {
+				targetID = fallback.ID
+			}
+		}
+		if targetID == user.MemberLevelID {
+			return nil
+		}
+		affected, err := s.userRepo.UpdateMemberLevelIfCurrent(user.ID, user.MemberLevelID, targetID)
+		if err != nil {
+			return err
+		}
+		if affected > 0 {
+			return nil
+		}
+	}
+	return memberlevelcontract.ErrLevelUpdateConflict
+}
+
 func (s *Service) findUpgradeTarget(user *userdomain.User, levels []memberleveldomain.MemberLevel) (*memberleveldomain.MemberLevel, error) {
 	if user == nil {
 		return nil, nil
@@ -322,13 +390,16 @@ func (s *Service) OnRechargeCompleted(userID uint, amount decimal.Decimal) error
 	return s.CheckAndUpgrade(userID)
 }
 
-// OnRechargeRefunded 扣回本次退款对应的累计充值，保持当前会员等级不变。
+// OnRechargeRefunded 扣回本次退款对应的累计充值，并检查会员等级回退。
 // 调用方须将仓储绑定到退款事务，保证扣款、退款记录与累计充值同步提交。
 func (s *Service) OnRechargeRefunded(userID uint, amount decimal.Decimal) error {
 	if userID == 0 || !amount.Round(2).IsPositive() {
 		return nil
 	}
-	return s.userRepo.DecrementTotalRecharged(userID, amount)
+	if err := s.userRepo.DecrementTotalRecharged(userID, amount); err != nil {
+		return err
+	}
+	return s.CheckAndDowngrade(userID)
 }
 
 // OnOrderPaid 订单支付成功后触发
