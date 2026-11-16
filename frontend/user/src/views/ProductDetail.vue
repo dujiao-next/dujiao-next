@@ -309,6 +309,9 @@
                       {{ t('productDetail.buyNow') }}
                     </Button>
                   </div>
+                  <Button v-if="canShareAffiliateLink" variant="ghost" class="w-full" @click="copyAffiliateLink">
+                    <Link2 class="h-4 w-4" /> {{ t('productDetail.copyAffiliateLink') }}
+                  </Button>
                 </div>
 
               </div>
@@ -413,7 +416,7 @@
 <script setup lang="ts">
 import { ref, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Lock, Minus, Pencil, Plus, RotateCw, Tag, UserPlus, Zap } from 'lucide-vue-next'
+import { ArrowLeft, Link2, Lock, Minus, Pencil, Plus, RotateCw, Tag, UserPlus, Zap } from 'lucide-vue-next'
 import { getImageUrl } from '../utils/image'
 import { processHtmlForDisplay } from '../utils/content'
 import { useProductDetail } from '../composables/useProductDetail'
@@ -468,6 +471,7 @@ const {
   categoryName, images,
   backToListTo,
   addToCart, buyNow, goLogin, loadProduct,
+  canShareAffiliateLink, copyAffiliateLink,
   mobileBarShowMemberPrice, mobileBarMemberPriceDisplay,
   mobileBarShowSkuPromotionPrice, mobileBarSkuPromotionPriceDisplay,
   mobileBarShowSkuPrice, mobileBarSkuPriceDisplay,

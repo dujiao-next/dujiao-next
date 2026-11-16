@@ -163,6 +163,8 @@ export interface GiftCardRedeemResult {
 export interface AffiliateDashboardData {
     opened: boolean
     affiliate_code: string
+    // 推广账号状态：disabled 时推广不再产生佣金（旧后端无此字段，视为 active）
+    status?: string
     promotion_path: string
     click_count: number
     valid_order_count: number
