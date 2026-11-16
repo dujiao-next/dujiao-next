@@ -61,8 +61,9 @@ export function useProductDetail(options: { onLoaded?: () => void } = {}) {
 
   const loading = ref(true)
   const product = ref<any>(null)
-  const { canShareAffiliateLink, copyAffiliateLink } = useAffiliateProductLink(
-    computed(() => String(product.value?.slug || ''))
+  const { canShareAffiliateLink, copyAffiliateLink, affiliateRateHint } = useAffiliateProductLink(
+    computed(() => String(product.value?.slug || '')),
+    { productId: () => Number(product.value?.id || 0), skuId: () => selectedSkuId.value },
   )
   const relatedPosts = computed<any[]>(() => product.value?.related_posts || [])
   const formatRelatedPostDate = (dateString: string) => {
@@ -732,7 +733,7 @@ export function useProductDetail(options: { onLoaded?: () => void } = {}) {
     // 动作
     addToCart, buyNow, goLogin, loadProduct,
     // 推广返利：复制带推广码的单品链接
-    canShareAffiliateLink, copyAffiliateLink,
+    canShareAffiliateLink, copyAffiliateLink, affiliateRateHint,
     // 移动端购买条
     mobileBarShowMemberPrice, mobileBarMemberPriceDisplay,
     mobileBarShowSkuPromotionPrice, mobileBarSkuPromotionPriceDisplay,

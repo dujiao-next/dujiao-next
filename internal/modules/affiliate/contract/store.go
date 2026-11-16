@@ -25,6 +25,7 @@ type ProductReader interface {
 // SKUReader 是 Affiliate 解析 SKU 级返利比例所需的最小规格读取端口。
 type SKUReader interface {
 	ListByIDs(ids []uint) ([]productdomain.ProductSKU, error)
+	ListByProduct(productID uint, onlyActive bool) ([]productdomain.ProductSKU, error)
 }
 
 // SettingsReader 是 Affiliate 所需的动态设置读取端口。

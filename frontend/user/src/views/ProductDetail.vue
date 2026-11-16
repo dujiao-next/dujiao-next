@@ -309,9 +309,12 @@
                       {{ t('productDetail.buyNow') }}
                     </Button>
                   </div>
-                  <Button v-if="canShareAffiliateLink" variant="ghost" class="w-full" @click="copyAffiliateLink">
-                    <Link2 class="h-4 w-4" /> {{ t('productDetail.copyAffiliateLink') }}
-                  </Button>
+                  <div v-if="canShareAffiliateLink" class="space-y-1">
+                    <Button variant="ghost" class="w-full" @click="copyAffiliateLink">
+                      <Link2 class="h-4 w-4" /> {{ t('productDetail.copyAffiliateLink') }}
+                    </Button>
+                    <p v-if="affiliateRateHint" class="text-center text-xs text-muted-foreground">{{ affiliateRateHint }}</p>
+                  </div>
                 </div>
 
               </div>
@@ -471,7 +474,7 @@ const {
   categoryName, images,
   backToListTo,
   addToCart, buyNow, goLogin, loadProduct,
-  canShareAffiliateLink, copyAffiliateLink,
+  canShareAffiliateLink, copyAffiliateLink, affiliateRateHint,
   mobileBarShowMemberPrice, mobileBarMemberPriceDisplay,
   mobileBarShowSkuPromotionPrice, mobileBarSkuPromotionPriceDisplay,
   mobileBarShowSkuPrice, mobileBarSkuPriceDisplay,
