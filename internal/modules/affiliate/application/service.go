@@ -20,7 +20,17 @@ type Service struct {
 	userRepo    usercontract.Store
 	orderRepo   affiliatecontract.OrderReader
 	productRepo affiliatecontract.ProductReader
+	skuRepo     affiliatecontract.SKUReader
 	settings    affiliatecontract.SettingsReader
+}
+
+// SetSKUReader 注入 SKU 读取依赖，用于解析 SKU 级返利比例。
+// 未注入时按商品级/全站比例计算，已有调用方无需改动。
+func (s *Service) SetSKUReader(reader affiliatecontract.SKUReader) {
+	if s == nil {
+		return
+	}
+	s.skuRepo = reader
 }
 
 // NewService 创建推广返利服务

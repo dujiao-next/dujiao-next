@@ -38,6 +38,8 @@ export interface AdminProductSKU {
   manual_stock_sold: number
   auto_stock_available: number
   auto_stock_total: number
+  // 返利比例（%）：缺省/null 继承商品与全站比例，0 表示该规格不参与返利
+  affiliate_rate_percent?: string | number | null
   is_active: boolean
   sort_order: number
   created_at: string
@@ -74,7 +76,8 @@ export interface AdminProduct {
   manual_stock_locked: number
   manual_stock_sold: number
   payment_channel_ids: string
-  is_affiliate_enabled: boolean
+  // 返利比例（%）：缺省/null 继承全站比例，0 表示该商品不参与返利
+  affiliate_rate_percent?: string | number | null
   auto_stock_available: number
   auto_stock_total: number
   auto_stock_locked: number
