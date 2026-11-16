@@ -6,6 +6,7 @@ export const affiliateAPI = {
         api.post('/public/affiliate/click', data),
     open: () => userApi.post('/affiliate/open'),
     dashboard: () => userApi.get('/affiliate/dashboard'),
+    productRates: (productId: number) => userApi.get(`/affiliate/products/${productId}/rates`),
     commissions: (params?: any) => userApi.get('/affiliate/commissions', { params }),
     withdraws: (params?: any) => userApi.get('/affiliate/withdraws', { params }),
     applyWithdraw: (data: AffiliateWithdrawApplyPayload) =>

@@ -2,6 +2,7 @@ package affiliatehttp
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 
 	affiliatedomain "github.com/dujiao-next/internal/modules/affiliate/domain"
@@ -21,6 +22,7 @@ type Service interface {
 	TrackClick(input affiliateapp.TrackClickInput) error
 	OpenAffiliate(userID uint) (*affiliatedomain.Profile, error)
 	GetUserDashboard(userID uint) (affiliateapp.Dashboard, error)
+	GetProductRates(userID, productID uint) (affiliateapp.ProductRates, error)
 	ListUserCommissions(userID uint, page, pageSize int, status string) ([]affiliatedomain.Commission, int64, error)
 	ListUserWithdraws(userID uint, page, pageSize int, status string) ([]affiliatedomain.WithdrawRequest, int64, error)
 	ApplyWithdraw(userID uint, input affiliateapp.WithdrawApplyInput) (*affiliatedomain.WithdrawRequest, error)
@@ -104,6 +106,34 @@ func (h *Handler) GetAffiliateDashboard(c *gin.Context) {
 	data, err := h.svc.GetUserDashboard(uid)
 	if err != nil {
 		ginutil.RespondError(c, response.CodeInternal, "error.user_fetch_failed", err)
+		return
+	}
+	response.Success(c, data)
+}
+
+// GetProductRates 查询当前推广员对某个商品及其规格生效的返利比例。
+func (h *Handler) GetProductRates(c *gin.Context) {
+	uid, ok := ginutil.GetUserID(c)
+	if !ok {
+		return
+	}
+	productID, err := strconv.ParseUint(strings.TrimSpace(c.Param("id")), 10, 64)
+	if err != nil || productID == 0 {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", nil)
+		return
+	}
+	data, err := h.svc.GetProductRates(uid, uint(productID))
+	if err != nil {
+		switch {
+		case errors.Is(err, affiliateapp.ErrDisabled):
+			ginutil.RespondError(c, response.CodeBadRequest, "error.forbidden", nil)
+		case errors.Is(err, affiliateapp.ErrNotOpened):
+			ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", nil)
+		case errors.Is(err, affiliateapp.ErrNotFound):
+			ginutil.RespondError(c, response.CodeNotFound, "error.bad_request", nil)
+		default:
+			ginutil.RespondError(c, response.CodeInternal, "error.user_fetch_failed", err)
+		}
 		return
 	}
 	response.Success(c, data)

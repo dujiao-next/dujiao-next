@@ -1,6 +1,7 @@
 package integrationtest
 
 import (
+	"errors"
 	"testing"
 
 	affiliateapp "github.com/dujiao-next/internal/modules/affiliate/application"
@@ -25,6 +26,10 @@ func (r rateProductReader) ListByIDs([]uint) ([]productdomain.Product, error) { 
 type rateSKUReader struct{ skus []productdomain.ProductSKU }
 
 func (r rateSKUReader) ListByIDs([]uint) ([]productdomain.ProductSKU, error) { return r.skus, nil }
+
+func (r rateSKUReader) ListByProduct(uint, bool) ([]productdomain.ProductSKU, error) {
+	return r.skus, nil
+}
 
 func ratePtr(v string) *money.Amount {
 	a := money.FromDecimal(decimal.RequireFromString(v))
@@ -218,4 +223,90 @@ func TestResolveAffiliateRate(t *testing.T) {
 			}
 		})
 	}
+}
+
+// 推广员看到的比例必须与结算使用同一套解析：SKU → 商品 → 全站，且只对已开通、未停用的推广员开放。
+func TestGetProductRates(t *testing.T) {
+	setup := func(t *testing.T, globalRate float64, enabled bool, profileStatus string, products []productdomain.Product, skus []productdomain.ProductSKU) (*affiliateapp.Service, uint) {
+		t.Helper()
+		_, db, _ := setupAffiliateServiceTest(t)
+		user := createAffiliateTestUser(t, db, "rates@example.com")
+		if profileStatus != "" {
+			createAffiliateTestProfile(t, db, user.ID, "RATES001", profileStatus)
+		}
+		settings := settingsapp.NewService(memorysettings.New())
+		if _, err := settings.UpdateAffiliateSetting(settingsintegration.AffiliateSetting{Enabled: enabled, CommissionRate: globalRate}); err != nil {
+			t.Fatalf("init affiliate setting: %v", err)
+		}
+		svc := affiliateapp.NewService(affiliategormstore.New(db), userstore.New(db), staticOrderReader{}, rateProductReader{products}, settings)
+		svc.SetSKUReader(rateSKUReader{skus})
+		return svc, user.ID
+	}
+	active := constants.AffiliateProfileStatusActive
+
+	t.Run("resolves sku then product then global", func(t *testing.T) {
+		svc, uid := setup(t, 10, true, active,
+			[]productdomain.Product{{ID: 1, IsActive: true, AffiliateRatePercent: ratePtr("30")}},
+			[]productdomain.ProductSKU{
+				{ID: 11, ProductID: 1},
+				{ID: 12, ProductID: 1, AffiliateRatePercent: ratePtr("50")},
+				{ID: 13, ProductID: 1, AffiliateRatePercent: ratePtr("0")},
+			})
+		got, err := svc.GetProductRates(uid, 1)
+		if err != nil {
+			t.Fatalf("GetProductRates: %v", err)
+		}
+		if got.RatePercent.String() != "30.00" {
+			t.Errorf("product rate = %s, want 30.00", got.RatePercent.String())
+		}
+		want := map[uint]string{11: "30.00", 12: "50.00", 13: "0.00"}
+		if len(got.SKUs) != len(want) {
+			t.Fatalf("sku rates = %d, want %d", len(got.SKUs), len(want))
+		}
+		for _, sku := range got.SKUs {
+			if sku.RatePercent.String() != want[sku.SKUID] {
+				t.Errorf("sku %d rate = %s, want %s", sku.SKUID, sku.RatePercent.String(), want[sku.SKUID])
+			}
+		}
+	})
+
+	t.Run("product without override inherits global", func(t *testing.T) {
+		svc, uid := setup(t, 12.5, true, active, []productdomain.Product{{ID: 1, IsActive: true}}, nil)
+		got, err := svc.GetProductRates(uid, 1)
+		if err != nil || got.RatePercent.String() != "12.50" {
+			t.Fatalf("rate = %s err=%v, want 12.50", got.RatePercent.String(), err)
+		}
+	})
+
+	t.Run("disabled profile is rejected", func(t *testing.T) {
+		svc, uid := setup(t, 10, true, constants.AffiliateProfileStatusDisabled, []productdomain.Product{{ID: 1, IsActive: true}}, nil)
+		if _, err := svc.GetProductRates(uid, 1); !errors.Is(err, affiliateapp.ErrNotOpened) {
+			t.Fatalf("err = %v, want ErrNotOpened", err)
+		}
+	})
+
+	t.Run("user without affiliate profile is rejected", func(t *testing.T) {
+		svc, uid := setup(t, 10, true, "", []productdomain.Product{{ID: 1, IsActive: true}}, nil)
+		if _, err := svc.GetProductRates(uid, 1); !errors.Is(err, affiliateapp.ErrNotOpened) {
+			t.Fatalf("err = %v, want ErrNotOpened", err)
+		}
+	})
+
+	t.Run("site affiliate switched off is rejected", func(t *testing.T) {
+		svc, uid := setup(t, 10, false, active, []productdomain.Product{{ID: 1, IsActive: true}}, nil)
+		if _, err := svc.GetProductRates(uid, 1); !errors.Is(err, affiliateapp.ErrDisabled) {
+			t.Fatalf("err = %v, want ErrDisabled", err)
+		}
+	})
+
+	t.Run("inactive or missing product is not found", func(t *testing.T) {
+		svc, uid := setup(t, 10, true, active, []productdomain.Product{{ID: 1, IsActive: false}}, nil)
+		if _, err := svc.GetProductRates(uid, 1); !errors.Is(err, affiliateapp.ErrNotFound) {
+			t.Fatalf("inactive: err = %v, want ErrNotFound", err)
+		}
+		svc, uid = setup(t, 10, true, active, nil, nil)
+		if _, err := svc.GetProductRates(uid, 1); !errors.Is(err, affiliateapp.ErrNotFound) {
+			t.Fatalf("missing: err = %v, want ErrNotFound", err)
+		}
+	})
 }

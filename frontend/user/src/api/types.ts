@@ -160,6 +160,12 @@ export interface GiftCardRedeemResult {
     wallet_delta: string
 }
 
+// 推广员对某个商品生效的返利比例（0 表示不参与返利）
+export interface AffiliateProductRatesData {
+    rate_percent: string
+    skus: Array<{ sku_id: number; rate_percent: string }>
+}
+
 export interface AffiliateDashboardData {
     opened: boolean
     affiliate_code: string

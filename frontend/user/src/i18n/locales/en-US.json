@@ -204,6 +204,8 @@
     "copyAffiliateLink": "Copy affiliate link",
     "copyAffiliateLinkSuccess": "Affiliate link copied",
     "copyAffiliateLinkFailed": "Copy failed, please copy it manually",
+    "affiliateRateHint": "Earn {rate}% commission by promoting this product",
+    "affiliateRateNone": "This product is not eligible for affiliate commission",
     "buyNow": "Buy now",
     "categoryLabel": "Category",
     "fulfillmentLabel": "Fulfillment",

@@ -2,6 +2,7 @@ import { computed, ref, watch, type Ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { affiliateAPI } from '../api'
+import type { AffiliateProductRatesData } from '../api/types'
 import { useAppStore } from '../stores/app'
 import { useUserAuthStore } from '../stores/userAuth'
 import { toast } from './useToast'
@@ -35,7 +36,11 @@ const loadAffiliateCode = async (token: string, isStale: () => boolean): Promise
   }
 }
 
-export function useAffiliateProductLink(slug: Ref<string>) {
+export function useAffiliateProductLink(
+  slug: Ref<string>,
+  // 用 getter 惰性读取：调用方的商品/规格状态在本 composable 之后才声明。
+  options: { productId: () => number; skuId: () => number },
+) {
   const router = useRouter()
   const { t } = useI18n()
   const appStore = useAppStore()
@@ -58,6 +63,38 @@ export function useAffiliateProductLink(slug: Ref<string>) {
 
   const canShareAffiliateLink = computed(() => Boolean(code.value && slug.value))
 
+  // 推广员对当前商品生效的返利比例。比例由后端按 SKU → 商品 → 全站解析（与结算同一套逻辑），
+  // 前端只负责展示，不做任何推算；只给比例不给金额，因为金额取决于数量、会员价与优惠券。
+  const rates = ref<AffiliateProductRatesData | null>(null)
+  watch(
+    [code, () => options.productId()],
+    async ([currentCode, productId]) => {
+      rates.value = null
+      if (!currentCode || !productId) return
+      try {
+        const response = await affiliateAPI.productRates(productId)
+        // 请求期间商品或账号可能已切换，过期结果丢弃。
+        if (code.value === currentCode && options.productId() === productId) {
+          rates.value = response.data?.data || null
+        }
+      } catch {
+        rates.value = null
+      }
+    },
+    { immediate: true },
+  )
+
+  const affiliateRateHint = computed(() => {
+    if (!canShareAffiliateLink.value || !rates.value) return ''
+    const skuId = options.skuId()
+    const matched = skuId > 0 ? rates.value.skus.find((item) => item.sku_id === skuId) : undefined
+    const rate = Number((matched || rates.value).rate_percent)
+    if (!Number.isFinite(rate)) return ''
+    return rate > 0
+      ? t('productDetail.affiliateRateHint', { rate })
+      : t('productDetail.affiliateRateNone')
+  })
+
   const affiliateProductLink = computed(() => {
     if (!canShareAffiliateLink.value) return ''
     const resolved = router.resolve({
@@ -78,5 +115,5 @@ export function useAffiliateProductLink(slug: Ref<string>) {
     }
   }
 
-  return { canShareAffiliateLink, copyAffiliateLink }
+  return { canShareAffiliateLink, copyAffiliateLink, affiliateRateHint }
 }

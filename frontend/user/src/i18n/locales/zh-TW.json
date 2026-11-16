@@ -204,6 +204,8 @@
     "copyAffiliateLink": "複製推廣連結",
     "copyAffiliateLinkSuccess": "推廣連結已複製",
     "copyAffiliateLinkFailed": "複製失敗，請手動複製",
+    "affiliateRateHint": "推廣此商品可獲 {rate}% 返利",
+    "affiliateRateNone": "此商品不參與推廣返利",
     "buyNow": "立即購買",
     "categoryLabel": "分類",
     "fulfillmentLabel": "交付方式",
