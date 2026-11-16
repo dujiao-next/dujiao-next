@@ -28,6 +28,7 @@ type WithdrawApplyInput struct {
 type Dashboard struct {
 	Opened              bool         `json:"opened"`
 	AffiliateCode       string       `json:"affiliate_code"`
+	Status              string       `json:"status"` // 推广账号状态（active/disabled），停用后推广不再产生佣金
 	PromotionPath       string       `json:"promotion_path"`
 	ClickCount          int64        `json:"click_count"`
 	ValidOrderCount     int64        `json:"valid_order_count"`

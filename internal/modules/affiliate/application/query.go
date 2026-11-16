@@ -38,6 +38,7 @@ func (s *Service) GetUserDashboard(userID uint) (Dashboard, error) {
 	}
 	dashboard.Opened = true
 	dashboard.AffiliateCode = profile.AffiliateCode
+	dashboard.Status = profile.Status
 	dashboard.PromotionPath = "/?aff=" + profile.AffiliateCode
 	dashboard.ClickCount = stats.ClickCount
 	dashboard.ValidOrderCount = stats.ValidOrderCount

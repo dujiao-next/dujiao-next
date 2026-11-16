@@ -176,6 +176,7 @@
               <Button class="h-12 flex-1 rounded-full text-[17px] font-bold" :disabled="!canPurchase" @click="buyNow"><Zap /> {{ t('productDetail.buyNow') }}</Button>
               <Button variant="outline" class="h-12 rounded-full text-[17px] font-bold" :disabled="!canPurchase" @click="addToCart"><ShoppingCart /> {{ t('productDetail.addToCart') }}</Button>
             </template>
+            <Button v-if="canShareAffiliateLink" variant="ghost" class="h-10 w-full rounded-full text-[15px] font-semibold" @click="copyAffiliateLink"><Link2 /> {{ t('productDetail.copyAffiliateLink') }}</Button>
           </div>
 
           <div class="mt-4 flex items-center gap-3 rounded-md bg-[color:var(--teal-soft)] px-[18px] py-3.5 text-[color:var(--teal-strong)]">
@@ -249,7 +250,7 @@
 import { computed, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  AlertCircle, ArrowLeft, ChevronRight, Lock, Minus, Package, Pencil, Plus,
+  AlertCircle, ArrowLeft, ChevronRight, Link2, Lock, Minus, Package, Pencil, Plus,
   RotateCw, ShoppingCart, Tag, TicketCheck, UserPlus, Zap,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -297,6 +298,7 @@ const {
   categoryName, images,
   backToListTo,
   addToCart, buyNow, goLogin, loadProduct,
+  canShareAffiliateLink, copyAffiliateLink,
   mobileBarShowMemberPrice, mobileBarMemberPriceDisplay,
   mobileBarShowSkuPromotionPrice, mobileBarSkuPromotionPriceDisplay,
   mobileBarShowSkuPrice, mobileBarSkuPriceDisplay,
