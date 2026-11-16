@@ -33,6 +33,7 @@ const (
 	paymentFeePolicyMigrationSettingKey             = "migration/payment_fee_policy_v1"
 	orderRefundPaymentFeeMigrationSettingKey        = "migration/order_refund_payment_fee_v1"
 	orderItemOriginalPriceMigrationKey              = "migration/order_item_original_price_v1"
+	productAffiliateRateMigrationKey                = "migration/product_affiliate_rate_v1"
 	paymentChannelNameI18nMigrationKey              = "migration/payment_channel_name_i18n_v1"
 	manualStockUnlimitedValue                       = -1
 	cartProductForeignKeyConstraint                 = "fk_cart_items_product"
@@ -421,6 +422,49 @@ func ensureOrderItemOriginalPriceMigration() error {
 
 		marker := settingsstore.SettingRecord{
 			Key: orderItemOriginalPriceMigrationKey,
+			ValueJSON: jsonmap.JSON{
+				"done":        true,
+				"migrated_at": time.Now().UTC().Format(time.RFC3339),
+			},
+		}
+		return tx.Save(&marker).Error
+	})
+}
+
+// ensureProductAffiliateRateMigration 把旧的“是否参与返利”布尔开关迁移为商品级返利比例。
+//
+// 旧语义 → 新语义：
+//   - is_affiliate_enabled = true  → affiliate_rate_percent 保持 NULL（跟随全站比例）
+//   - is_affiliate_enabled = false → affiliate_rate_percent = 0（不参与返利）
+//
+// 必须只执行一次：旧列在已有库中会保留且默认 false，重复执行会把迁移后新建的商品误改为“不参与”。
+// 全新安装没有旧列，直接写入标记。
+func ensureProductAffiliateRateMigration() error {
+	if gormdb.DB == nil {
+		return errors.New("database is not initialized")
+	}
+
+	var marker settingsstore.SettingRecord
+	if err := gormdb.DB.First(&marker, "key = ?", productAffiliateRateMigrationKey).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+	} else if migrationDone(marker.ValueJSON) {
+		return nil
+	}
+
+	return gormdb.DB.Transaction(func(tx *gorm.DB) error {
+		if tx.Migrator().HasColumn(&productdomain.Product{}, "is_affiliate_enabled") {
+			if err := tx.Model(&productdomain.Product{}).
+				Where("is_affiliate_enabled = ? AND affiliate_rate_percent IS NULL", false).
+				Update("affiliate_rate_percent", 0).
+				Error; err != nil {
+				return err
+			}
+		}
+
+		marker := settingsstore.SettingRecord{
+			Key: productAffiliateRateMigrationKey,
 			ValueJSON: jsonmap.JSON{
 				"done":        true,
 				"migrated_at": time.Now().UTC().Format(time.RFC3339),

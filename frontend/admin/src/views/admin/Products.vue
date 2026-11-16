@@ -216,6 +216,28 @@ const fulfillmentTypeBadgeClass = (product: AdminProduct) => {
     : 'border-amber-200 bg-amber-50 text-amber-700'
 }
 
+// 返利比例：null/缺省 = 继承全站，0 = 不参与，其余为商品级自定义比例。
+const resolveAffiliateRate = (product: AdminProduct): number | null => {
+  const raw = product?.affiliate_rate_percent
+  if (raw === null || raw === undefined || raw === '') return null
+  const value = Number(raw)
+  return Number.isFinite(value) ? value : null
+}
+
+const affiliateBadgeClass = (product: AdminProduct) => {
+  const rate = resolveAffiliateRate(product)
+  if (rate === null) return 'border-border bg-muted/30 text-muted-foreground'
+  if (rate === 0) return 'border-border bg-muted/30 text-muted-foreground'
+  return 'border-sky-200 bg-sky-50 text-sky-700'
+}
+
+const affiliateBadgeText = (product: AdminProduct) => {
+  const rate = resolveAffiliateRate(product)
+  if (rate === null) return t('admin.products.affiliate.inherit')
+  if (rate === 0) return t('admin.products.affiliate.disabled')
+  return t('admin.products.affiliate.custom', { rate })
+}
+
 const manualStockBadgeClass = (product: AdminProduct) => {
   const total = resolveManualStockMetrics(product).total
   if (total === -1) {
@@ -683,9 +705,9 @@ watch(
                     </span>
                     <span
                       class="rounded-full border px-2 py-0.5 text-[11px]"
-                      :class="product.is_affiliate_enabled ? 'border-sky-200 bg-sky-50 text-sky-700' : 'border-border bg-muted/30 text-muted-foreground'"
+                      :class="affiliateBadgeClass(product)"
                     >
-                      {{ product.is_affiliate_enabled ? t('admin.products.affiliate.enabled') : t('admin.products.affiliate.disabled') }}
+                      {{ affiliateBadgeText(product) }}
                     </span>
                     <span
                       v-if="product.fulfillment_type === 'manual'"

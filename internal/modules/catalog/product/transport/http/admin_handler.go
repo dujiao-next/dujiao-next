@@ -16,6 +16,7 @@ import (
 	"github.com/dujiao-next/internal/modules/catalog/product/manualform"
 	"github.com/dujiao-next/internal/platform/http/ginutil"
 	"github.com/dujiao-next/internal/platform/http/response"
+	"github.com/dujiao-next/internal/shared/money"
 
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
@@ -199,8 +200,10 @@ type ProductSKURequest struct {
 	PriceAmount      float64                `json:"price_amount" binding:"required"`
 	CostPriceAmount  float64                `json:"cost_price_amount"`
 	ManualStockTotal *int                   `json:"manual_stock_total"`
-	IsActive         *bool                  `json:"is_active"`
-	SortOrder        int                    `json:"sort_order"`
+	// AffiliateRatePercent 为 SKU 级返利比例；未携带（null/缺省）表示继承商品/全站比例。
+	AffiliateRatePercent *money.Amount `json:"affiliate_rate_percent"`
+	IsActive             *bool         `json:"is_active"`
+	SortOrder            int           `json:"sort_order"`
 }
 
 type WholesalePriceRequest struct {
@@ -233,9 +236,10 @@ type CreateProductRequest struct {
 	ManualStockTotal    *int                     `json:"manual_stock_total"`
 	SKUs                []ProductSKURequest      `json:"skus"`
 	PaymentChannelIDs   []uint                   `json:"payment_channel_ids"`
-	IsAffiliateEnabled  *bool                    `json:"is_affiliate_enabled"`
-	IsActive            *bool                    `json:"is_active"`
-	SortOrder           int                      `json:"sort_order"`
+	// AffiliateRatePercent 为商品级返利比例：null/缺省表示继承全站比例，0 表示不参与返利。
+	AffiliateRatePercent *money.Amount `json:"affiliate_rate_percent"`
+	IsActive             *bool         `json:"is_active"`
+	SortOrder            int           `json:"sort_order"`
 }
 
 // toWholesalePriceInputs 透传「是否提供」语义：请求未携带 wholesale_prices 时返回 nil
@@ -263,14 +267,15 @@ func toProductSKUInputs(items []ProductSKURequest) []productwrite.ProductSKUInpu
 	result := make([]productwrite.ProductSKUInput, 0, len(items))
 	for _, item := range items {
 		result = append(result, productwrite.ProductSKUInput{
-			ID:               item.ID,
-			SKUCode:          item.SKUCode,
-			SpecValuesJSON:   item.SpecValuesJSON,
-			PriceAmount:      decimal.NewFromFloat(item.PriceAmount),
-			CostPriceAmount:  decimal.NewFromFloat(item.CostPriceAmount),
-			ManualStockTotal: item.ManualStockTotal,
-			IsActive:         item.IsActive,
-			SortOrder:        item.SortOrder,
+			ID:                   item.ID,
+			SKUCode:              item.SKUCode,
+			SpecValuesJSON:       item.SpecValuesJSON,
+			PriceAmount:          decimal.NewFromFloat(item.PriceAmount),
+			CostPriceAmount:      decimal.NewFromFloat(item.CostPriceAmount),
+			ManualStockTotal:     item.ManualStockTotal,
+			AffiliateRatePercent: item.AffiliateRatePercent,
+			IsActive:             item.IsActive,
+			SortOrder:            item.SortOrder,
 		})
 	}
 	return result
@@ -306,7 +311,7 @@ func (h *AdminProductHandler) CreateProduct(c *gin.Context) {
 		ManualStockTotal:     req.ManualStockTotal,
 		SKUs:                 toProductSKUInputs(req.SKUs),
 		PaymentChannelIDs:    req.PaymentChannelIDs,
-		IsAffiliateEnabled:   req.IsAffiliateEnabled,
+		AffiliateRatePercent: req.AffiliateRatePercent,
 		IsActive:             req.IsActive,
 		SortOrder:            req.SortOrder,
 	})
@@ -398,7 +403,7 @@ func (h *AdminProductHandler) UpdateProduct(c *gin.Context) {
 		ManualStockTotal:     req.ManualStockTotal,
 		SKUs:                 toProductSKUInputs(req.SKUs),
 		PaymentChannelIDs:    req.PaymentChannelIDs,
-		IsAffiliateEnabled:   req.IsAffiliateEnabled,
+		AffiliateRatePercent: req.AffiliateRatePercent,
 		IsActive:             req.IsActive,
 		SortOrder:            req.SortOrder,
 	})

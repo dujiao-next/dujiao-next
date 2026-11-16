@@ -65,9 +65,11 @@ func (s *WriteService) Update(id string, input CreateProductInput) (*productdoma
 	if input.IsActive != nil {
 		product.IsActive = *input.IsActive
 	}
-	if input.IsAffiliateEnabled != nil {
-		product.IsAffiliateEnabled = *input.IsAffiliateEnabled
+	if input.AffiliateRatePercent != nil && (input.AffiliateRatePercent.LessThan(decimal.Zero) || input.AffiliateRatePercent.GreaterThan(decimal.NewFromInt(100))) {
+		return nil, productcontract.ErrProductAffiliateRateInvalid
 	}
+	// 商品写入是全量替换语义：未携带即表示清除商品级覆盖，回退到继承全站比例。
+	product.AffiliateRatePercent = input.AffiliateRatePercent
 	rawPurchaseType := strings.TrimSpace(input.PurchaseType)
 	if rawPurchaseType == "" {
 		rawPurchaseType = product.PurchaseType
