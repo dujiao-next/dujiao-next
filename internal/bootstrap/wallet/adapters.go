@@ -4,18 +4,17 @@ import (
 	"errors"
 	"fmt"
 
-	paymentapp "github.com/dujiao-next/internal/modules/payment/application"
-
-	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
-
 	"github.com/dujiao-next/internal/constants"
+	"github.com/dujiao-next/internal/shared/money"
+
 	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
 	orderapp "github.com/dujiao-next/internal/modules/order/application"
+	paymentapp "github.com/dujiao-next/internal/modules/payment/application"
+	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
 	walletapp "github.com/dujiao-next/internal/modules/wallet/application"
 	walletcontract "github.com/dujiao-next/internal/modules/wallet/contract"
 	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 	wallettransport "github.com/dujiao-next/internal/modules/wallet/transport/http"
-	"github.com/dujiao-next/internal/shared/money"
 )
 
 // walletTransportAdapter composes wallet use cases with payment capabilities

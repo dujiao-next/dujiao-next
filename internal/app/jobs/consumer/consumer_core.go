@@ -3,12 +3,12 @@ package consumer
 import (
 	"github.com/dujiao-next/internal/app/container"
 	"github.com/dujiao-next/internal/logger"
+	"github.com/dujiao-next/internal/queue"
+	"github.com/hibiken/asynq"
+
 	notificationcontract "github.com/dujiao-next/internal/modules/notification/contract"
 	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
 	settingsmessaging "github.com/dujiao-next/internal/modules/settings/schema/messaging"
-	"github.com/dujiao-next/internal/queue"
-
-	"github.com/hibiken/asynq"
 )
 
 // Consumer 异步任务消费者

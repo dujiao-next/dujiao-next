@@ -6,24 +6,19 @@ import (
 	"testing"
 	"time"
 
-	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
-	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
-
-	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
-
-	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
-
-	categorydomain "github.com/dujiao-next/internal/modules/catalog/category/domain"
-
-	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
-
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/money"
-
 	"github.com/glebarez/sqlite"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
+
+	categorydomain "github.com/dujiao-next/internal/modules/catalog/category/domain"
+	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
+	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
+	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
+	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
+	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 )
 
 func setupDashboardRepositoryTest(t *testing.T) (*Store, *gorm.DB) {

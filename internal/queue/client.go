@@ -7,7 +7,6 @@ import (
 
 	"github.com/dujiao-next/internal/config"
 	"github.com/dujiao-next/internal/constants"
-
 	"github.com/hibiken/asynq"
 )
 

@@ -1,11 +1,12 @@
 package contract
 
 import (
-	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
-	memberleveldomain "github.com/dujiao-next/internal/modules/memberlevel/domain"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/money"
 	"github.com/shopspring/decimal"
+
+	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
+	memberleveldomain "github.com/dujiao-next/internal/modules/memberlevel/domain"
 )
 
 type ListFilter struct {

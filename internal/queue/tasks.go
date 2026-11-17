@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 
 	"github.com/dujiao-next/internal/constants"
-
 	"github.com/hibiken/asynq"
 )
 

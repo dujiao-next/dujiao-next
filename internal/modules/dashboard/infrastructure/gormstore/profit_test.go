@@ -6,18 +6,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dujiao-next/internal/constants"
+	"github.com/dujiao-next/internal/shared/jsonmap"
+	"github.com/dujiao-next/internal/shared/money"
+	"github.com/shopspring/decimal"
+
+	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
+	dashboard "github.com/dujiao-next/internal/modules/dashboard/contract"
 	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
 	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
 	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
-
-	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
-
-	"github.com/dujiao-next/internal/constants"
-	dashboard "github.com/dujiao-next/internal/modules/dashboard/contract"
-	"github.com/dujiao-next/internal/shared/jsonmap"
-	"github.com/dujiao-next/internal/shared/money"
-
-	"github.com/shopspring/decimal"
 )
 
 func TestGetProfitOverviewDeductsRefundRecords(t *testing.T) {

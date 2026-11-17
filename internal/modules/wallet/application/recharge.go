@@ -7,12 +7,12 @@ import (
 
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/logger"
+	"github.com/dujiao-next/internal/shared/money"
+	"github.com/shopspring/decimal"
+
 	settingscontract "github.com/dujiao-next/internal/modules/settings/contract"
 	walletcontract "github.com/dujiao-next/internal/modules/wallet/contract"
 	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
-	"github.com/dujiao-next/internal/shared/money"
-
-	"github.com/shopspring/decimal"
 )
 
 func (s *Service) ApplyRechargePayment(

@@ -5,20 +5,16 @@ import (
 	"strings"
 	"time"
 
-	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
-
-	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
-
-	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
-
-	ginutil "github.com/dujiao-next/internal/platform/http/ginutil"
-	"github.com/dujiao-next/internal/shared/money"
-
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/platform/http/response"
-
+	"github.com/dujiao-next/internal/shared/money"
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
+
+	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
+	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
+	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
+	ginutil "github.com/dujiao-next/internal/platform/http/ginutil"
 )
 
 var ErrInsufficientBalance = errors.New("wallet insufficient balance")

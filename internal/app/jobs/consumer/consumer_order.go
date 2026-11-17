@@ -7,26 +7,24 @@ import (
 	"fmt"
 	"strings"
 
-	paymentapp "github.com/dujiao-next/internal/modules/payment/application"
-	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
-
-	fulfillmentapp "github.com/dujiao-next/internal/modules/fulfillment/application"
-	fulfillmentdomain "github.com/dujiao-next/internal/modules/fulfillment/domain"
-	orderapp "github.com/dujiao-next/internal/modules/order/application"
-	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
-
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/htmltext"
 	"github.com/dujiao-next/internal/logger"
-	notificationcontract "github.com/dujiao-next/internal/modules/notification/contract"
-	settingsmessaging "github.com/dujiao-next/internal/modules/settings/schema/messaging"
-	walletcontract "github.com/dujiao-next/internal/modules/wallet/contract"
 	"github.com/dujiao-next/internal/queue"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/mailbrand"
 	"github.com/dujiao-next/internal/telegramidentity"
-
 	"github.com/hibiken/asynq"
+
+	fulfillmentapp "github.com/dujiao-next/internal/modules/fulfillment/application"
+	fulfillmentdomain "github.com/dujiao-next/internal/modules/fulfillment/domain"
+	notificationcontract "github.com/dujiao-next/internal/modules/notification/contract"
+	orderapp "github.com/dujiao-next/internal/modules/order/application"
+	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
+	paymentapp "github.com/dujiao-next/internal/modules/payment/application"
+	settingsmessaging "github.com/dujiao-next/internal/modules/settings/schema/messaging"
+	walletcontract "github.com/dujiao-next/internal/modules/wallet/contract"
+	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 )
 
 // handleOrderStatusEmail 处理订单状态邮件发送任务。
