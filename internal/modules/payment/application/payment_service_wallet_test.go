@@ -118,6 +118,161 @@ func setupPaymentServiceWalletTest(t *testing.T) (*PaymentService, *gorm.DB) {
 	return paymentSvc, db
 }
 
+func TestCreateWalletRechargePaymentUsesSiteCurrency(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		provider     string
+		siteCurrency string
+		currency     string
+		wantCurrency string
+		wantError    bool
+	}{
+		{name: "默认使用站点币种", provider: constants.PaymentProviderBepusdt, wantCurrency: "CNY"},
+		{name: "允许相同币种", provider: constants.PaymentProviderBepusdt, currency: "CNY", wantCurrency: "CNY"},
+		{name: "归一化相同币种", provider: constants.PaymentProviderBepusdt, currency: " cny ", wantCurrency: "CNY"},
+		{name: "拒绝美元污染记录", provider: constants.PaymentProviderBepusdt, currency: "USD", wantError: true},
+		{name: "拒绝伪造币种", provider: constants.PaymentProviderBepusdt, currency: "ZZZ", wantError: true},
+		{name: "拒绝日元充值套利", provider: constants.PaymentProviderOfficial, currency: "JPY", wantError: true},
+		{name: "使用配置的站点币种", provider: constants.PaymentProviderOfficial, siteCurrency: "USD", wantCurrency: "USD"},
+		{name: "允许配置的站点币种", provider: constants.PaymentProviderOfficial, siteCurrency: "USD", currency: "usd", wantCurrency: "USD"},
+		{name: "非人民币站点拒绝人民币充值", provider: constants.PaymentProviderOfficial, siteCurrency: "USD", currency: "CNY", wantError: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, db := setupPaymentServiceWalletTest(t)
+			sqlDB, err := db.DB()
+			if err != nil {
+				t.Fatal(err)
+			}
+			sqlDB.SetMaxOpenConns(1)
+			t.Cleanup(func() { _ = sqlDB.Close() })
+			if tc.siteCurrency != "" {
+				if _, err := settingsstore.New(db).Upsert(constants.SettingKeySiteConfig, jsonmap.JSON{constants.SettingFieldSiteCurrency: tc.siteCurrency}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			user := &userdomain.User{Email: "recharge-currency@example.com", PasswordHash: "hash", Status: constants.UserStatusActive}
+			if err := db.Create(user).Error; err != nil {
+				t.Fatal(err)
+			}
+			channel := &paymentdomain.PaymentChannel{
+				Name: "充值币种测试", ProviderType: tc.provider, ChannelType: constants.PaymentProviderBepusdt,
+				InteractionMode: constants.PaymentInteractionRedirect, IsActive: true, ConfigJSON: jsonmap.JSON{},
+			}
+			if tc.provider == constants.PaymentProviderOfficial {
+				channel.ChannelType = constants.PaymentChannelTypeStripe
+			}
+			if err := db.Create(channel).Error; err != nil {
+				t.Fatal(err)
+			}
+			gatewayCalls := 0
+			registerTestGateway(t, svc, channel.ProviderType, channel.ChannelType, emptyProviderRefProvider{onCreate: func(input paymentcontract.GatewayCreateInput) {
+				gatewayCalls++
+				if input.Currency != tc.wantCurrency {
+					t.Fatalf("gateway currency = %q, want %q", input.Currency, tc.wantCurrency)
+				}
+			}})
+			result, err := svc.CreateWalletRechargePayment(CreateWalletRechargePaymentInput{
+				UserID: user.ID, ChannelID: channel.ID, Amount: money.FromDecimal(decimal.NewFromInt(10)), Currency: tc.currency,
+			})
+			if tc.wantError {
+				if !errors.Is(err, ErrPaymentCurrencyMismatch) {
+					t.Fatalf("error = %v, want ErrPaymentCurrencyMismatch", err)
+				}
+				if result != nil || gatewayCalls != 0 {
+					t.Fatalf("rejected recharge reached gateway: result=%+v calls=%d", result, gatewayCalls)
+				}
+				for _, model := range []interface{}{&paymentdomain.Payment{}, &walletdomain.RechargeOrder{}} {
+					var count int64
+					if err := db.Model(model).Count(&count).Error; err != nil || count != 0 {
+						t.Fatalf("rejected recharge persisted %T: count=%d error=%v", model, count, err)
+					}
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if gatewayCalls != 1 || result.Recharge.Currency != tc.wantCurrency || result.Payment.Currency != tc.wantCurrency {
+				t.Fatalf("unexpected recharge currencies: calls=%d recharge=%q payment=%q", gatewayCalls, result.Recharge.Currency, result.Payment.Currency)
+			}
+		})
+	}
+}
+
+func TestWalletRechargeCurrencyCheckedBeforeCredit(t *testing.T) {
+	for _, tc := range []struct {
+		name             string
+		rechargeCurrency string
+		paymentCurrency  string
+		manual           bool
+		wantError        bool
+	}{
+		{name: "历史美元充值拒绝自动入账", rechargeCurrency: "USD", paymentCurrency: "USD", wantError: true},
+		{name: "历史日元充值拒绝自动入账", rechargeCurrency: "JPY", paymentCurrency: "JPY", wantError: true},
+		{name: "历史美元充值拒绝人工入账", rechargeCurrency: "USD", paymentCurrency: "USD", manual: true, wantError: true},
+		{name: "历史日元充值拒绝人工入账", rechargeCurrency: "JPY", paymentCurrency: "JPY", manual: true, wantError: true},
+		{name: "人民币充值正常入账", rechargeCurrency: "CNY", paymentCurrency: "CNY"},
+		{name: "人民币充值换汇美元支付正常入账", rechargeCurrency: "CNY", paymentCurrency: "USD"},
+		{name: "人民币充值换汇美元支付允许人工确认", rechargeCurrency: "CNY", paymentCurrency: "USD", manual: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, db := setupPaymentServiceWalletTest(t)
+			sqlDB, err := db.DB()
+			if err != nil {
+				t.Fatal(err)
+			}
+			sqlDB.SetMaxOpenConns(1)
+			t.Cleanup(func() { _ = sqlDB.Close() })
+			payment, recharge := createWalletRechargeFixture(t, db, constants.PaymentStatusPending, constants.WalletRechargeStatusPending)
+			payment.Currency = tc.paymentCurrency
+			payment.ProviderType = constants.PaymentProviderOfficial
+			payment.ChannelType = constants.PaymentChannelTypeStripe
+			payment.InteractionMode = constants.PaymentInteractionRedirect
+			if tc.rechargeCurrency == "CNY" && tc.paymentCurrency == "USD" {
+				payment.Amount = money.FromDecimal(decimal.RequireFromString("12.32"))
+				payment.ProviderPayload = jsonmap.JSON{"original_amount": "88.00", "original_currency": "CNY", "exchange_rate": "0.14"}
+			}
+			recharge.Currency = tc.rechargeCurrency
+			if err := db.Save(payment).Error; err != nil {
+				t.Fatal(err)
+			}
+			if err := db.Save(recharge).Error; err != nil {
+				t.Fatal(err)
+			}
+			if tc.manual {
+				_, err = svc.ManualConfirmWalletRecharge(ManualConfirmWalletRechargeInput{RechargeID: recharge.ID, PaymentID: payment.ID, AdminID: 1})
+			} else {
+				_, err = svc.HandleCallback(buildWalletRechargeCallbackInput(payment, recharge, constants.PaymentStatusSuccess, payment.ProviderRef))
+			}
+			if !tc.wantError {
+				if err != nil {
+					t.Fatal(err)
+				}
+				assertWalletRechargeSuccessState(t, db, payment.ID, recharge.ID, recharge.UserID, recharge.Amount.Decimal)
+				return
+			}
+			if !errors.Is(err, ErrPaymentCurrencyMismatch) {
+				t.Fatalf("error = %v, want ErrPaymentCurrencyMismatch", err)
+			}
+			for _, model := range []interface{}{&walletdomain.Account{}, &walletdomain.Transaction{}} {
+				var count int64
+				if err := db.Model(model).Count(&count).Error; err != nil || count != 0 {
+					t.Fatalf("rejected callback credited %T: count=%d error=%v", model, count, err)
+				}
+			}
+			if err := db.First(payment, payment.ID).Error; err != nil {
+				t.Fatal(err)
+			}
+			if err := db.First(recharge, recharge.ID).Error; err != nil {
+				t.Fatal(err)
+			}
+			if payment.Status != constants.PaymentStatusPending || recharge.Status != constants.WalletRechargeStatusPending || payment.PaidAt != nil || recharge.PaidAt != nil {
+				t.Fatalf("rejected callback changed payment or recharge: payment=%+v recharge=%+v", payment, recharge)
+			}
+		})
+	}
+}
+
 func TestCreatePaymentWalletFullAmountCreatesPaymentRecord(t *testing.T) {
 	svc, db := setupPaymentServiceWalletTest(t)
 	now := time.Now()
