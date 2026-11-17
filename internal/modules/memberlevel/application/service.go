@@ -256,8 +256,12 @@ func (s *Service) CheckAndUpgrade(userID uint) error {
 	return nil
 }
 
-// CheckAndDowngrade 根据当前累计金额检查资格，仅在当前等级不再符合条件时回退。
-func (s *Service) CheckAndDowngrade(userID uint) error {
+// CheckAndDowngrade 仅在退款前达标的等级因本次退款失去资格时回退。
+// qualifiedLevel 必须来自同一事务内扣减前的 qualifiedRefundLevel，前后使用相同门槛。
+func (s *Service) CheckAndDowngrade(userID uint, qualifiedLevel *memberleveldomain.MemberLevel) error {
+	if qualifiedLevel == nil {
+		return nil
+	}
 	const maxDowngradeAttempts = 3
 	for attempt := 0; attempt < maxDowngradeAttempts; attempt++ {
 		user, err := s.userRepo.GetByID(userID)
@@ -267,33 +271,20 @@ func (s *Service) CheckAndDowngrade(userID uint) error {
 		if user == nil {
 			return memberlevelcontract.ErrUserNotFound
 		}
-		if user.MemberLevelID == 0 {
+		if user.MemberLevelID != qualifiedLevel.ID {
+			return memberlevelcontract.ErrLevelUpdateConflict
+		}
+		if s.meetsThreshold(user, qualifiedLevel) {
 			return nil
 		}
 		levels, err := s.levelRepo.ListAllActive()
 		if err != nil {
 			return err
 		}
-		var current *memberleveldomain.MemberLevel
-		for i := range levels {
-			if levels[i].ID == user.MemberLevelID {
-				current = &levels[i]
-				if s.meetsThreshold(user, current) {
-					return nil
-				}
-				break
-			}
-		}
-		if current == nil {
-			current, err = s.levelRepo.GetByID(user.MemberLevelID)
-			if err != nil {
-				return err
-			}
-		}
 		var targetID uint
 		for i := range levels {
 			level := &levels[i]
-			if current != nil && level.SortOrder >= current.SortOrder {
+			if level.SortOrder >= qualifiedLevel.SortOrder {
 				continue
 			}
 			if s.meetsThreshold(user, level) {
@@ -313,7 +304,7 @@ func (s *Service) CheckAndDowngrade(userID uint) error {
 		if targetID == user.MemberLevelID {
 			return nil
 		}
-		affected, err := s.userRepo.UpdateMemberLevelIfCurrent(user.ID, user.MemberLevelID, targetID)
+		affected, err := s.userRepo.UpdateMemberLevelIfCurrent(user.ID, qualifiedLevel.ID, targetID)
 		if err != nil {
 			return err
 		}
@@ -322,6 +313,29 @@ func (s *Service) CheckAndDowngrade(userID uint) error {
 		}
 	}
 	return memberlevelcontract.ErrLevelUpdateConflict
+}
+
+// qualifiedRefundLevel 在退款事务内锁定用户，仅返回退款前已满足门槛的启用等级快照。
+// 未达标、零门槛、无等级及已删除或禁用的等级均不由退款触发降级。
+func (s *Service) qualifiedRefundLevel(userID uint) (*memberleveldomain.MemberLevel, error) {
+	user, err := s.userRepo.GetByIDForUpdate(userID)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, memberlevelcontract.ErrUserNotFound
+	}
+	if user.MemberLevelID == 0 {
+		return nil, nil
+	}
+	level, err := s.levelRepo.GetByID(user.MemberLevelID)
+	if err != nil {
+		return nil, err
+	}
+	if level == nil || !level.IsActive || !s.meetsThreshold(user, level) {
+		return nil, nil
+	}
+	return level, nil
 }
 
 func (s *Service) findUpgradeTarget(user *userdomain.User, levels []memberleveldomain.MemberLevel) (*memberleveldomain.MemberLevel, error) {
@@ -390,16 +404,20 @@ func (s *Service) OnRechargeCompleted(userID uint, amount decimal.Decimal) error
 	return s.CheckAndUpgrade(userID)
 }
 
-// OnRechargeRefunded 扣回本次退款对应的累计充值，并检查会员等级回退。
+// OnRechargeRefunded 扣回本次退款对应的累计充值，仅对本次退款导致失去资格的等级执行回退。
 // 调用方须将仓储绑定到退款事务，保证扣款、退款记录与累计充值同步提交。
 func (s *Service) OnRechargeRefunded(userID uint, amount decimal.Decimal) error {
 	if userID == 0 || !amount.Round(2).IsPositive() {
 		return nil
 	}
+	level, err := s.qualifiedRefundLevel(userID)
+	if err != nil {
+		return err
+	}
 	if err := s.userRepo.DecrementTotalRecharged(userID, amount); err != nil {
 		return err
 	}
-	return s.CheckAndDowngrade(userID)
+	return s.CheckAndDowngrade(userID, level)
 }
 
 // OnOrderPaid 订单支付成功后触发
@@ -413,16 +431,20 @@ func (s *Service) OnOrderPaid(userID uint, amount decimal.Decimal) error {
 	return s.CheckAndUpgrade(userID)
 }
 
-// OnOrderRefunded 扣回本次订单退款对应的累计消费，并检查会员等级回退。
+// OnOrderRefunded 扣回本次订单退款对应的累计消费，仅对本次退款导致失去资格的等级执行回退。
 // 调用方须将仓储绑定到订单退款事务。
 func (s *Service) OnOrderRefunded(userID uint, amount decimal.Decimal) error {
 	if userID == 0 || !amount.Round(2).IsPositive() {
 		return nil
 	}
+	level, err := s.qualifiedRefundLevel(userID)
+	if err != nil {
+		return err
+	}
 	if err := s.userRepo.DecrementTotalSpent(userID, amount); err != nil {
 		return err
 	}
-	return s.CheckAndDowngrade(userID)
+	return s.CheckAndDowngrade(userID, level)
 }
 
 // AssignDefaultLevel 为新用户分配默认等级

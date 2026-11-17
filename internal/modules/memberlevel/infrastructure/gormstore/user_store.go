@@ -11,6 +11,7 @@ import (
 	"github.com/dujiao-next/internal/shared/money"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // UserStore persists only the user fields owned by member-level progression.
@@ -25,6 +26,18 @@ func NewUserStore(db *gorm.DB) *UserStore {
 func (r *UserStore) GetByID(id uint) (*userdomain.User, error) {
 	var user userdomain.User
 	if err := r.db.Where("id = ? AND deleted_at IS NULL", id).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+// GetByIDForUpdate 锁定用户行，保证退款前资格快照与累计扣减、等级回退使用同一用户状态。
+func (r *UserStore) GetByIDForUpdate(id uint) (*userdomain.User, error) {
+	var user userdomain.User
+	if err := r.db.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND deleted_at IS NULL", id).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}

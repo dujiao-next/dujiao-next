@@ -163,6 +163,11 @@ func (r *concurrentUserRepository) GetByID(id uint) (*userdomain.User, error) {
 	return r.base.GetByID(id)
 }
 
+// GetByIDForUpdate 转交退款事务使用的用户行锁查询。
+func (r *concurrentUserRepository) GetByIDForUpdate(id uint) (*userdomain.User, error) {
+	return r.base.GetByIDForUpdate(id)
+}
+
 func (r *concurrentUserRepository) Update(user *userdomain.User) error {
 	return r.base.Update(user)
 }
@@ -280,7 +285,7 @@ func TestCheckAndDowngradeReturnsErrorOnPersistentConflict(t *testing.T) {
 	user := createUserFixture(t, db, "downgrade-conflict@example.com", level.ID)
 	users := &conflictingDowngradeRepository{UserRepository: gormstore.NewUserStore(db)}
 	service := memberlevelapp.NewService(gormstore.NewLevelStore(db), gormstore.NewPriceStore(db), users, gormstore.NewUserPriceStore(db))
-	if err := service.CheckAndDowngrade(user.ID); !errors.Is(err, memberlevelcontract.ErrLevelUpdateConflict) {
+	if err := service.CheckAndDowngrade(user.ID, &level); !errors.Is(err, memberlevelcontract.ErrLevelUpdateConflict) {
 		t.Fatalf("expected update conflict, got %v", err)
 	}
 	if users.attempts != 3 {
@@ -291,5 +296,120 @@ func TestCheckAndDowngradeReturnsErrorOnPersistentConflict(t *testing.T) {
 	}
 	if user.MemberLevelID != level.ID {
 		t.Fatalf("level unexpectedly changed: %d", user.MemberLevelID)
+	}
+}
+
+func TestRefundPreservesManuallyAssignedUnqualifiedLevel(t *testing.T) {
+	for _, kind := range []string{"order", "recharge"} {
+		for _, tc := range []struct {
+			name                       string
+			initial, threshold, refund int64
+			downgrade                  bool
+		}{
+			{name: "zero_total", threshold: 100, refund: 1},
+			{name: "previously_below_threshold", initial: 50, threshold: 100, refund: 1},
+			{name: "zero_threshold", initial: 100, refund: 1},
+			{name: "qualified_manual_level_still_downgrades", initial: 100, threshold: 100, refund: 1, downgrade: true},
+		} {
+			t.Run(kind+"/"+tc.name, func(t *testing.T) {
+				service, db := newMemberLevelServiceForTest(t)
+				raw, err := db.DB()
+				if err != nil {
+					t.Fatal(err)
+				}
+				raw.SetMaxOpenConns(1)
+				t.Cleanup(func() { _ = raw.Close() })
+				fallback := createMemberLevelFixture(t, db, "manual-default", 0, "0", true)
+				gold := createMemberLevelFixture(t, db, "manual-gold", 20, "0", false)
+				column := "total_spent"
+				thresholdColumn := "spend_threshold"
+				if kind == "recharge" {
+					column, thresholdColumn = "total_recharged", "recharge_threshold"
+				}
+				if err := db.Model(&gold).Update(thresholdColumn, tc.threshold).Error; err != nil {
+					t.Fatal(err)
+				}
+				user := createUserFixture(t, db, "manual-refund@example.com", fallback.ID)
+				if err := db.Model(&user).Update(column, tc.initial).Error; err != nil {
+					t.Fatal(err)
+				}
+				if err := service.SetUserLevel(user.ID, gold.ID); err != nil {
+					t.Fatal(err)
+				}
+				if err := db.Transaction(func(tx *gorm.DB) error {
+					amount := decimal.NewFromInt(tc.refund)
+					if kind == "order" {
+						return gormstore.OnOrderRefunded(tx, user.ID, amount)
+					}
+					return gormstore.OnRechargeRefunded(tx, user.ID, amount)
+				}); err != nil {
+					t.Fatal(err)
+				}
+				if err := db.First(&user, user.ID).Error; err != nil {
+					t.Fatal(err)
+				}
+				wantLevel := gold.ID
+				if tc.downgrade {
+					wantLevel = fallback.ID
+				}
+				wantTotal := tc.initial - tc.refund
+				if wantTotal < 0 {
+					wantTotal = 0
+				}
+				total := user.TotalSpent
+				if kind == "recharge" {
+					total = user.TotalRecharged
+				}
+				if user.MemberLevelID != wantLevel || !total.Decimal.Equal(decimal.NewFromInt(wantTotal)) {
+					t.Fatalf("refund result: level=%d want=%d total=%s want=%d", user.MemberLevelID, wantLevel, total, wantTotal)
+				}
+			})
+		}
+	}
+}
+
+func TestRefundQualificationSnapshotGuardsLevelAndThresholdChanges(t *testing.T) {
+	for _, change := range []string{"level", "threshold"} {
+		t.Run(change, func(t *testing.T) {
+			_, db := newMemberLevelServiceForTest(t)
+			fallback := createMemberLevelFixture(t, db, "snapshot-default", 0, "0", true)
+			gold := createMemberLevelFixture(t, db, "snapshot-gold", 20, "100", false)
+			user := createUserFixture(t, db, "snapshot-refund@example.com", gold.ID)
+			if err := db.Model(&user).Update("total_spent", 100).Error; err != nil {
+				t.Fatal(err)
+			}
+			if err := db.Callback().Update().Before("gorm:update").Register("test_refund_snapshot_change", func(tx *gorm.DB) {
+				values, ok := tx.Statement.Dest.(map[string]interface{})
+				if _, changesTotal := values["total_spent"]; !ok || !changesTotal || tx.Statement.Table != "users" {
+					return
+				}
+				scoped := tx.Session(&gorm.Session{NewDB: true})
+				if change == "level" {
+					tx.AddError(scoped.Model(&userdomain.User{}).Where("id = ?", user.ID).Update("member_level_id", fallback.ID).Error)
+				} else {
+					tx.AddError(scoped.Model(&memberleveldomain.MemberLevel{}).Where("id = ?", gold.ID).Update("spend_threshold", 50).Error)
+				}
+			}); err != nil {
+				t.Fatal(err)
+			}
+			err := db.Transaction(func(tx *gorm.DB) error { return gormstore.OnOrderRefunded(tx, user.ID, decimal.NewFromInt(1)) })
+			if change == "level" {
+				if !errors.Is(err, memberlevelcontract.ErrLevelUpdateConflict) {
+					t.Fatalf("expected level conflict: %v", err)
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+			if err := db.First(&user, user.ID).Error; err != nil {
+				t.Fatal(err)
+			}
+			if change == "level" {
+				if user.MemberLevelID != gold.ID || user.TotalSpent.String() != "100.00" {
+					t.Fatalf("conflicting refund not rolled back: %+v", user)
+				}
+			} else if user.MemberLevelID != fallback.ID || user.TotalSpent.String() != "99.00" {
+				t.Fatalf("refund did not use original threshold: %+v", user)
+			}
+		})
 	}
 }

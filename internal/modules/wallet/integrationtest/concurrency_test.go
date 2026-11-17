@@ -576,12 +576,14 @@ func TestRechargeRefundDecreasesTotalRechargedAndChecksDowngrade(t *testing.T) {
 		wantLevel                int
 		spend, manual            bool
 	}{
+		{name: "already_unqualified_zero_total", total: 0, refund: 1, wantTotal: 0, wantLevel: 2},
+		{name: "already_unqualified_below_threshold", total: 50, refund: 1, wantTotal: 49, wantLevel: 2},
 		{name: "partial_downgrades_to_qualified_level", total: 100, refund: 40, wantTotal: 60, wantLevel: 1},
 		{name: "full_returns_to_default", total: 100, refund: 100, wantTotal: 0, wantLevel: 0},
 		{name: "still_qualified", total: 200, refund: 40, wantTotal: 160, wantLevel: 2},
 		{name: "spend_threshold_retained", total: 100, refund: 100, wantTotal: 0, wantLevel: 2, spend: true},
-		{name: "zero_threshold_level_not_protected", total: 100, refund: 100, wantTotal: 0, wantLevel: 0, manual: true},
-		{name: "historical_total_never_negative", total: 10, refund: 40, wantTotal: 0, wantLevel: 0},
+		{name: "zero_threshold_level_preserved", total: 100, refund: 100, wantTotal: 0, wantLevel: 2, manual: true},
+		{name: "historical_total_never_negative", total: 10, refund: 40, wantTotal: 0, wantLevel: 2},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			svc, db, recharge, levels := setupRechargeRefundProgression(t)
@@ -776,12 +778,12 @@ func TestRechargeRefundDowngradeFallbacks(t *testing.T) {
 			if err := db.Delete(&levels[2]).Error; err != nil {
 				t.Fatal(err)
 			}
-		}, 0},
+		}, 2},
 		{"disabled_current", func(t *testing.T, db *gorm.DB, levels []memberleveldomain.MemberLevel) {
 			if err := db.Model(&levels[2]).Update("is_active", false).Error; err != nil {
 				t.Fatal(err)
 			}
-		}, 0},
+		}, 2},
 		{"qualified_current_is_not_upgraded", func(t *testing.T, db *gorm.DB, levels []memberleveldomain.MemberLevel) {
 			if err := db.Model(&userdomain.User{}).Where("id = 1").Updates(map[string]interface{}{"member_level_id": levels[1].ID, "total_spent": 100}).Error; err != nil {
 				t.Fatal(err)

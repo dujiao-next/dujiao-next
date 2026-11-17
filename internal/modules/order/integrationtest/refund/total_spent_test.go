@@ -248,7 +248,10 @@ func TestBothOrderRefundMethodsCheckMemberLevelDowngrade(t *testing.T) {
 			initial, refund, recharged int64
 			wantLevel                  uint
 			noDefault                  bool
+			zeroThreshold              bool
 		}{
+			{name: "already_unqualified_below_threshold", initial: 50, refund: 1, wantLevel: 17},
+			{name: "zero_threshold_level_retained", initial: 100, refund: 100, wantLevel: 17, zeroThreshold: true},
 			{name: "full_returns_to_default", initial: 100, refund: 100, wantLevel: 1},
 			{name: "partial_returns_to_highest_qualified", initial: 100, refund: 30, wantLevel: 2},
 			{name: "still_qualified_at_threshold", initial: 200, refund: 100, wantLevel: 17},
@@ -259,6 +262,11 @@ func TestBothOrderRefundMethodsCheckMemberLevelDowngrade(t *testing.T) {
 				svc, db, order := setupOrderRefundDowngrade(t, tc.initial)
 				if err := db.Model(&userdomain.User{}).Where("id = 1").Update("total_recharged", tc.recharged).Error; err != nil {
 					t.Fatal(err)
+				}
+				if tc.zeroThreshold {
+					if err := db.Model(&memberleveldomain.MemberLevel{}).Where("id = 17").Updates(map[string]interface{}{"recharge_threshold": 0, "spend_threshold": 0}).Error; err != nil {
+						t.Fatal(err)
+					}
 				}
 				if tc.noDefault {
 					if err := db.Model(&memberleveldomain.MemberLevel{}).Where("id = 1").Update("is_default", false).Error; err != nil {
