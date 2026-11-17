@@ -118,6 +118,8 @@ func (h *UserVerifyHandler) SendUserVerifyCode(c *gin.Context) {
 			ginutil.RespondError(c, response.CodeBadRequest, "error.email_invalid", nil)
 		case errors.Is(err, ErrInvalidVerifyPurpose):
 			ginutil.RespondError(c, response.CodeBadRequest, "error.verify_purpose_invalid", nil)
+		case errors.Is(err, ErrTelegramAuthDisabled):
+			ginutil.RespondError(c, response.CodeForbidden, "error.telegram_auth_disabled", nil)
 		case errors.Is(err, ErrEmailExists):
 			ginutil.RespondError(c, response.CodeBadRequest, "error.email_exists", nil)
 		case errors.Is(err, ErrEmailDomainNotAllowed):
