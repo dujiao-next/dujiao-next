@@ -48,6 +48,7 @@ type UserPriceRepository interface {
 // UserRepository is the member-level consumer's minimal user persistence port.
 type UserRepository interface {
 	GetByID(id uint) (*userdomain.User, error)
+	GetByIDForUpdate(id uint) (*userdomain.User, error)
 	Update(user *userdomain.User) error
 	IncrementTotalRecharged(userID uint, amount decimal.Decimal) error
 	DecrementTotalRecharged(userID uint, amount decimal.Decimal) error
