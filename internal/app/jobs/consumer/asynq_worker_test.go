@@ -7,20 +7,9 @@ import (
 	"testing"
 	"time"
 
-	fulfillmentdomain "github.com/dujiao-next/internal/modules/fulfillment/domain"
-	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
-	userstore "github.com/dujiao-next/internal/modules/identity/user/infrastructure/gormstore"
-	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
-	settingsapp "github.com/dujiao-next/internal/modules/settings/application"
-	settingsstore "github.com/dujiao-next/internal/modules/settings/infrastructure/gormstore"
-	settingsmessaging "github.com/dujiao-next/internal/modules/settings/schema/messaging"
-	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
-	walletstore "github.com/dujiao-next/internal/modules/wallet/infrastructure/gormstore"
-
 	"github.com/dujiao-next/internal/app/container"
 	"github.com/dujiao-next/internal/config"
 	"github.com/dujiao-next/internal/constants"
-	notificationcontract "github.com/dujiao-next/internal/modules/notification/contract"
 	"github.com/dujiao-next/internal/queue"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/mailbrand"
@@ -28,6 +17,17 @@ import (
 	"github.com/glebarez/sqlite"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
+
+	fulfillmentdomain "github.com/dujiao-next/internal/modules/fulfillment/domain"
+	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
+	userstore "github.com/dujiao-next/internal/modules/identity/user/infrastructure/gormstore"
+	notificationcontract "github.com/dujiao-next/internal/modules/notification/contract"
+	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
+	settingsapp "github.com/dujiao-next/internal/modules/settings/application"
+	settingsstore "github.com/dujiao-next/internal/modules/settings/infrastructure/gormstore"
+	settingsmessaging "github.com/dujiao-next/internal/modules/settings/schema/messaging"
+	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
+	walletstore "github.com/dujiao-next/internal/modules/wallet/infrastructure/gormstore"
 )
 
 // orderStatusEmailSenderStub 捕获订单及充值退款邮件，避免测试连接真实 SMTP 服务。

@@ -1,11 +1,11 @@
 package application
 
 import (
+	"github.com/shopspring/decimal"
+
 	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
 	memberlevelcontract "github.com/dujiao-next/internal/modules/memberlevel/contract"
 	memberleveldomain "github.com/dujiao-next/internal/modules/memberlevel/domain"
-
-	"github.com/shopspring/decimal"
 )
 
 // Service 会员等级服务

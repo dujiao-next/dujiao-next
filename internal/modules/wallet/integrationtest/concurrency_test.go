@@ -9,6 +9,12 @@ import (
 	"time"
 
 	"github.com/dujiao-next/internal/constants"
+	"github.com/dujiao-next/internal/shared/jsonmap"
+	"github.com/dujiao-next/internal/shared/money"
+	"github.com/glebarez/sqlite"
+	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
+
 	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
 	memberleveldomain "github.com/dujiao-next/internal/modules/memberlevel/domain"
 	settingsapp "github.com/dujiao-next/internal/modules/settings/application"
@@ -17,12 +23,6 @@ import (
 	walletcontract "github.com/dujiao-next/internal/modules/wallet/contract"
 	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 	walletgormstore "github.com/dujiao-next/internal/modules/wallet/infrastructure/gormstore"
-	"github.com/dujiao-next/internal/shared/jsonmap"
-	"github.com/dujiao-next/internal/shared/money"
-
-	"github.com/glebarez/sqlite"
-	"github.com/shopspring/decimal"
-	"gorm.io/gorm"
 )
 
 // rechargeRefundEmailQueueStub 记录退款邮件任务并验证入队时事务已提交。

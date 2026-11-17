@@ -4,11 +4,10 @@ import (
 	"strings"
 	"time"
 
-	paymentcontract "github.com/dujiao-next/internal/modules/payment/contract"
-
-	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
-
 	"github.com/dujiao-next/internal/constants"
+
+	paymentcontract "github.com/dujiao-next/internal/modules/payment/contract"
+	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
 	walletcontract "github.com/dujiao-next/internal/modules/wallet/contract"
 )
 

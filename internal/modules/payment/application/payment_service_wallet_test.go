@@ -7,12 +7,30 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"go.uber.org/zap"
 	"strconv"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/dujiao-next/internal/constants"
+	"github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/provider"
+	"github.com/dujiao-next/internal/platform/database/gormdb"
+	"github.com/dujiao-next/internal/shared/jsonmap"
+	"github.com/dujiao-next/internal/shared/money"
+	"github.com/glebarez/sqlite"
+	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
+	"gorm.io/gorm"
+
+	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
+	productgormstore "github.com/dujiao-next/internal/modules/catalog/product/store/gormstore"
+	fulfillmentdomain "github.com/dujiao-next/internal/modules/fulfillment/domain"
+	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
+	userstore "github.com/dujiao-next/internal/modules/identity/user/infrastructure/gormstore"
+	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
+	ordergormstore "github.com/dujiao-next/internal/modules/order/infrastructure/gormstore"
+	paymentcontract "github.com/dujiao-next/internal/modules/payment/contract"
+	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
 	alipayadapter "github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/adapters/alipay"
 	bepusdtadapter "github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/adapters/bepusdt"
 	dujiaopayadapter "github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/adapters/dujiaopay"
@@ -23,39 +41,14 @@ import (
 	stripeadapter "github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/adapters/stripe"
 	tokenpayadapter "github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/adapters/tokenpay"
 	wechatpayadapter "github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/adapters/wechatpay"
-
 	paymentgormstore "github.com/dujiao-next/internal/modules/payment/infrastructure/gormstore"
-
-	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
-
-	fulfillmentdomain "github.com/dujiao-next/internal/modules/fulfillment/domain"
-	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
-	ordergormstore "github.com/dujiao-next/internal/modules/order/infrastructure/gormstore"
-
-	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
-
-	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
-	productgormstore "github.com/dujiao-next/internal/modules/catalog/product/store/gormstore"
-
-	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
-	userstore "github.com/dujiao-next/internal/modules/identity/user/infrastructure/gormstore"
+	resellercontract "github.com/dujiao-next/internal/modules/reseller/contract"
 	settingsapp "github.com/dujiao-next/internal/modules/settings/application"
 	settingsstore "github.com/dujiao-next/internal/modules/settings/infrastructure/gormstore"
 	walletapp "github.com/dujiao-next/internal/modules/wallet/application"
 	walletcontract "github.com/dujiao-next/internal/modules/wallet/contract"
+	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 	walletgormstore "github.com/dujiao-next/internal/modules/wallet/infrastructure/gormstore"
-
-	"github.com/dujiao-next/internal/constants"
-	paymentcontract "github.com/dujiao-next/internal/modules/payment/contract"
-	"github.com/dujiao-next/internal/modules/payment/infrastructure/gateway/provider"
-	resellercontract "github.com/dujiao-next/internal/modules/reseller/contract"
-	"github.com/dujiao-next/internal/platform/database/gormdb"
-	"github.com/dujiao-next/internal/shared/jsonmap"
-	"github.com/dujiao-next/internal/shared/money"
-
-	"github.com/glebarez/sqlite"
-	"github.com/shopspring/decimal"
-	"gorm.io/gorm"
 )
 
 func setupPaymentServiceWalletTest(t *testing.T) (*PaymentService, *gorm.DB) {

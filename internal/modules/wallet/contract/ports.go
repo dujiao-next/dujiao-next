@@ -3,9 +3,10 @@ package contract
 import (
 	"time"
 
-	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 	"github.com/dujiao-next/internal/shared/money"
 	"github.com/shopspring/decimal"
+
+	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 )
 
 // Repository owns all wallet aggregate persistence. Transactional callers

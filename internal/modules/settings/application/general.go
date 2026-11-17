@@ -3,8 +3,6 @@ package settingsapp
 import (
 	"encoding/json"
 	"errors"
-	settingscontract "github.com/dujiao-next/internal/modules/settings/contract"
-	settingsvalue "github.com/dujiao-next/internal/modules/settings/schema/value"
 	"net/mail"
 	"strings"
 	"time"
@@ -12,6 +10,9 @@ import (
 	"github.com/dujiao-next/internal/config"
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/shared/jsonmap"
+
+	settingscontract "github.com/dujiao-next/internal/modules/settings/contract"
+	settingsvalue "github.com/dujiao-next/internal/modules/settings/schema/value"
 )
 
 var (
