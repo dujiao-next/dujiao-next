@@ -262,6 +262,14 @@ func (s *Service) SendVerifyCode(ctx context.Context, email, purpose, locale, in
 	}
 
 	if purpose == constants.VerifyPurposeTelegramBind {
+		// 公开发信入口也必须遵守 Telegram 开关，不能只在登录或绑定时校验。
+		setting, err := s.settingService.GetTelegramAuthSetting(s.cfg.TelegramAuth)
+		if err != nil {
+			return err
+		}
+		if !setting.Enabled {
+			return telegramauthapp.ErrTelegramAuthDisabled
+		}
 		user, err := s.userRepo.GetByEmail(normalized)
 		if err != nil {
 			return err
