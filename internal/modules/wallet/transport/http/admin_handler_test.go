@@ -2,11 +2,15 @@ package wallethttp
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/dujiao-next/internal/constants"
+	"github.com/dujiao-next/internal/platform/http/response"
 	"github.com/dujiao-next/internal/shared/money"
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
@@ -15,6 +19,113 @@ import (
 	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
 	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 )
+
+type walletAdjustmentStub struct {
+	AdminWalletService
+	called int
+	input  AdjustBalanceInput
+}
+
+// AdminAdjustBalance 记录后台余额调整请求。
+func (s *walletAdjustmentStub) AdminAdjustBalance(input AdjustBalanceInput) (*walletdomain.Account, *walletdomain.Transaction, error) {
+	s.called++
+	s.input = input
+	return &walletdomain.Account{}, &walletdomain.Transaction{}, nil
+}
+
+type walletSiteCurrencyStub struct {
+	currency string
+	err      error
+	called   int
+}
+
+// GetSiteCurrency 返回测试指定的站点币种或读取错误。
+func (s *walletSiteCurrencyStub) GetSiteCurrency(defaultValue string) (string, error) {
+	s.called++
+	if s.currency == "" {
+		return defaultValue, s.err
+	}
+	return s.currency, s.err
+}
+
+func TestAdjustUserWalletUsesSiteCurrency(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, tc := range []struct {
+		name         string
+		operation    string
+		currency     string
+		siteCurrency string
+		settingsErr  error
+		noSettings   bool
+		wantStatus   int
+		wantMessage  string
+	}{
+		{name: "默认使用人民币", operation: "add", wantStatus: http.StatusOK},
+		{name: "允许相同币种", operation: "add", currency: "CNY", wantStatus: http.StatusOK},
+		{name: "归一化相同币种", operation: "subtract", currency: " cny ", wantStatus: http.StatusOK},
+		{name: "拒绝美元加款", operation: "add", currency: "USD", wantStatus: http.StatusBadRequest, wantMessage: "Payment currency mismatch"},
+		{name: "拒绝日元扣款", operation: "subtract", currency: "JPY", wantStatus: http.StatusBadRequest, wantMessage: "Payment currency mismatch"},
+		{name: "拒绝伪造币种", operation: "add", currency: "ZZZ", wantStatus: http.StatusBadRequest, wantMessage: "Payment currency mismatch"},
+		{name: "使用配置的美元币种", operation: "add", siteCurrency: "USD", wantStatus: http.StatusOK},
+		{name: "允许配置的美元币种", operation: "subtract", currency: "usd", siteCurrency: "USD", wantStatus: http.StatusOK},
+		{name: "美元站点拒绝人民币", operation: "add", currency: "CNY", siteCurrency: "USD", wantStatus: http.StatusBadRequest, wantMessage: "Payment currency mismatch"},
+		{name: "币种读取失败时拒绝调整", operation: "add", currency: "CNY", settingsErr: errors.New("settings unavailable"), wantStatus: http.StatusInternalServerError},
+		{name: "无设置依赖时默认人民币", operation: "add", noSettings: true, wantStatus: http.StatusOK},
+		{name: "无设置依赖时仍拒绝异币", operation: "subtract", currency: "USD", noSettings: true, wantStatus: http.StatusBadRequest, wantMessage: "Payment currency mismatch"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			wallets := &walletAdjustmentStub{}
+			settings := &walletSiteCurrencyStub{currency: tc.siteCurrency, err: tc.settingsErr}
+			handler := &AdminHandler{wallets: wallets, settings: settings}
+			if tc.noSettings {
+				handler.settings = nil
+			}
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Set("admin_id", uint(7))
+			ctx.Params = gin.Params{{Key: "id", Value: "10"}}
+			body, err := json.Marshal(AdminAdjustUserWalletRequest{Operation: tc.operation, Amount: "10.00", Currency: tc.currency, Remark: "reconciliation"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx.Request = httptest.NewRequest(http.MethodPost, "/api/v1/admin/users/10/wallet/adjust", strings.NewReader(string(body)))
+			ctx.Request.Header.Set("Content-Type", "application/json")
+			ctx.Request.Header.Set("Accept-Language", "en-US")
+			handler.AdjustUserWallet(ctx)
+			var result response.Response
+			if err := json.Unmarshal(recorder.Body.Bytes(), &result); err != nil {
+				t.Fatal(err)
+			}
+			wantCode := tc.wantStatus
+			if tc.wantStatus == http.StatusOK {
+				wantCode = 0
+			}
+			if recorder.Code != http.StatusOK || result.StatusCode != wantCode || !strings.Contains(result.Msg, tc.wantMessage) {
+				t.Fatalf("status=%d body=%s, want business code=%d message=%q", recorder.Code, recorder.Body.String(), wantCode, tc.wantMessage)
+			}
+			if !tc.noSettings && settings.called != 1 {
+				t.Fatalf("site currency reads=%d, want 1", settings.called)
+			}
+			if tc.wantStatus != http.StatusOK {
+				if wallets.called != 0 {
+					t.Fatalf("rejected request reached balance adjustment: %+v", wallets.input)
+				}
+				return
+			}
+			wantCurrency := tc.siteCurrency
+			if wantCurrency == "" {
+				wantCurrency = constants.SiteCurrencyDefault
+			}
+			wantDelta := decimal.NewFromInt(10)
+			if tc.operation == "subtract" {
+				wantDelta = wantDelta.Neg()
+			}
+			if wallets.called != 1 || wallets.input.Currency != wantCurrency || !wallets.input.Delta.Decimal.Equal(wantDelta) || wallets.input.UserID != 10 || wallets.input.OperatorAdminID != 7 {
+				t.Fatalf("unexpected balance adjustment: calls=%d input=%+v", wallets.called, wallets.input)
+			}
+		})
+	}
+}
 
 func TestAdjustUserWalletRequiresRemarkWithDedicatedMessage(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -164,12 +275,47 @@ type rechargeConfirmStub struct {
 	AdminWalletService
 	called int
 	input  ConfirmRechargeInput
+	err    error
 }
 
 func (s *rechargeConfirmStub) ConfirmRecharge(input ConfirmRechargeInput) error {
 	s.called++
 	s.input = input
-	return nil
+	return s.err
+}
+
+func TestConfirmRechargeReportsCurrencyMismatch(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, tc := range []struct {
+		locale      string
+		wantMessage string
+	}{
+		{locale: "zh-CN", wantMessage: "支付币种不匹配"},
+		{locale: "zh-TW", wantMessage: "支付幣種不匹配"},
+		{locale: "en-US", wantMessage: "Payment currency mismatch"},
+	} {
+		for _, serviceErr := range []error{ErrPaymentCurrencyMismatch, fmt.Errorf("confirm recharge: %w", ErrPaymentCurrencyMismatch)} {
+			t.Run(tc.locale+"/"+serviceErr.Error(), func(t *testing.T) {
+				stub := &rechargeConfirmStub{err: serviceErr}
+				handler := &AdminHandler{wallets: stub}
+				recorder := httptest.NewRecorder()
+				ctx, _ := gin.CreateTestContext(recorder)
+				ctx.Set("admin_id", uint(7))
+				ctx.Params = gin.Params{{Key: "id", Value: "10"}}
+				ctx.Request = httptest.NewRequest(http.MethodPost, "/api/v1/admin/wallet/recharges/10/manual-confirm-payment", strings.NewReader(`{"payment_id":20}`))
+				ctx.Request.Header.Set("Content-Type", "application/json")
+				ctx.Request.Header.Set("Accept-Language", tc.locale)
+				handler.ConfirmRecharge(ctx)
+				var result response.Response
+				if err := json.Unmarshal(recorder.Body.Bytes(), &result); err != nil {
+					t.Fatal(err)
+				}
+				if recorder.Code != http.StatusOK || result.StatusCode != response.CodeBadRequest || result.Msg != tc.wantMessage || stub.called != 1 {
+					t.Fatalf("unexpected confirmation response: calls=%d status=%d body=%s", stub.called, recorder.Code, recorder.Body.String())
+				}
+			})
+		}
+	}
 }
 
 func TestConfirmRechargeRequiresPaymentAndPassesProviderRef(t *testing.T) {
