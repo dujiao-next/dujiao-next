@@ -4,12 +4,14 @@ import (
 	"errors"
 	"time"
 
-	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
-
-	memberlevelcontract "github.com/dujiao-next/internal/modules/memberlevel/contract"
 	"github.com/dujiao-next/internal/shared/money"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
+	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
+	memberlevelapp "github.com/dujiao-next/internal/modules/memberlevel/application"
+	memberlevelcontract "github.com/dujiao-next/internal/modules/memberlevel/contract"
 )
 
 // UserStore persists only the user fields owned by member-level progression.
@@ -32,6 +34,18 @@ func (r *UserStore) GetByID(id uint) (*userdomain.User, error) {
 	return &user, nil
 }
 
+// GetByIDForUpdate 锁定用户行，保证退款前资格快照与累计扣减、等级回退使用同一用户状态。
+func (r *UserStore) GetByIDForUpdate(id uint) (*userdomain.User, error) {
+	var user userdomain.User
+	if err := r.db.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND deleted_at IS NULL", id).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
 func (r *UserStore) Update(user *userdomain.User) error {
 	if user == nil || user.ID == 0 {
 		return nil
@@ -45,6 +59,50 @@ func (r *UserStore) Update(user *userdomain.User) error {
 
 func (r *UserStore) IncrementTotalRecharged(userID uint, amount decimal.Decimal) error {
 	return r.incrementMoneyColumn(userID, "total_recharged", amount)
+}
+
+// DecrementTotalRecharged 原子扣回累计充值，历史累计不足时归零，避免出现负数。
+func (r *UserStore) DecrementTotalRecharged(userID uint, amount decimal.Decimal) error {
+	return decrementMoneyColumn(r.db, userID, "total_recharged", amount)
+}
+
+// DecrementTotalSpent 原子扣回累计消费，历史累计不足时归零。
+func (r *UserStore) DecrementTotalSpent(userID uint, amount decimal.Decimal) error {
+	return decrementMoneyColumn(r.db, userID, "total_spent", amount)
+}
+
+// OnOrderRefunded 在调用方的退款事务内扣回累计消费并检查等级回退。
+func OnOrderRefunded(tx *gorm.DB, userID uint, amount decimal.Decimal) error {
+	service := memberlevelapp.NewService(NewLevelStore(tx), NewPriceStore(tx), NewUserStore(tx), NewUserPriceStore(tx))
+	return service.OnOrderRefunded(userID, amount)
+}
+
+// OnRechargeRefunded 在调用方的退款事务内扣回累计充值并检查等级回退。
+func OnRechargeRefunded(tx *gorm.DB, userID uint, amount decimal.Decimal) error {
+	service := memberlevelapp.NewService(NewLevelStore(tx), NewPriceStore(tx), NewUserStore(tx), NewUserPriceStore(tx))
+	return service.OnRechargeRefunded(userID, amount)
+}
+
+// decrementMoneyColumn 扣减指定累计字段，字段名仅由内部固定调用提供。
+func decrementMoneyColumn(tx *gorm.DB, userID uint, column string, amount decimal.Decimal) error {
+	amount = amount.Round(2)
+	if userID == 0 || !amount.IsPositive() {
+		return nil
+	}
+	value := money.FromDecimal(amount)
+	result := tx.Model(&userdomain.User{}).
+		Where("id = ? AND deleted_at IS NULL", userID).
+		Updates(map[string]interface{}{
+			column:       gorm.Expr("CASE WHEN "+column+" >= ? THEN "+column+" - ? ELSE 0 END", value, value),
+			"updated_at": time.Now(),
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return memberlevelcontract.ErrUserNotFound
+	}
+	return nil
 }
 
 func (r *UserStore) IncrementTotalSpent(userID uint, amount decimal.Decimal) error {

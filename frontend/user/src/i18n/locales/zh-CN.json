@@ -508,6 +508,8 @@
       "rechargeStatus": {
         "pending": "待支付",
         "success": "已到账",
+        "partially_refunded": "部分退款",
+        "refunded": "已退款",
         "failed": "支付失败",
         "expired": "支付过期"
       },

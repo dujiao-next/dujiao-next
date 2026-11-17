@@ -3,12 +3,25 @@ package application
 import (
 	"time"
 
+	"github.com/dujiao-next/internal/shared/money"
+	"github.com/shopspring/decimal"
+
+	settingscontract "github.com/dujiao-next/internal/modules/settings/contract"
 	walletcontract "github.com/dujiao-next/internal/modules/wallet/contract"
 	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
-	"github.com/dujiao-next/internal/shared/money"
-
-	"github.com/shopspring/decimal"
 )
+
+// IsRechargeRefundWindowExpired 使用当前退款配置判断充值单是否已超过退款期限。
+func (s *Service) IsRechargeRefundWindowExpired(recharge *walletdomain.RechargeOrder) (bool, error) {
+	cfg, err := s.getRechargeRefundConfig()
+	if err != nil {
+		return false, err
+	}
+	if recharge == nil {
+		return false, walletcontract.ErrRechargeNotFound
+	}
+	return settingscontract.IsOrderRefundWindowExpired(recharge.CreatedAt, recharge.PaidAt, cfg.MaxRefundDays, time.Now()), nil
+}
 
 func (s *Service) GetAccount(userID uint) (*walletdomain.Account, error) {
 	if userID == 0 {

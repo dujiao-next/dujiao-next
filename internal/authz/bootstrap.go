@@ -125,6 +125,8 @@ func BuiltinRoleSeeds() []RoleSeed {
 				{Object: "/admin/users/:id/2fa", Action: "DELETE"}, // 客服协助用户重置丢失 TOTP+恢复码 的 2FA
 				{Object: "/admin/user-login-logs", Action: "GET"},
 				{Object: "/admin/wallet/recharges", Action: "GET"},
+				{Object: "/admin/wallet/recharges/:id", Action: "GET"},
+				{Object: "/admin/wallet/recharges/:id/manual-confirm-payment", Action: "POST"},
 				{Object: "/admin/payments", Action: "GET"},
 				{Object: "/admin/payments/:id", Action: "GET"},
 				{Object: "/admin/gift-cards", Action: "GET"},
@@ -221,6 +223,9 @@ func BuiltinRoleSeeds() []RoleSeed {
 				{Object: "/admin/gift-cards", Action: "GET"},
 				{Object: "/admin/gift-cards/export", Action: "POST"},
 				{Object: "/admin/wallet/recharges", Action: "GET"},
+				{Object: "/admin/wallet/recharges/:id", Action: "GET"},
+				{Object: "/admin/wallet/recharges/:id/manual-confirm-payment", Action: "POST"},
+				{Object: "/admin/wallet/recharges/:id/manual-refund", Action: "POST"},
 				{Object: "/admin/users/:id/wallet", Action: "GET"},
 				{Object: "/admin/users/:id/wallet/transactions", Action: "GET"},
 				{Object: "/admin/users/:id/wallet/adjust", Action: "POST"},

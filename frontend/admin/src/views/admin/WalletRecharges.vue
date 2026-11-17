@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { adminAPI, type AdminWalletRecharge } from '@/api/admin'
+import RechargeDetailDialog from './components/RechargeDetailDialog.vue'
 import IdCell from '@/components/IdCell.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,12 +12,16 @@ import TableSkeleton from '@/components/TableSkeleton.vue'
 import ListPagination from '@/components/ListPagination.vue'
 import { useListRefresh, type ListFetchOptions } from '@/composables/useListRefresh'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { paymentStatusClass, paymentStatusLabel } from '@/utils/status'
+import { paymentStatusClass, paymentStatusLabel, rechargeStatusClass, rechargeStatusLabel } from '@/utils/status'
 import { formatDate, toRFC3339 } from '@/utils/format'
+import { providerTypeLabel as providerTypeLabelMap, channelTypeLabel as channelTypeLabelMap } from '@/utils/paymentChannelDisplay'
 import ComplianceGuardWrapper from '@/components/ComplianceGuardWrapper.vue'
 import { adminUrl } from '@/utils/adminBase'
 
 const { t } = useI18n()
+const selectedRecharge = ref<AdminWalletRecharge | null>(null)
+const detailOpen = ref(false)
+const showDetail = (item: AdminWalletRecharge) => { selectedRecharge.value = item; detailOpen.value = true }
 const loading = ref(true)
 const { refreshing, refreshList } = useListRefresh()
 const recharges = ref<AdminWalletRecharge[]>([])
@@ -99,34 +104,8 @@ const channelLink = (channelID: number) => adminUrl(`/payment-channels?channel_i
 const statusClass = (status?: string) => paymentStatusClass(status)
 const statusLabel = (status?: string) => paymentStatusLabel(t, status)
 
-const providerTypeLabel = (value?: string) => {
-  const map: Record<string, string> = {
-    official: t('admin.paymentChannels.providerTypes.official'),
-    epay: t('admin.paymentChannels.providerTypes.epay'),
-    epusdt: t('admin.paymentChannels.providerTypes.epusdt'),
-    tokenpay: t('admin.paymentChannels.providerTypes.tokenpay'),
-    wallet: t('admin.paymentChannels.providerTypes.wallet'),
-  }
-  if (!value) return '-'
-  return map[value] || value
-}
-
-const channelTypeLabel = (value?: string) => {
-  const map: Record<string, string> = {
-    wechat: t('admin.paymentChannels.channelTypes.wechat'),
-    alipay: t('admin.paymentChannels.channelTypes.alipay'),
-    qqpay: t('admin.paymentChannels.channelTypes.qqpay'),
-    paypal: t('admin.paymentChannels.channelTypes.paypal'),
-    stripe: t('admin.paymentChannels.channelTypes.stripe'),
-    usdt: t('admin.paymentChannels.channelTypes.usdt'),
-    'usdt-trc20': t('admin.paymentChannels.channelTypes.usdtTrc20'),
-    'usdc-trc20': t('admin.paymentChannels.channelTypes.usdcTrc20'),
-    trx: t('admin.paymentChannels.channelTypes.trx'),
-    balance: t('admin.paymentChannels.channelTypes.balance'),
-  }
-  if (!value) return '-'
-  return map[value] || value
-}
+const providerTypeLabel = (value?: string) => providerTypeLabelMap(t, value)
+const channelTypeLabel = (value?: string) => channelTypeLabelMap(t, value)
 
 onMounted(() => {
   fetchRecharges()
@@ -181,6 +160,8 @@ onMounted(() => {
               <SelectItem value="__all__">{{ t('admin.walletRecharges.filterStatusAll') }}</SelectItem>
               <SelectItem value="pending">{{ t('payment.status.pending') }}</SelectItem>
               <SelectItem value="success">{{ t('payment.status.success') }}</SelectItem>
+              <SelectItem value="partially_refunded">{{ rechargeStatusLabel(t, 'partially_refunded') }}</SelectItem>
+              <SelectItem value="refunded">{{ rechargeStatusLabel(t, 'refunded') }}</SelectItem>
               <SelectItem value="failed">{{ t('payment.status.failed') }}</SelectItem>
               <SelectItem value="expired">{{ t('payment.status.expired') }}</SelectItem>
             </SelectContent>
@@ -240,16 +221,17 @@ onMounted(() => {
             <TableHead class="min-w-[140px] px-6 py-3">{{ t('admin.walletRecharges.table.amount') }}</TableHead>
             <TableHead class="min-w-[140px] px-6 py-3">{{ t('admin.walletRecharges.table.paidAt') }}</TableHead>
             <TableHead class="min-w-[140px] px-6 py-3">{{ t('admin.walletRecharges.table.createdAt') }}</TableHead>
+            <TableHead class="px-4 py-3 min-w-[140px] text-right sticky right-0 bg-muted/40 z-10">{{ t('admin.walletRecharges.detail.actions') }}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody class="divide-y divide-border">
           <TableRow v-if="loading">
-            <TableCell :colspan="9" class="p-0">
-              <TableSkeleton :columns="9" :rows="5" />
+            <TableCell :colspan="10" class="p-0">
+              <TableSkeleton :columns="10" :rows="5" />
             </TableCell>
           </TableRow>
           <TableRow v-else-if="recharges.length === 0">
-            <TableCell colspan="9" class="px-6 py-8 text-center text-muted-foreground">{{ t('admin.walletRecharges.empty') }}</TableCell>
+            <TableCell colspan="10" class="px-6 py-8 text-center text-muted-foreground">{{ t('admin.walletRecharges.empty') }}</TableCell>
           </TableRow>
           <TableRow v-for="item in recharges" :key="item.id" class="hover:bg-muted/30">
             <TableCell class="px-6 py-4">
@@ -293,8 +275,8 @@ onMounted(() => {
               </div>
             </TableCell>
             <TableCell class="min-w-[90px] px-6 py-4 text-xs">
-              <span class="inline-flex rounded-full border px-2.5 py-1 text-xs" :class="statusClass(item.status)">
-                {{ statusLabel(item.status) }}
+              <span class="inline-flex rounded-full border px-2.5 py-1 text-xs" :class="rechargeStatusClass(item.status)">
+                {{ rechargeStatusLabel(t, item.status) }}
               </span>
             </TableCell>
             <TableCell class="min-w-[140px] px-6 py-4 text-xs text-muted-foreground">
@@ -304,6 +286,11 @@ onMounted(() => {
             </TableCell>
             <TableCell class="min-w-[140px] px-6 py-4 text-xs text-muted-foreground">{{ formatDate(item.paid_at) || '-' }}</TableCell>
             <TableCell class="min-w-[140px] px-6 py-4 text-xs text-muted-foreground">{{ formatDate(item.created_at) }}</TableCell>
+            <TableCell class="min-w-[140px] px-4 py-3 sticky right-0 bg-card z-10">
+              <div class="flex flex-wrap items-center justify-end gap-1.5">
+                <Button size="xs" variant="outline" @click="showDetail(item)">{{ t('admin.walletRecharges.detail.view') }}</Button>
+              </div>
+            </TableCell>
           </TableRow>
         </TableBody>
       </Table>
@@ -319,5 +306,6 @@ onMounted(() => {
       />
     </div>
   </div>
+  <RechargeDetailDialog v-model="detailOpen" :recharge="selectedRecharge" @updated="refresh" />
   </ComplianceGuardWrapper>
 </template>

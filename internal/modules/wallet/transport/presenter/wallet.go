@@ -3,12 +3,11 @@ package presenter
 import (
 	"time"
 
+	"github.com/dujiao-next/internal/shared/money"
+
 	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
 	paymentpresenter "github.com/dujiao-next/internal/modules/payment/transport/presenter"
-
 	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
-
-	"github.com/dujiao-next/internal/shared/money"
 )
 
 // WalletAccountResp 钱包账户响应
@@ -59,33 +58,35 @@ func NewWalletTransactionRespList(txns []walletdomain.Transaction) []WalletTrans
 
 // WalletRechargeResp 钱包充值单响应
 type WalletRechargeResp struct {
-	ID            uint         `json:"id"`
-	RechargeNo    string       `json:"recharge_no"`
-	Amount        money.Amount `json:"amount"`
-	PayableAmount money.Amount `json:"payable_amount"`
-	FeeRate       money.Amount `json:"fee_rate"`
-	FeeAmount     money.Amount `json:"fee_amount"`
-	Currency      string       `json:"currency"`
-	Status        string       `json:"status"`
-	Remark        string       `json:"remark"`
-	PaidAt        *time.Time   `json:"paid_at"`
-	CreatedAt     time.Time    `json:"created_at"`
+	ID             uint         `json:"id"`
+	RechargeNo     string       `json:"recharge_no"`
+	Amount         money.Amount `json:"amount"`
+	PayableAmount  money.Amount `json:"payable_amount"`
+	FeeRate        money.Amount `json:"fee_rate"`
+	FeeAmount      money.Amount `json:"fee_amount"`
+	RefundedAmount money.Amount `json:"refunded_amount"`
+	Currency       string       `json:"currency"`
+	Status         string       `json:"status"`
+	Remark         string       `json:"remark"`
+	PaidAt         *time.Time   `json:"paid_at"`
+	CreatedAt      time.Time    `json:"created_at"`
 }
 
 // NewWalletRechargeResp 从 walletdomain.RechargeOrder 构造响应
 func NewWalletRechargeResp(r *walletdomain.RechargeOrder) WalletRechargeResp {
 	return WalletRechargeResp{
-		ID:            r.ID,
-		RechargeNo:    r.RechargeNo,
-		Amount:        r.Amount,
-		PayableAmount: r.PayableAmount,
-		FeeRate:       r.FeeRate,
-		FeeAmount:     r.FeeAmount,
-		Currency:      r.Currency,
-		Status:        r.Status,
-		Remark:        r.Remark,
-		PaidAt:        r.PaidAt,
-		CreatedAt:     r.CreatedAt,
+		ID:             r.ID,
+		RechargeNo:     r.RechargeNo,
+		Amount:         r.Amount,
+		PayableAmount:  r.PayableAmount,
+		FeeRate:        r.FeeRate,
+		FeeAmount:      r.FeeAmount,
+		RefundedAmount: r.RefundedAmount,
+		Currency:       r.Currency,
+		Status:         r.Status,
+		Remark:         r.Remark,
+		PaidAt:         r.PaidAt,
+		CreatedAt:      r.CreatedAt,
 	}
 	// 排除：UserID、PaymentID、ChannelID、ProviderType、ChannelType、InteractionMode、UpdatedAt
 }

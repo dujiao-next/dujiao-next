@@ -556,6 +556,8 @@
       "rechargeStatus": {
         "pending": "Pending",
         "success": "Credited",
+        "partially_refunded": "Partially Refunded",
+        "refunded": "Refunded",
         "failed": "Failed",
         "expired": "Expired"
       },

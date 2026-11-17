@@ -6,17 +6,16 @@ import (
 	"testing"
 	"time"
 
-	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
-	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
-
-	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
-
 	"github.com/dujiao-next/internal/constants"
-	dashboard "github.com/dujiao-next/internal/modules/dashboard/contract"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/money"
-
 	"github.com/shopspring/decimal"
+
+	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
+	dashboard "github.com/dujiao-next/internal/modules/dashboard/contract"
+	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
+	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
+	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 )
 
 func TestGetProfitOverviewDeductsRefundRecords(t *testing.T) {
@@ -672,5 +671,46 @@ func TestRefundedCostUsesParentOrderChildrenCostBasis(t *testing.T) {
 	}
 	if math.Abs(result.TotalRevenue-50) > 0.000001 || math.Abs(result.TotalCost-40) > 0.000001 || math.Abs(result.RefundedCost-20) > 0.000001 {
 		t.Fatalf("unexpected parent refund metrics: %+v", result)
+	}
+}
+
+func TestProfitStatisticsReverseRechargeFeeWithoutChangingRevenueOrProductCost(t *testing.T) {
+	repo, db := setupDashboardRepositoryTest(t)
+	base := time.Date(2026, 11, 11, 10, 0, 0, 0, time.UTC)
+	refundAt := base.Add(24 * time.Hour)
+	if err := db.Create(&paymentdomain.Payment{OrderID: 0, ProviderType: constants.PaymentProviderOfficial, ChannelType: constants.PaymentChannelTypeAlipay, InteractionMode: constants.PaymentInteractionRedirect, Amount: money.FromDecimal(decimal.NewFromInt(100)), FeeAmount: money.FromDecimal(decimal.RequireFromString("3.01")), FeePolicy: constants.PaymentFeePolicyMerchantAbsorbed, Currency: "CNY", Status: constants.PaymentStatusSuccess, CreatedAt: base, UpdatedAt: base}).Error; err != nil {
+		t.Fatal(err)
+	}
+	rechargeID := uint(42)
+	deletedAt := refundAt
+	records := []walletdomain.Transaction{
+		{UserID: 1, RechargeOrderID: &rechargeID, Type: constants.WalletTxnTypeAdminRefund, Reference: "recharge-fee", Amount: money.FromDecimal(decimal.NewFromInt(40)), PaymentFeeRefunded: true, PaymentFeeRefundedAmount: money.FromDecimal(decimal.RequireFromString("1.20")), CreatedAt: refundAt, UpdatedAt: refundAt},
+		{UserID: 1, RechargeOrderID: &rechargeID, Type: constants.WalletTxnTypeAdminRefund, Reference: "unchecked-fee", PaymentFeeRefunded: false, PaymentFeeRefundedAmount: money.FromDecimal(decimal.NewFromInt(99)), CreatedAt: refundAt, UpdatedAt: refundAt},
+		{UserID: 1, Type: constants.WalletTxnTypeAdminRefund, Reference: "unrelated-refund", PaymentFeeRefunded: true, PaymentFeeRefundedAmount: money.FromDecimal(decimal.NewFromInt(98)), CreatedAt: refundAt, UpdatedAt: refundAt},
+		{UserID: 1, RechargeOrderID: &rechargeID, Type: constants.WalletTxnTypeAdminRefund, Reference: "deleted-fee", PaymentFeeRefunded: true, PaymentFeeRefundedAmount: money.FromDecimal(decimal.NewFromInt(97)), CreatedAt: refundAt, UpdatedAt: refundAt, DeletedAt: &deletedAt},
+	}
+	if err := db.Create(&records).Error; err != nil {
+		t.Fatal(err)
+	}
+	overview, err := repo.GetProfitOverview(base.Add(-time.Hour), refundAt.Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if math.Abs(overview.PaymentFee-1.81) > 0.000001 || overview.TotalRevenue != 0 || overview.TotalCost != 0 || overview.RefundedCost != 0 {
+		t.Fatalf("recharge changed product profit: %+v", overview)
+	}
+	refundOnly, err := repo.GetProfitOverview(refundAt.Add(-time.Hour), refundAt.Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if math.Abs(refundOnly.PaymentFee+1.20) > 0.000001 {
+		t.Fatalf("refund-day fee: %+v", refundOnly)
+	}
+	rows, err := repo.GetProfitTrends(base.Add(-time.Hour), refundAt.Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 2 || rows[0].Day != "2026-11-11" || rows[1].Day != "2026-11-12" || math.Abs(rows[0].PaymentFee-3.01) > 0.000001 || math.Abs(rows[1].PaymentFee+1.20) > 0.000001 {
+		t.Fatalf("fee trends: %+v", rows)
 	}
 }

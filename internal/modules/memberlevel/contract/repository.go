@@ -1,11 +1,12 @@
 package contract
 
 import (
-	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
-	memberleveldomain "github.com/dujiao-next/internal/modules/memberlevel/domain"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/money"
 	"github.com/shopspring/decimal"
+
+	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
+	memberleveldomain "github.com/dujiao-next/internal/modules/memberlevel/domain"
 )
 
 type ListFilter struct {
@@ -48,9 +49,12 @@ type UserPriceRepository interface {
 // UserRepository is the member-level consumer's minimal user persistence port.
 type UserRepository interface {
 	GetByID(id uint) (*userdomain.User, error)
+	GetByIDForUpdate(id uint) (*userdomain.User, error)
 	Update(user *userdomain.User) error
 	IncrementTotalRecharged(userID uint, amount decimal.Decimal) error
+	DecrementTotalRecharged(userID uint, amount decimal.Decimal) error
 	IncrementTotalSpent(userID uint, amount decimal.Decimal) error
+	DecrementTotalSpent(userID uint, amount decimal.Decimal) error
 	UpdateMemberLevelIfCurrent(userID, currentLevelID, nextLevelID uint) (int64, error)
 	AssignDefaultMemberLevel(defaultLevelID uint) (int64, error)
 }

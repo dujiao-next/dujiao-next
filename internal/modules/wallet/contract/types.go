@@ -83,3 +83,18 @@ type OrderReleaseInput struct {
 	TransactionType  string
 	Remark           string
 }
+
+type RechargeRefundFeeSnapshot struct {
+	PaymentAmount money.Amount
+	PaymentFee    money.Amount
+}
+
+type RechargeRefundInput struct {
+	FeeSnapshot        RechargeRefundFeeSnapshot
+	PaymentFeeRefunded bool
+	RechargeID         uint
+	AdminID            uint
+	Amount             money.Amount
+	Remark             string
+	RequestID          string
+}

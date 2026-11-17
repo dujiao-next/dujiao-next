@@ -7,25 +7,24 @@ import (
 	"fmt"
 	"strings"
 
-	paymentapp "github.com/dujiao-next/internal/modules/payment/application"
-
-	fulfillmentapp "github.com/dujiao-next/internal/modules/fulfillment/application"
-	fulfillmentdomain "github.com/dujiao-next/internal/modules/fulfillment/domain"
-	orderapp "github.com/dujiao-next/internal/modules/order/application"
-	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
-
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/htmltext"
 	"github.com/dujiao-next/internal/logger"
-	notificationcontract "github.com/dujiao-next/internal/modules/notification/contract"
-	settingsmessaging "github.com/dujiao-next/internal/modules/settings/schema/messaging"
-	walletcontract "github.com/dujiao-next/internal/modules/wallet/contract"
 	"github.com/dujiao-next/internal/queue"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/mailbrand"
 	"github.com/dujiao-next/internal/telegramidentity"
-
 	"github.com/hibiken/asynq"
+
+	fulfillmentapp "github.com/dujiao-next/internal/modules/fulfillment/application"
+	fulfillmentdomain "github.com/dujiao-next/internal/modules/fulfillment/domain"
+	notificationcontract "github.com/dujiao-next/internal/modules/notification/contract"
+	orderapp "github.com/dujiao-next/internal/modules/order/application"
+	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
+	paymentapp "github.com/dujiao-next/internal/modules/payment/application"
+	settingsmessaging "github.com/dujiao-next/internal/modules/settings/schema/messaging"
+	walletcontract "github.com/dujiao-next/internal/modules/wallet/contract"
+	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 )
 
 // handleOrderStatusEmail 处理订单状态邮件发送任务。
@@ -114,7 +113,8 @@ func (c *Consumer) handleOrderStatusEmail(ctx context.Context, task *asynq.Task)
 		logger.Debugw("worker_order_status_email_skip_placeholder_receiver", "order_id", order.ID, "order_no", order.OrderNo)
 		return nil
 	}
-	if c.EmailSender == nil {
+	sender := c.resolveStatusEmailSender()
+	if sender == nil {
 		logger.Warnw("worker_order_status_email_skip_email_service_nil", "order_id", order.ID, "order_no", order.OrderNo)
 		return nil
 	}
@@ -164,7 +164,7 @@ func (c *Consumer) handleOrderStatusEmail(ctx context.Context, task *asynq.Task)
 	if status == constants.OrderStatusDelivered || status == constants.OrderStatusCompleted {
 		input.Instructions = buildOrderInstructionsEmailText(order, locale)
 	}
-	if err := c.EmailSender.SendOrderStatusEmailWithTemplate(receiverEmail, input, locale, tmplSetting); err != nil {
+	if err := sender.SendOrderStatusEmailWithTemplate(receiverEmail, input, locale, tmplSetting); err != nil {
 		switch {
 		case errors.Is(err, notificationcontract.ErrEmailServiceDisabled):
 			logger.Debugw("worker_order_status_email_skip_email_disabled",
@@ -202,6 +202,85 @@ func (c *Consumer) handleOrderStatusEmail(ctx context.Context, task *asynq.Task)
 		}
 	}
 	return nil
+}
+
+// handleWalletRechargeRefundEmail 按订单退款邮件的配置、模板和收件人规则发送充值退款通知。
+func (c *Consumer) handleWalletRechargeRefundEmail(ctx context.Context, task *asynq.Task) error {
+	if c == nil || c.Container == nil || task == nil {
+		return nil
+	}
+	var payload queue.WalletRechargeRefundEmailPayload
+	if err := json.Unmarshal(task.Payload(), &payload); err != nil {
+		return err
+	}
+	if payload.RechargeID == 0 || payload.RefundID == 0 ||
+		(payload.Status != constants.WalletRechargeStatusRefunded && payload.Status != constants.WalletRechargeStatusPartiallyRefunded) {
+		return nil
+	}
+	if c.SettingService == nil || c.Config == nil {
+		return nil
+	}
+	smtpSetting, err := c.SettingService.GetSMTPSetting(c.Config.Email)
+	if err != nil {
+		logger.Warnw("wallet_recharge_refund_email_load_settings_failed", "refund_id", payload.RefundID, "error", err)
+		return nil
+	}
+	if !smtpSetting.Enabled || !smtpSetting.OrderNotificationEnabled {
+		return nil
+	}
+	if c.WalletRepo == nil || c.UserStore == nil {
+		return fmt.Errorf("wallet recharge refund email reader unavailable")
+	}
+	recharge, err := c.WalletRepo.GetRechargeOrderByID(payload.RechargeID)
+	if err != nil || recharge == nil {
+		return err
+	}
+	refunds, err := c.WalletRepo.ListRechargeRefunds(recharge.ID)
+	if err != nil {
+		return err
+	}
+	var refund *walletdomain.Transaction
+	for i := range refunds {
+		if refunds[i].ID == payload.RefundID && refunds[i].UserID == recharge.UserID {
+			refund = &refunds[i]
+			break
+		}
+	}
+	if refund == nil {
+		return nil
+	}
+	user, err := c.UserStore.GetByID(recharge.UserID)
+	if err != nil || user == nil {
+		return err
+	}
+	receiver := strings.TrimSpace(user.Email)
+	if receiver == "" || telegramidentity.IsPlaceholderEmail(receiver) {
+		return nil
+	}
+	sender := c.resolveStatusEmailSender()
+	if sender == nil {
+		return nil
+	}
+	var template *settingsmessaging.OrderEmailTemplateSetting
+	setting, templateErr := c.SettingService.GetOrderEmailTemplateSetting()
+	if templateErr != nil {
+		logger.Warnw("wallet_recharge_refund_email_load_template_failed", "refund_id", payload.RefundID, "error", templateErr)
+	} else {
+		template = &setting
+	}
+	brand, err := c.resolveOrderEmailBrand(ctx, &orderdomain.Order{})
+	if err != nil {
+		return err
+	}
+	err = sender.SendOrderStatusEmailWithTemplate(receiver, notificationcontract.OrderStatusEmailInput{
+		OrderNo: recharge.RechargeNo, Status: payload.Status, Amount: recharge.Amount,
+		RefundAmount: refund.Amount, RefundReason: refund.Remark, Currency: recharge.Currency,
+		SiteName: brand.SiteName, SiteURL: brand.SiteURL, MailBrand: brand,
+	}, strings.TrimSpace(user.Locale), template)
+	if errors.Is(err, notificationcontract.ErrEmailServiceDisabled) || errors.Is(err, notificationcontract.ErrEmailNotConfigured) || errors.Is(err, notificationcontract.ErrInvalidEmail) {
+		return nil
+	}
+	return err
 }
 
 func (c *Consumer) resolveOrderEmailBrand(ctx context.Context, order *orderdomain.Order) (mailbrand.Brand, error) {

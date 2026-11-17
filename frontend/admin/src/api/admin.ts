@@ -172,6 +172,8 @@ export interface AdminWalletRechargeUser {
 export interface AdminWalletRecharge {
   id: number
   recharge_no: string
+  client_ip?: string
+  refunded_amount?: string
   user_id: number
   payment_id: number
   channel_id: number
@@ -453,6 +455,10 @@ export const adminAPI = {
   getUserWallet: (id: number) => api.get(`/admin/users/${id}/wallet`),
   getUserWalletTransactions: (id: number, params?: Record<string, unknown>) =>
     api.get(`/admin/users/${id}/wallet/transactions`, { params }),
+  getWalletRecharge: (id: number) => api.get(`/admin/wallet/recharges/${id}`),
+  manualConfirmRecharge: (id: number, payload: { payment_id: number; provider_ref?: string; remark?: string }) => api.post(`/admin/wallet/recharges/${id}/manual-confirm-payment`, payload),
+  manualRefundRecharge: (id: number, payload: { amount: string; remark?: string; request_id: string; payment_fee_refunded: boolean }) => api.post(`/admin/wallet/recharges/${id}/manual-refund`, payload),
+
   getWalletRecharges: (params?: Record<string, unknown>) =>
     api.get('/admin/wallet/recharges', { params }),
   adjustUserWallet: (id: number, data: AdminAdjustWalletPayload) =>
