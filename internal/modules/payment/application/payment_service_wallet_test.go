@@ -251,8 +251,11 @@ func TestWalletRechargeCurrencyCheckedBeforeCredit(t *testing.T) {
 				assertWalletRechargeSuccessState(t, db, payment.ID, recharge.ID, recharge.UserID, recharge.Amount.Decimal)
 				return
 			}
-			if !errors.Is(err, ErrPaymentCurrencyMismatch) {
+			if tc.manual && !errors.Is(err, ErrPaymentCurrencyMismatch) {
 				t.Fatalf("error = %v, want ErrPaymentCurrencyMismatch", err)
+			}
+			if !tc.manual && err != nil {
+				t.Fatalf("mismatched callback must be recorded, got error %v", err)
 			}
 			for _, model := range []interface{}{&walletdomain.Account{}, &walletdomain.Transaction{}} {
 				var count int64
@@ -265,6 +268,14 @@ func TestWalletRechargeCurrencyCheckedBeforeCredit(t *testing.T) {
 			}
 			if err := db.First(recharge, recharge.ID).Error; err != nil {
 				t.Fatal(err)
+			}
+			if !tc.manual {
+				// 自动回调：到账照常记录并带异常码，充值单关闭且不入账。
+				if payment.Status != constants.PaymentStatusSuccess || payment.ExceptionCode != constants.PaymentExceptionClosedOrderSucceeded ||
+					payment.PaidAt == nil || recharge.Status != constants.WalletRechargeStatusFailed || recharge.PaidAt != nil {
+					t.Fatalf("mismatched callback not recorded as exception: payment=%+v recharge=%+v", payment, recharge)
+				}
+				return
 			}
 			if payment.Status != constants.PaymentStatusPending || recharge.Status != constants.WalletRechargeStatusPending || payment.PaidAt != nil || recharge.PaidAt != nil {
 				t.Fatalf("rejected callback changed payment or recharge: payment=%+v recharge=%+v", payment, recharge)
