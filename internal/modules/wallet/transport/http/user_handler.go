@@ -10,7 +10,6 @@ import (
 
 	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
 
-	"github.com/dujiao-next/internal/constants"
 	walletpresenter "github.com/dujiao-next/internal/modules/wallet/transport/presenter"
 	"github.com/dujiao-next/internal/platform/http/ginutil"
 	"github.com/dujiao-next/internal/platform/http/response"
@@ -96,14 +95,13 @@ type UserHandler struct {
 	wallets  WalletService
 	payments PaymentService
 	users    UserReader
-	settings SiteCurrencyReader
 }
 
-func NewUserHandler(wallets WalletService, payments PaymentService, users UserReader, settings SiteCurrencyReader) *UserHandler {
+func NewUserHandler(wallets WalletService, payments PaymentService, users UserReader) *UserHandler {
 	if wallets == nil || payments == nil || users == nil {
 		panic("wallet user handler: required dependency is nil")
 	}
-	return &UserHandler{wallets: wallets, payments: payments, users: users, settings: settings}
+	return &UserHandler{wallets: wallets, payments: payments, users: users}
 }
 
 type walletRechargeRequest struct {
@@ -187,14 +185,8 @@ func (h *UserHandler) Recharge(c *gin.Context) {
 		ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", err)
 		return
 	}
-	currency := strings.TrimSpace(req.Currency)
-	if currency == "" && h.settings != nil {
-		if siteCurrency, currencyErr := h.settings.GetSiteCurrency(constants.SiteCurrencyDefault); currencyErr == nil {
-			currency = siteCurrency
-		}
-	}
 	result, err := h.payments.CreateWalletRechargePayment(CreateRechargePaymentInput{
-		UserID: uid, ChannelID: req.ChannelID, Amount: money.FromDecimal(amount), Currency: currency,
+		UserID: uid, ChannelID: req.ChannelID, Amount: money.FromDecimal(amount), Currency: strings.TrimSpace(req.Currency),
 		Remark: strings.TrimSpace(req.Remark), ClientIP: c.ClientIP(), Context: c.Request.Context(), RequestScheme: ginutil.RequestScheme(c),
 	})
 	if err != nil {

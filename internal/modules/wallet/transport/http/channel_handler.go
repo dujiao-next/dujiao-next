@@ -10,8 +10,6 @@ import (
 	ginutil "github.com/dujiao-next/internal/platform/http/ginutil"
 	"github.com/dujiao-next/internal/shared/money"
 
-	"github.com/dujiao-next/internal/constants"
-
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
 )
@@ -26,7 +24,6 @@ type ChannelHandler struct {
 	wallets  WalletService
 	payments PaymentService
 	users    ChannelUserProvisioner
-	settings SiteCurrencyReader
 }
 
 // NewChannelHandler 创建渠道钱包 Handler。
@@ -34,7 +31,6 @@ func NewChannelHandler(
 	wallets WalletService,
 	payments PaymentService,
 	users ChannelUserProvisioner,
-	settings SiteCurrencyReader,
 ) *ChannelHandler {
 	if wallets == nil || payments == nil || users == nil {
 		panic("wallet channel handler: required dependency is nil")
@@ -43,7 +39,6 @@ func NewChannelHandler(
 		wallets:  wallets,
 		payments: payments,
 		users:    users,
-		settings: settings,
 	}
 }
 
@@ -162,16 +157,10 @@ func (h *ChannelHandler) CreateWalletRecharge(c *gin.Context) {
 		return
 	}
 
-	currency := ""
-	if h.settings != nil {
-		currency, _ = h.settings.GetSiteCurrency(constants.SiteCurrencyDefault)
-	}
-
 	result, err := h.payments.CreateWalletRechargePayment(CreateRechargePaymentInput{
 		UserID:    userID,
 		ChannelID: req.ChannelID,
 		Amount:    money.FromDecimal(amount),
-		Currency:  currency,
 		ClientIP:  c.ClientIP(),
 		Context:   c.Request.Context(),
 	})
