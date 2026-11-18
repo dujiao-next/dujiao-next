@@ -93,9 +93,16 @@ func (s *PaymentService) CreateWalletRechargePayment(input CreateWalletRechargeP
 		feeConfig = s.settingService.GetPaymentFeeConfig()
 	}
 	paymentAmount, feeAmount, feePolicy := calculatePaymentAmounts(amount, feeRate, fixedFee, feeConfig.CustomerFeeEnabled)
-	currency := strings.ToUpper(strings.TrimSpace(input.Currency))
-	if currency == "" {
-		currency = "CNY"
+	// 充值本金必须使用站点币种，渠道结算币种由网关适配器换算。
+	currency := constants.SiteCurrencyDefault
+	if s.settingService != nil {
+		currency, err = s.settingService.GetSiteCurrency(constants.SiteCurrencyDefault)
+		if err != nil {
+			return nil, ErrPaymentCreateFailed
+		}
+	}
+	if requestedCurrency := strings.ToUpper(strings.TrimSpace(input.Currency)); requestedCurrency != "" && requestedCurrency != currency {
+		return nil, ErrPaymentCurrencyMismatch
 	}
 	if err := validatePaymentCurrencyForChannel(currency, channel); err != nil {
 		return nil, err

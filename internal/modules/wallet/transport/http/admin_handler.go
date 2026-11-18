@@ -393,12 +393,17 @@ func (h *AdminHandler) AdjustUserWallet(c *gin.Context) {
 		ginutil.RespondError(c, response.CodeBadRequest, "error.wallet_adjust_remark_required", nil)
 		return
 	}
-	currency := strings.TrimSpace(req.Currency)
-	if currency == "" && h.settings != nil {
-		siteCurrency, currencyErr := h.settings.GetSiteCurrency(constants.SiteCurrencyDefault)
-		if currencyErr == nil {
-			currency = siteCurrency
+	currency := constants.SiteCurrencyDefault
+	if h.settings != nil {
+		currency, err = h.settings.GetSiteCurrency(constants.SiteCurrencyDefault)
+		if err != nil {
+			ginutil.RespondError(c, response.CodeInternal, "error.user_update_failed", err)
+			return
 		}
+	}
+	if requestedCurrency := strings.ToUpper(strings.TrimSpace(req.Currency)); requestedCurrency != "" && requestedCurrency != currency {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.payment_currency_mismatch", nil)
+		return
 	}
 
 	account, txn, err := h.wallets.AdminAdjustBalance(AdjustBalanceInput{
@@ -504,6 +509,10 @@ func (h *AdminHandler) ConfirmRecharge(c *gin.Context) {
 		return
 	}
 	if err := h.wallets.ConfirmRecharge(ConfirmRechargeInput{RechargeID: id, PaymentID: req.PaymentID, AdminID: adminID, ProviderRef: req.ProviderRef, Remark: req.Remark}); err != nil {
+		if errors.Is(err, ErrPaymentCurrencyMismatch) {
+			ginutil.RespondError(c, response.CodeBadRequest, "error.payment_currency_mismatch", nil)
+			return
+		}
 		ginutil.RespondError(c, response.CodeBadRequest, "error.payment_update_failed", err)
 		return
 	}
