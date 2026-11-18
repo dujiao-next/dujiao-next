@@ -149,7 +149,16 @@ func (s *PaymentService) applyWalletRechargePaymentUpdate(payment *paymentdomain
 			(recharge.Status == constants.WalletRechargeStatusPending && lockedPayment.ExpiredAt == nil &&
 				(lockedPayment.Status == constants.PaymentStatusPending || lockedPayment.Status == constants.PaymentStatusInitiated)))
 		if canCredit && !strings.EqualFold(strings.TrimSpace(recharge.Currency), currency) {
-			return ErrPaymentCurrencyMismatch
+			if input.manualConfirm {
+				return ErrPaymentCurrencyMismatch
+			}
+			// 渠道到账属实但币种不符：照常记录到账并关闭充值单，不入账，留给管理员对账。
+			canCredit = false
+			recharge.Status = constants.WalletRechargeStatusFailed
+			recharge.UpdatedAt = now
+			if err := rechargeRepo.UpdateRechargeOrder(recharge); err != nil {
+				return ErrPaymentUpdateFailed
+			}
 		}
 		if status == constants.PaymentStatusSuccess {
 			if canCredit {
