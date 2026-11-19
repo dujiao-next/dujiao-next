@@ -109,10 +109,12 @@ type CreateProductInput struct {
 	SKUs                []ProductSKUInput
 	PaymentChannelIDs   []uint
 	// AffiliateRatePercent 是商品级返利比例：nil 表示继承全站比例，0 表示不参与返利。
-	// 商品写入是全量替换语义（与 PriceAmount 一致），未携带即视为继承。
+	// 需配合 AffiliateRatePercentSet 使用：未携带字段时保留原值，显式 null 才清除为继承。
 	AffiliateRatePercent *money.Amount
-	IsActive             *bool
-	SortOrder            int
+	// AffiliateRatePercentSet 表示请求是否携带了 AffiliateRatePercent 字段（含显式 null）。
+	AffiliateRatePercentSet bool
+	IsActive                *bool
+	SortOrder               int
 }
 
 // ProductSKUInput 描述商品 SKU 的完整写入值。
@@ -126,9 +128,12 @@ type ProductSKUInput struct {
 	// 避免后台用打开表单时的旧值覆盖期间被下单预占后的库存。
 	ManualStockTotal *int
 	// AffiliateRatePercent 为 SKU 级返利比例：nil 表示继承商品/全站比例。
+	// 需配合 AffiliateRatePercentSet 使用：未携带字段时保留原值，显式 null 才清除为继承。
 	AffiliateRatePercent *money.Amount
-	IsActive             *bool
-	SortOrder            int
+	// AffiliateRatePercentSet 表示请求是否携带了 AffiliateRatePercent 字段（含显式 null）。
+	AffiliateRatePercentSet bool
+	IsActive                *bool
+	SortOrder               int
 }
 
 func (s *WriteService) filterAvailablePaymentChannelIDs(ids []uint) ([]uint, error) {

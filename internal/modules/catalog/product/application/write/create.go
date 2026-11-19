@@ -32,11 +32,8 @@ func (s *WriteService) Create(input CreateProductInput) (*productdomain.Product,
 	if input.IsActive != nil {
 		isActive = *input.IsActive
 	}
-	if input.AffiliateRatePercent != nil && input.AffiliateRatePercent.LessThan(decimal.Zero) {
-		return nil, productcontract.ErrProductAffiliateRateInvalid
-	}
-	if input.AffiliateRatePercent != nil && input.AffiliateRatePercent.GreaterThan(decimal.NewFromInt(100)) {
-		return nil, productcontract.ErrProductAffiliateRateInvalid
+	if err := validateProductAffiliateRate(input.AffiliateRatePercent); err != nil {
+		return nil, err
 	}
 	purchaseType := productdomain.NormalizePurchaseType(input.PurchaseType)
 	if purchaseType == "" {

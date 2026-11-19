@@ -16,10 +16,10 @@ import { toast } from './useToast'
 
 // 推广码按登录态缓存：dashboard 接口每次都会统计点击与佣金，不应随每次进入商品页重复查询。
 let cachedToken = ''
-let cachedCode: string | null = null
+let cachedCode = ''
 
 const loadAffiliateCode = async (token: string, isStale: () => boolean): Promise<string> => {
-  if (cachedCode !== null && cachedToken === token) return cachedCode
+  if (cachedCode && cachedToken === token) return cachedCode
   try {
     const response = await affiliateAPI.dashboard()
     const data = response.data?.data
@@ -27,8 +27,11 @@ const loadAffiliateCode = async (token: string, isStale: () => boolean): Promise
     const code = data?.opened && data.status !== 'disabled' ? String(data.affiliate_code || '').trim() : ''
     // 请求期间用户可能已退出或切换账号，过期结果既不缓存也不使用。
     if (isStale()) return ''
-    cachedToken = token
-    cachedCode = code
+    // 只缓存非空结果：用户刚开通推广时，空结果会让复制入口一直不出现，必须下次进入页面重新查询。
+    if (code) {
+      cachedToken = token
+      cachedCode = code
+    }
     return code
   } catch {
     // 失败不缓存，下次进入页面会重试；入口按钮此时直接不展示。
