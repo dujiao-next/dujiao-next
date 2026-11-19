@@ -3,6 +3,7 @@ package httpserver
 import (
 	"github.com/dujiao-next/internal/app/container"
 	"github.com/dujiao-next/internal/app/httpserver/middleware"
+	adminapitokenbootstrap "github.com/dujiao-next/internal/bootstrap/adminapitoken"
 	affiliatebootstrap "github.com/dujiao-next/internal/bootstrap/affiliate"
 	settingsbootstrap "github.com/dujiao-next/internal/bootstrap/settingshttp"
 	"github.com/dujiao-next/internal/config"
@@ -21,6 +22,7 @@ import (
 	dashboardtransport "github.com/dujiao-next/internal/modules/dashboard/transport/http"
 	fulfillmenttransport "github.com/dujiao-next/internal/modules/fulfillment/transport/http"
 	giftcardtransport "github.com/dujiao-next/internal/modules/giftcard/transport/http"
+	adminapitokentransport "github.com/dujiao-next/internal/modules/identity/adminapitoken/transport/http"
 	adminauthtransport "github.com/dujiao-next/internal/modules/identity/adminauth/transport/http"
 	adminauthztransport "github.com/dujiao-next/internal/modules/identity/adminauthorization/transport/http"
 	invitecodetransport "github.com/dujiao-next/internal/modules/identity/invitecode/transport/http"
@@ -92,7 +94,13 @@ func registerAdminRoutes(
 	adminauthtransport.RegisterAdmin2FAAuthRoutes(admin, admin2FAHandler, middleware.RateLimitMiddleware(redisClient, adminLoginRule, middleware.KeyByIP))
 
 	// 需要鉴权的接口
-	authorized := admin.Use(middleware.JWTAuthMiddleware(cfg.JWT.SecretKey, c.AdminStore), middleware.AdminRBACMiddleware(c.AuthzService))
+	admin.Use(middleware.AdminAPITokenRateLimit(redisClient, cfg.Security.AdminAPIRateLimit, false))
+	authorized := admin.Use(middleware.JWTAuthMiddleware(cfg.JWT.SecretKey, c.AdminStore,
+		middleware.AdminAPITokenAuthentication(c.AdminAPITokenService, c.AuthzAuditService)),
+		middleware.AdminAPITokenRateLimit(redisClient, cfg.Security.AdminAPIRateLimit, true),
+		middleware.AdminRBACMiddleware(c.AuthzService),
+		middleware.AdminAPITokenAccess(c.ComplianceService),
+	)
 	// 支付/财务相关受保护子组：未确认合规声明时拦截
 	// 注：admin.Use(...) 已 mutate admin 自身，新 Group 继承 JWT + RBAC 中间件
 	paymentProtected := admin.Group("", middleware.PaymentComplianceRequired(c.ComplianceService))
@@ -142,6 +150,7 @@ func registerAdminRoutes(
 
 	// 权限管理
 	adminauthztransport.RegisterAdminRoutes(authorized, adminAuthzHandler)
+	adminapitokentransport.RegisterAdminRoutes(authorized, adminapitokenbootstrap.NewHandler(c))
 	auditlogtransport.RegisterAdminRoutes(authorized, adminAuditLogHandler)
 	authorized.GET("/authz/permissions/catalog", func(ctx *gin.Context) {
 		response.Success(ctx, buildAdminPermissionCatalog(engine))

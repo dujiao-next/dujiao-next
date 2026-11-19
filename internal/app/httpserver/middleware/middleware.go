@@ -151,9 +151,14 @@ func getRequestID(c *gin.Context) string {
 	return ""
 }
 
-// JWTAuthMiddleware JWT 鉴权中间件
-func JWTAuthMiddleware(secretKey string, adminRepo admincontract.Store) gin.HandlerFunc {
+// JWTAuthMiddleware validates interactive JWTs. Admin routes may explicitly
+// supply a separate authenticator for opaque machine credentials.
+func JWTAuthMiddleware(secretKey string, adminRepo admincontract.Store, machineAuth ...gin.HandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if len(machineAuth) > 0 && machineAuth[0] != nil && isAdminAPITokenRequest(c) {
+			machineAuth[0](c)
+			return
+		}
 		if secretKey == "" {
 			msg := i18n.T(i18n.ResolveLocale(c), "error.jwt_secret_missing")
 			response.Unauthorized(c, msg)

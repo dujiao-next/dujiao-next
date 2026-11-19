@@ -132,6 +132,12 @@ cors:
   max_age: 600
 
 security:
+  # 管理员 API Token：认证前同一来源 IP 的所有 Token 共享一份额度，认证后每个 Token 另有一份额度。
+  # 两层均使用下方的窗口和上限（非正值使用默认值）。反向代理不在 server.trusted_proxies 中时，
+  # 经该代理发来的所有请求共享代理 IP 的额度。
+  admin_api_rate_limit:
+    window_seconds: 60
+    max_requests: 120
   login_rate_limit:
     window_seconds: 300
     max_attempts: 5
