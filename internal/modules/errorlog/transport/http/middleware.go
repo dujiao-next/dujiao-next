@@ -12,6 +12,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// RequestIDKey 是 RequestIDMiddleware 写入 gin.Context 的键，与 httpserver 中间件包保持一致。
+const RequestIDKey = "request_id"
+
 // ErrorLogMiddleware 在每个请求完成后，把错误响应记录进 error_logs 表。
 //
 // 设计约束：
@@ -23,9 +26,6 @@ import (
 //  3. 4xx 默认不记录；svc.Collect4xx() 为 true 时一并收集。
 //  4. 调用 svc.Record() 是非阻塞的，永不影响请求延迟。
 //  5. svc 为 nil 时直接跳过，保证测试与未配置场景不 panic。
-// RequestIDKey 是 RequestIDMiddleware 写入 gin.Context 的键，与 httpserver 中间件包保持一致。
-const RequestIDKey = "request_id"
-
 func ErrorLogMiddleware(svc *application.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
