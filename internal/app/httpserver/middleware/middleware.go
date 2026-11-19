@@ -293,13 +293,7 @@ func AdminRBACMiddleware(authzService *authz.Service) gin.HandlerFunc {
 			resource = c.Request.URL.Path
 		}
 
-		var allowed bool
-		var err error
-		if c.GetUint("admin_api_token_id") != 0 {
-			allowed, err = authzService.EnforceAdminFresh(adminID, resource, c.Request.Method)
-		} else {
-			allowed, err = authzService.EnforceAdmin(adminID, resource, c.Request.Method)
-		}
+		allowed, err := authzService.EnforceAdmin(adminID, resource, c.Request.Method)
 		if err != nil {
 			logger.Errorw("admin_rbac_enforce_failed",
 				"admin_id", adminID,

@@ -36,6 +36,7 @@ type Owner struct {
 	IsSuper            bool
 	TokenVersion       uint64
 	TokenInvalidBefore *time.Time
+	TOTPEnabledAt      *time.Time
 }
 
 func (s *Service) owner(adminID uint) (*Owner, error) {
@@ -46,6 +47,7 @@ func (s *Service) owner(adminID uint) (*Owner, error) {
 	return &Owner{
 		ID: admin.ID, Username: admin.Username, IsSuper: admin.IsSuper,
 		TokenVersion: admin.TokenVersion, TokenInvalidBefore: admin.TokenInvalidBefore,
+		TOTPEnabledAt: admin.TOTPEnabledAt,
 	}, nil
 }
 
@@ -199,7 +201,8 @@ func (s *Service) Authenticate(secret string) (*tokendomain.Token, *Owner, error
 func validOwner(admin *Owner, token *tokendomain.Token) bool {
 	return admin != nil && !admin.IsSuper &&
 		admin.TokenVersion == token.AdminTokenVersion &&
-		(admin.TokenInvalidBefore == nil || token.CreatedAt.After(*admin.TokenInvalidBefore))
+		(admin.TokenInvalidBefore == nil || token.CreatedAt.After(*admin.TokenInvalidBefore)) &&
+		(admin.TOTPEnabledAt == nil || token.CreatedAt.After(*admin.TOTPEnabledAt))
 }
 
 func (s *Service) Touch(tokenID uint) error { return s.tokens.Touch(tokenID, time.Now()) }

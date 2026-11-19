@@ -13,6 +13,18 @@ func RouteAccess(method, route string) (allowed, financial bool) {
 	return ok, false
 }
 
+// AllowedRoutes lists the exact method and route template pairs accepted by RouteAccess.
+func AllowedRoutes() []string {
+	routes := make([]string, 0, len(businessRoutes)+len(financialRoutes))
+	for route := range businessRoutes {
+		routes = append(routes, route)
+	}
+	for route := range financialRoutes {
+		routes = append(routes, route)
+	}
+	return routes
+}
+
 var businessRoutes = map[string]struct{}{
 	"GET /api/v1/admin/products":                        {},
 	"GET /api/v1/admin/products/:id":                    {},

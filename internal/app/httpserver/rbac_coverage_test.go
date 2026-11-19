@@ -14,9 +14,17 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dujiao-next/internal/app/container"
 	"github.com/dujiao-next/internal/authz"
+	"github.com/dujiao-next/internal/bootstrap/database/migrations"
+	"github.com/dujiao-next/internal/config"
+	"github.com/dujiao-next/internal/logger"
+	tokenapp "github.com/dujiao-next/internal/modules/identity/adminapitoken/application"
+	"github.com/dujiao-next/internal/platform/database/gormdb"
 
 	"github.com/casbin/casbin/v3/util"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 // TestAllAdminRoutesCoveredByBuiltinRoles 校验 admin 路由文件里的每条路由
@@ -82,6 +90,33 @@ func TestAllAdminRoutesCoveredByBuiltinRoles(t *testing.T) {
 		}
 		t.Fatalf("the following admin routes are not covered by any builtin role seed in authz.BuiltinRoleSeeds() — add them to the appropriate role in api/internal/authz/bootstrap.go:\n%s",
 			strings.Join(lines, "\n"))
+	}
+}
+
+func TestAdminAPITokenAllowlistMatchesRegisteredRoutes(t *testing.T) {
+	originalDB, originalLog := gormdb.DB, logger.L
+	t.Cleanup(func() { gormdb.DB, logger.L = originalDB, originalLog })
+	logger.L = zap.NewNop()
+	require.NoError(t, gormdb.InitDB("sqlite", ":memory:", gormdb.DBPoolConfig{MaxOpenConns: 1, MaxIdleConns: 1}, "release"))
+	db, err := gormdb.DB.DB()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	require.NoError(t, migrations.AutoMigrate())
+
+	cfg := &config.Config{}
+	cfg.App.SecretKey = t.Name()
+	cfg.Web.AdminPath = "/admin"
+	c, err := container.NewContainer(cfg)
+	require.NoError(t, err)
+	engine := SetupRouter(cfg, c)
+	registered := make(map[string]bool)
+	for _, route := range engine.Routes() {
+		registered[route.Method+" "+route.Path] = true
+	}
+	for _, route := range tokenapp.AllowedRoutes() {
+		if !registered[route] {
+			t.Errorf("admin API token allowlist refers to unregistered route %s", route)
+		}
 	}
 }
 

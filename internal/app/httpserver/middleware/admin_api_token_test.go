@@ -77,6 +77,7 @@ func (f *tokenFixture) mint(t *testing.T) (*tokendomain.Token, string) {
 func (f *tokenFixture) router(maxRequests int) *gin.Engine {
 	r := gin.New()
 	r.Use(
+		RequestIDMiddleware(),
 		AdminAPITokenRateLimit(nil, config.AdminAPIRateLimitConfig{WindowSeconds: 60, MaxRequests: 1000}, false),
 		JWTAuthMiddleware("test", f.admins, AdminAPITokenAuthentication(f.service, f.audit)),
 		AdminAPITokenRateLimit(nil, config.AdminAPIRateLimitConfig{WindowSeconds: 60, MaxRequests: maxRequests}, true),
@@ -94,7 +95,10 @@ func (f *tokenFixture) router(maxRequests int) *gin.Engine {
 		r.POST("/api/v1/admin"+path, pass)
 	}
 	r.PUT("/api/v1/admin/password", pass)
-	r.GET("/api/v1/admin/payments", func(c *gin.Context) { response.Error(c, response.CodeBadRequest, "business_failure") })
+	fail := func(c *gin.Context) { response.Error(c, response.CodeBadRequest, "business_failure") }
+	r.GET("/api/v1/admin/payments", fail)
+	r.PATCH("/api/v1/admin/products/:id", pass)
+	r.POST("/api/v1/admin/products", fail)
 	tokenhttp.RegisterAdminRoutes(r.Group("/api/v1/admin"), tokenhttp.NewHandler(f.service, func(event tokenhttp.AuditEvent) {
 		f.events = append(f.events, event)
 	}))
@@ -109,7 +113,7 @@ func tokenRequest(r http.Handler, method, path, secret string) *httptest.Respons
 	return rec
 }
 
-func TestAPITokenUsesFreshPermissionsAndAuditsResults(t *testing.T) {
+func TestAPITokenUsesCurrentPermissionsAndAuditsDenialsAndWrites(t *testing.T) {
 	f := setupTokenMiddleware(t)
 	token, secret := f.mint(t)
 	r := f.router(100)
@@ -117,29 +121,78 @@ func TestAPITokenUsesFreshPermissionsAndAuditsResults(t *testing.T) {
 	require.Contains(t, rec.Body.String(), `"reached":true`)
 	require.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
 
-	// A second enforcer simulates another application instance changing RBAC.
-	other, err := authz.NewService(f.db)
-	require.NoError(t, err)
-	require.NoError(t, other.SetAdminRoles(f.admin.ID, nil))
+	require.NoError(t, f.authz.SetAdminRoles(f.admin.ID, nil))
 	rec = tokenRequest(r, "GET", "/api/v1/admin/products", secret)
+	require.Equal(t, http.StatusOK, rec.Code)
 	require.Contains(t, rec.Body.String(), `"status_code":403`)
 	require.NotContains(t, rec.Body.String(), `"reached":true`)
-	require.NoError(t, other.SetAdminRoles(f.admin.ID, []string{"automation"}))
-	require.NoError(t, other.RevokeRolePolicy("automation", "/admin/*", "*"))
+	require.NoError(t, f.authz.SetAdminRoles(f.admin.ID, []string{"automation"}))
+	require.NoError(t, f.authz.RevokeRolePolicy("automation", "/admin/*", "*"))
 	rec = tokenRequest(r, "GET", "/api/v1/admin/products", secret)
 	require.Contains(t, rec.Body.String(), `"status_code":403`)
-	require.NoError(t, other.GrantRolePolicy("automation", "/admin/*", "*"))
+	require.NoError(t, f.authz.GrantRolePolicy("automation", "/admin/*", "*"))
 	rec = tokenRequest(r, "GET", "/api/v1/admin/payments", secret)
 	require.Contains(t, rec.Body.String(), `"status_code":400`)
+	rec = tokenRequest(r, "GET", "/api/v1/admin/settings", secret)
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	rec = tokenRequest(r, "PATCH", "/api/v1/admin/products/42", secret)
+	require.Contains(t, rec.Body.String(), `"reached":true`)
+	rec = tokenRequest(r, "POST", "/api/v1/admin/products", secret)
+	require.Contains(t, rec.Body.String(), `"status_code":400`)
+
 	var logs []auditdomain.AuthzAuditLog
 	require.NoError(t, f.db.Order("id").Find(&logs).Error)
-	require.Len(t, logs, 4)
-	require.EqualValues(t, token.ID, logs[0].DetailJSON["token_id"])
-	require.EqualValues(t, 403, logs[1].DetailJSON["status_code"])
-	require.EqualValues(t, 400, logs[3].DetailJSON["status_code"])
+	want := []struct {
+		method, path     string
+		httpStatus, code int
+	}{
+		{"GET", "/api/v1/admin/products", 200, 403},
+		{"GET", "/api/v1/admin/products", 200, 403},
+		{"GET", "/api/v1/admin/settings", 403, 403},
+		{"PATCH", "/api/v1/admin/products/:id", 200, 0},
+		{"POST", "/api/v1/admin/products", 200, 400},
+	}
+	require.Len(t, logs, len(want))
+	for i, entry := range want {
+		require.Equal(t, entry.method, logs[i].Method)
+		require.Equal(t, entry.path, logs[i].Object)
+		require.EqualValues(t, token.ID, logs[i].DetailJSON["token_id"])
+		require.EqualValues(t, entry.httpStatus, logs[i].DetailJSON["http_status"])
+		require.EqualValues(t, entry.code, logs[i].DetailJSON["status_code"])
+	}
 	encoded, err := json.Marshal(logs)
 	require.NoError(t, err)
 	require.NotContains(t, string(encoded), secret)
+}
+
+func TestAPITokenAuthenticationDistinguishesStoreFailureFromInvalidToken(t *testing.T) {
+	f := setupTokenMiddleware(t)
+	_, secret := f.mint(t)
+	r := f.router(100)
+	observed, restore := captureLogs(t)
+	defer restore()
+
+	const products = "/api/v1/admin/products"
+	rec := tokenRequest(r, "GET", products, tokenapp.Prefix+strings.Repeat("0", 64))
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
+	require.Contains(t, rec.Body.String(), `"status_code":401`)
+	require.Empty(t, observed.FilterMessage("admin_api_token_auth_failed").All())
+
+	db, err := f.db.DB()
+	require.NoError(t, err)
+	require.NoError(t, db.Close())
+	rec = tokenRequest(r, "GET", products, secret)
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
+	require.Contains(t, rec.Body.String(), `"status_code":500`)
+	entries := observed.FilterMessage("admin_api_token_auth_failed").All()
+	require.Len(t, entries, 1)
+	fields := entries[0].ContextMap()
+	require.NotEmpty(t, fields["error"])
+	require.NotEmpty(t, fields["request_id"])
+	require.Equal(t, rec.Header().Get(requestIDHeader), fields["request_id"])
+	require.NotContains(t, rec.Body.String(), fields["error"])
+	require.NotContains(t, rec.Body.String(), secret)
+	require.NotContains(t, fmt.Sprint(fields), secret)
 }
 
 func TestAPITokenCannotAccessSensitiveOrUnlistedRoutes(t *testing.T) {
