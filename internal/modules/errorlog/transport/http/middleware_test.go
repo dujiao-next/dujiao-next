@@ -1,4 +1,4 @@
-package middleware
+package errorloghttp
 
 import (
 	"net/http"
@@ -50,13 +50,42 @@ func (r *captureRepo) all() []*domain.ErrorLog {
 	return out
 }
 
+// testRequestIDMiddleware 等价于 httpserver 的 RequestIDMiddleware：
+// 本包不能反向依赖 internal/app，测试里用最小实现写入同一个 key。
+func testRequestIDMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		requestID := strings.TrimSpace(c.GetHeader("X-Request-ID"))
+		if requestID == "" {
+			requestID = "test-request-id"
+		}
+		c.Set(RequestIDKey, requestID)
+		c.Next()
+	}
+}
+
+// testRecoveryMiddleware 等价于 httpserver 的 RecoveryMiddleware：捕获 panic 并写出真实 HTTP 500，
+// 用于验证 ErrorLogMiddleware 在它之前注册时仍能读到 panic 场景的状态码。
+func testRecoveryMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		defer func() {
+			if r := recover(); r != nil {
+				if !c.Writer.Written() {
+					c.AbortWithStatus(http.StatusInternalServerError)
+				}
+				c.Abort()
+			}
+		}()
+		c.Next()
+	}
+}
+
 func newTestRouter(repo *captureRepo, handler gin.HandlerFunc) (*gin.Engine, *application.Service) {
 	gin.SetMode(gin.TestMode)
 	svc := application.NewService(repo, nil)
 	r := gin.New()
-	r.Use(RequestIDMiddleware())
+	r.Use(testRequestIDMiddleware())
 	r.Use(ErrorLogMiddleware(svc))
-	r.Use(RecoveryMiddleware())
+	r.Use(testRecoveryMiddleware())
 	r.GET("/boom", handler)
 	r.POST("/api/v1/payment/callback", handler)
 	return r, svc
@@ -228,9 +257,9 @@ func TestErrorLogMiddleware_Records4xxWhenEnabled(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	svc := application.NewService(repo, &application.Options{Collect4xx: true})
 	r := gin.New()
-	r.Use(RequestIDMiddleware())
+	r.Use(testRequestIDMiddleware())
 	r.Use(ErrorLogMiddleware(svc))
-	r.Use(RecoveryMiddleware())
+	r.Use(testRecoveryMiddleware())
 	r.GET("/boom", func(c *gin.Context) {
 		ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", assertErr("bad input"))
 	})
@@ -264,9 +293,9 @@ func TestErrorLogMiddleware_Records4xxCustomMessage(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	svc := application.NewService(repo, &application.Options{Collect4xx: true})
 	r := gin.New()
-	r.Use(RequestIDMiddleware())
+	r.Use(testRequestIDMiddleware())
 	r.Use(ErrorLogMiddleware(svc))
-	r.Use(RecoveryMiddleware())
+	r.Use(testRecoveryMiddleware())
 	r.GET("/boom", func(c *gin.Context) {
 		ginutil.RespondErrorWithMsg(c, response.CodeBadRequest, "邮箱格式不正确", nil)
 	})
@@ -289,9 +318,9 @@ func TestErrorLogMiddleware_Skips4xxWhenDisabled(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	svc := application.NewService(repo, &application.Options{Collect4xx: false})
 	r := gin.New()
-	r.Use(RequestIDMiddleware())
+	r.Use(testRequestIDMiddleware())
 	r.Use(ErrorLogMiddleware(svc))
-	r.Use(RecoveryMiddleware())
+	r.Use(testRecoveryMiddleware())
 	r.GET("/boom", func(c *gin.Context) {
 		ginutil.RespondError(c, response.CodeNotFound, "error.not_found", nil)
 	})

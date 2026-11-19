@@ -258,7 +258,7 @@ func SetupRouter(cfg *config.Config, c *container.Container) *gin.Engine {
 	// ErrorLogMiddleware 必须在 RecoveryMiddleware 之前：panic 会穿过 c.Next() 帧向上抛，
 	// 若本中间件在 Recovery 之后，其 c.Next() 之后的代码根本不会执行（panic 被 Recovery
 	// 在下游捕获后正常返回，本中间件才能读到那个 500）。顺序反了就会漏掉所有 panic。
-	r.Use(middleware.ErrorLogMiddleware(c.ErrorLogService))
+	r.Use(errorlogtransport.ErrorLogMiddleware(c.ErrorLogService))
 	r.Use(middleware.RecoveryMiddleware())
 	r.Use(middleware.LoggerMiddleware(log))
 	r.Use(middleware.CORSMiddleware(cfg.CORS))
