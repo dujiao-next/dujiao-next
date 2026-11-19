@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -27,12 +28,12 @@ func AdminAPITokenAuthentication(tokens *tokenapp.Service, audit *auditlogapp.Au
 	return func(c *gin.Context) {
 		c.Header("Cache-Control", "no-store")
 		if tokens == nil {
-			response.ErrorWithHTTPStatus(c, http.StatusUnauthorized, response.CodeUnauthorized, i18n.T(i18n.ResolveLocale(c), "error.token_invalid"))
+			adminAPITokenAuthError(c, errors.New("admin API token service unavailable"))
 			return
 		}
 		token, admin, err := tokens.Authenticate(strings.TrimPrefix(c.GetHeader(authHeaderKey), authSchemeBearer+" "))
 		if err != nil {
-			response.ErrorWithHTTPStatus(c, http.StatusUnauthorized, response.CodeUnauthorized, i18n.T(i18n.ResolveLocale(c), "error.token_invalid"))
+			adminAPITokenAuthError(c, err)
 			return
 		}
 		c.Set("admin_id", admin.ID)
@@ -47,13 +48,17 @@ func AdminAPITokenAuthentication(tokens *tokenapp.Service, audit *auditlogapp.Au
 			if !completed {
 				status = http.StatusInternalServerError
 			}
+			code := c.GetInt("response_status_code")
+			if c.Request.Method == http.MethodGet && status != http.StatusForbidden && code != response.CodeForbidden {
+				return
+			}
 			record := auditlogapp.AuthzRecord{
 				OperatorAdminID: admin.ID, OperatorUsername: admin.Username,
 				TargetAdminID: &admin.ID, Action: "admin_api_token_request",
 				Object: c.FullPath(), Method: c.Request.Method, RequestID: c.GetString(requestIDKey),
 				Detail: jsonmap.JSON{
 					"token_id": token.ID, "http_status": status,
-					"status_code":   c.GetInt("response_status_code"),
+					"status_code":   code,
 					"client_ip":     clientIP,
 					"denial_reason": c.GetString("admin_api_token_denial_reason"),
 				},
@@ -74,6 +79,15 @@ func AdminAPITokenAuthentication(tokens *tokenapp.Service, audit *auditlogapp.Au
 		c.Next()
 		completed = true
 	}
+}
+
+func adminAPITokenAuthError(c *gin.Context, err error) {
+	if errors.Is(err, tokenapp.ErrInvalid) {
+		response.ErrorWithHTTPStatus(c, http.StatusUnauthorized, response.CodeUnauthorized, i18n.T(i18n.ResolveLocale(c), "error.token_invalid"))
+		return
+	}
+	logger.Warnw("admin_api_token_auth_failed", "request_id", c.GetString(requestIDKey), "error", err)
+	response.ErrorWithHTTPStatus(c, http.StatusInternalServerError, response.CodeInternal, i18n.T(i18n.ResolveLocale(c), "error.internal_error"))
 }
 
 // Pre-auth uses IP only (never an untrusted credential); post-auth uses a

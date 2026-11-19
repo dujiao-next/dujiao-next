@@ -73,7 +73,7 @@ func TestLifecycleStoresOnlyDigestAndRevokesOneOwnedToken(t *testing.T) {
 }
 
 func TestCredentialRechecksOwnerAndExpiry(t *testing.T) {
-	for _, change := range []string{"expired", "revoked", "deleted", "super", "password", "2fa", "invalid_before"} {
+	for _, change := range []string{"expired", "revoked", "deleted", "super", "password", "enable_2fa", "reset_2fa", "invalid_before"} {
 		t.Run(change, func(t *testing.T) {
 			db, service, admins, admin := setup(t)
 			token, secret, err := service.Create(admin.ID, "sync", time.Now().Add(time.Hour), nil)
@@ -92,7 +92,9 @@ func TestCredentialRechecksOwnerAndExpiry(t *testing.T) {
 				require.NoError(t, admins.Update(admin))
 			case "password":
 				require.NoError(t, admins.UpdatePassword(admin.ID, "new-hash"))
-			case "2fa":
+			case "enable_2fa":
+				require.NoError(t, admins.UpdateTOTPEnabled(admin.ID, "encrypted", time.Now(), "[]"))
+			case "reset_2fa":
 				require.NoError(t, admins.ClearTOTP(admin.ID))
 			case "invalid_before":
 				now := time.Now()
@@ -108,6 +110,13 @@ func TestCredentialRechecksOwnerAndExpiry(t *testing.T) {
 			require.ErrorIs(t, err, tokenapp.ErrRotation)
 			require.Nil(t, rotated)
 			require.Empty(t, newSecret)
+			if change == "password" || change == "enable_2fa" || change == "reset_2fa" {
+				require.Equal(t, "invalidated", items[0].Status)
+				_, replacement, err := service.Create(admin.ID, "replacement", time.Now().Add(time.Hour), nil)
+				require.NoError(t, err)
+				_, _, err = service.Authenticate(replacement)
+				require.NoError(t, err)
+			}
 		})
 	}
 }
