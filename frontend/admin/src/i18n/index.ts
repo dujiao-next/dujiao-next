@@ -1843,7 +1843,6 @@ const messages = {
         mappedFormSchemaLocked: '对接商品的表单配置由上游管理，不可修改',
         mappedSkuLocked: '对接商品仅允许修改 SKU 价格，规格编码等由上游管理',
         affiliate: {
-          enabled: '参与返利',
           disabled: '不参与返利',
           inherit: '跟随全站返利',
           custom: '返利 {rate}%',
@@ -6810,7 +6809,6 @@ const messages = {
         mappedFormSchemaLocked: '對接商品的表單配置由上游管理，不可修改',
         mappedSkuLocked: '對接商品僅允許修改 SKU 價格，規格編碼等由上游管理',
         affiliate: {
-          enabled: '參與返利',
           disabled: '不參與返利',
           inherit: '跟隨全站返利',
           custom: '返利 {rate}%',

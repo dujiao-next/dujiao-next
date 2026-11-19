@@ -264,26 +264,19 @@ func (s *Service) resolveAffiliateProfileForOrder(order *orderdomain.Order) (*af
 	return nil, nil
 }
 
-// 返利比例生效层级，用于后台排查与前台展示。
-const (
-	AffiliateRateSourceSKU     = "sku"
-	AffiliateRateSourceProduct = "product"
-	AffiliateRateSourceGlobal  = "global"
-)
-
 // ResolveAffiliateRate 按 SKU → 商品 → 全站 的优先级解析返利比例（百分比）。
 //
 // 任一层显式配置了比例即停止向上继承：0 表示该层级单独关闭返利，
 // 因此配置为 0 的 SKU 不会回退到商品或全站比例。
 // 结果被约束在 0-100 之间；返回 0 时调用方应视为该订单项不参与返利。
-func ResolveAffiliateRate(skuRate, productRate *money.Amount, globalRate decimal.Decimal) (decimal.Decimal, string) {
+func ResolveAffiliateRate(skuRate, productRate *money.Amount, globalRate decimal.Decimal) decimal.Decimal {
 	if skuRate != nil {
-		return clampAffiliateRate(skuRate.Decimal), AffiliateRateSourceSKU
+		return clampAffiliateRate(skuRate.Decimal)
 	}
 	if productRate != nil {
-		return clampAffiliateRate(productRate.Decimal), AffiliateRateSourceProduct
+		return clampAffiliateRate(productRate.Decimal)
 	}
-	return clampAffiliateRate(globalRate), AffiliateRateSourceGlobal
+	return clampAffiliateRate(globalRate)
 }
 
 // clampAffiliateRate 把比例限制在 0-100 并保留两位小数。
@@ -344,7 +337,9 @@ func (s *Service) calculateCommission(order *orderdomain.Order) (commissionCalcu
 	}
 
 	baseTotal := decimal.Zero
-	commissionTotal := decimal.Zero
+	// 逐项金额先不取整，汇总后只取整一次：每个订单项各自四舍五入会让小额多行订单累计偏差，
+	// 也会让「记录里的加权比例」偏离实际比例（三项 0.33 元、比例 10% 时差 1 分钱）。
+	commissionRaw := decimal.Zero
 	for _, current := range targetOrders {
 		for _, item := range current.Items {
 			product, ok := productMap[item.ProductID]
@@ -361,14 +356,17 @@ func (s *Service) calculateCommission(order *orderdomain.Order) (commissionCalcu
 					skuRate = sku.AffiliateRatePercent
 				}
 			}
-			rate, _ := ResolveAffiliateRate(skuRate, product.AffiliateRatePercent, globalRate)
+			rate := ResolveAffiliateRate(skuRate, product.AffiliateRatePercent, globalRate)
 			if rate.LessThanOrEqual(decimal.Zero) {
 				continue
 			}
-			baseTotal = baseTotal.Add(payable).Round(2)
-			commissionTotal = commissionTotal.Add(payable.Mul(rate).Div(decimal.NewFromInt(100)).Round(2)).Round(2)
+			baseTotal = baseTotal.Add(payable)
+			commissionRaw = commissionRaw.Add(payable.Mul(rate).Div(decimal.NewFromInt(100)))
 		}
 	}
+
+	baseTotal = baseTotal.Round(2)
+	commissionTotal := commissionRaw.Round(2)
 
 	result.BaseAmount = baseTotal
 	result.CommissionAmount = commissionTotal

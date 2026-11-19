@@ -82,7 +82,7 @@ func (s *Service) GetProductRates(userID, productID uint) (ProductRates, error) 
 	product := products[0]
 	globalRate := decimal.NewFromFloat(setting.CommissionRate).Round(2)
 
-	productRate, _ := ResolveAffiliateRate(nil, product.AffiliateRatePercent, globalRate)
+	productRate := ResolveAffiliateRate(nil, product.AffiliateRatePercent, globalRate)
 	result.RatePercent = money.FromDecimal(productRate)
 	if s.skuRepo == nil {
 		return result, nil
@@ -92,7 +92,7 @@ func (s *Service) GetProductRates(userID, productID uint) (ProductRates, error) 
 		return result, err
 	}
 	for _, sku := range skus {
-		rate, _ := ResolveAffiliateRate(sku.AffiliateRatePercent, product.AffiliateRatePercent, globalRate)
+		rate := ResolveAffiliateRate(sku.AffiliateRatePercent, product.AffiliateRatePercent, globalRate)
 		result.SKUs = append(result.SKUs, SKURate{SKUID: sku.ID, RatePercent: money.FromDecimal(rate)})
 	}
 	return result, nil

@@ -1,6 +1,7 @@
 package producthttp
 
 import (
+	"encoding/json"
 	"errors"
 	"strconv"
 	"strings"
@@ -200,10 +201,10 @@ type ProductSKURequest struct {
 	PriceAmount      float64                `json:"price_amount" binding:"required"`
 	CostPriceAmount  float64                `json:"cost_price_amount"`
 	ManualStockTotal *int                   `json:"manual_stock_total"`
-	// AffiliateRatePercent 为 SKU 级返利比例；未携带（null/缺省）表示继承商品/全站比例。
-	AffiliateRatePercent *money.Amount `json:"affiliate_rate_percent"`
-	IsActive             *bool         `json:"is_active"`
-	SortOrder            int           `json:"sort_order"`
+	// AffiliateRatePercent 为 SKU 级返利比例；未携带表示保留现有比例，显式 null 表示继承商品/全站比例。
+	AffiliateRatePercent json.RawMessage `json:"affiliate_rate_percent"`
+	IsActive             *bool           `json:"is_active"`
+	SortOrder            int             `json:"sort_order"`
 }
 
 type WholesalePriceRequest struct {
@@ -236,10 +237,34 @@ type CreateProductRequest struct {
 	ManualStockTotal    *int                     `json:"manual_stock_total"`
 	SKUs                []ProductSKURequest      `json:"skus"`
 	PaymentChannelIDs   []uint                   `json:"payment_channel_ids"`
-	// AffiliateRatePercent 为商品级返利比例：null/缺省表示继承全站比例，0 表示不参与返利。
-	AffiliateRatePercent *money.Amount `json:"affiliate_rate_percent"`
-	IsActive             *bool         `json:"is_active"`
-	SortOrder            int           `json:"sort_order"`
+	// AffiliateRatePercent 为商品级返利比例：未携带表示保留现有比例，null 表示继承全站，0 表示不参与返利。
+	AffiliateRatePercent json.RawMessage `json:"affiliate_rate_percent"`
+	IsActive             *bool           `json:"is_active"`
+	SortOrder            int             `json:"sort_order"`
+}
+
+// optionalRate 解析可空的比例字段，区分「未携带」「显式 null」与具体数值。
+//
+// set=false 表示请求里没有这个键，调用方应保留原值；set=true 且 amount=nil
+// 表示显式 null（清除为继承）；否则 amount 为请求值。
+type optionalRate struct {
+	amount *money.Amount
+	set    bool
+}
+
+func parseOptionalRate(raw json.RawMessage) (optionalRate, error) {
+	if len(raw) == 0 {
+		return optionalRate{}, nil
+	}
+	// 显式 null：字段存在但值为空，语义是清除覆盖。
+	if strings.TrimSpace(string(raw)) == "null" {
+		return optionalRate{set: true}, nil
+	}
+	var amount money.Amount
+	if err := json.Unmarshal(raw, &amount); err != nil {
+		return optionalRate{}, err
+	}
+	return optionalRate{amount: &amount, set: true}, nil
 }
 
 // toWholesalePriceInputs 透传「是否提供」语义：请求未携带 wholesale_prices 时返回 nil
@@ -260,25 +285,69 @@ func toWholesalePriceInputs(items *[]WholesalePriceRequest) *[]productdomain.Who
 	return &result
 }
 
-func toProductSKUInputs(items []ProductSKURequest) []productwrite.ProductSKUInput {
+func toProductSKUInputs(items []ProductSKURequest) ([]productwrite.ProductSKUInput, error) {
 	if len(items) == 0 {
-		return nil
+		return nil, nil
 	}
 	result := make([]productwrite.ProductSKUInput, 0, len(items))
 	for _, item := range items {
+		rate, err := parseOptionalRate(item.AffiliateRatePercent)
+		if err != nil {
+			return nil, err
+		}
 		result = append(result, productwrite.ProductSKUInput{
-			ID:                   item.ID,
-			SKUCode:              item.SKUCode,
-			SpecValuesJSON:       item.SpecValuesJSON,
-			PriceAmount:          decimal.NewFromFloat(item.PriceAmount),
-			CostPriceAmount:      decimal.NewFromFloat(item.CostPriceAmount),
-			ManualStockTotal:     item.ManualStockTotal,
-			AffiliateRatePercent: item.AffiliateRatePercent,
-			IsActive:             item.IsActive,
-			SortOrder:            item.SortOrder,
+			ID:                      item.ID,
+			SKUCode:                 item.SKUCode,
+			SpecValuesJSON:          item.SpecValuesJSON,
+			PriceAmount:             decimal.NewFromFloat(item.PriceAmount),
+			CostPriceAmount:         decimal.NewFromFloat(item.CostPriceAmount),
+			ManualStockTotal:        item.ManualStockTotal,
+			AffiliateRatePercent:    rate.amount,
+			AffiliateRatePercentSet: rate.set,
+			IsActive:                item.IsActive,
+			SortOrder:               item.SortOrder,
 		})
 	}
-	return result
+	return result, nil
+}
+
+// toCreateProductInput 把请求体转换为写入用例输入。
+func toCreateProductInput(req *CreateProductRequest) (productwrite.CreateProductInput, error) {
+	rate, err := parseOptionalRate(req.AffiliateRatePercent)
+	if err != nil {
+		return productwrite.CreateProductInput{}, err
+	}
+	skus, err := toProductSKUInputs(req.SKUs)
+	if err != nil {
+		return productwrite.CreateProductInput{}, err
+	}
+	return productwrite.CreateProductInput{
+		CategoryID:              req.CategoryID,
+		Slug:                    req.Slug,
+		SeoMetaJSON:             req.SeoMetaJSON,
+		TitleJSON:               req.TitleJSON,
+		DescriptionJSON:         req.DescriptionJSON,
+		ContentJSON:             req.ContentJSON,
+		InstructionsJSON:        req.InstructionsJSON,
+		ManualFormSchemaJSON:    req.ManualFormSchema,
+		PriceAmount:             decimal.NewFromFloat(req.PriceAmount),
+		CostPriceAmount:         decimal.NewFromFloat(req.CostPriceAmount),
+		WholesalePrices:         toWholesalePriceInputs(req.WholesalePrices),
+		Images:                  req.Images,
+		Tags:                    req.Tags,
+		PurchaseType:            req.PurchaseType,
+		MinPurchaseQuantity:     req.MinPurchaseQuantity,
+		MaxPurchaseQuantity:     req.MaxPurchaseQuantity,
+		StockDisplayMode:        req.StockDisplayMode,
+		FulfillmentType:         req.FulfillmentType,
+		ManualStockTotal:        req.ManualStockTotal,
+		SKUs:                    skus,
+		PaymentChannelIDs:       req.PaymentChannelIDs,
+		AffiliateRatePercent:    rate.amount,
+		AffiliateRatePercentSet: rate.set,
+		IsActive:                req.IsActive,
+		SortOrder:               req.SortOrder,
+	}, nil
 }
 
 // CreateProduct 创建商品
@@ -289,32 +358,13 @@ func (h *AdminProductHandler) CreateProduct(c *gin.Context) {
 		return
 	}
 
-	product, err := h.writer.Create(productwrite.CreateProductInput{
-		CategoryID:           req.CategoryID,
-		Slug:                 req.Slug,
-		SeoMetaJSON:          req.SeoMetaJSON,
-		TitleJSON:            req.TitleJSON,
-		DescriptionJSON:      req.DescriptionJSON,
-		ContentJSON:          req.ContentJSON,
-		InstructionsJSON:     req.InstructionsJSON,
-		ManualFormSchemaJSON: req.ManualFormSchema,
-		PriceAmount:          decimal.NewFromFloat(req.PriceAmount),
-		CostPriceAmount:      decimal.NewFromFloat(req.CostPriceAmount),
-		WholesalePrices:      toWholesalePriceInputs(req.WholesalePrices),
-		Images:               req.Images,
-		Tags:                 req.Tags,
-		PurchaseType:         req.PurchaseType,
-		MinPurchaseQuantity:  req.MinPurchaseQuantity,
-		MaxPurchaseQuantity:  req.MaxPurchaseQuantity,
-		StockDisplayMode:     req.StockDisplayMode,
-		FulfillmentType:      req.FulfillmentType,
-		ManualStockTotal:     req.ManualStockTotal,
-		SKUs:                 toProductSKUInputs(req.SKUs),
-		PaymentChannelIDs:    req.PaymentChannelIDs,
-		AffiliateRatePercent: req.AffiliateRatePercent,
-		IsActive:             req.IsActive,
-		SortOrder:            req.SortOrder,
-	})
+	input, err := toCreateProductInput(&req)
+	if err != nil {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", err)
+		return
+	}
+
+	product, err := h.writer.Create(input)
 	if err != nil {
 		if errors.Is(err, productcontract.ErrSlugExists) {
 			ginutil.RespondError(c, response.CodeBadRequest, "error.slug_exists", nil)
@@ -360,6 +410,10 @@ func (h *AdminProductHandler) CreateProduct(c *gin.Context) {
 			ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", nil)
 			return
 		}
+		if errors.Is(err, productcontract.ErrProductAffiliateRateInvalid) {
+			ginutil.RespondError(c, response.CodeBadRequest, "error.product_affiliate_rate_invalid", nil)
+			return
+		}
 		if errors.Is(err, productcontract.ErrProductSKUHasCardSecretStock) {
 			ginutil.RespondError(c, response.CodeBadRequest, "error.product_sku_has_card_secret_stock", nil)
 			return
@@ -381,32 +435,13 @@ func (h *AdminProductHandler) UpdateProduct(c *gin.Context) {
 		return
 	}
 
-	product, err := h.writer.Update(id, productwrite.CreateProductInput{
-		CategoryID:           req.CategoryID,
-		Slug:                 req.Slug,
-		SeoMetaJSON:          req.SeoMetaJSON,
-		TitleJSON:            req.TitleJSON,
-		DescriptionJSON:      req.DescriptionJSON,
-		ContentJSON:          req.ContentJSON,
-		InstructionsJSON:     req.InstructionsJSON,
-		ManualFormSchemaJSON: req.ManualFormSchema,
-		PriceAmount:          decimal.NewFromFloat(req.PriceAmount),
-		CostPriceAmount:      decimal.NewFromFloat(req.CostPriceAmount),
-		WholesalePrices:      toWholesalePriceInputs(req.WholesalePrices),
-		Images:               req.Images,
-		Tags:                 req.Tags,
-		PurchaseType:         req.PurchaseType,
-		MinPurchaseQuantity:  req.MinPurchaseQuantity,
-		MaxPurchaseQuantity:  req.MaxPurchaseQuantity,
-		StockDisplayMode:     req.StockDisplayMode,
-		FulfillmentType:      req.FulfillmentType,
-		ManualStockTotal:     req.ManualStockTotal,
-		SKUs:                 toProductSKUInputs(req.SKUs),
-		PaymentChannelIDs:    req.PaymentChannelIDs,
-		AffiliateRatePercent: req.AffiliateRatePercent,
-		IsActive:             req.IsActive,
-		SortOrder:            req.SortOrder,
-	})
+	input, err := toCreateProductInput(&req)
+	if err != nil {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", err)
+		return
+	}
+
+	product, err := h.writer.Update(id, input)
 	if err != nil {
 		if errors.Is(err, productcontract.ErrNotFound) {
 			ginutil.RespondError(c, response.CodeNotFound, "error.product_not_found", nil)
@@ -454,6 +489,10 @@ func (h *AdminProductHandler) UpdateProduct(c *gin.Context) {
 		}
 		if errors.Is(err, productcontract.ErrProductSKUInvalid) {
 			ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", nil)
+			return
+		}
+		if errors.Is(err, productcontract.ErrProductAffiliateRateInvalid) {
+			ginutil.RespondError(c, response.CodeBadRequest, "error.product_affiliate_rate_invalid", nil)
 			return
 		}
 		if errors.Is(err, productcontract.ErrProductSKUHasCardSecretStock) {

@@ -192,34 +192,30 @@ func unitRateAmount(v string) *money.Amount {
 func TestResolveAffiliateRate(t *testing.T) {
 	global := decimal.RequireFromString("10")
 	tests := []struct {
-		name       string
-		sku        *money.Amount
-		product    *money.Amount
-		global     decimal.Decimal
-		wantRate   string
-		wantSource string
+		name     string
+		sku      *money.Amount
+		product  *money.Amount
+		global   decimal.Decimal
+		wantRate string
 	}{
-		{"nothing configured inherits global", nil, nil, global, "10", affiliateapp.AffiliateRateSourceGlobal},
-		{"product overrides global", nil, unitRateAmount("25"), global, "25", affiliateapp.AffiliateRateSourceProduct},
-		{"sku overrides product", unitRateAmount("40"), unitRateAmount("25"), global, "40", affiliateapp.AffiliateRateSourceSKU},
-		{"sku overrides global when product inherits", unitRateAmount("5"), nil, global, "5", affiliateapp.AffiliateRateSourceSKU},
-		{"product zero disables despite global", nil, unitRateAmount("0"), global, "0", affiliateapp.AffiliateRateSourceProduct},
-		{"sku zero disables despite product and global", unitRateAmount("0"), unitRateAmount("25"), global, "0", affiliateapp.AffiliateRateSourceSKU},
-		{"sku zero is not the same as unset", unitRateAmount("0"), nil, global, "0", affiliateapp.AffiliateRateSourceSKU},
-		{"global zero with product override still pays", nil, unitRateAmount("20"), decimal.Zero, "20", affiliateapp.AffiliateRateSourceProduct},
-		{"global zero and nothing else pays nothing", nil, nil, decimal.Zero, "0", affiliateapp.AffiliateRateSourceGlobal},
-		{"over 100 is clamped", nil, unitRateAmount("250"), global, "100", affiliateapp.AffiliateRateSourceProduct},
-		{"negative is clamped to zero", nil, unitRateAmount("-5"), global, "0", affiliateapp.AffiliateRateSourceProduct},
-		{"rounded to two decimals", nil, nil, decimal.RequireFromString("12.345"), "12.35", affiliateapp.AffiliateRateSourceGlobal},
+		{"nothing configured inherits global", nil, nil, global, "10"},
+		{"product overrides global", nil, unitRateAmount("25"), global, "25"},
+		{"sku overrides product", unitRateAmount("40"), unitRateAmount("25"), global, "40"},
+		{"sku overrides global when product inherits", unitRateAmount("5"), nil, global, "5"},
+		{"product zero disables despite global", nil, unitRateAmount("0"), global, "0"},
+		{"sku zero disables despite product and global", unitRateAmount("0"), unitRateAmount("25"), global, "0"},
+		{"sku zero is not the same as unset", unitRateAmount("0"), nil, global, "0"},
+		{"global zero with product override still pays", nil, unitRateAmount("20"), decimal.Zero, "20"},
+		{"global zero and nothing else pays nothing", nil, nil, decimal.Zero, "0"},
+		{"over 100 is clamped", nil, unitRateAmount("250"), global, "100"},
+		{"negative is clamped to zero", nil, unitRateAmount("-5"), global, "0"},
+		{"rounded to two decimals", nil, nil, decimal.RequireFromString("12.345"), "12.35"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			rate, source := affiliateapp.ResolveAffiliateRate(tc.sku, tc.product, tc.global)
+			rate := affiliateapp.ResolveAffiliateRate(tc.sku, tc.product, tc.global)
 			if !rate.Equal(decimal.RequireFromString(tc.wantRate)) {
 				t.Fatalf("rate = %s, want %s", rate, tc.wantRate)
-			}
-			if source != tc.wantSource {
-				t.Fatalf("source = %s, want %s", source, tc.wantSource)
 			}
 		})
 	}
