@@ -5,6 +5,7 @@ import { affiliateAPI } from '../api'
 import type { AffiliateProductRatesData } from '../api/types'
 import { useAppStore } from '../stores/app'
 import { useUserAuthStore } from '../stores/userAuth'
+import { copyText } from '../utils/clipboard'
 import { toast } from './useToast'
 
 /**
@@ -111,7 +112,7 @@ export function useAffiliateProductLink(
   const copyAffiliateLink = async () => {
     if (!affiliateProductLink.value) return
     try {
-      await navigator.clipboard.writeText(affiliateProductLink.value)
+      await copyText(affiliateProductLink.value)
       toast.success(t('productDetail.copyAffiliateLinkSuccess'))
     } catch {
       toast.error(t('productDetail.copyAffiliateLinkFailed'))

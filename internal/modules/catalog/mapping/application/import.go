@@ -186,6 +186,9 @@ func (s *Service) importUpstreamProduct(connectionID uint, upstreamProductID uin
 		}
 	}
 
+	// 上游导入的对接商品默认不参与返利：利润空间由上游定价决定，不能悄悄跟随全站比例；需要返利时由管理员手动开启。
+	zeroAffiliateRate := money.FromDecimal(decimal.Zero)
+
 	// 创建本地商品
 	product := productdomain.Product{
 		CategoryID:           categoryID,
@@ -205,6 +208,7 @@ func (s *Service) importUpstreamProduct(connectionID uint, upstreamProductID uin
 		ManualStockTotal:     0,
 		IsMapped:             true,
 		IsActive:             false, // 默认下架，管理员手动上架
+		AffiliateRatePercent: &zeroAffiliateRate,
 		SortOrder:            0,
 	}
 

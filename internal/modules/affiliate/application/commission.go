@@ -63,7 +63,7 @@ func (s *Service) HandleOrderPaid(orderID uint) error {
 		return nil
 	}
 
-	calculation, err := s.calculateCommission(order)
+	calculation, err := s.calculateCommission(order, setting.CommissionRate)
 	if err != nil {
 		return err
 	}
@@ -270,6 +270,10 @@ func (s *Service) resolveAffiliateProfileForOrder(order *orderdomain.Order) (*af
 // 因此配置为 0 的 SKU 不会回退到商品或全站比例。
 // 结果被约束在 0-100 之间；返回 0 时调用方应视为该订单项不参与返利。
 func ResolveAffiliateRate(skuRate, productRate *money.Amount, globalRate decimal.Decimal) decimal.Decimal {
+	// 商品显式设为 0 表示整个商品不参与返利，SKU 上残留的比例不再生效。
+	if productRate != nil && clampAffiliateRate(productRate.Decimal).IsZero() {
+		return decimal.Zero
+	}
 	if skuRate != nil {
 		return clampAffiliateRate(skuRate.Decimal)
 	}
@@ -303,7 +307,7 @@ type commissionCalculation struct {
 //
 // 比例优先级为 SKU → 商品 → 全站；任一层显式配置 0 即表示该订单项不参与返利，
 // 因此不会回退到更上层的非零比例。
-func (s *Service) calculateCommission(order *orderdomain.Order) (commissionCalculation, error) {
+func (s *Service) calculateCommission(order *orderdomain.Order, globalCommissionRate float64) (commissionCalculation, error) {
 	result := commissionCalculation{}
 	if order == nil || s.productRepo == nil {
 		return result, nil
@@ -325,11 +329,7 @@ func (s *Service) calculateCommission(order *orderdomain.Order) (commissionCalcu
 		return result, err
 	}
 
-	setting, err := s.settings.GetAffiliateSetting()
-	if err != nil {
-		return result, err
-	}
-	globalRate := decimal.NewFromFloat(setting.CommissionRate).Round(2)
+	globalRate := decimal.NewFromFloat(globalCommissionRate).Round(2)
 
 	targetOrders := order.Children
 	if len(targetOrders) == 0 {
