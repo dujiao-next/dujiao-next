@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { RouterLink } from 'vue-router'
 import { AlertTriangle, CheckCircle2, Info, Megaphone, X } from 'lucide-vue-next'
 import { useLocalized } from '../composables/useProduct'
+import { useNavConfig } from '../composables/useNavConfig'
 import { announcementToTickerItems } from '../utils/announcementTicker'
 import type { HomeAnnouncement } from '../composables/useAnnouncement'
 
@@ -16,12 +18,16 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { getLocalizedText } = useLocalized()
+const { noticeEnabled } = useNavConfig()
 
 // 滚动速度（像素 / 秒）
 const SPEED = 55
 
 const label = computed(() => String(getLocalizedText(props.announcement.title) || '').trim() || t('announcement.label'))
 const items = computed(() => announcementToTickerItems(String(getLocalizedText(props.announcement.content) || '')))
+
+// 公告页开启时，点击条目跳转公告列表；关闭时保持纯文本
+const itemAttrs = computed(() => (noticeEnabled.value ? { to: '/notice' } : {}))
 
 const typeStyle = computed(() => {
   switch (props.announcement.type) {
@@ -82,10 +88,24 @@ watch(items, () => void measure())
     <div ref="viewportEl" class="ticker-viewport min-w-0 flex-1 overflow-hidden" :class="{ 'ticker-fade': scrolling }">
       <div class="ticker-track flex w-max" :class="{ 'ticker-run': scrolling }" :style="{ '--ticker-duration': `${duration}s` }">
         <div ref="groupEl" class="flex shrink-0">
-          <span v-for="(item, i) in items" :key="i" class="ticker-item whitespace-nowrap px-5 text-muted-foreground">{{ item }}</span>
+          <component
+            :is="noticeEnabled ? RouterLink : 'span'"
+            v-for="(item, i) in items"
+            :key="i"
+            v-bind="itemAttrs"
+            class="ticker-item whitespace-nowrap px-5 text-muted-foreground"
+            :class="{ 'ticker-link': noticeEnabled }"
+          >{{ item }}</component>
         </div>
         <div v-if="scrolling" class="ticker-dup flex shrink-0" aria-hidden="true">
-          <span v-for="(item, i) in items" :key="i" class="ticker-item whitespace-nowrap px-5 text-muted-foreground">{{ item }}</span>
+          <component
+            :is="noticeEnabled ? RouterLink : 'span'"
+            v-for="(item, i) in items"
+            :key="i"
+            v-bind="itemAttrs"
+            class="ticker-item whitespace-nowrap px-5 text-muted-foreground"
+            :class="{ 'ticker-link': noticeEnabled }"
+          >{{ item }}</component>
         </div>
       </div>
     </div>
@@ -110,6 +130,12 @@ watch(items, () => void measure())
 .ticker-run {
   animation: ticker-scroll var(--ticker-duration, 30s) linear infinite;
   will-change: transform;
+}
+
+.ticker-link:hover {
+  color: var(--ui-text-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* 悬停 / 键盘聚焦时暂停，方便阅读与点击 */
