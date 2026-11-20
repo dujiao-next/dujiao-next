@@ -12,7 +12,7 @@
       <li v-for="(seg, i) in normalizedSegments" :key="i" class="flex items-center gap-1.5">
         <span class="h-2 w-2 rounded-sm" :style="{ background: seg.color }"></span>
         <span class="text-muted-foreground">{{ seg.label }}</span>
-        <span class="font-mono text-foreground">{{ seg.display ?? seg.value }}</span>
+        <span class="tabular-nums text-foreground">{{ seg.display ?? seg.value }}</span>
       </li>
     </ul>
   </div>

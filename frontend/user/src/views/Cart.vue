@@ -1,12 +1,16 @@
 <template>
-  <div class="min-h-screen bg-background text-foreground pt-24 pb-16">
+  <div class="min-h-screen bg-background pb-16 pt-24 text-foreground">
     <div class="container mx-auto px-4">
-      <div class="mb-8">
-        <h1 class="mb-2 text-3xl font-black text-foreground">{{ t('cart.title') }}</h1>
-        <p class="text-sm text-muted-foreground">{{ t('cart.subtitle') }}</p>
+      <div class="mb-6 flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+        <div>
+          <h1 class="flex items-center gap-3 text-[28px] font-bold tracking-tight">
+            {{ t('cart.title') }}
+            <span v-if="totalItems" class="rounded-full bg-secondary px-2.5 py-0.5 text-sm font-semibold tabular-nums text-muted-foreground">{{ totalItems }}</span>
+          </h1>
+          <p class="mt-1 text-sm text-muted-foreground">{{ t('cart.subtitle') }}</p>
+        </div>
+        <CheckoutSteps plain current-step="cart" class="w-full sm:w-[26rem]" />
       </div>
-
-      <CheckoutSteps class="mb-8" current-step="cart" />
 
       <!-- Empty State -->
       <EmptyState
@@ -17,138 +21,112 @@
         action-to="/products"
       />
 
-      <div v-else class="grid grid-cols-1 gap-8 lg:grid-cols-3">
-        <div class="space-y-4 lg:col-span-2">
+      <div v-else class="grid grid-cols-1 gap-5 lg:grid-cols-12 lg:gap-6">
+        <div class="flex flex-col gap-3 lg:col-span-8">
           <article
             v-for="item in cartItems"
             :key="cartItemKey(item)"
-            class="rounded-2xl border bg-card text-card-foreground p-4 md:p-5"
+            class="theme-float flex gap-3 rounded-[22px] bg-card p-3 md:gap-5 md:p-4"
           >
-            <div class="flex gap-4 md:gap-5">
-              <div
-                class="h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl border bg-muted transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm"
-              >
-                <SmartImage
-                  :src="cartItemImage(item)"
-                  :alt="getLocalizedText(item.title)"
-                  img-class="h-full w-full object-cover"
-                />
+            <router-link :to="`/products/${item.slug}`" class="h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-secondary md:h-24 md:w-24" tabindex="-1" aria-hidden="true">
+              <SmartImage :src="cartItemImage(item)" alt="" img-class="h-full w-full object-cover" />
+            </router-link>
+
+            <div class="flex min-w-0 flex-1 flex-col">
+              <div class="flex items-start gap-2">
+                <div class="min-w-0 flex-1">
+                  <router-link :to="`/products/${item.slug}`" class="line-clamp-2 text-[15px] font-semibold leading-snug hover:underline md:text-base">
+                    {{ getLocalizedText(item.title) }}
+                  </router-link>
+                  <p v-if="itemSkuDisplay(item)" class="mt-1 truncate text-[13px] text-muted-foreground">{{ itemSkuDisplay(item) }}</p>
+                  <div class="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                    <span class="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 font-medium text-foreground">
+                      <Zap v-if="item.fulfillmentType === 'auto'" class="h-3 w-3 text-warm" aria-hidden="true" />
+                      {{ item.fulfillmentType === 'auto' ? t('products.fulfillmentType.auto') : t('products.fulfillmentType.manual') }}
+                    </span>
+                    <span class="rounded-full bg-secondary px-2 py-0.5 font-medium text-foreground">
+                      {{ item.purchaseType === 'guest' ? t('productPurchase.guest') : t('productPurchase.member') }}
+                    </span>
+                    <span v-if="itemStockHint(item)">{{ itemStockHint(item) }}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  class="-mr-1 -mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-2 focus-visible:outline-primary"
+                  :aria-label="t('cart.remove')"
+                  :title="t('cart.remove')"
+                  @click="removeWithUndo(item)"
+                >
+                  <Trash2 class="h-4 w-4" />
+                </button>
               </div>
 
-              <div class="flex-1 min-w-0">
-                <div class="flex items-start justify-between gap-3">
-                  <div class="min-w-0">
-                    <router-link
-                      :to="`/products/${item.slug}`"
-                      class="text-base md:text-lg font-bold text-primary hover:underline line-clamp-1"
-                    >
-                      {{ getLocalizedText(item.title) }}
-                    </router-link>
-                    <p class="mt-1 text-sm text-muted-foreground">{{ t('cart.priceLabel') }}：{{ formatPrice(item.priceAmount, totalCurrency) }}</p>
-                    <p v-if="itemSkuDisplay(item)" class="mt-1 text-xs text-muted-foreground truncate">{{ t('cart.skuLabel') }}：{{ itemSkuDisplay(item) }}</p>
-                    <p v-if="itemStockHint(item)" class="mt-1 text-xs text-muted-foreground">{{ itemStockHint(item) }}</p>
-                    <div class="mt-2 md:mt-3 flex flex-wrap gap-2">
-                      <Badge
-                        :variant="item.purchaseType === 'guest' ? 'warning' : 'success'"
-                        size="xs"
-                        class="uppercase tracking-wider"
-                      >
-                        {{ item.purchaseType === 'guest' ? t('productPurchase.guest') : t('productPurchase.member') }}
-                      </Badge>
-                      <Badge
-                        :variant="item.fulfillmentType === 'auto' ? 'info' : 'neutral'"
-                        size="xs"
-                        class="uppercase tracking-wider"
-                      >
-                        {{ item.fulfillmentType === 'auto' ? t('products.fulfillmentType.auto') : t('products.fulfillmentType.manual') }}
-                      </Badge>
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    @click="removeWithUndo(item)"
-                    class="shrink-0 min-h-[44px] gap-1.5 rounded-full border-muted-foreground/30 text-muted-foreground hover:border-destructive hover:bg-destructive/10 hover:text-destructive"
+              <div class="mt-auto flex flex-wrap items-end justify-between gap-3 pt-3">
+                <div class="flex items-center rounded-full bg-secondary p-1">
+                  <button
+                    type="button"
+                    class="flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:bg-card disabled:opacity-30"
+                    :disabled="item.quantity <= itemPurchaseMin(item)"
+                    @click="updateQty(item, item.quantity - 1)"
                   >
-                    <Trash2 class="h-4 w-4" />
-                    <span>{{ t('cart.remove') }}</span>
-                  </Button>
+                    <Minus class="h-4 w-4" :stroke-width="2.5" />
+                  </button>
+                  <input
+                    type="number"
+                    :id="`cart-qty-${item.productId}`"
+                    :name="`cart-qty-${item.productId}`"
+                    :aria-label="t('checkout.quantityLabel')"
+                    :value="item.quantity"
+                    @change="handleQtyChange(item, $event)"
+                    :min="itemPurchaseMin(item)"
+                    :max="itemMaxQuantity(item)"
+                    class="cart-qty-input h-8 w-11 border-none bg-transparent p-0 text-center text-sm font-semibold tabular-nums text-foreground focus:outline-none focus:ring-0"
+                  />
+                  <button
+                    type="button"
+                    class="flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:bg-card disabled:opacity-30"
+                    :disabled="item.quantity >= itemMaxQuantity(item)"
+                    @click="updateQty(item, item.quantity + 1)"
+                  >
+                    <Plus class="h-4 w-4" :stroke-width="2.5" />
+                  </button>
                 </div>
 
-                <div class="mt-3 md:mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3 md:pt-4">
-                  <div class="flex items-center gap-2">
-                    <Button
-                      variant="secondary"
-                      size="icon"
-                      @click="updateQty(item, item.quantity - 1)"
-                      :disabled="item.quantity <= itemPurchaseMin(item)"
-                      class="h-10 w-10 rounded-lg text-base font-medium"
-                    >
-                      -
-                    </Button>
-                    <input
-                      type="number"
-                      :id="`cart-qty-${item.productId}`"
-                      :name="`cart-qty-${item.productId}`"
-                      :value="item.quantity"
-                      @change="handleQtyChange(item, $event)"
-                      :min="itemPurchaseMin(item)"
-                      :max="itemMaxQuantity(item)"
-                      class="cart-qty-input w-12 text-center text-sm font-mono text-foreground bg-transparent border-none p-0 focus:ring-0 focus:outline-none"
-                    />
-                    <Button
-                      variant="secondary"
-                      size="icon"
-                      @click="updateQty(item, item.quantity + 1)"
-                      :disabled="item.quantity >= itemMaxQuantity(item)"
-                      class="h-10 w-10 rounded-lg text-base font-medium"
-                    >
-                      +
-                    </Button>
-                  </div>
-
-                  <div class="text-right">
-                    <p class="text-xs uppercase tracking-wider text-muted-foreground">{{ t('checkout.totalPriceLabel') }}</p>
-                    <p class="text-sm font-semibold text-foreground">{{ itemSubtotal(item) }}</p>
-                  </div>
+                <div class="text-right">
+                  <p class="text-xs tabular-nums text-muted-foreground">{{ formatPrice(item.priceAmount, totalCurrency) }} × {{ item.quantity }}</p>
+                  <p class="text-[19px] font-bold leading-tight tracking-tight tabular-nums">{{ itemSubtotal(item) }}</p>
                 </div>
-                <p v-if="quantityWarning(item)" class="mt-3 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs font-medium text-warning">
-                  {{ quantityWarning(item) }}
-                </p>
               </div>
+              <p v-if="quantityWarning(item)" class="mt-3 rounded-xl bg-warning/10 px-3 py-2 text-xs font-medium text-warning">
+                {{ quantityWarning(item) }}
+              </p>
             </div>
           </article>
         </div>
 
-        <div class="h-fit rounded-2xl border bg-card text-card-foreground p-6 lg:sticky lg:top-24">
-          <h2 class="mb-4 text-lg font-bold text-foreground">{{ t('cart.summaryTitle') }}</h2>
-          <div class="space-y-3 text-sm text-muted-foreground">
-            <div class="flex items-center justify-between">
-              <span>{{ t('cart.itemsCount') }}</span>
-              <span class="font-mono text-foreground">{{ totalItems }}</span>
-            </div>
-            <div class="flex items-center justify-between">
-              <span>{{ t('cart.totalLabel') }}</span>
-              <span class="theme-price-sm text-foreground">{{ formatPrice(totalAmount, totalCurrency) }}</span>
-            </div>
-            <div class="rounded-lg border bg-secondary p-3 text-xs text-muted-foreground">
-              {{ t('cart.disclaimer') }}
-            </div>
+        <aside class="theme-float h-fit rounded-[22px] bg-card p-6 md:rounded-[28px] lg:sticky lg:top-24 lg:col-span-4">
+          <h2 class="text-[17px] font-bold">{{ t('cart.summaryTitle') }}</h2>
+          <div class="mt-4 flex items-center justify-between text-sm text-muted-foreground">
+            <span>{{ t('cart.itemsCount') }}</span>
+            <span class="font-semibold tabular-nums text-foreground">{{ totalItems }}</span>
+          </div>
+          <div class="mt-4 flex items-baseline justify-between border-t pt-4">
+            <span class="text-sm text-muted-foreground">{{ t('cart.totalLabel') }}</span>
+            <span class="text-[32px] font-bold leading-none tracking-tight tabular-nums">
+              {{ formatPrice(totalAmount, '') }}<span class="ml-1.5 text-sm font-medium text-muted-foreground">{{ totalCurrency }}</span>
+            </span>
           </div>
 
           <div class="mt-6 space-y-2">
-            <Button as-child size="lg" class="w-full font-semibold">
-              <router-link to="/checkout">
-                {{ t('cart.checkout') }}
-              </router-link>
+            <Button as-child class="h-12 w-full rounded-full bg-foreground font-semibold text-background hover:bg-foreground/85">
+              <router-link to="/checkout">{{ t('cart.checkout') }}</router-link>
             </Button>
-            <Button as-child variant="secondary" size="lg" class="w-full font-semibold">
-              <router-link to="/products">
-                {{ t('cart.emptyAction') }}
-              </router-link>
+            <Button as-child variant="secondary" class="h-12 w-full rounded-full font-semibold">
+              <router-link to="/products">{{ t('cart.emptyAction') }}</router-link>
             </Button>
           </div>
-        </div>
+          <p class="mt-4 text-xs leading-relaxed text-muted-foreground">{{ t('cart.disclaimer') }}</p>
+        </aside>
       </div>
     </div>
   </div>
@@ -156,8 +134,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { Trash2 } from 'lucide-vue-next'
-import { Badge } from '@/components/ui/badge'
+import { Minus, Plus, Trash2, Zap } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import EmptyState from '../components/EmptyState.vue'
 import SmartImage from '../components/SmartImage.vue'
@@ -182,12 +159,5 @@ const {
 .cart-qty-input::-webkit-inner-spin-button {
   appearance: none;
   margin: 0;
-}
-.line-clamp-1 {
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1;
-  line-clamp: 1;
 }
 </style>

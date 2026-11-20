@@ -1,21 +1,20 @@
 <template>
   <div class="min-h-screen bg-background text-foreground pt-24 pb-16">
     <div class="container mx-auto px-4">
-      <div class="mb-6 flex items-center justify-between">
+      <div class="mb-6 flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
         <div>
-          <h1 class="text-3xl font-black text-foreground mb-2">{{ t('payment.title') }}</h1>
-          <p class="text-muted-foreground text-sm">{{ t('payment.subtitle') }}</p>
+          <h1 class="flex flex-wrap items-center gap-3 text-[28px] font-bold tracking-tight">
+            {{ t('payment.title') }}
+            <router-link :to="backLink" class="theme-pill-link tracking-normal">{{ t('payment.backToOrders') }}<ChevronRight class="h-3.5 w-3.5" aria-hidden="true" /></router-link>
+          </h1>
+          <p class="mt-1 text-sm text-muted-foreground">{{ t('payment.subtitle') }}</p>
         </div>
-        <router-link :to="backLink"
-          class="text-muted-foreground hover:text-foreground transition-colors text-sm">{{
-            t('payment.backToOrders') }}</router-link>
+        <CheckoutSteps plain class="w-full sm:w-[26rem]" current-step="payment" />
       </div>
-
-      <CheckoutSteps class="mb-8" current-step="payment" />
 
       <!-- Loading Skeleton -->
       <div v-if="loading" class="space-y-6">
-        <div class="border bg-card text-card-foreground shadow-sm rounded-2xl p-6 space-y-4">
+        <div class="theme-float rounded-[22px] bg-card p-5 md:p-6 space-y-4">
           <div class="flex items-center justify-between gap-4">
             <div class="space-y-2">
               <div class="h-5 w-40 rounded theme-skeleton"></div>
@@ -38,8 +37,8 @@
       </div>
 
       <div v-else-if="showGuestAuthForm"
-        class="border bg-card text-card-foreground shadow-sm rounded-2xl p-6">
-        <h2 class="text-lg font-bold mb-2">{{ t('payment.guestAuthTitle') }}</h2>
+        class="theme-float rounded-[22px] bg-card p-5 md:p-6">
+        <h2 class="mb-2 text-[17px] font-bold">{{ t('payment.guestAuthTitle') }}</h2>
         <p class="text-xs text-muted-foreground mb-4">{{ t('payment.guestAuthHint') }}</p>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Input v-model="guestAuth.email" type="email"
@@ -52,7 +51,7 @@
         <Alert v-if="guestAuthError" variant="destructive" class="mt-4">
           <AlertDescription>{{ guestAuthError }}</AlertDescription>
         </Alert>
-        <Button variant="secondary" class="mt-4 font-semibold" @click="handleGuestAuthSubmit">
+        <Button class="mt-4 h-11 px-6 rounded-full bg-foreground font-semibold text-background hover:bg-foreground/85" @click="handleGuestAuthSubmit">
           {{ t('payment.guestAuthSubmit') }}
         </Button>
       </div>
@@ -66,7 +65,7 @@
       />
 
       <div v-else-if="showResultView" class="space-y-6">
-        <div class="border bg-card text-card-foreground shadow-sm rounded-2xl p-6">
+        <div class="theme-float rounded-[22px] bg-card p-5 md:p-6">
           <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
               <h2 class="text-xl font-bold text-foreground">{{ paymentResultTitle }}</h2>
@@ -76,10 +75,10 @@
               </div>
             </div>
             <div class="flex flex-wrap items-center gap-2">
-              <Button variant="secondary" :disabled="loading" @click="handleRefresh">
+              <Button variant="secondary" class="rounded-full font-semibold" :disabled="loading" @click="handleRefresh">
                 {{ t('payment.refreshStatus') }}
               </Button>
-              <Button variant="secondary" @click="handleChangePaymentMethod">
+              <Button variant="secondary" class="rounded-full font-semibold" @click="handleChangePaymentMethod">
                 {{ t('payment.changeMethod') }}
               </Button>
             </div>
@@ -88,7 +87,7 @@
           <div class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div class="lg:col-span-2 space-y-4">
               <div v-if="showQRCode"
-                class="bg-secondary border rounded-2xl p-4 sm:p-6 flex flex-col items-center justify-center text-center">
+                class="rounded-2xl bg-secondary/60 p-4 sm:p-6 flex flex-col items-center justify-center text-center">
                 <div class="text-sm text-muted-foreground mb-4">{{ paymentGuideTitle }}</div>
                 <div class="w-full max-w-[280px] sm:max-w-[240px] aspect-square rounded-xl overflow-hidden bg-white p-2">
                   <img :src="qrImageUrl" alt="QR Code" class="w-full h-full object-contain" />
@@ -96,7 +95,7 @@
                 <div v-if="qrUsingPayLinkFallback" class="mt-3 text-xs text-muted-foreground">
                   {{ t('payment.qrFallbackHint') }}
                 </div>
-                <div v-if="hasCryptoPaymentDetails" class="mt-4 w-full max-w-xl space-y-2 rounded-xl border bg-white/5 p-3 text-left">
+                <div v-if="hasCryptoPaymentDetails" class="mt-4 w-full max-w-xl space-y-2 rounded-2xl bg-card p-3 text-left">
                   <div
                     v-for="item in cryptoPaymentDetails"
                     :key="item.key"
@@ -109,7 +108,7 @@
                     </span>
                   </div>
                   <div v-if="cryptoWalletAddress" class="flex flex-wrap items-center justify-end gap-2 pt-1">
-                    <Button variant="secondary" size="sm" @click="handleCopyWalletAddress">
+                    <Button variant="secondary" size="sm" class="rounded-full font-semibold" @click="handleCopyWalletAddress">
                       {{ t('payment.copyWalletAddress') }}
                     </Button>
                     <span v-if="walletAddressCopied" class="text-xs text-success">{{ t('payment.copied') }}</span>
@@ -117,9 +116,9 @@
                 </div>
               </div>
 
-              <div v-else class="bg-secondary border rounded-2xl p-6">
+              <div v-else class="rounded-2xl bg-secondary/60 p-6">
                 <div class="text-sm text-muted-foreground mb-3">{{ t('payment.openPayLink') }}</div>
-                <Button type="button" variant="default" class="font-bold" @click="handleOpenPayLink">
+                <Button type="button" variant="default" class="h-11 px-5 rounded-full bg-foreground font-semibold text-background hover:bg-foreground/85" @click="handleOpenPayLink">
                   <ExternalLink class="h-4 w-4" aria-hidden="true" />
                   {{ t('payment.openPayLink') }}
                 </Button>
@@ -130,7 +129,7 @@
                   {{ t('payment.telegramExternalHint') }}
                 </div>
                 <div class="mt-3 flex flex-wrap items-center gap-2">
-                  <Button type="button" variant="outline" size="sm" class="font-semibold" @click="handleCopyPayLink">
+                  <Button type="button" variant="outline" size="sm" class="rounded-full font-semibold" @click="handleCopyPayLink">
                     <Copy class="h-4 w-4" aria-hidden="true" />
                     {{ t('payment.copyPayLink') }}
                   </Button>
@@ -140,7 +139,7 @@
             </div>
 
             <div class="space-y-4">
-              <div class="bg-secondary border rounded-2xl p-4">
+              <div class="rounded-2xl bg-secondary/60 p-4">
                 <div class="text-xs text-muted-foreground">{{ t('payment.orderNo') }}</div>
                 <div class="text-sm font-semibold text-foreground mt-1">{{ order.order_no }}</div>
                 <div class="mt-3 text-xs text-muted-foreground">{{ t('payment.orderStatus') }}：{{ statusLabel(order.status) }}</div>
@@ -149,6 +148,7 @@
                 </div>
               </div>
               <PaymentAmountBreakdown
+                class="border-0!"
                 :order="order"
                 :payment-result="paymentResult"
                 :customer-fee-applied="customerFeeApplied"
@@ -164,7 +164,7 @@
                 :has-discount-amount="hasDiscountAmount"
               />
               <div v-if="paymentResult.expires_at"
-                class="bg-secondary border rounded-2xl p-4 text-xs text-muted-foreground">
+                class="rounded-2xl bg-secondary/60 p-4 text-xs text-muted-foreground">
                 {{ t('payment.expiresAt') }}：{{ formatDate(paymentResult.expires_at) }}
               </div>
             </div>
@@ -173,7 +173,7 @@
       </div>
 
       <div v-else-if="orderExpired || orderCanceled" class="space-y-6">
-        <div class="border bg-card text-card-foreground shadow-sm rounded-2xl p-6">
+        <div class="theme-float rounded-[22px] bg-card p-5 md:p-6">
           <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
               <h2 class="text-xl font-bold text-foreground">
@@ -182,7 +182,7 @@
               <p class="text-sm text-muted-foreground mt-1">{{ order.order_no }}</p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
-              <Button as-child variant="secondary" class="font-semibold">
+              <Button as-child variant="secondary" class="rounded-full font-semibold">
                 <router-link :to="backLink">
                   {{ t('payment.backToOrders') }}
                 </router-link>
@@ -190,36 +190,36 @@
             </div>
           </div>
           <div class="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-            <div class="bg-secondary border rounded-xl p-3">
+            <div class="rounded-2xl bg-secondary/60 p-3">
               <div class="text-xs text-muted-foreground">{{ t('payment.orderNo') }}</div>
-              <div class="text-foreground font-mono mt-1">{{ order.order_no }}</div>
+              <div class="text-foreground tabular-nums mt-1">{{ order.order_no }}</div>
             </div>
-            <div class="bg-secondary border rounded-xl p-3">
+            <div class="rounded-2xl bg-secondary/60 p-3">
               <div class="text-xs text-muted-foreground">{{ t('payment.orderStatus') }}</div>
-              <div class="text-foreground font-mono mt-1">{{ statusLabel(order.status) }}</div>
+              <div class="text-foreground tabular-nums mt-1">{{ statusLabel(order.status) }}</div>
             </div>
-            <div class="bg-secondary border rounded-xl p-3">
+            <div class="rounded-2xl bg-secondary/60 p-3">
               <div class="text-xs text-muted-foreground">{{ t('orderDetail.amountTotal') }}</div>
-              <div class="text-foreground font-mono mt-1">{{ formatMoney(order.total_amount, order.currency) }}</div>
+              <div class="text-foreground tabular-nums mt-1">{{ formatMoney(order.total_amount, order.currency) }}</div>
             </div>
           </div>
         </div>
       </div>
 
-      <div v-else class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div class="lg:col-span-2 space-y-6">
-          <div class="border bg-card text-card-foreground shadow-sm rounded-2xl p-6">
-            <h2 class="text-lg font-bold mb-4 text-foreground">{{ t('payment.orderInfo') }}</h2>
+      <div v-else class="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-6">
+        <div class="lg:col-span-2 space-y-5">
+          <div class="theme-float rounded-[22px] bg-card p-5 md:p-6">
+            <h2 class="mb-4 text-[17px] font-bold">{{ t('payment.orderInfo') }}</h2>
             <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
               <div>
-                <div class="text-xs uppercase tracking-wider text-muted-foreground">{{ t('payment.orderNo') }}</div>
+                <div class="text-xs text-muted-foreground">{{ t('payment.orderNo') }}</div>
                 <div class="text-sm font-semibold text-foreground mt-1">{{ order.order_no }}</div>
               <div class="text-xs text-muted-foreground mt-2">{{ t('orderDetail.createdAtLabel') }}：{{
                   formatDate(order.created_at) }}</div>
             </div>
-            <div class="w-full md:w-auto md:min-w-[280px] bg-secondary border rounded-2xl p-4">
-              <div class="text-xs uppercase tracking-wider text-muted-foreground md:text-right">{{ t('payment.payableAmountLabel') }}</div>
-              <div class="mt-1 text-2xl font-bold text-foreground md:text-right">{{ payableAmountDisplay }}</div>
+            <div class="w-full md:w-auto md:min-w-[280px] rounded-2xl bg-secondary/60 p-4">
+              <div class="text-xs text-muted-foreground md:text-right">{{ t('payment.payableAmountLabel') }}</div>
+              <div class="mt-1 text-[28px] font-bold leading-tight tracking-tight tabular-nums md:text-right">{{ payableAmountDisplay }}</div>
               <div class="mt-4 space-y-2 text-xs">
                 <div class="flex items-center justify-between gap-4">
                   <span class="text-muted-foreground">{{ t('orderDetail.amountTotal') }}</span>
@@ -243,24 +243,24 @@
             </div>
             </div>
             <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-              <div class="bg-secondary border rounded-xl p-3">
+              <div class="rounded-2xl bg-secondary/60 p-3">
                 <div class="text-xs text-muted-foreground">{{ t('orderDetail.amountOriginal') }}</div>
-                <div class="text-foreground font-mono mt-1">{{ formatMoney(order.original_amount,
+                <div class="text-foreground tabular-nums mt-1">{{ formatMoney(order.original_amount,
                   order.currency) }}</div>
               </div>
-              <div class="bg-secondary border rounded-xl p-3">
+              <div class="rounded-2xl bg-secondary/60 p-3">
                 <div class="text-xs text-muted-foreground">{{ t('orderDetail.amountDiscount') }}</div>
                 <div
-                  class="font-mono mt-1"
+                  class="tabular-nums mt-1"
                   :class="hasDiscountAmount(order.discount_amount) ? 'text-rose-600 dark:text-rose-300' : 'text-foreground'"
                 >
                   {{ formatDiscountMoney(order.discount_amount, order.currency) }}
                 </div>
               </div>
-              <div class="bg-secondary border rounded-xl p-3">
+              <div class="rounded-2xl bg-secondary/60 p-3">
                 <div class="text-xs text-muted-foreground">{{ t('orderDetail.promotionDiscountLabel') }}</div>
                 <div
-                  class="font-mono mt-1"
+                  class="tabular-nums mt-1"
                   :class="hasDiscountAmount(order.promotion_discount_amount) ? 'text-rose-600 dark:text-rose-300' : 'text-foreground'"
                 >
                   {{ formatDiscountMoney(order.promotion_discount_amount, order.currency) }}
@@ -268,7 +268,7 @@
               </div>
               <div v-if="hasDiscountAmount(order.wholesale_discount_amount)" class="border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/30 rounded-xl p-3">
                 <div class="text-xs text-emerald-700 dark:text-emerald-400">{{ t('orderDetail.amountWholesaleDiscount') }}</div>
-                <div class="text-emerald-700 dark:text-emerald-400 font-mono mt-1">
+                <div class="text-emerald-700 dark:text-emerald-400 tabular-nums mt-1">
                   {{ formatDiscountMoney(order.wholesale_discount_amount, order.currency) }}
                 </div>
               </div>
@@ -282,17 +282,17 @@
               class="mt-3 gap-2"
             >
               <span>{{ t('payment.countdownLabel') }}</span>
-              <span class="font-mono">{{ countdownText }}</span>
+              <span class="tabular-nums">{{ countdownText }}</span>
             </Badge>
             <div v-if="pollingActive" class="mt-3 text-xs text-muted-foreground">{{ t('payment.pollingHint') }}</div>
           </div>
 
           <div v-if="orderItems.length"
-            class="border bg-card text-card-foreground shadow-sm rounded-2xl p-6">
-            <h2 class="text-lg font-bold mb-4 text-foreground">{{ t('payment.itemsTitle') }}</h2>
+            class="theme-float rounded-[22px] bg-card p-5 md:p-6">
+            <h2 class="mb-4 text-[17px] font-bold">{{ t('payment.itemsTitle') }}</h2>
             <div class="space-y-3 text-sm text-muted-foreground">
               <div v-for="(item, idx) in orderItems" :key="idx"
-                class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 border-b pb-3">
+                class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 border-b pb-3 last:border-b-0 last:pb-0">
                 <div>
                   <div class="text-foreground font-medium">{{ getLocalizedText(item.title) }}</div>
                   <div class="text-xs text-muted-foreground mt-1">
@@ -303,22 +303,22 @@
                     {{ t('orderDetail.itemSkuLabel') }}：{{ orderItemSkuText(item) }}
                   </div>
                 </div>
-                <div class="text-xs text-muted-foreground">
-                  {{ t('orderDetail.totalPriceLabel') }}：{{ formatMoney(item.total_price, order.currency) }}
+                <div class="text-[15px] font-bold tabular-nums text-foreground">
+                  {{ formatMoney(item.total_price, order.currency) }}
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="border bg-card text-card-foreground shadow-sm rounded-2xl p-6">
-            <h2 class="text-lg font-bold mb-4 text-foreground">{{ t('payment.channelTitle') }}</h2>
+          <div class="theme-float rounded-[22px] bg-card p-5 md:p-6">
+            <h2 class="mb-4 text-[17px] font-bold">{{ t('payment.channelTitle') }}</h2>
             <div v-if="!configReady" class="text-sm text-muted-foreground">
               {{ t('common.loading') }}
             </div>
             <template v-else>
               <div
                 v-if="showBalanceOption"
-                class="mb-4 rounded-xl border p-4 bg-secondary"
+                class="mb-4 rounded-2xl bg-secondary/60 p-4"
               >
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
@@ -328,7 +328,7 @@
                     </div>
                   </div>
                   <label class="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                    <input v-model="useBalance" type="checkbox" class="h-4 w-4 accent-primary" :disabled="walletOnlyPayment" />
+                    <input v-model="useBalance" type="checkbox" class="h-4 w-4 accent-foreground" :disabled="walletOnlyPayment" />
                     <span>{{ t('payment.useBalance') }}</span>
                   </label>
                 </div>
@@ -352,7 +352,7 @@
                   }) }}
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
-                  <Button variant="secondary" size="sm" class="font-bold" @click="restoreCachedPayment">
+                  <Button variant="secondary" size="sm" class="rounded-full font-semibold" @click="restoreCachedPayment">
                     {{ t('payment.useCached') }}
                   </Button>
                   <span class="text-xs opacity-80">
@@ -365,6 +365,7 @@
                 :channels="channels"
                 :model-value="selectedChannelId"
                 :show-balance-option="showBalanceOption"
+                ink
                 :is-channel-disabled-for-amount="isChannelDisabledForAmount"
                 :channel-amount-limit-hint="channelAmountLimitHint"
                 @update:model-value="selectedChannelId = $event"
@@ -373,8 +374,8 @@
           </div>
 
           <div v-if="paymentResult"
-            class="border bg-card text-card-foreground shadow-sm rounded-2xl p-6">
-            <h2 class="text-lg font-bold mb-4 text-foreground">{{ t('payment.infoTitle') }}</h2>
+            class="theme-float rounded-[22px] bg-card p-5 md:p-6">
+            <h2 class="mb-4 text-[17px] font-bold">{{ t('payment.infoTitle') }}</h2>
             <div class="text-sm text-muted-foreground space-y-2">
               <div>{{ t('payment.methodLabel') }}：{{ resultChannelName }}</div>
               <div>{{ t('payment.interactionLabel') }}：{{ interactionLabel }}</div>
@@ -384,7 +385,7 @@
 
             <div v-if="showQRCode" class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
               <div
-                class="bg-secondary border rounded-xl p-4 flex items-center justify-center">
+                class="rounded-2xl bg-secondary/60 p-4 flex items-center justify-center">
                 <img :src="qrImageUrl" alt="QR Code" class="w-48 h-48 object-contain" />
               </div>
               <div class="text-sm text-muted-foreground space-y-3">
@@ -393,7 +394,7 @@
                 <div v-if="qrUsingPayLinkFallback" class="text-xs text-muted-foreground">
                   {{ t('payment.qrFallbackHint') }}
                 </div>
-                <div v-if="hasCryptoPaymentDetails" class="space-y-2 rounded-xl border bg-white/5 p-3">
+                <div v-if="hasCryptoPaymentDetails" class="space-y-2 rounded-2xl bg-card p-3">
                   <div
                     v-for="item in cryptoPaymentDetails"
                     :key="item.key"
@@ -406,14 +407,14 @@
                     </span>
                   </div>
                   <div v-if="cryptoWalletAddress" class="flex flex-wrap items-center gap-2 pt-1">
-                    <Button variant="secondary" size="sm" class="font-bold" @click="handleCopyWalletAddress">
+                    <Button variant="secondary" size="sm" class="rounded-full font-semibold" @click="handleCopyWalletAddress">
                       {{ t('payment.copyWalletAddress') }}
                     </Button>
                     <span v-if="walletAddressCopied" class="text-xs text-success">{{ t('payment.copied') }}</span>
                   </div>
                 </div>
                 <div v-if="paymentResult.pay_url" class="pt-2 flex flex-wrap items-center gap-2">
-                  <Button type="button" variant="outline" size="sm" class="font-semibold" @click="handleCopyPayLink">
+                  <Button type="button" variant="outline" size="sm" class="rounded-full font-semibold" @click="handleCopyPayLink">
                     <Copy class="h-4 w-4" aria-hidden="true" />
                     {{ t('payment.copyPayLink') }}
                   </Button>
@@ -423,11 +424,11 @@
             </div>
 
             <div v-if="showPayLink" class="mt-6 flex flex-col md:flex-row md:items-center gap-3">
-              <Button type="button" variant="default" class="font-bold" @click="handleOpenPayLink">
+              <Button type="button" variant="default" class="h-11 px-5 rounded-full bg-foreground font-semibold text-background hover:bg-foreground/85" @click="handleOpenPayLink">
                 <ExternalLink class="h-4 w-4" aria-hidden="true" />
                 {{ t('payment.openPayLink') }}
               </Button>
-              <Button type="button" variant="outline" class="font-semibold" @click="handleCopyPayLink">
+              <Button type="button" variant="outline" class="rounded-full font-semibold" @click="handleCopyPayLink">
                 <Copy class="h-4 w-4" aria-hidden="true" />
                 {{ t('payment.copyPayLink') }}
               </Button>
@@ -438,10 +439,10 @@
           </div>
         </div>
 
-        <div class="h-fit rounded-2xl border bg-card text-card-foreground shadow-sm p-6 lg:sticky lg:top-24">
-          <h2 class="text-lg font-bold mb-4 text-foreground">{{ t('payment.actionTitle') }}</h2>
+        <div class="theme-float h-fit rounded-[22px] bg-card p-5 md:rounded-[28px] md:p-6 lg:sticky lg:top-24">
+          <h2 class="mb-4 text-[17px] font-bold">{{ t('payment.actionTitle') }}</h2>
           <div v-if="showCountdown" class="text-xs text-muted-foreground mb-3">
-            {{ t('payment.countdownLabel') }}：<span class="font-mono">{{ countdownText }}</span>
+            {{ t('payment.countdownLabel') }}：<span class="tabular-nums">{{ countdownText }}</span>
           </div>
           <Alert
             v-if="paymentAlert"
@@ -453,33 +454,33 @@
 
           <div
             v-if="selectedChannel"
-            class="mb-4 rounded-lg border-success/40 bg-success/10 p-3 text-xs text-success"
+            class="mb-4 rounded-xl border-success/40 bg-success/10 p-3 text-xs text-success"
           >
             <div class="font-semibold">{{ t('payment.methodLabel') }}：{{ selectedChannelName }}</div>
           </div>
           <div
             v-else-if="!requiresOnlineChannel && !orderExpired && !orderCanceled"
-            class="mb-4 rounded-lg border-success/40 bg-success/10 p-3 text-xs text-success"
+            class="mb-4 rounded-xl border-success/40 bg-success/10 p-3 text-xs text-success"
           >
             {{ t('payment.walletPayOnly') }}
           </div>
           <div
             v-else-if="walletOnlyPayment && expectedOnlinePayCents > 0 && !orderExpired && !orderCanceled"
-            class="mb-4 rounded-lg border-warning/40 bg-warning/10 p-3 text-xs text-warning"
+            class="mb-4 rounded-xl border-warning/40 bg-warning/10 p-3 text-xs text-warning"
           >
             {{ t('payment.walletInsufficientHint') }}
           </div>
           <div
             v-else-if="!walletOnlyPayment && requiresOnlineChannel && !orderExpired && !orderCanceled"
-            class="mb-4 rounded-lg border-warning/40 bg-warning/10 p-3 text-xs text-warning"
+            class="mb-4 rounded-xl border-warning/40 bg-warning/10 p-3 text-xs text-warning"
           >
             {{ t('payment.selectChannelError') }}
           </div>
 
-          <Button class="w-full font-semibold" :disabled="!canSubmitPayment" @click="handlePayment">
+          <Button class="h-12 w-full rounded-full bg-foreground font-semibold text-background hover:bg-foreground/85" :disabled="!canSubmitPayment" @click="handlePayment">
             {{ submitting ? t('payment.submitting') : t('payment.submitButton') }}
           </Button>
-          <Button variant="secondary" class="w-full mt-3 font-semibold" :disabled="loading" @click="handleRefresh">
+          <Button variant="secondary" class="mt-2 h-12 w-full rounded-full font-semibold" :disabled="loading" @click="handleRefresh">
             {{ t('payment.refreshStatus') }}
           </Button>
         </div>
@@ -490,7 +491,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { Copy, ExternalLink } from 'lucide-vue-next'
+import { ChevronRight, Copy, ExternalLink } from 'lucide-vue-next'
 import { pageAlertVariant, pageAlertToneClass } from '../utils/alerts'
 import PaymentAmountBreakdown from '../components/payment/PaymentAmountBreakdown.vue'
 import PaymentChannelSelector from '../components/payment/PaymentChannelSelector.vue'

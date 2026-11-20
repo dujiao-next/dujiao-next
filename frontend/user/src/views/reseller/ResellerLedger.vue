@@ -64,7 +64,7 @@
                 {{ ledgerTypeLabel(item.type) }}
               </span>
             </TableCell>
-            <TableCell class="px-4 py-3 text-right font-mono text-xs font-semibold" :class="amountClass(item)">{{ amountDisplay(item) }}</TableCell>
+            <TableCell class="px-4 py-3 text-right tabular-nums text-xs font-semibold" :class="amountClass(item)">{{ amountDisplay(item) }}</TableCell>
             <TableCell class="px-4 py-3"><ResellerStatusBadge :label="ledgerStatusLabel(item.status)" :tone="ledgerTone(item.status)" /></TableCell>
             <TableCell class="px-4 py-3 text-xs text-muted-foreground">{{ formatResellerConsoleDate(item.available_at) }}</TableCell>
             <TableCell class="px-4 py-3 text-xs text-muted-foreground">{{ formatResellerConsoleDate(item.created_at) }}</TableCell>
@@ -80,7 +80,7 @@
               <component :is="typeIcon(item.type)" class="h-4 w-4 text-muted-foreground" />
               {{ ledgerTypeLabel(item.type) }}
             </span>
-            <span class="font-mono text-sm font-bold" :class="amountClass(item)">{{ amountDisplay(item) }}</span>
+            <span class="tabular-nums text-sm font-bold" :class="amountClass(item)">{{ amountDisplay(item) }}</span>
           </template>
           <div>
             <dt class="text-muted-foreground">{{ t('personalCenter.reseller.ledgerTable.status') }}</dt>

@@ -183,7 +183,7 @@
                 class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm cursor-pointer"
                 @click.self="showConfirm = false"
               >
-                <div class="mx-4 w-full max-w-sm rounded-2xl border bg-card p-6 shadow-2xl">
+                <div role="dialog" aria-modal="true" class="mx-4 w-full max-w-sm rounded-2xl border bg-card p-6 shadow-2xl">
                   <h3 class="text-base font-bold text-foreground">{{ t('personalCenter.apiPanel.regenerateTitle') }}</h3>
                   <p class="mt-2 text-sm text-muted-foreground">
                     {{ t('personalCenter.apiPanel.regenerateDesc') }}

@@ -36,3 +36,6 @@ export function getFirstImageUrl(images: any): string {
 
     return getImageUrl(imageUrl)
 }
+
+/** 无图占位的色相：由 id 派生，同一条内容在列表和详情里颜色一致 */
+export const placeholderHue = (id: unknown): number => ((Number(id) || 0) * 47) % 360
