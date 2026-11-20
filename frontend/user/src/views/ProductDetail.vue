@@ -279,6 +279,7 @@ import { getImageUrl } from '../utils/image'
 import { processHtmlForDisplay } from '../utils/content'
 import { useProductDetail } from '../composables/useProductDetail'
 import ProductStage from '../components/product/ProductStage.vue'
+import { resolveDetailPrice } from '../utils/detailPrice'
 import ProductMobileBar from '../components/product/ProductMobileBar.vue'
 import BreadcrumbNav from '../components/BreadcrumbNav.vue'
 import EmptyState from '../components/EmptyState.vue'
@@ -344,32 +345,36 @@ const TONE = {
   promotion: 'text-rose-600 dark:text-rose-300',
 }
 
-// 当前要展示的价格：成交价、划线原价、优惠说明、强调色。优先级 批发 > 促销 > 会员 > 原价
+// 当前要展示的价格：成交价、划线原价、优惠说明、强调色。取舍规则见 resolveDetailPrice
 const price = computed(() => {
   const sku = selectedSku.value
   const item = product.value
-  const saved = (amount: unknown) => `${t('products.saveAmount')} ${formatPrice(amount, siteCurrency.value)}`
-  const memberNote = (final: unknown) => `${t('products.memberPriceTag')} · ${saved(Number(sku.price_amount) - Number(final))}`
-
-  if (sku && hasSelectedSkuWholesalePrice.value) {
-    const final = selectedSkuWholesaleFinalPrice.value
-    return selectedSkuWholesaleFinalIsMember.value
-      ? { final, original: sku.price_amount, tone: TONE.member, note: memberNote(final) }
-      : { final, original: sku.price_amount, tone: TONE.wholesale, note: `${t('products.wholesaleTag')} · ${saved(Number(sku.price_amount) - Number(final))}` }
+  const resolved = resolveDetailPrice({
+    skuPrice: sku?.price_amount,
+    wholesale: sku && hasSelectedSkuWholesalePrice.value
+      ? { final: selectedSkuWholesaleFinalPrice.value, isMember: selectedSkuWholesaleFinalIsMember.value }
+      : undefined,
+    skuPromotion: sku && hasSkuPromotionPrice(sku)
+      ? {
+          price: selectedSkuPromotionPrice.value,
+          save: getSkuPromotionSaveAmount(sku),
+          memberFinal: selectedSkuPromotionFinalIsMember.value ? selectedSkuPromotionFinalPrice.value : undefined,
+        }
+      : undefined,
+    memberPrice: hasMemberPrice.value ? selectedSkuMemberPrice.value : undefined,
+    productPrice: item?.price_amount,
+    productPromotion: hasPromotionPrice(item)
+      ? { price: getPromotionPriceAmount(item), save: getPromotionSaveAmount(item) }
+      : undefined,
+  })
+  const saved = `${t('products.saveAmount')} ${formatPrice(resolved.saved, siteCurrency.value)}`
+  const tag = { member: t('products.memberPriceTag'), wholesale: t('products.wholesaleTag') }[resolved.kind as 'member' | 'wholesale']
+  return {
+    final: resolved.final,
+    original: resolved.original,
+    tone: resolved.kind ? TONE[resolved.kind] : '',
+    note: resolved.kind ? (tag ? `${tag} · ${saved}` : saved) : '',
   }
-  if (sku && hasSkuPromotionPrice(sku)) {
-    return selectedSkuPromotionFinalIsMember.value
-      ? { final: selectedSkuPromotionFinalPrice.value, original: sku.price_amount, tone: TONE.member, note: memberNote(selectedSkuPromotionFinalPrice.value) }
-      : { final: selectedSkuPromotionPrice.value, original: sku.price_amount, tone: TONE.promotion, note: saved(getSkuPromotionSaveAmount(sku)) }
-  }
-  if (sku && hasMemberPrice.value) {
-    return { final: selectedSkuMemberPrice.value, original: sku.price_amount, tone: TONE.member, note: memberNote(selectedSkuMemberPrice.value) }
-  }
-  if (sku) return { final: sku.price_amount, original: null, tone: '', note: '' }
-  if (hasPromotionPrice(item)) {
-    return { final: getPromotionPriceAmount(item), original: item.price_amount, tone: TONE.promotion, note: saved(getPromotionSaveAmount(item)) }
-  }
-  return { final: item?.price_amount, original: null, tone: '', note: '' }
 })
 
 onUnmounted(() => {

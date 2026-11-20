@@ -88,12 +88,12 @@
           <PopoverTrigger as-child>
             <Button variant="ghost" size="sm" class="hidden lg:inline-flex gap-2 text-muted-foreground">
               <Languages class="w-4 h-4" />
-              <span class="text-xs font-medium uppercase tracking-wider">{{ currentLocale }}</span>
+              <span class="text-xs font-medium uppercase">{{ currentLocale }}</span>
             </Button>
           </PopoverTrigger>
           <PopoverContent align="end" class="w-40 p-2">
             <div class="px-2 pb-2 mb-2 border-b">
-              <span class="text-xs text-muted-foreground font-mono px-2">{{ t('navbar.selectLanguage') }}</span>
+              <span class="text-xs text-muted-foreground px-2">{{ t('navbar.selectLanguage') }}</span>
             </div>
             <button v-for="lang in languages" :key="lang.code" @click="changeLanguage(lang.code)"
               class="w-full text-left px-3 py-2.5 text-sm rounded-md transition-colors flex items-center justify-between hover:bg-accent hover:text-accent-foreground"
@@ -141,7 +141,7 @@
         <div class="p-5 space-y-1">
           <!-- Header -->
           <div class="flex items-center justify-between mb-4">
-            <span class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{{ t('navbar.more') }}</span>
+            <span class="text-xs font-semibold text-muted-foreground">{{ t('navbar.more') }}</span>
             <Button variant="secondary" size="icon" class="[&_svg]:size-5" @click="showMobileMenu = false">
               <X />
             </Button>
@@ -184,7 +184,7 @@
 
           <!-- Language Switcher -->
           <div class="mt-4 pt-4 border-t">
-            <span class="text-xs text-muted-foreground font-semibold uppercase tracking-wider px-4">{{ t('navbar.selectLanguage') }}</span>
+            <span class="text-xs text-muted-foreground font-semibold px-4">{{ t('navbar.selectLanguage') }}</span>
             <div class="mt-2 space-y-1">
               <button v-for="lang in languages" :key="lang.code" @click="changeLanguage(lang.code)"
                 class="w-full text-left px-4 py-2.5 rounded-xl text-sm transition-colors min-h-[44px] flex items-center justify-between"

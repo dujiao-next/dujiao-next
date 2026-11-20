@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div ref="rootRef">
     <div class="container mx-auto px-4 lg:flex lg:items-start lg:gap-6">
       <!-- 大屏：左侧分类栏，跟随滚动。小屏：搜索框 + 分类开关，点开才展开列表 -->
       <aside class="catalog-aside lg:sticky lg:top-20 lg:w-60 lg:shrink-0 lg:overflow-y-auto lg:rounded-[22px] lg:bg-card lg:p-3">
@@ -164,13 +164,13 @@
             :total-pages="totalPages"
             :loading="loading"
             compact
+            :scroll-top="false"
             @change-page="changePage"
           />
         </template>
 
         <EmptyState
           v-else
-          variant="soft"
           size="lg"
           :icon="(searchQuery || selectedCategory) ? 'search' : 'package'"
           :title="(searchQuery || selectedCategory) ? t('products.emptyFiltered') : t('products.empty')"
@@ -225,6 +225,7 @@ const emit = defineEmits<{
 
 const router = useRouter()
 const { t } = useI18n()
+const rootRef = ref<HTMLElement | null>(null)
 const { getLocalizedText } = useLocalized()
 
 const {
@@ -242,7 +243,12 @@ const {
   onSearch,
   initialize,
   cleanup,
-} = useProductList({ pageSize: 24, homeRouteName: props.homeRouteName })
+} = useProductList({
+  pageSize: 24,
+  homeRouteName: props.homeRouteName,
+  // 首页商品区上面还有横幅，翻页后回到商品区顶部（留出固定导航栏的高度），而不是整页顶部
+  getScrollTop: () => Math.max(0, (rootRef.value?.getBoundingClientRect().top ?? 0) + window.scrollY - 96),
+})
 
 const groups = useProductListGroups(products, categoryMap)
 

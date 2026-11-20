@@ -130,8 +130,8 @@
           </TableHeader>
           <TableBody>
             <TableRow v-for="item in commissions" :key="item.id">
-              <TableCell class="px-4 font-mono text-xs text-foreground">-</TableCell>
-              <TableCell class="px-4 font-mono text-xs text-foreground">{{ item.commission_amount }}</TableCell>
+              <TableCell class="px-4 tabular-nums text-xs text-foreground">-</TableCell>
+              <TableCell class="px-4 tabular-nums text-xs text-foreground">{{ item.commission_amount }}</TableCell>
               <TableCell class="px-4">
                 <Badge :variant="commissionStatusVariant(item.status)" size="sm">
                   {{ commissionStatusLabel(item.status) }}
@@ -178,7 +178,7 @@
           </TableHeader>
           <TableBody>
             <TableRow v-for="item in withdraws" :key="item.id">
-              <TableCell class="px-4 font-mono text-xs text-foreground">{{ item.amount }}</TableCell>
+              <TableCell class="px-4 tabular-nums text-xs text-foreground">{{ item.amount }}</TableCell>
               <TableCell class="px-4 text-xs text-muted-foreground">{{ item.channel }}</TableCell>
               <TableCell class="px-4">
                 <Badge :variant="withdrawStatusVariant(item.status)" size="sm">

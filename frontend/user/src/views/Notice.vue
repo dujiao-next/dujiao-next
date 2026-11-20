@@ -40,7 +40,7 @@
         />
       </div>
 
-      <EmptyState v-else variant="soft" size="lg" :title="t('notice.empty')">
+      <EmptyState v-else size="lg" :title="t('notice.empty')">
         <template #icon>
           <Bell class="h-16 w-16 text-muted-foreground opacity-70" :stroke-width="1.5" />
         </template>

@@ -17,7 +17,7 @@
       </Button>
 
       <span
-        class="flex items-center font-mono text-muted-foreground"
+        class="flex items-center tabular-nums text-muted-foreground"
         :class="compact ? 'px-3 py-1.5 text-sm' : 'px-4 py-2'"
         aria-live="polite"
       >

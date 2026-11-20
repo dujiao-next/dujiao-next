@@ -8,8 +8,8 @@
         <component :is="icon" class="h-5 w-5" />
       </span>
       <div class="min-w-0">
-        <p v-if="eyebrow" class="text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">{{ eyebrow }}</p>
-        <h2 class="truncate text-xl font-black text-foreground sm:text-[1.35rem]">{{ title }}</h2>
+        <p v-if="eyebrow" class="text-[11px] font-semibold text-primary">{{ eyebrow }}</p>
+        <h2 class="truncate text-xl font-bold text-foreground sm:text-[1.35rem]">{{ title }}</h2>
         <p v-if="description" class="mt-1 text-sm text-muted-foreground">{{ description }}</p>
       </div>
     </div>

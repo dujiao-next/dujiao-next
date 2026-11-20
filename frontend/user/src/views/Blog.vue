@@ -48,7 +48,7 @@
                 index === 0 ? 'h-48 md:h-auto md:min-h-64 md:w-1/2' : 'h-44',
                 post.thumbnail ? 'bg-secondary' : 'bg-[hsl(var(--h)_62%_94%)] dark:bg-[hsl(var(--h)_32%_17%)]',
               ]"
-              :style="{ '--h': ((Number(post.id) || 0) * 47) % 360 }"
+              :style="{ '--h': placeholderHue(post.id) }"
             >
               <img
                 v-if="post.thumbnail"
@@ -87,7 +87,7 @@
         />
       </div>
 
-      <EmptyState v-else variant="soft" size="lg" :title="searchKeyword.trim() ? t('blog.noResults') : t('blog.empty')">
+      <EmptyState v-else size="lg" :title="searchKeyword.trim() ? t('blog.noResults') : t('blog.empty')">
         <template #icon>
           <BookOpen class="h-16 w-16 text-muted-foreground opacity-70" :stroke-width="1.5" />
         </template>
@@ -99,7 +99,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { BookOpen, ChevronRight, Search, X } from 'lucide-vue-next'
-import { getImageUrl } from '../utils/image'
+import { getImageUrl, placeholderHue } from '../utils/image'
 import EmptyState from '../components/EmptyState.vue'
 import PaginationNav from '../components/PaginationNav.vue'
 import { usePostList } from '../composables/usePostList'

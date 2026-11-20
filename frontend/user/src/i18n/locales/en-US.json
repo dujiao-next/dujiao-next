@@ -128,7 +128,6 @@
     },
     "featured": {
       "title": "Featured Products",
-      "description": "Discover our premium collection of digital assets, curated for excellence.",
       "empty": "No products available",
       "viewAll": "View All Products"
     },
@@ -143,7 +142,6 @@
     }
   },
   "products": {
-    "subtitle": "Browse our featured products",
     "priceAria": "Price {price}",
     "promotionPriceAria": "Promotional price {price}",
     "originalPriceAria": "Original price {price}",
@@ -202,7 +200,6 @@
     "loginToBuy": "Login to buy",
     "addToCart": "Add to cart",
     "buyNow": "Buy now",
-    "categoryLabel": "Category",
     "fulfillmentLabel": "Fulfillment",
     "skuTitle": "Choose SKU",
     "skuRequired": "Please select a SKU before purchase",

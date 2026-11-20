@@ -35,10 +35,10 @@
                 {{ directionLabel(item.direction) }}
               </Badge>
             </TableCell>
-            <TableCell class="px-4 font-mono text-sm" :class="item.direction === 'in' ? 'text-success' : 'text-destructive'">
+            <TableCell class="px-4 tabular-nums text-sm" :class="item.direction === 'in' ? 'text-success' : 'text-destructive'">
               {{ signedAmount(item.direction, item.amount, item.currency) }}
             </TableCell>
-            <TableCell class="px-4 font-mono text-sm text-foreground">
+            <TableCell class="px-4 tabular-nums text-sm text-foreground">
               {{ formatMoney(item.balance_after, item.currency) }}
             </TableCell>
             <TableCell class="px-4 text-xs text-muted-foreground">{{ item.remark || '-' }}</TableCell>
