@@ -129,7 +129,6 @@
     },
     "featured": {
       "title": "精选商品",
-      "description": "探索我们精心挑选的优质数字资产系列。",
       "empty": "暂无商品",
       "viewAll": "查看全部商品"
     },
@@ -144,7 +143,6 @@
     }
   },
   "products": {
-    "subtitle": "浏览我们的精选商品",
     "priceAria": "价格 {price}",
     "promotionPriceAria": "促销价 {price}",
     "originalPriceAria": "原价 {price}",
@@ -1831,7 +1829,6 @@
     "affiliateRateHint": "推广此商品可获 {rate}% 返利",
     "affiliateRateNone": "此商品不参与推广返利",
     "buyNow": "立即购买",
-    "categoryLabel": "分类",
     "fulfillmentLabel": "交付方式",
     "skuTitle": "选择规格",
     "skuRequired": "请选择商品规格后再购买",

@@ -103,14 +103,18 @@ export const warmupCommonRoutes = () => {
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
-    async scrollBehavior(to, _from, savedPosition) {
+    async scrollBehavior(to, from, savedPosition) {
+        const isListRoute = ['home', 'products', 'category-products'].includes(String(to.name))
         if (savedPosition) {
             // 后退/前进到列表页时，等数据加载完再恢复位置，避免页面未撑开就截断
-            const listRoutes = new Set(['home', 'products', 'category-products'])
-            if (listRoutes.has(String(to.name))) {
+            if (isListRoute) {
                 await waitForListScrollSignal()
             }
             return savedPosition
+        }
+        // 列表页内翻页/搜索只改 query，滚动由 useProductList 决定（首页要停在商品区而不是横幅）
+        if (isListRoute && to.path === from.path) {
+            return false
         }
         if (to.hash) {
             return { el: to.hash, top: 80 }

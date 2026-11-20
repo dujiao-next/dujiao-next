@@ -37,7 +37,7 @@
 
         <!-- Links -->
         <div>
-          <h4 class="text-foreground font-bold mb-6 tracking-wide">{{ t('footer.quickLinks') }}</h4>
+          <h4 class="text-foreground font-bold mb-6">{{ t('footer.quickLinks') }}</h4>
           <ul class="space-y-3 text-sm">
             <li v-for="item in quickLinks" :key="item.path">
               <router-link :to="item.path" class="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2 group">
@@ -50,7 +50,7 @@
 
         <!-- Contact -->
         <div>
-          <h4 class="text-foreground font-bold mb-6 tracking-wide">{{ t('footer.contact') }}</h4>
+          <h4 class="text-foreground font-bold mb-6">{{ t('footer.contact') }}</h4>
           <div class="space-y-4">
             <a v-if="config?.contact?.telegram" :href="config.contact.telegram" target="_blank"
               rel="noopener noreferrer"

@@ -129,7 +129,6 @@
     },
     "featured": {
       "title": "精選商品",
-      "description": "探索我們精心挑選的優質數位資產系列。",
       "empty": "暫無商品",
       "viewAll": "查看全部商品"
     },
@@ -144,7 +143,6 @@
     }
   },
   "products": {
-    "subtitle": "瀏覽我們的精選商品",
     "priceAria": "價格 {price}",
     "promotionPriceAria": "促銷價 {price}",
     "originalPriceAria": "原價 {price}",
@@ -208,7 +206,6 @@
     "affiliateRateHint": "推廣此商品可獲 {rate}% 返利",
     "affiliateRateNone": "此商品不參與推廣返利",
     "buyNow": "立即購買",
-    "categoryLabel": "分類",
     "fulfillmentLabel": "交付方式",
     "skuTitle": "選擇規格",
     "skuRequired": "請先選擇商品規格再購買",

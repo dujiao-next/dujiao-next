@@ -1,5 +1,5 @@
 <template>
-  <!-- row：列表模式的表格行。列宽与 ProductCatalog 里的表头保持一致（见 listColsClass） -->
+  <!-- row：列表模式的表格行。列宽与 ProductCatalog 里的表头保持一致（见 rowColsClass） -->
   <article
     v-if="row"
     class="prow group relative cursor-pointer items-center gap-x-4 rounded-2xl bg-secondary/60 p-2 md:pr-3 focus-visible:outline-2 focus-visible:outline-primary max-md:flex max-md:gap-3 md:px-3"
@@ -186,7 +186,7 @@ export const rowColsClass = 'md:grid md:grid-cols-[minmax(0,1fr)_6.5rem_8.5rem_8
 import { useI18n } from 'vue-i18n'
 import { computed, ref, watch } from 'vue'
 import { ShoppingCart, Zap } from 'lucide-vue-next'
-import { getFirstImageUrl, getImageUrl } from '../utils/image'
+import { getFirstImageUrl, getImageUrl, placeholderHue } from '../utils/image'
 import { useLocalized, useProductLabels } from '../composables/useProduct'
 
 const props = withDefaults(defineProps<{
@@ -249,7 +249,7 @@ const stock = computed(() => ({
 
 // 无图时用标题首字，托盘和字的色相由商品 id 派生
 const monogram = computed(() => Array.from(title.value.trim())[0] ?? '')
-const hue = computed(() => ((Number(props.product?.id) || 0) * 47) % 360)
+const hue = computed(() => placeholderHue(props.product?.id))
 
 const imageErrored = ref(false)
 const attemptIdx = ref(0)
