@@ -28,6 +28,7 @@ type WithdrawApplyInput struct {
 type Dashboard struct {
 	Opened              bool         `json:"opened"`
 	AffiliateCode       string       `json:"affiliate_code"`
+	Status              string       `json:"status"` // 推广账号状态（active/disabled），停用后推广不再产生佣金
 	PromotionPath       string       `json:"promotion_path"`
 	ClickCount          int64        `json:"click_count"`
 	ValidOrderCount     int64        `json:"valid_order_count"`
@@ -35,6 +36,19 @@ type Dashboard struct {
 	PendingCommission   money.Amount `json:"pending_commission"`
 	AvailableCommission money.Amount `json:"available_commission"`
 	WithdrawnCommission money.Amount `json:"withdrawn_commission"`
+}
+
+// SKURate 是单个规格对推广员生效的返利比例。
+type SKURate struct {
+	SKUID       uint         `json:"sku_id"`
+	RatePercent money.Amount `json:"rate_percent"`
+}
+
+// ProductRates 是推广员查看某个商品时生效的返利比例（已按 SKU → 商品 → 全站解析）。
+// 0 表示该商品/规格不参与返利。
+type ProductRates struct {
+	RatePercent money.Amount `json:"rate_percent"`
+	SKUs        []SKURate    `json:"skus"`
 }
 
 // Stats 推广统计数据。

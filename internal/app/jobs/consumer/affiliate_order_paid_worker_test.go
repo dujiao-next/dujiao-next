@@ -29,7 +29,7 @@ func (r affiliateWorkerOrders) GetByID(uint) (*orderdomain.Order, error) { retur
 type affiliateWorkerProducts struct{}
 
 func (affiliateWorkerProducts) ListByIDs([]uint) ([]productdomain.Product, error) {
-	return []productdomain.Product{{ID: 1, IsAffiliateEnabled: true}}, nil
+	return []productdomain.Product{{ID: 1}}, nil
 }
 
 // 支付时佣金创建失败投递的重试任务，消费后应补上佣金。

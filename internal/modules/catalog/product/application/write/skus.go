@@ -142,8 +142,22 @@ type normalizedProductSKU struct {
 	CostPriceAmount  money.Amount
 	ManualStockTotal int
 	KeepManualStock  bool // 未提交库存：落库时保留现有实时值
-	IsActive         bool
-	SortOrder        int
+	// AffiliateRatePercent 为 SKU 级返利比例；nil 表示继承商品/全站比例。
+	AffiliateRatePercent    *money.Amount
+	AffiliateRatePercentSet bool // 请求是否携带该字段：未携带时保留 SKU 现有比例
+	IsActive                bool
+	SortOrder               int
+}
+
+// validateProductAffiliateRate 校验返利比例是否落在 0-100。
+func validateProductAffiliateRate(rate *money.Amount) error {
+	if rate == nil {
+		return nil
+	}
+	if rate.LessThan(decimal.Zero) || rate.GreaterThan(decimal.NewFromInt(100)) {
+		return productcontract.ErrProductAffiliateRateInvalid
+	}
+	return nil
 }
 
 func (s *WriteService) normalizeProductSKUInputs(inputs []ProductSKUInput, fulfillmentType string, existingSKUMap map[uint]productdomain.ProductSKU) ([]normalizedProductSKU, decimal.Decimal, int, error) {
@@ -207,17 +221,22 @@ func (s *WriteService) normalizeProductSKUInputs(inputs []ProductSKUInput, fulfi
 		if input.SpecValuesJSON != nil {
 			specValues = jsonmap.JSON(input.SpecValuesJSON)
 		}
+		if err := validateProductAffiliateRate(input.AffiliateRatePercent); err != nil {
+			return nil, decimal.Zero, 0, err
+		}
 
 		normalized = append(normalized, normalizedProductSKU{
-			ID:               input.ID,
-			SKUCode:          skuCode,
-			SpecValuesJSON:   specValues,
-			PriceAmount:      money.FromDecimal(priceAmount),
-			CostPriceAmount:  money.FromDecimal(costPriceAmount),
-			ManualStockTotal: manualTotal,
-			KeepManualStock:  keepManualStock,
-			IsActive:         isActive,
-			SortOrder:        input.SortOrder,
+			ID:                      input.ID,
+			SKUCode:                 skuCode,
+			SpecValuesJSON:          specValues,
+			PriceAmount:             money.FromDecimal(priceAmount),
+			CostPriceAmount:         money.FromDecimal(costPriceAmount),
+			ManualStockTotal:        manualTotal,
+			KeepManualStock:         keepManualStock,
+			AffiliateRatePercent:    input.AffiliateRatePercent,
+			AffiliateRatePercentSet: input.AffiliateRatePercentSet,
+			IsActive:                isActive,
+			SortOrder:               input.SortOrder,
 		})
 
 		if isActive {
@@ -298,6 +317,10 @@ func (s *WriteService) applyProductSKUsWithStockGuard(
 			existing.SpecValuesJSON = row.SpecValuesJSON
 			existing.PriceAmount = row.PriceAmount
 			existing.CostPriceAmount = row.CostPriceAmount
+			// 未携带返利比例时保留 SKU 现有值，避免旧页面提交时清空配置。
+			if row.AffiliateRatePercentSet {
+				existing.AffiliateRatePercent = row.AffiliateRatePercent
+			}
 			if !row.KeepManualStock {
 				existing.ManualStockTotal = row.ManualStockTotal
 			}
@@ -316,6 +339,9 @@ func (s *WriteService) applyProductSKUsWithStockGuard(
 			existing.SpecValuesJSON = row.SpecValuesJSON
 			existing.PriceAmount = row.PriceAmount
 			existing.CostPriceAmount = row.CostPriceAmount
+			if row.AffiliateRatePercentSet {
+				existing.AffiliateRatePercent = row.AffiliateRatePercent
+			}
 			if !row.KeepManualStock {
 				existing.ManualStockTotal = row.ManualStockTotal
 			}
@@ -333,16 +359,17 @@ func (s *WriteService) applyProductSKUsWithStockGuard(
 			return err
 		}
 		item := productdomain.ProductSKU{
-			ProductID:         productID,
-			SKUCode:           row.SKUCode,
-			SpecValuesJSON:    row.SpecValuesJSON,
-			PriceAmount:       row.PriceAmount,
-			CostPriceAmount:   row.CostPriceAmount,
-			ManualStockTotal:  row.ManualStockTotal,
-			ManualStockLocked: 0,
-			ManualStockSold:   0,
-			IsActive:          row.IsActive,
-			SortOrder:         row.SortOrder,
+			ProductID:            productID,
+			SKUCode:              row.SKUCode,
+			SpecValuesJSON:       row.SpecValuesJSON,
+			PriceAmount:          row.PriceAmount,
+			CostPriceAmount:      row.CostPriceAmount,
+			ManualStockTotal:     row.ManualStockTotal,
+			ManualStockLocked:    0,
+			ManualStockSold:      0,
+			AffiliateRatePercent: row.AffiliateRatePercent,
+			IsActive:             row.IsActive,
+			SortOrder:            row.SortOrder,
 		}
 		if err := skuRepo.Create(&item); err != nil {
 			return err

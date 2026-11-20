@@ -633,3 +633,105 @@ func TestAutoMigrateReplacesSupersededProcurementConstraintName(t *testing.T) {
 		t.Errorf("procurement index repair removed canonical constraint %s", procurementOrderForeignKeyConstraint)
 	}
 }
+
+// 旧库升级：布尔开关 false → 比例 0（不参与），true → NULL（跟随全站）。
+func TestEnsureProductAffiliateRateMigrationMapsLegacySwitch(t *testing.T) {
+	db := setupSKUMigrationTestDB(t)
+	if err := db.AutoMigrate(&productdomain.Product{}, &settingsstore.SettingRecord{}); err != nil {
+		t.Fatalf("migrate schema failed: %v", err)
+	}
+	// 模拟旧版本遗留的布尔列。
+	if err := db.Exec("ALTER TABLE products ADD COLUMN is_affiliate_enabled numeric NOT NULL DEFAULT 0").Error; err != nil {
+		t.Fatalf("add legacy column failed: %v", err)
+	}
+	seed := func(slug string, legacy bool) uint {
+		product := productdomain.Product{Slug: slug, CategoryID: 1, TitleJSON: jsonmap.JSON{"zh-CN": slug}}
+		if err := db.Select("Slug", "CategoryID", "TitleJSON").Create(&product).Error; err != nil {
+			t.Fatalf("seed %s failed: %v", slug, err)
+		}
+		if err := db.Exec("UPDATE products SET is_affiliate_enabled = ? WHERE id = ?", legacy, product.ID).Error; err != nil {
+			t.Fatalf("set legacy flag %s failed: %v", slug, err)
+		}
+		return product.ID
+	}
+	enabledID := seed("enabled", true)
+	disabledID := seed("disabled", false)
+
+	if err := ensureProductAffiliateRateMigration(); err != nil {
+		t.Fatalf("migration failed: %v", err)
+	}
+
+	var enabled, disabled productdomain.Product
+	if err := db.First(&enabled, enabledID).Error; err != nil {
+		t.Fatalf("load enabled failed: %v", err)
+	}
+	if err := db.First(&disabled, disabledID).Error; err != nil {
+		t.Fatalf("load disabled failed: %v", err)
+	}
+	if enabled.AffiliateRatePercent != nil {
+		t.Fatalf("legacy enabled product must inherit global rate (NULL), got %s", enabled.AffiliateRatePercent.String())
+	}
+	if disabled.AffiliateRatePercent == nil || !disabled.AffiliateRatePercent.IsZero() {
+		t.Fatalf("legacy disabled product must be excluded (0), got %v", disabled.AffiliateRatePercent)
+	}
+
+	// 上线后验证：不应存在“旧开关为关却仍继承全站比例”的商品，否则会给被排除的商品发佣金。
+	var leaked int64
+	if err := db.Model(&productdomain.Product{}).
+		Where("affiliate_rate_percent IS NULL AND is_affiliate_enabled = ?", false).
+		Count(&leaked).Error; err != nil {
+		t.Fatalf("leak check failed: %v", err)
+	}
+	if leaked != 0 {
+		t.Fatalf("expected 0 excluded products leaking into global rate, got %d", leaked)
+	}
+}
+
+// 迁移只能执行一次：之后新建的商品（旧列默认 false、新比例 NULL）不能被重跑的迁移误改成“不参与”。
+func TestEnsureProductAffiliateRateMigrationRunsOnlyOnce(t *testing.T) {
+	db := setupSKUMigrationTestDB(t)
+	if err := db.AutoMigrate(&productdomain.Product{}, &settingsstore.SettingRecord{}); err != nil {
+		t.Fatalf("migrate schema failed: %v", err)
+	}
+	if err := db.Exec("ALTER TABLE products ADD COLUMN is_affiliate_enabled numeric NOT NULL DEFAULT 0").Error; err != nil {
+		t.Fatalf("add legacy column failed: %v", err)
+	}
+	if err := ensureProductAffiliateRateMigration(); err != nil {
+		t.Fatalf("first run failed: %v", err)
+	}
+
+	created := productdomain.Product{Slug: "created-after-upgrade", CategoryID: 1, TitleJSON: jsonmap.JSON{"zh-CN": "x"}}
+	if err := db.Select("Slug", "CategoryID", "TitleJSON").Create(&created).Error; err != nil {
+		t.Fatalf("create product failed: %v", err)
+	}
+
+	if err := ensureProductAffiliateRateMigration(); err != nil {
+		t.Fatalf("second run failed: %v", err)
+	}
+
+	var reloaded productdomain.Product
+	if err := db.First(&reloaded, created.ID).Error; err != nil {
+		t.Fatalf("reload failed: %v", err)
+	}
+	if reloaded.AffiliateRatePercent != nil {
+		t.Fatalf("product created after upgrade must keep inheriting (NULL), got %s", reloaded.AffiliateRatePercent.String())
+	}
+}
+
+// 全新安装没有旧列：迁移应直接成功并写入标记。
+func TestEnsureProductAffiliateRateMigrationFreshInstall(t *testing.T) {
+	db := setupSKUMigrationTestDB(t)
+	if err := db.AutoMigrate(&productdomain.Product{}, &settingsstore.SettingRecord{}); err != nil {
+		t.Fatalf("migrate schema failed: %v", err)
+	}
+	if err := ensureProductAffiliateRateMigration(); err != nil {
+		t.Fatalf("fresh install migration failed: %v", err)
+	}
+	var marker settingsstore.SettingRecord
+	if err := db.First(&marker, "key = ?", productAffiliateRateMigrationKey).Error; err != nil {
+		t.Fatalf("marker not written: %v", err)
+	}
+	if !migrationDone(marker.ValueJSON) {
+		t.Fatalf("marker should be done, got %v", marker.ValueJSON)
+	}
+}
