@@ -16,7 +16,7 @@
 
         <RouterLink to="/" class="group relative hidden shrink-0 sm:block" :title="brandSiteName">
           <img v-if="brandLogo" :src="brandLogo" :alt="brandSiteName" class="h-7 max-w-[150px] object-contain" />
-          <span v-else class="text-base font-black text-foreground">{{ brandSiteName }}</span>
+          <span v-else class="text-base font-bold text-foreground">{{ brandSiteName }}</span>
         </RouterLink>
 
         <span class="hidden h-5 w-px shrink-0 bg-border sm:block"></span>
@@ -49,17 +49,17 @@
           <PopoverTrigger as-child>
             <Button type="button" variant="ghost" size="sm" class="gap-1.5 px-2.5">
               <Languages class="h-4 w-4" />
-              <span class="text-xs font-semibold uppercase tracking-wider">{{ currentLocaleLabel }}</span>
+              <span class="text-xs font-semibold">{{ currentLocaleLabel }}</span>
             </Button>
           </PopoverTrigger>
           <PopoverContent align="end" class="w-44 p-1.5">
-            <p class="px-2 pb-1.5 pt-1 font-mono text-xs text-muted-foreground">{{ t('navbar.selectLanguage') }}</p>
+            <p class="px-2 pb-1.5 pt-1 tabular-nums text-xs text-muted-foreground">{{ t('navbar.selectLanguage') }}</p>
             <button
               v-for="lang in languages"
               :key="lang.code"
               type="button"
               class="flex w-full items-center justify-between rounded-md px-2.5 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-              :class="appStore.locale === lang.code ? 'text-primary' : 'text-foreground'"
+              :class="appStore.locale === lang.code ? 'font-semibold text-foreground' : 'text-muted-foreground'"
               @click="changeLanguage(lang.code)"
             >
               {{ lang.name }}
@@ -122,14 +122,14 @@
       >
         <div class="space-y-1 p-4">
           <div class="mb-3 flex items-center justify-between">
-            <span class="text-sm font-black text-foreground">{{ title }}</span>
+            <span class="text-sm font-bold text-foreground">{{ title }}</span>
             <Button type="button" variant="ghost" size="icon-sm" @click="drawerOpen = false">
               <X class="h-5 w-5" />
             </Button>
           </div>
 
           <div v-for="group in navGroups" :key="group.key" class="space-y-1">
-            <p class="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            <p class="px-3 pb-1 pt-2 text-[11px] font-semibold text-muted-foreground">
               {{ group.title }}
             </p>
             <RouterLink
@@ -137,7 +137,7 @@
               :key="item.to"
               :to="item.to"
               class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors"
-              :class="isActive(item.to) ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground'"
+              :class="isActive(item.to) ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'"
               @click="drawerOpen = false"
             >
               <component :is="item.icon" class="h-5 w-5 shrink-0" />

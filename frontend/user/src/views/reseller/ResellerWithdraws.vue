@@ -17,7 +17,7 @@
 
       <div v-if="selectedAvailable !== null" class="mb-4 flex items-center justify-between gap-3 rounded-xl bg-muted px-4 py-3">
         <span class="text-xs text-muted-foreground">{{ t('resellerConsole.withdraws.available') }}</span>
-        <span class="font-mono text-sm font-bold text-foreground">{{ formatResellerConsoleAmount(selectedAvailable, form.currency) }}</span>
+        <span class="tabular-nums text-sm font-bold text-foreground">{{ formatResellerConsoleAmount(selectedAvailable, form.currency) }}</span>
       </div>
 
       <form class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5" @submit.prevent="onSubmit">
@@ -65,7 +65,7 @@
         </TableHeader>
         <TableBody>
           <TableRow v-for="item in withdraws" :key="item.id">
-            <TableCell class="px-4 py-3 text-right font-mono text-xs text-foreground">{{ formatResellerConsoleAmount(item.amount, item.currency) }}</TableCell>
+            <TableCell class="px-4 py-3 text-right tabular-nums text-xs text-foreground">{{ formatResellerConsoleAmount(item.amount, item.currency) }}</TableCell>
             <TableCell class="px-4 py-3 text-xs text-foreground">{{ item.channel }}</TableCell>
             <TableCell class="px-4 py-3">
               <ResellerStatusBadge :label="withdrawStatusLabel(item.status)" :tone="withdrawTone(item.status)" />
@@ -86,7 +86,7 @@
       <div class="space-y-3 lg:hidden">
         <ResellerRecordCard v-for="item in withdraws" :key="item.id">
           <template #header>
-            <span class="font-mono text-sm font-bold text-foreground">{{ formatResellerConsoleAmount(item.amount, item.currency) }}</span>
+            <span class="tabular-nums text-sm font-bold text-foreground">{{ formatResellerConsoleAmount(item.amount, item.currency) }}</span>
             <ResellerStatusBadge :label="withdrawStatusLabel(item.status)" :tone="withdrawTone(item.status)" />
           </template>
           <div class="col-span-2">
