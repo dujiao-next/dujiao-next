@@ -13,7 +13,7 @@
           v-for="item in toasts"
           :key="item.id"
           role="alert"
-          class="pointer-events-auto mb-2 flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium shadow-lg backdrop-blur-xl"
+          class="toast-item pointer-events-auto mb-2 flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium shadow-lg backdrop-blur-xl"
           :class="typeClass(item.type)"
         >
           <Check v-if="item.type === 'success'" class="h-4 w-4 shrink-0" />
