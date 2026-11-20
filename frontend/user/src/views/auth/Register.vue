@@ -167,11 +167,7 @@
           </div>
 
           <label class="flex items-start gap-3 rounded-2xl bg-secondary/60 px-4 py-3 text-sm text-muted-foreground transition-colors">
-            <input
-              v-model="agreed"
-              type="checkbox"
-              class="mt-0.5 h-4 w-4 rounded border-gray-300 accent-foreground dark:border-white/20 dark:bg-black/20"
-            />
+            <Checkbox v-model="agreed" class="mt-1" />
             <span class="leading-6">
               {{ t('auth.register.agreementPrefix') }}
               <router-link to="/privacy" target="_blank" rel="noopener noreferrer" class="font-semibold text-primary hover:underline">
@@ -219,6 +215,7 @@ import TurnstileCaptcha from '../../components/captcha/TurnstileCaptcha.vue'
 import { ChevronLeft, Mail, Lock, ShieldCheck, Eye, EyeOff, UserPlus, Ticket } from 'lucide-vue-next'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useRegister } from '../../composables/useRegister'

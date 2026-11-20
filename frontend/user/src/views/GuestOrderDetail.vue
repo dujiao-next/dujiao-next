@@ -77,7 +77,7 @@
                   <div class="text-xs text-muted-foreground mt-1">{{ t('orderDetail.childOrderAmount') }}：{{
                     formatMoney(child.total_amount, child.currency || order.currency) }}</div>
                 </div>
-                <Badge :variant="statusVariant(resolvedChildStatus(child))" size="sm">
+                <Badge :variant="statusVariant(resolvedChildStatus(child))" size="sm" class="self-start md:self-auto">
                   {{ statusLabel(resolvedChildStatus(child)) }}
                 </Badge>
               </div>
@@ -152,14 +152,12 @@
                 <div class="flex items-center justify-between mb-3">
                   <h3 class="text-sm font-semibold text-foreground">{{
                     t('orderDetail.childFulfillmentTitle') }}</h3>
-                  <button v-if="child.fulfillment?.status === 'delivered'"
-                    class="inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full transition-colors shadow-sm"
-                    :class="fulfillmentCopied ? 'bg-emerald-600 text-white' : 'bg-foreground text-background hover:bg-foreground/85'"
+                  <Button v-if="child.fulfillment?.status === 'delivered'" size="sm"
                     @click="handleCopyFulfillment(child.fulfillment)">
                     <Copy v-if="!fulfillmentCopied" class="w-3.5 h-3.5" :stroke-width="2" />
                     <Check v-else class="w-3.5 h-3.5" :stroke-width="2" />
                     {{ fulfillmentCopied ? t('orderDetail.fulfillmentCopied') : t('orderDetail.fulfillmentCopy') }}
-                  </button>
+                  </Button>
                 </div>
                 <div v-if="child.fulfillment">
                   <div class="text-sm text-muted-foreground">{{ t('orderDetail.fulfillmentType') }}：{{
@@ -169,12 +167,12 @@
                   <div v-if="isFulfillmentTruncated(child.fulfillment)" class="mt-3">
                     <div class="flex items-center justify-between mb-2">
                       <span class="text-sm text-muted-foreground">{{ t('orderDetail.fulfillmentTotalLines', { count: child.fulfillment.payload_line_count }) }}</span>
-                      <button class="inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full bg-foreground text-background hover:bg-foreground/85 transition-colors shadow-sm disabled:opacity-50"
+                      <Button size="sm"
                         :disabled="fulfillmentDownloading"
                         @click="handleDownloadFulfillment(child.order_no || order.order_no)">
                         <Download class="w-3.5 h-3.5" :stroke-width="2" />
                         {{ fulfillmentDownloading ? t('orderDetail.fulfillmentDownloading') : t('orderDetail.fulfillmentDownload') }}
-                      </button>
+                      </Button>
                     </div>
                     <div class="mb-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
                       {{ t('orderDetail.fulfillmentTruncatedHint') }}
@@ -212,21 +210,18 @@
           <div class="flex items-center justify-between mb-4">
             <h2 class="text-[17px] font-bold">{{ t('orderDetail.fulfillmentTitle') }}</h2>
             <div class="flex items-center gap-2">
-              <button v-if="isFulfillmentTruncated(order.fulfillment)"
-                class="inline-flex items-center gap-1 text-sm font-medium px-4 py-2 rounded-full bg-foreground text-background hover:bg-foreground/85 transition-colors shadow-sm disabled:opacity-50"
+              <Button v-if="isFulfillmentTruncated(order.fulfillment)"
                 :disabled="fulfillmentDownloading"
                 @click="handleDownloadFulfillment(order.order_no)">
                 <Download class="w-4 h-4" :stroke-width="2" />
                 {{ fulfillmentDownloading ? t('orderDetail.fulfillmentDownloading') : t('orderDetail.fulfillmentDownload') }}
-              </button>
-              <button v-if="order.fulfillment.status === 'delivered' && !isFulfillmentTruncated(order.fulfillment)"
-                class="inline-flex items-center gap-1 text-sm font-medium px-4 py-2 rounded-full transition-colors shadow-sm"
-                :class="fulfillmentCopied ? 'bg-emerald-600 text-white' : 'bg-foreground text-background hover:bg-foreground/85'"
+              </Button>
+              <Button v-if="order.fulfillment.status === 'delivered' && !isFulfillmentTruncated(order.fulfillment)"
                 @click="handleCopyFulfillment(order.fulfillment)">
                 <Copy v-if="!fulfillmentCopied" class="w-4 h-4" :stroke-width="2" />
                 <Check v-else class="w-4 h-4" :stroke-width="2" />
                 {{ fulfillmentCopied ? t('orderDetail.fulfillmentCopied') : t('orderDetail.fulfillmentCopy') }}
-              </button>
+              </Button>
             </div>
           </div>
           <div class="text-sm text-muted-foreground">{{ t('orderDetail.fulfillmentType') }}：{{

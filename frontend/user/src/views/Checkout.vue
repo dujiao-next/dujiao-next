@@ -195,7 +195,7 @@
                 </span>
                 <span class="inline-flex items-center gap-2 text-[13px] font-medium">
                   {{ t('payment.useBalance') }}
-                  <input v-model="useBalance" type="checkbox" class="h-4 w-4 accent-foreground" :disabled="walletOnlyPayment" />
+                  <Checkbox v-model="useBalance" class="bg-card" :disabled="walletOnlyPayment" />
                 </span>
               </label>
               <div v-if="walletOnlyPayment" class="mt-2 text-xs text-warning">
@@ -268,6 +268,7 @@ import SmartImage from '../components/SmartImage.vue'
 import CheckoutSteps from '../components/checkout/CheckoutSteps.vue'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useCheckout } from '../composables/useCheckout'
 

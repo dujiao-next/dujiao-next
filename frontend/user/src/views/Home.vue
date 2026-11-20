@@ -48,19 +48,43 @@
           </div>
         </div>
 
-        <aside v-if="showNewsPanel" class="theme-float hidden flex-col rounded-[28px] bg-card p-6 pb-4 lg:col-span-4 lg:flex">
-          <h2 class="flex items-baseline justify-between gap-3 text-[17px] font-bold">
+        <aside v-if="showNewsPanel && leadPost" class="theme-float hidden flex-col overflow-hidden rounded-[28px] bg-card p-5 pb-3 lg:col-span-4 lg:flex lg:h-80">
+          <h2 class="flex items-center justify-between gap-3 px-1 text-[17px] font-bold">
             {{ t('home.latest.title') }}
             <span class="flex gap-1.5">
-              <router-link v-if="blogEnabled" to="/blog" class="theme-pill-link">{{ t('nav.blog') }}<ChevronRight class="h-3.5 w-3.5" aria-hidden="true" /></router-link>
-              <router-link v-if="noticeEnabled" to="/notice" class="theme-pill-link">{{ t('nav.notice') }}<ChevronRight class="h-3.5 w-3.5" aria-hidden="true" /></router-link>
+              <router-link v-if="blogEnabled" to="/blog" class="theme-pill-link"><Newspaper class="mr-1 h-3.5 w-3.5" aria-hidden="true" />{{ t('nav.blog') }}<ChevronRight class="h-3.5 w-3.5" aria-hidden="true" /></router-link>
+              <router-link v-if="noticeEnabled" to="/notice" class="theme-pill-link"><Bell class="mr-1 h-3.5 w-3.5" aria-hidden="true" />{{ t('nav.notice') }}<ChevronRight class="h-3.5 w-3.5" aria-hidden="true" /></router-link>
             </span>
           </h2>
-          <ol class="mt-2 flex flex-1 flex-col divide-y">
-            <li v-for="post in posts" :key="post.id" class="flex flex-1 flex-col justify-center py-2.5">
-              <time class="text-xs tabular-nums text-muted-foreground">{{ formatDate(post.published_at) }}</time>
-              <router-link :to="`/blog/${post.slug}`" class="truncate text-[15px] font-semibold transition-colors hover:text-primary">
-                {{ getLocalizedText(post.title) }}
+
+          <!-- 头条：最新一条放大，带类型、摘要和配图 -->
+          <router-link
+            :to="`/blog/${leadPost.slug}`"
+            class="group mt-4 flex min-h-0 flex-1 items-start gap-3 px-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          >
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2 text-xs text-muted-foreground">
+                <Badge variant="secondary"><component :is="postTypeIcon(leadPost)" class="h-3 w-3" aria-hidden="true" />{{ postTypeLabel(leadPost) }}</Badge>
+                <time class="tabular-nums">{{ formatDate(leadPost.published_at) }}</time>
+              </div>
+              <h3 class="mt-2 line-clamp-2 text-xl font-bold leading-snug transition-colors group-hover:text-primary">{{ getLocalizedText(leadPost.title) }}</h3>
+              <p v-if="getLocalizedText(leadPost.summary)" class="mt-1.5 line-clamp-2 text-sm text-muted-foreground">{{ getLocalizedText(leadPost.summary) }}</p>
+            </div>
+            <img v-if="leadPost.thumbnail" :src="getImageUrl(leadPost.thumbnail)" alt="" class="h-16 w-16 shrink-0 rounded-xl object-cover" />
+          </router-link>
+
+          <ol v-if="posts.length > 1" class="mx-1 divide-y border-t">
+            <li v-for="post in posts.slice(1)" :key="post.id">
+              <router-link
+                :to="`/blog/${post.slug}`"
+                class="flex h-9 items-center gap-2.5 text-sm transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
+              >
+                <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-muted-foreground" :title="postTypeLabel(post)">
+                  <component :is="postTypeIcon(post)" class="h-3.5 w-3.5" aria-hidden="true" />
+                  <span class="sr-only">{{ postTypeLabel(post) }}</span>
+                </span>
+                <span class="min-w-0 flex-1 truncate font-medium">{{ getLocalizedText(post.title) }}</span>
+                <time class="shrink-0 text-xs tabular-nums text-muted-foreground">{{ formatDate(post.published_at) }}</time>
               </router-link>
             </li>
           </ol>
@@ -88,8 +112,8 @@
             <p class="mt-1 text-sm text-muted-foreground">{{ t('home.latest.description') }}</p>
           </div>
           <div class="flex items-center gap-1.5">
-            <router-link v-if="blogEnabled" to="/blog" class="theme-pill-link">{{ t('nav.blog') }}<ChevronRight class="h-3.5 w-3.5" aria-hidden="true" /></router-link>
-            <router-link v-if="noticeEnabled" to="/notice" class="theme-pill-link">{{ t('nav.notice') }}<ChevronRight class="h-3.5 w-3.5" aria-hidden="true" /></router-link>
+            <router-link v-if="blogEnabled" to="/blog" class="theme-pill-link"><Newspaper class="mr-1 h-3.5 w-3.5" aria-hidden="true" />{{ t('nav.blog') }}<ChevronRight class="h-3.5 w-3.5" aria-hidden="true" /></router-link>
+            <router-link v-if="noticeEnabled" to="/notice" class="theme-pill-link"><Bell class="mr-1 h-3.5 w-3.5" aria-hidden="true" />{{ t('nav.notice') }}<ChevronRight class="h-3.5 w-3.5" aria-hidden="true" /></router-link>
           </div>
         </div>
 
@@ -126,8 +150,10 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ChevronRight } from 'lucide-vue-next'
+import { Bell, ChevronRight, Newspaper } from 'lucide-vue-next'
 import { postAPI } from '../api'
+import { Badge } from '../components/ui/badge'
+import { getImageUrl } from '../utils/image'
 import { useLocalized } from '../composables/useProduct'
 import { useBannerCarousel } from '../composables/useBannerCarousel'
 import { usePageSeo } from '../composables/usePageSeo'
@@ -175,6 +201,9 @@ const {
 } = useBannerCarousel()
 
 const showNewsPanel = computed(() => latestSectionVisible.value && posts.value.length > 0)
+const leadPost = computed(() => posts.value[0])
+const postTypeIcon = (post: { type?: string }) => (post.type === 'notice' ? Bell : Newspaper)
+const postTypeLabel = (post: { type?: string }) => (post.type === 'notice' ? t('nav.notice') : t('nav.blog'))
 const bannerSizeClass = 'h-48 rounded-[22px] md:h-64 md:rounded-[28px] lg:h-80'
 
 // ==================== SEO ====================
