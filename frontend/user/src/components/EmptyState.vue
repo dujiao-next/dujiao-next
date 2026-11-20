@@ -1,8 +1,7 @@
 <template>
   <div
-    class="text-center backdrop-blur-sm theme-slide-up rounded-2xl border"
+    class="text-center theme-slide-up rounded-[22px] border border-dashed"
     :class="[
-      variant === 'soft' ? 'bg-card/70 shadow-none' : 'bg-card shadow-sm',
       sizeClass,
     ]"
   >
@@ -42,7 +41,6 @@ import { AlertCircle, ClipboardList, Inbox, Package, Search, ShoppingCart } from
 import { Button } from '@/components/ui/button'
 
 type IconName = 'package' | 'cart' | 'order' | 'search' | 'inbox' | 'alert'
-type Variant = 'default' | 'soft'
 type Size = 'sm' | 'md' | 'lg'
 
 const props = withDefaults(
@@ -53,12 +51,10 @@ const props = withDefaults(
     actionLabel?: string
     actionTo?: RouteLocationRaw
     actionDisabled?: boolean
-    variant?: Variant
     size?: Size
   }>(),
   {
     icon: 'inbox',
-    variant: 'default',
     size: 'md',
   },
 )

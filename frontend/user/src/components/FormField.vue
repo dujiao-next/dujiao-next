@@ -3,7 +3,7 @@
     <label
       v-if="label || $slots.icon"
       :for="fieldId"
-      class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground"
+      class="mb-2 flex items-center gap-1.5 text-xs font-semibold [.vault-tokens_&]:uppercase [.vault-tokens_&]:tracking-[0.18em] text-muted-foreground"
     >
       <span v-if="$slots.icon" class="opacity-60 shrink-0"><slot name="icon" /></span>
       <span>{{ label }}</span>

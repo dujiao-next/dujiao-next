@@ -20,7 +20,7 @@
         <template v-for="item in menuItems" :key="item.key">
           <Button v-if="item.type === 'route'" as-child variant="ghost" size="sm"
             class="gap-1.5 text-muted-foreground whitespace-nowrap shrink-0">
-            <router-link :to="item.path" active-class="!text-primary !bg-primary/10">
+            <router-link :to="item.path" active-class="!bg-secondary !text-foreground">
               <component :is="item.icon" class="w-4 h-4 shrink-0 opacity-70" />
               <span>{{ item.label }}</span>
             </router-link>
@@ -43,7 +43,7 @@
             <ShoppingCart class="w-4 h-4 shrink-0" />
             <span class="text-xs font-medium">{{ t('navbar.cart') }}</span>
             <span v-if="cartCount > 0"
-              class="absolute -top-1 -right-1 inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none min-w-[1.1rem] bg-primary text-primary-foreground"
+              class="absolute -top-1 -right-1 inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none min-w-[1.1rem] bg-foreground text-background"
               :class="{ 'theme-bounce-in': cartBounce }">
               {{ cartCount }}
             </span>
@@ -88,18 +88,18 @@
           <PopoverTrigger as-child>
             <Button variant="ghost" size="sm" class="hidden lg:inline-flex gap-2 text-muted-foreground">
               <Languages class="w-4 h-4" />
-              <span class="text-xs font-medium uppercase tracking-wider">{{ currentLocale }}</span>
+              <span class="text-xs font-medium uppercase">{{ currentLocale }}</span>
             </Button>
           </PopoverTrigger>
           <PopoverContent align="end" class="w-40 p-2">
             <div class="px-2 pb-2 mb-2 border-b">
-              <span class="text-xs text-muted-foreground font-mono px-2">{{ t('navbar.selectLanguage') }}</span>
+              <span class="text-xs text-muted-foreground px-2">{{ t('navbar.selectLanguage') }}</span>
             </div>
             <button v-for="lang in languages" :key="lang.code" @click="changeLanguage(lang.code)"
               class="w-full text-left px-3 py-2.5 text-sm rounded-md transition-colors flex items-center justify-between hover:bg-accent hover:text-accent-foreground"
-              :class="{ 'text-primary': appStore.locale === lang.code }">
+              :class="{ 'font-semibold text-foreground': appStore.locale === lang.code }">
               {{ lang.name }}
-              <span v-if="appStore.locale === lang.code" class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+              <span v-if="appStore.locale === lang.code" class="w-1.5 h-1.5 rounded-full bg-foreground"></span>
             </button>
           </PopoverContent>
         </Popover>
@@ -141,7 +141,7 @@
         <div class="p-5 space-y-1">
           <!-- Header -->
           <div class="flex items-center justify-between mb-4">
-            <span class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{{ t('navbar.more') }}</span>
+            <span class="text-xs font-semibold text-muted-foreground">{{ t('navbar.more') }}</span>
             <Button variant="secondary" size="icon" class="[&_svg]:size-5" @click="showMobileMenu = false">
               <X />
             </Button>
@@ -151,7 +151,7 @@
           <template v-for="item in mobileDrawerItems" :key="item.key">
             <Button v-if="item.type === 'route'" as-child variant="ghost"
               class="w-full justify-start gap-3 h-auto py-3 rounded-xl text-sm text-muted-foreground [&_svg]:size-5">
-              <router-link :to="item.path" @click="showMobileMenu = false" active-class="!text-primary !bg-primary/10">
+              <router-link :to="item.path" @click="showMobileMenu = false" active-class="!bg-secondary !text-foreground">
                 <component :is="item.icon" class="shrink-0 opacity-60" />
                 {{ item.label }}
               </router-link>
@@ -168,7 +168,7 @@
           <!-- Guest orders (not in bottom nav) -->
           <Button v-if="!userAuthStore.isAuthenticated" as-child variant="ghost"
             class="w-full justify-start gap-3 h-auto py-3 rounded-xl text-sm text-muted-foreground [&_svg]:size-5">
-            <router-link to="/guest/orders" @click="showMobileMenu = false" active-class="!text-primary !bg-primary/10">
+            <router-link to="/guest/orders" @click="showMobileMenu = false" active-class="!bg-secondary !text-foreground">
               <ClipboardList class="shrink-0 opacity-60" />
               {{ t('navbar.guestOrders') }}
             </router-link>
@@ -184,16 +184,16 @@
 
           <!-- Language Switcher -->
           <div class="mt-4 pt-4 border-t">
-            <span class="text-xs text-muted-foreground font-semibold uppercase tracking-wider px-4">{{ t('navbar.selectLanguage') }}</span>
+            <span class="text-xs text-muted-foreground font-semibold px-4">{{ t('navbar.selectLanguage') }}</span>
             <div class="mt-2 space-y-1">
               <button v-for="lang in languages" :key="lang.code" @click="changeLanguage(lang.code)"
                 class="w-full text-left px-4 py-2.5 rounded-xl text-sm transition-colors min-h-[44px] flex items-center justify-between"
                 :class="appStore.locale === lang.code
-                  ? 'text-primary font-semibold'
+                  ? 'text-foreground font-semibold'
                   : 'text-muted-foreground hover:text-foreground'">
                 {{ lang.name }}
                 <span v-if="appStore.locale === lang.code"
-                  class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                  class="w-1.5 h-1.5 rounded-full bg-foreground"></span>
               </button>
             </div>
           </div>

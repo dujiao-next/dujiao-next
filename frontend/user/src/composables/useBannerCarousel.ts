@@ -162,7 +162,6 @@ export function useBannerCarousel() {
     heroTitle,
     heroSubtitle,
     heroLink,
-    hasHeroLink,
     heroPrimaryButtonText,
     heroOpenInNewTab,
     loadBanners,

@@ -32,7 +32,7 @@
       {{ t('personalCenter.reseller.siteConfig.inactive') }}
     </div>
 
-    <form v-else class="space-y-5 pb-20" @submit.prevent="handleSave">
+    <form v-else class="space-y-5" @submit.prevent="handleSave">
       <div class="space-y-5">
         <div class="rounded-2xl border bg-muted/30 p-2">
           <div class="grid grid-cols-2 gap-2 lg:grid-cols-4">
@@ -107,7 +107,7 @@
               <component :is="item.icon" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input v-model.trim="form.support![item.key]" type="text" class="pl-9" :placeholder="item.placeholder" />
             </div>
-            <p class="mt-1.5 font-mono text-xs text-muted-foreground/80">{{ item.hint }}</p>
+            <p class="mt-1.5 tabular-nums text-xs text-muted-foreground/80">{{ item.hint }}</p>
           </label>
         </div>
       </section>
@@ -226,7 +226,7 @@
           <aside class="rounded-xl border bg-background p-3">
             <div class="mb-3 flex items-center justify-between gap-3 px-1">
               <div>
-                <p class="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{{ t('personalCenter.reseller.siteConfig.announcementPanel.livePreview') }}</p>
+                <p class="text-xs font-semibold text-muted-foreground">{{ t('personalCenter.reseller.siteConfig.announcementPanel.livePreview') }}</p>
                 <p class="mt-1 text-xs text-muted-foreground">{{ t('personalCenter.reseller.siteConfig.announcementPanel.previewHint') }}</p>
               </div>
               <span class="rounded-full border px-2 py-1 text-xs font-semibold" :class="announcementToneView.badgeClass">
