@@ -337,7 +337,6 @@ const {
   backToListTo,
   addToCart, buyNow, goLogin, loadProduct,
   canShareAffiliateLink, copyAffiliateLink, affiliateRateHint,
-  canShareAffiliateLink, copyAffiliateLink, affiliateRateHint,
   mobileBarShowMemberPrice, mobileBarMemberPriceDisplay,
   mobileBarShowSkuPromotionPrice, mobileBarSkuPromotionPriceDisplay,
   mobileBarShowSkuPrice, mobileBarSkuPriceDisplay,
