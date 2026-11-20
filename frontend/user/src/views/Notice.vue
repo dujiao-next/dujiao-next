@@ -1,63 +1,38 @@
 <template>
-  <div
-    class="notice-page min-h-screen bg-background text-foreground pt-20 pb-16">
-    <div class="container mx-auto px-4">
-      <!-- Page Header -->
-      <div class="mb-16 mt-12 text-center">
-        <h1 class="text-4xl md:text-6xl font-black mb-6 tracking-tight text-foreground">{{ t('nav.notice') }}</h1>
-        <p
-          class="text-muted-foreground max-w-2xl mx-auto text-lg leading-relaxed border-b pb-8">
-          {{ t('notice.subtitle') }}
-        </p>
+  <div class="min-h-screen bg-background pb-16 pt-24 text-foreground">
+    <div class="container mx-auto max-w-4xl px-4">
+      <div class="mb-6">
+        <h1 class="text-[28px] font-bold tracking-tight">{{ t('nav.notice') }}</h1>
+        <p class="mt-1 text-sm text-muted-foreground">{{ t('notice.subtitle') }}</p>
       </div>
 
-      <!-- Loading State -->
-      <div v-if="loading" class="space-y-4 max-w-4xl mx-auto">
-        <div v-for="i in 6" :key="i"
-          class="bg-muted rounded-2xl h-32 animate-pulse border">
-        </div>
+      <div v-if="loading" class="theme-float flex flex-col gap-1.5 rounded-[22px] bg-card p-2 md:p-3">
+        <div v-for="i in 6" :key="i" class="theme-skeleton h-[72px] rounded-2xl"></div>
       </div>
 
-      <!-- Notices List -->
-      <div v-else-if="notices.length > 0" class="max-w-4xl mx-auto space-y-4">
-        <article v-for="notice in notices" :key="notice.id"
-          class="group rounded-2xl border bg-card backdrop-blur-xl p-6 md:p-8 shadow-sm transition-all duration-300 hover:-translate-x-1 hover:shadow-md cursor-pointer flex items-center gap-6"
-          @click="goToNotice(notice.slug)">
-          <!-- Icon Column -->
-          <div
-            class="hidden sm:flex flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden bg-secondary border items-center justify-center text-primary group-hover:scale-105 transition-transform">
-            <img v-if="notice.thumbnail" :src="getImageUrl(notice.thumbnail)" :alt="getLocalizedText(notice.title)"
-              loading="lazy" class="w-full h-full object-cover">
-            <Bell v-else class="w-8 h-8" />
-          </div>
-
-          <!-- Content -->
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-3 mb-2">
-              <Badge variant="accent" size="xs" class="uppercase tracking-wider">
-                {{ t('nav.notice') }}
-              </Badge>
-              <time class="text-xs text-muted-foreground font-mono">
-                {{ formatDate(notice.published_at) }}
-              </time>
+      <!-- 一张面板里逐行排开：日期列在左，标题摘要在右 -->
+      <div v-else-if="notices.length > 0">
+        <div class="theme-float flex flex-col gap-1.5 rounded-[22px] bg-card p-2 md:p-3">
+          <router-link
+            v-for="notice in notices"
+            :key="notice.id"
+            :to="`/blog/${notice.slug}`"
+            class="group flex items-center gap-4 rounded-2xl bg-secondary/60 p-3 transition-colors hover:bg-secondary focus-visible:outline-2 focus-visible:outline-primary md:px-4"
+          >
+            <div class="hidden h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-card text-muted-foreground sm:flex">
+              <img v-if="notice.thumbnail" :src="getImageUrl(notice.thumbnail)" alt="" loading="lazy" class="h-full w-full object-cover" />
+              <Bell v-else class="h-5 w-5" aria-hidden="true" />
             </div>
+            <div class="min-w-0 flex-1">
+              <h2 class="truncate text-[15px] font-semibold md:text-base">{{ getLocalizedText(notice.title) }}</h2>
+              <p v-if="getLocalizedText(notice.summary)" class="mt-0.5 truncate text-[13px] text-muted-foreground">{{ getLocalizedText(notice.summary) }}</p>
+              <time class="mt-1 block text-xs tabular-nums text-muted-foreground md:hidden">{{ formatDate(notice.published_at) }}</time>
+            </div>
+            <time class="hidden shrink-0 text-[13px] tabular-nums text-muted-foreground md:block">{{ formatDate(notice.published_at) }}</time>
+            <ChevronRight class="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" aria-hidden="true" />
+          </router-link>
+        </div>
 
-            <h2
-              class="text-xl font-bold text-foreground group-hover:text-primary transition-colors truncate mb-1">
-              {{ getLocalizedText(notice.title) }}
-            </h2>
-
-            <p class="text-muted-foreground text-sm line-clamp-1">
-              {{ getLocalizedText(notice.summary) }}
-            </p>
-          </div>
-
-          <!-- Arrow -->
-          <ChevronRight
-            class="flex-shrink-0 w-6 h-6 text-muted-foreground group-hover:text-foreground transition-all group-hover:translate-x-1 duration-300" />
-        </article>
-
-        <!-- Pagination -->
         <PaginationNav
           :current-page="currentPage"
           :total-pages="totalPages"
@@ -65,10 +40,9 @@
         />
       </div>
 
-      <!-- Empty State -->
-      <EmptyState v-else variant="soft" size="lg" class="max-w-4xl mx-auto" :title="t('notice.empty')">
+      <EmptyState v-else variant="soft" size="lg" :title="t('notice.empty')">
         <template #icon>
-          <Bell class="w-20 h-20 text-muted-foreground opacity-70" :stroke-width="1.5" />
+          <Bell class="h-16 w-16 text-muted-foreground opacity-70" :stroke-width="1.5" />
         </template>
       </EmptyState>
     </div>
@@ -79,7 +53,6 @@
 import { useI18n } from 'vue-i18n'
 import { Bell, ChevronRight } from 'lucide-vue-next'
 import { getImageUrl } from '../utils/image'
-import { Badge } from '@/components/ui/badge'
 import EmptyState from '../components/EmptyState.vue'
 import PaginationNav from '../components/PaginationNav.vue'
 import { usePostList } from '../composables/usePostList'
@@ -88,16 +61,6 @@ const { t } = useI18n()
 
 const {
   loading, posts: notices, currentPage, totalPages,
-  getLocalizedText, formatDate, goToPost: goToNotice, changePage,
+  getLocalizedText, formatDate, changePage,
 } = usePostList('notice', { title: () => t('nav.notice'), canonicalPath: '/notice' })
 </script>
-
-<style scoped>
-.line-clamp-1 {
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1;
-  line-clamp: 1;
-}
-</style>
