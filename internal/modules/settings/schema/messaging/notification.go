@@ -711,6 +711,7 @@ func DecodeNotificationCenterSetting(raw jsonmap.JSON, fallback NotificationCent
 		next.Scenes.RestockSuccess = settingsvalue.ReadBool(scenesMap, "restock_success", next.Scenes.RestockSuccess)
 		next.Scenes.ExceptionAlert = settingsvalue.ReadBool(scenesMap, "exception_alert", next.Scenes.ExceptionAlert)
 		next.Scenes.TicketMessage = settingsvalue.ReadBool(scenesMap, "ticket_message", next.Scenes.TicketMessage)
+		next.Scenes.WithdrawRequestSubmitted = settingsvalue.ReadBool(scenesMap, "withdraw_request_submitted", next.Scenes.WithdrawRequestSubmitted)
 	}
 
 	if templatesMap := settingsvalue.ToStringAnyMap(raw["templates"]); templatesMap != nil {
@@ -731,6 +732,9 @@ func DecodeNotificationCenterSetting(raw jsonmap.JSON, fallback NotificationCent
 		}
 		if sceneMap := settingsvalue.ToStringAnyMap(templatesMap["ticket_message"]); sceneMap != nil {
 			next.Templates.TicketMessage = notificationSceneTemplateFromMap(sceneMap, next.Templates.TicketMessage)
+		}
+		if sceneMap := settingsvalue.ToStringAnyMap(templatesMap["withdraw_request_submitted"]); sceneMap != nil {
+			next.Templates.WithdrawRequestSubmitted = notificationSceneTemplateFromMap(sceneMap, next.Templates.WithdrawRequestSubmitted)
 		}
 	}
 	if !legacyEnabled {
@@ -787,6 +791,7 @@ func normalizeNotificationTemplates(templates NotificationTemplatesSetting) Noti
 	templates.RestockSuccess = normalizeNotificationSceneTemplate(templates.RestockSuccess)
 	templates.ExceptionAlert = normalizeNotificationSceneTemplate(templates.ExceptionAlert)
 	templates.TicketMessage = normalizeNotificationSceneTemplate(templates.TicketMessage)
+	templates.WithdrawRequestSubmitted = normalizeNotificationSceneTemplate(templates.WithdrawRequestSubmitted)
 	return templates
 }
 
