@@ -400,6 +400,20 @@ html[data-telegram-mini-app="true"] body {
   }
 
   /* Animation classes */
+  /* 无边框浮起的表面：亮色靠柔和阴影，暗色靠一圈细描边 */
+  .theme-float {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 10px 28px -14px rgba(0, 0, 0, 0.14);
+  }
+
+  .dark .theme-float {
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
+  }
+
+  /* 次级跳转（查看全部、博客…）：灰底胶囊，悬停反转成墨色 */
+  .theme-pill-link {
+    @apply inline-flex h-8 shrink-0 items-center gap-0.5 rounded-full bg-secondary pl-3.5 pr-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-foreground hover:text-background focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary;
+  }
+
   .theme-slide-up {
     animation: theme-slide-up var(--ui-duration-normal) var(--ui-ease-out) both;
   }
@@ -699,4 +713,68 @@ html[data-telegram-mini-app="true"] body {
 .theme-prose p:has(> img) + p:has(> img),
 .theme-prose p:has(> img) + p:has(> img) > img {
   margin-top: 0;
+}
+
+/* Unlayered: 默认模板的个人中心面板和挂到 body 的弹窗（确认框 / 公告 / 邀请码 / 快速购买）与 vault 共用组件，
+   这里把主色改指向墨色，弹窗再换成浮起卡片的外形；vault 生效时 body 带 .vault-tokens，不受影响 */
+.pc-panels,
+.reseller-console,
+body:not(.vault-tokens) :is([role='dialog'], [role='alertdialog']) {
+  /* @theme inline 下工具类直接引用 --ui-*，所以覆盖的是这一层 */
+  --ui-accent: var(--ui-text-primary);
+  --ui-accent-hover: var(--ui-text-primary);
+  --ui-accent-soft: color-mix(in srgb, var(--ui-text-primary) 10%, transparent);
+  --ui-text-on-accent: var(--ui-bg-page);
+}
+body:not(.vault-tokens) :is([role='dialog'], [role='alertdialog']) {
+  /* 上面 utilities 层用 !important 把 rounded-2xl/3xl 钉在这两个变量上，只能改变量 */
+  --ui-radius-lg: 28px;
+  --ui-radius-xl: 28px;
+  border-width: 0;
+  border-top-left-radius: 28px;
+  border-top-right-radius: 28px;
+}
+/* 快速购买在手机上是贴底抽屉，底边不圆 */
+body:not(.vault-tokens) :is([role='dialog'], [role='alertdialog']):not(.rounded-t-2xl) {
+  border-radius: 28px;
+}
+@media (min-width: 768px) {
+  body:not(.vault-tokens) [role='dialog'].rounded-t-2xl {
+    border-radius: 28px;
+  }
+}
+/* 外壳的圆角变量不往里传，值与 :root 保持一致 */
+body:not(.vault-tokens) :is([role='dialog'], [role='alertdialog']) > * {
+  --ui-radius-lg: 1rem;
+  --ui-radius-xl: 1.5rem;
+}
+body:not(.vault-tokens) :is([role='dialog'], [role='alertdialog']) [data-slot='button'] {
+  --ui-radius-sm: 9999px;
+  --ui-radius-md: 9999px;
+  border-radius: 9999px;
+}
+
+/* 个人中心面板里的提示色（API 审核通过提示框）跟着改墨色；实心块上的白字换成页面底色，暗色下才看得见 */
+.pc-panels {
+  --ui-info: var(--ui-text-primary);
+  --ui-info-soft: color-mix(in srgb, var(--ui-text-primary) 10%, transparent);
+}
+.pc-panels .bg-info {
+  color: var(--ui-bg-page);
+}
+/* 弹窗内的键盘焦点环不用浏览器默认蓝 */
+body:not(.vault-tokens) :is([role='dialog'], [role='alertdialog']) :focus-visible {
+  outline: 2px solid var(--ui-text-primary);
+  outline-offset: 2px;
+}
+/* Toast：胶囊形、无描边；普通提示用墨色，成功 / 失败保留语义色 */
+body:not(.vault-tokens) .toast-item {
+  border-width: 0;
+  border-radius: 9999px;
+  padding-inline: 1.125rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 12px 28px -12px rgba(0, 0, 0, 0.28);
+}
+body:not(.vault-tokens) .toast-item.bg-card {
+  background-color: var(--ui-text-primary);
+  color: var(--ui-bg-page);
 }
