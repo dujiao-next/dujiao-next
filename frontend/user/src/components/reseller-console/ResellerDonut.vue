@@ -3,8 +3,8 @@
     <div class="relative shrink-0" :style="{ width: `${size}px`, height: `${size}px` }">
       <div class="absolute inset-0 rounded-full" :style="ringStyle"></div>
       <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span class="font-mono text-base font-black text-foreground">{{ centerValue }}</span>
-        <span v-if="centerLabel" class="text-[10px] uppercase tracking-wide text-muted-foreground">{{ centerLabel }}</span>
+        <span class="tabular-nums text-base font-bold text-foreground">{{ centerValue }}</span>
+        <span v-if="centerLabel" class="text-[10px] text-muted-foreground">{{ centerLabel }}</span>
       </div>
     </div>
     <ul v-if="showLegend" class="min-w-0 flex-1 space-y-1.5">
@@ -13,7 +13,7 @@
           <span class="h-2.5 w-2.5 shrink-0 rounded-sm" :style="{ background: seg.color }"></span>
           <span class="truncate text-muted-foreground">{{ seg.label }}</span>
         </span>
-        <span class="shrink-0 font-mono text-foreground">{{ seg.percentText }}</span>
+        <span class="shrink-0 tabular-nums text-foreground">{{ seg.percentText }}</span>
       </li>
     </ul>
   </div>

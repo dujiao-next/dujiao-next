@@ -39,7 +39,7 @@
             </div>
             <div>
               <dt class="text-muted-foreground">{{ t('resellerConsole.orders.domain') }}</dt>
-              <dd class="mt-1 break-all font-mono text-foreground">{{ detail.domain || '-' }}</dd>
+              <dd class="mt-1 break-all tabular-nums text-foreground">{{ detail.domain || '-' }}</dd>
             </div>
             <div>
               <dt class="text-muted-foreground">{{ t('resellerConsole.orders.buyer') }}</dt>
@@ -75,10 +75,10 @@
                   <div class="font-semibold">{{ localized(item.title) }}</div>
                   <div class="mt-1 text-xs text-muted-foreground">{{ skuText(item) }}</div>
                 </TableCell>
-                <TableCell class="px-4 py-3 text-right font-mono text-xs">{{ item.quantity }}</TableCell>
-                <TableCell class="px-4 py-3 text-right font-mono text-xs">{{ formatResellerConsoleAmount(item.unit_price, detail.currency) }}</TableCell>
-                <TableCell class="px-4 py-3 text-right font-mono text-xs">{{ formatResellerConsoleAmount(item.base_unit_amount, detail.currency) }}</TableCell>
-                <TableCell class="px-4 py-3 text-right font-mono text-xs">{{ formatResellerConsoleAmount(item.profit_amount, detail.currency) }}</TableCell>
+                <TableCell class="px-4 py-3 text-right tabular-nums text-xs">{{ item.quantity }}</TableCell>
+                <TableCell class="px-4 py-3 text-right tabular-nums text-xs">{{ formatResellerConsoleAmount(item.unit_price, detail.currency) }}</TableCell>
+                <TableCell class="px-4 py-3 text-right tabular-nums text-xs">{{ formatResellerConsoleAmount(item.base_unit_amount, detail.currency) }}</TableCell>
+                <TableCell class="px-4 py-3 text-right tabular-nums text-xs">{{ formatResellerConsoleAmount(item.profit_amount, detail.currency) }}</TableCell>
               </TableRow>
             </TableBody>
           </ResellerDataTable>
@@ -94,19 +94,19 @@
               </template>
               <div>
                 <dt class="text-muted-foreground">{{ t('resellerConsole.orderDetail.quantity') }}</dt>
-                <dd class="mt-0.5 font-mono text-foreground">{{ item.quantity }}</dd>
+                <dd class="mt-0.5 tabular-nums text-foreground">{{ item.quantity }}</dd>
               </div>
               <div>
                 <dt class="text-muted-foreground">{{ t('resellerConsole.orderDetail.unitPrice') }}</dt>
-                <dd class="mt-0.5 font-mono text-foreground">{{ formatResellerConsoleAmount(item.unit_price, detail.currency) }}</dd>
+                <dd class="mt-0.5 tabular-nums text-foreground">{{ formatResellerConsoleAmount(item.unit_price, detail.currency) }}</dd>
               </div>
               <div>
                 <dt class="text-muted-foreground">{{ t('resellerConsole.orderDetail.baseUnit') }}</dt>
-                <dd class="mt-0.5 font-mono text-foreground">{{ formatResellerConsoleAmount(item.base_unit_amount, detail.currency) }}</dd>
+                <dd class="mt-0.5 tabular-nums text-foreground">{{ formatResellerConsoleAmount(item.base_unit_amount, detail.currency) }}</dd>
               </div>
               <div>
                 <dt class="text-muted-foreground">{{ t('resellerConsole.orders.profitAmount') }}</dt>
-                <dd class="mt-0.5 font-mono text-foreground">{{ formatResellerConsoleAmount(item.profit_amount, detail.currency) }}</dd>
+                <dd class="mt-0.5 tabular-nums text-foreground">{{ formatResellerConsoleAmount(item.profit_amount, detail.currency) }}</dd>
               </div>
             </ResellerRecordCard>
           </div>
@@ -123,15 +123,15 @@
           <dl class="space-y-3 text-sm">
             <div class="flex items-center justify-between gap-3">
               <dt class="text-muted-foreground">{{ t('resellerConsole.orders.totalAmount') }}</dt>
-              <dd class="font-mono font-semibold text-foreground">{{ formatResellerConsoleAmount(detail.total_amount, detail.currency) }}</dd>
+              <dd class="tabular-nums font-semibold text-foreground">{{ formatResellerConsoleAmount(detail.total_amount, detail.currency) }}</dd>
             </div>
             <div class="flex items-center justify-between gap-3">
               <dt class="text-muted-foreground">{{ t('resellerConsole.orders.baseAmount') }}</dt>
-              <dd class="font-mono text-foreground/80">{{ formatResellerConsoleAmount(detail.base_amount, detail.currency) }}</dd>
+              <dd class="tabular-nums text-foreground/80">{{ formatResellerConsoleAmount(detail.base_amount, detail.currency) }}</dd>
             </div>
             <div class="flex items-center justify-between gap-3 border-t pt-3">
               <dt class="font-semibold text-foreground">{{ t('resellerConsole.orders.profitAmount') }}</dt>
-              <dd class="font-mono text-base font-black text-success">{{ formatResellerConsoleAmount(detail.profit_amount, detail.currency) }}</dd>
+              <dd class="tabular-nums text-base font-bold text-success">{{ formatResellerConsoleAmount(detail.profit_amount, detail.currency) }}</dd>
             </div>
             <div class="flex items-center justify-between gap-3">
               <dt class="text-muted-foreground">{{ t('resellerConsole.orders.profitStatus') }}</dt>

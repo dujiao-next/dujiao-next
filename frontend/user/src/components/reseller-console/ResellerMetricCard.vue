@@ -2,8 +2,8 @@
   <Card class="group relative overflow-hidden transition-shadow hover:shadow-md">
     <div class="flex items-start justify-between gap-3 p-4 sm:p-5">
       <div class="min-w-0">
-        <p class="truncate text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{{ label }}</p>
-        <p class="mt-2 font-mono text-xl font-black text-foreground sm:text-2xl">{{ value }}</p>
+        <p class="truncate text-xs font-semibold text-muted-foreground">{{ label }}</p>
+        <p class="mt-2 tabular-nums text-xl font-bold text-foreground sm:text-2xl">{{ value }}</p>
         <p v-if="hint" class="mt-1 text-xs text-muted-foreground">{{ hint }}</p>
       </div>
       <span
@@ -37,9 +37,9 @@ const toneClass = computed(
     ({
       success: 'bg-success/10 text-success',
       warning: 'bg-warning/10 text-warning',
-      info: 'bg-info/10 text-info',
+      info: 'bg-secondary text-foreground',
       neutral: 'bg-muted text-muted-foreground',
-      accent: 'bg-primary/10 text-primary',
+      accent: 'bg-secondary text-foreground',
     })[props.tone],
 )
 </script>

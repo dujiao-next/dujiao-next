@@ -79,10 +79,10 @@
             class="cursor-pointer"
             @click="goDetail(row.order_no)"
           >
-            <TableCell class="px-4 py-3 font-mono text-xs text-foreground">{{ row.order_no }}</TableCell>
+            <TableCell class="px-4 py-3 tabular-nums text-xs text-foreground">{{ row.order_no }}</TableCell>
             <TableCell class="px-4 py-3"><ResellerStatusBadge :label="statusLabel(row.status)" :tone="statusTone(row.status)" /></TableCell>
-            <TableCell class="px-4 py-3 text-right font-mono text-xs">{{ formatResellerConsoleAmount(row.total_amount, row.currency) }}</TableCell>
-            <TableCell class="px-4 py-3 text-right font-mono text-xs">{{ formatResellerConsoleAmount(row.profit_amount, row.currency) }}</TableCell>
+            <TableCell class="px-4 py-3 text-right tabular-nums text-xs">{{ formatResellerConsoleAmount(row.total_amount, row.currency) }}</TableCell>
+            <TableCell class="px-4 py-3 text-right tabular-nums text-xs">{{ formatResellerConsoleAmount(row.profit_amount, row.currency) }}</TableCell>
             <TableCell class="px-4 py-3"><ResellerStatusBadge :label="profitLabel(row.profit_status)" :tone="profitTone(row.profit_status)" /></TableCell>
             <TableCell class="px-4 py-3 text-xs text-muted-foreground">{{ formatResellerConsoleDate(row.created_at) }}</TableCell>
             <TableCell class="px-4 py-3 text-right">
@@ -97,16 +97,16 @@
         <RouterLink v-for="row in rows" :key="row.order_no" :to="`/reseller/orders/${encodeURIComponent(row.order_no)}`" class="block">
           <ResellerRecordCard>
             <template #header>
-              <span class="min-w-0 truncate font-mono text-xs font-semibold text-foreground">{{ row.order_no }}</span>
+              <span class="min-w-0 truncate tabular-nums text-xs font-semibold text-foreground">{{ row.order_no }}</span>
               <ResellerStatusBadge :label="statusLabel(row.status)" :tone="statusTone(row.status)" />
             </template>
             <div>
               <dt class="text-muted-foreground">{{ t('resellerConsole.orders.totalAmount') }}</dt>
-              <dd class="mt-0.5 font-mono text-foreground">{{ formatResellerConsoleAmount(row.total_amount, row.currency) }}</dd>
+              <dd class="mt-0.5 tabular-nums text-foreground">{{ formatResellerConsoleAmount(row.total_amount, row.currency) }}</dd>
             </div>
             <div>
               <dt class="text-muted-foreground">{{ t('resellerConsole.orders.profitAmount') }}</dt>
-              <dd class="mt-0.5 font-mono text-foreground">{{ formatResellerConsoleAmount(row.profit_amount, row.currency) }}</dd>
+              <dd class="mt-0.5 tabular-nums text-foreground">{{ formatResellerConsoleAmount(row.profit_amount, row.currency) }}</dd>
             </div>
             <div>
               <dt class="text-muted-foreground">{{ t('resellerConsole.orders.profitStatus') }}</dt>

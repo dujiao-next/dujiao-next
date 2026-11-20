@@ -32,7 +32,7 @@
       <Card class="p-5">
         <div class="flex items-center justify-between gap-3">
           <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{{ t('resellerConsole.products.cards.defaultMarkup') }}</p>
+            <p class="text-xs font-semibold text-muted-foreground">{{ t('resellerConsole.products.cards.defaultMarkup') }}</p>
             <form class="mt-2 flex items-center gap-2" @submit.prevent="saveDefaultMarkup">
               <Input
                 v-model="markupInput"
@@ -40,11 +40,11 @@
                 inputmode="decimal"
                 min="0"
                 step="0.01"
-                class="h-9 w-28 font-mono"
+                class="h-9 w-28 tabular-nums"
                 :aria-label="t('resellerConsole.products.cards.defaultMarkupInputLabel')"
                 :disabled="savingMarkup || !profile"
               />
-              <span class="font-mono text-sm font-bold text-foreground">%</span>
+              <span class="tabular-nums text-sm font-bold text-foreground">%</span>
               <Button type="submit" size="sm" :disabled="savingMarkup || !markupDirty">
                 {{ savingMarkup ? t('resellerConsole.products.cards.defaultMarkupSaving') : t('resellerConsole.products.cards.defaultMarkupSave') }}
               </Button>
@@ -59,10 +59,10 @@
       <Card class="p-5">
         <div class="flex items-center justify-between gap-3">
           <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{{ t('resellerConsole.products.cards.maxMarkup') }}</p>
-            <div class="mt-2 font-mono text-2xl font-black text-foreground">{{ profile?.max_markup_percent || '0.00' }}%</div>
+            <p class="text-xs font-semibold text-muted-foreground">{{ t('resellerConsole.products.cards.maxMarkup') }}</p>
+            <div class="mt-2 tabular-nums text-2xl font-bold text-foreground">{{ profile?.max_markup_percent || '0.00' }}%</div>
           </div>
-          <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-info/10 text-info">
+          <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-secondary text-foreground">
             <Gauge class="h-5 w-5" />
           </span>
         </div>
@@ -71,8 +71,8 @@
       <Card class="p-5">
         <div class="flex items-center justify-between gap-3">
           <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{{ t('resellerConsole.products.cards.storefront') }}</p>
-            <div class="mt-2 truncate font-mono text-sm font-bold text-foreground">{{ primaryDomain || t('resellerConsole.products.cards.noPrimaryDomain') }}</div>
+            <p class="text-xs font-semibold text-muted-foreground">{{ t('resellerConsole.products.cards.storefront') }}</p>
+            <div class="mt-2 truncate tabular-nums text-sm font-bold text-foreground">{{ primaryDomain || t('resellerConsole.products.cards.noPrimaryDomain') }}</div>
           </div>
           <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-success/10 text-success">
             <Globe class="h-5 w-5" />
