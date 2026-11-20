@@ -328,7 +328,7 @@
                     </div>
                   </div>
                   <label class="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                    <input v-model="useBalance" type="checkbox" class="h-4 w-4 accent-foreground" :disabled="walletOnlyPayment" />
+                    <Checkbox v-model="useBalance" class="bg-card" :disabled="walletOnlyPayment" />
                     <span>{{ t('payment.useBalance') }}</span>
                   </label>
                 </div>
@@ -499,6 +499,7 @@ import EmptyState from '../components/EmptyState.vue'
 import CheckoutSteps from '../components/checkout/CheckoutSteps.vue'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { usePayment } from '../composables/usePayment'

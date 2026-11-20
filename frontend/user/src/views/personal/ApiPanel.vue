@@ -65,7 +65,7 @@
               <!-- First-time notice: secret never viewed -->
               <div
                 v-if="!hasViewedSecret && !newSecret"
-                class="rounded-2xl border border-info/25 bg-info/10 p-4 shadow-sm"
+                class="rounded-2xl bg-secondary p-4"
               >
                 <div class="flex items-start gap-3">
                   <div class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-info text-white">
@@ -76,23 +76,18 @@
                     <p class="mt-1 text-xs text-info/80">
                       {{ t('personalCenter.apiPanel.approvedNoticeDesc') }}
                     </p>
-                    <button
-                      type="button"
-                      :disabled="submitting"
-                      class="mt-3 inline-flex items-center rounded-xl bg-info px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-info/90 disabled:cursor-not-allowed disabled:opacity-60"
-                      @click="handleFirstGenerate"
-                    >
+                    <Button size="sm" class="mt-3" :disabled="submitting" @click="handleFirstGenerate">
                       {{ submitting ? t('personalCenter.apiPanel.regenerating') : t('personalCenter.apiPanel.generateSecret') }}
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>
 
               <!-- API Key -->
-              <div class="rounded-xl border p-4">
+              <div class="rounded-2xl bg-secondary/60 p-4">
                 <div class="text-xs text-muted-foreground">API Key</div>
                 <div class="mt-2 flex flex-wrap items-center gap-2">
-                  <span class="rounded-lg border border-border bg-muted/30 px-2 py-1 font-mono text-sm text-foreground break-all">
+                  <span class="rounded-lg bg-card px-2.5 py-1 font-mono text-sm text-foreground break-all">
                     {{ credential.api_key || '-' }}
                   </span>
                   <Button type="button" variant="outline" size="sm" @click="copyToClipboard(credential.api_key || '')">
@@ -102,10 +97,10 @@
               </div>
 
               <!-- API Secret -->
-              <div class="rounded-xl border p-4">
+              <div class="rounded-2xl bg-secondary/60 p-4">
                 <div class="text-xs text-muted-foreground">API Secret</div>
                 <div class="mt-2 flex flex-wrap items-center gap-2">
-                  <span class="rounded-lg border border-border bg-muted/30 px-2 py-1 font-mono text-sm text-foreground">
+                  <span class="rounded-lg bg-card px-2.5 py-1 font-mono text-sm text-foreground">
                     {{ maskedSecret }}
                   </span>
                   <Button type="button" variant="outline" size="sm" :disabled="submitting" @click="handleRegenerate">
@@ -135,20 +130,16 @@
                       <span class="rounded-lg border border-success/30 bg-card px-2.5 py-1 font-mono text-sm text-foreground break-all">
                         {{ newSecret }}
                       </span>
-                      <button
-                        type="button"
-                        class="inline-flex items-center rounded-lg border border-success/30 bg-success/10 px-2.5 py-1 text-xs font-semibold text-success transition-colors hover:bg-success/20"
-                        @click="copyToClipboard(newSecret)"
-                      >
+                      <Button size="xs" variant="outline" @click="copyToClipboard(newSecret)">
                         {{ t('personalCenter.apiPanel.copySecret') }}
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </div>
               </div>
 
               <!-- Enable / Disable toggle -->
-              <div class="rounded-xl border p-4">
+              <div class="rounded-2xl bg-secondary/60 p-4">
                 <div class="flex items-center justify-between">
                   <div>
                     <div class="text-sm font-medium text-foreground">{{ t('personalCenter.apiPanel.statusLabel') }}</div>
@@ -156,20 +147,7 @@
                       {{ credential.is_active ? t('personalCenter.apiPanel.statusEnabled') : t('personalCenter.apiPanel.statusDisabled') }}
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    :disabled="submitting"
-                    class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
-                    :class="credential.is_active ? 'bg-success' : 'bg-muted-foreground/30'"
-                    role="switch"
-                    :aria-checked="credential.is_active"
-                    @click="handleToggleStatus"
-                  >
-                    <span
-                      class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-                      :class="credential.is_active ? 'translate-x-5' : 'translate-x-0'"
-                    ></span>
-                  </button>
+                  <Switch :model-value="credential.is_active" :disabled="submitting" @update:model-value="handleToggleStatus" />
                 </div>
               </div>
             </div>
@@ -216,6 +194,7 @@ import PanelHeading from '../../components/shared/PanelHeading.vue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 
 const { t } = useI18n()
 

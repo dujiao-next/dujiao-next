@@ -9,12 +9,12 @@
       <div
         v-for="manualItem in manualFormProducts"
         :key="manualItem.itemKey"
-        class="rounded-xl border bg-secondary p-4"
+        class="rounded-2xl bg-secondary/60 p-4"
       >
         <h3 class="mb-3 text-sm font-semibold text-foreground">{{ manualItemTitle(manualItem) }}</h3>
-        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div class="grid grid-cols-1 gap-x-4 gap-y-5 md:grid-cols-2">
           <div v-for="field in manualItem.fields" :key="`${manualItem.itemKey}-${field.key}`" class="space-y-1.5">
-            <label class="text-xs font-semibold text-muted-foreground">
+            <label class="block text-[13px] font-medium text-muted-foreground">
               {{ getManualFieldLabel(field) }}
               <span v-if="field.required" class="ml-1 text-destructive">*</span>
             </label>
@@ -24,41 +24,42 @@
               :model-value="getFieldValue(manualItem.itemKey, field.key)"
               @update:model-value="updateFieldValue(manualItem.itemKey, field.key, $event)"
               rows="3"
+              class="bg-card"
               :placeholder="getManualFieldPlaceholder(field)"
             />
 
-            <select
+            <Select
               v-else-if="field.type === 'select'"
-              :value="getFieldValue(manualItem.itemKey, field.key)"
-              @change="updateFieldValue(manualItem.itemKey, field.key, ($event.target as HTMLSelectElement).value)"
-              :class="selectClass"
+              :model-value="getFieldValue(manualItem.itemKey, field.key)"
+              @update:model-value="updateFieldValue(manualItem.itemKey, field.key, $event)"
             >
-              <option value="">{{ t('checkout.manualFormSelectPlaceholder') }}</option>
-              <option v-for="option in field.options" :key="option" :value="option">{{ option }}</option>
-            </select>
+              <SelectTrigger class="h-10 w-full bg-card">
+                <SelectValue :placeholder="t('checkout.manualFormSelectPlaceholder')" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem v-for="option in field.options" :key="option" :value="option">{{ option }}</SelectItem>
+              </SelectContent>
+            </Select>
 
-            <div v-else-if="field.type === 'radio'" class="space-y-2 rounded-xl border bg-secondary p-3">
-              <label v-for="option in field.options" :key="option" class="flex items-center gap-2 text-sm text-muted-foreground">
+            <div v-else-if="field.type === 'radio'" class="flex flex-wrap gap-2">
+              <label v-for="option in field.options" :key="option" class="inline-flex h-9 cursor-pointer items-center gap-2 rounded-full bg-card px-3.5 text-sm text-foreground">
                 <input
                   :checked="getFieldValue(manualItem.itemKey, field.key) === option"
                   @change="updateFieldValue(manualItem.itemKey, field.key, option)"
                   type="radio"
                   :name="`manual-radio-${manualItem.itemKey}-${field.key}`"
                   :value="option"
-                  class="h-4 w-4 accent-primary"
+                  class="h-4 w-4 shrink-0 appearance-none rounded-full border border-input bg-card transition-[border-width] checked:border-[5px] checked:border-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary [.vault-tokens_&]:checked:border-primary"
                 />
                 <span>{{ option }}</span>
               </label>
             </div>
 
-            <div v-else-if="field.type === 'checkbox'" class="space-y-2 rounded-xl border bg-secondary p-3">
-              <label v-for="option in field.options" :key="option" class="flex items-center gap-2 text-sm text-muted-foreground">
-                <input
-                  :checked="isCheckboxChecked(manualItem.itemKey, field.key, option)"
-                  @change="toggleCheckboxValue(manualItem.itemKey, field.key, option, ($event.target as HTMLInputElement).checked)"
-                  type="checkbox"
-                  :value="option"
-                  class="h-4 w-4 accent-primary"
+            <div v-else-if="field.type === 'checkbox'" class="flex flex-wrap gap-2">
+              <label v-for="option in field.options" :key="option" class="inline-flex h-9 cursor-pointer items-center gap-2 rounded-full bg-card px-3.5 text-sm text-foreground">
+                <Checkbox
+                  :model-value="isCheckboxChecked(manualItem.itemKey, field.key, option)"
+                  @update:model-value="toggleCheckboxValue(manualItem.itemKey, field.key, option, $event === true)"
                 />
                 <span>{{ option }}</span>
               </label>
@@ -70,6 +71,7 @@
               @update:model-value="updateFieldValue(manualItem.itemKey, field.key, $event)"
               :type="field.type === 'number' ? 'number' : field.type === 'email' ? 'email' : field.type === 'phone' ? 'tel' : 'text'"
               :placeholder="getManualFieldPlaceholder(field)"
+              class="h-10 bg-card"
             />
 
             <p
@@ -89,10 +91,9 @@
 import { useI18n } from 'vue-i18n'
 import { useLocalized } from '../../composables/useProduct'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-
-const selectClass =
-  'h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
 
 interface ManualFormField {
   key: string

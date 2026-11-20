@@ -779,6 +779,12 @@ body:not(.vault-tokens) .toast-item.bg-card {
   color: var(--ui-bg-page);
 }
 
+/* 默认模板的勾选框、开关选中态跟主按钮一样用墨色 */
+body:not(.vault-tokens) :is([data-slot='checkbox'], [data-slot='switch']) {
+  --ui-accent: var(--ui-text-primary);
+  --ui-text-on-accent: var(--ui-bg-page);
+}
+
 /* 默认模板的主按钮统一为墨色胶囊，兜住没有单独写墨色类的 Button */
 body:not(.vault-tokens) [data-slot='button'].bg-primary {
   --ui-accent: var(--ui-text-primary);

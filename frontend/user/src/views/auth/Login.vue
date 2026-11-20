@@ -174,7 +174,7 @@
 
           <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
             <label class="inline-flex items-center gap-2">
-              <input v-model="rememberMe" type="checkbox" class="h-4 w-4 accent-foreground" />
+              <Checkbox v-model="rememberMe" />
               {{ t('auth.login.rememberMe') }}
             </label>
             <router-link
@@ -278,6 +278,7 @@ import { useI18n } from 'vue-i18n'
 import { ChevronLeft, Mail, Lock, ShieldCheck, Eye, EyeOff, LogIn } from 'lucide-vue-next'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { useLogin } from '../../composables/useLogin'
 
