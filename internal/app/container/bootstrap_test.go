@@ -18,6 +18,7 @@ func TestNewPaymentProviderRegistryRegistersEveryAdapter(t *testing.T) {
 		{name: "paypal", providerType: constants.PaymentProviderOfficial, channelType: constants.PaymentChannelTypePaypal, wantType: "official:paypal"},
 		{name: "wechat", providerType: constants.PaymentProviderOfficial, channelType: constants.PaymentChannelTypeWechat, wantType: "official:wechat"},
 		{name: "alipay", providerType: constants.PaymentProviderOfficial, channelType: constants.PaymentChannelTypeAlipay, wantType: "official:alipay"},
+		{name: "nano", providerType: constants.PaymentProviderOfficial, channelType: constants.PaymentChannelTypeNano, wantType: "official:nano"},
 		{name: "epay", providerType: constants.PaymentProviderEpay, channelType: "fallback-channel", wantType: "epay:"},
 		{name: "epusdt", providerType: constants.PaymentProviderEpusdt, channelType: "fallback-channel", wantType: "epusdt:"},
 		{name: "bepusdt", providerType: constants.PaymentProviderBepusdt, channelType: "fallback-channel", wantType: "bepusdt:"},

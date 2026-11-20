@@ -79,6 +79,7 @@ const (
 	PaymentChannelTypeUsdcTrc20 = "usdc-trc20"
 	PaymentChannelTypeTrx       = "trx"
 	PaymentChannelTypeBalance   = "balance"
+	PaymentChannelTypeNano      = "nano"
 )
 
 // 支付渠道付款角色常量
