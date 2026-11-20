@@ -7,7 +7,6 @@ import (
 
 	"github.com/dujiao-next/internal/config"
 	"github.com/dujiao-next/internal/constants"
-
 	"github.com/hibiken/asynq"
 )
 
@@ -67,6 +66,20 @@ func (c *Client) EnqueueOrderStatusEmail(payload OrderStatusEmailPayload, opts .
 		asynq.Retention(24 * time.Hour),
 	}, opts...)
 	_, err = c.client.Enqueue(task, options...)
+	return err
+}
+
+// EnqueueWalletRechargeRefundEmail 使用与订单邮件相同的队列及重试策略推送充值退款通知。
+func (c *Client) EnqueueWalletRechargeRefundEmail(payload WalletRechargeRefundEmailPayload) error {
+	if !c.Enabled() {
+		return nil
+	}
+	task, err := NewWalletRechargeRefundEmailTask(payload)
+	if err != nil {
+		return err
+	}
+	_, err = c.client.Enqueue(task, asynq.Queue(c.defaultQueue), asynq.MaxRetry(3), asynq.Retention(24*time.Hour),
+		asynq.TaskID(fmt.Sprintf("wallet-recharge-refund-email:%d", payload.RefundID)))
 	return err
 }
 

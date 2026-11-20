@@ -5,21 +5,18 @@ import (
 	"strings"
 	"time"
 
-	paymentcontract "github.com/dujiao-next/internal/modules/payment/contract"
-
-	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
-
-	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
-	settingsapp "github.com/dujiao-next/internal/modules/settings/application"
-
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/logger"
-	walletcontract "github.com/dujiao-next/internal/modules/wallet/contract"
-	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 	"github.com/dujiao-next/internal/shared/money"
 	"github.com/dujiao-next/internal/shared/serial"
-
 	"github.com/shopspring/decimal"
+
+	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
+	paymentcontract "github.com/dujiao-next/internal/modules/payment/contract"
+	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
+	settingsapp "github.com/dujiao-next/internal/modules/settings/application"
+	walletcontract "github.com/dujiao-next/internal/modules/wallet/contract"
+	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 )
 
 // CreateWalletRechargePaymentInput 创建钱包充值支付请求
@@ -96,9 +93,16 @@ func (s *PaymentService) CreateWalletRechargePayment(input CreateWalletRechargeP
 		feeConfig = s.settingService.GetPaymentFeeConfig()
 	}
 	paymentAmount, feeAmount, feePolicy := calculatePaymentAmounts(amount, feeRate, fixedFee, feeConfig.CustomerFeeEnabled)
-	currency := strings.ToUpper(strings.TrimSpace(input.Currency))
-	if currency == "" {
-		currency = "CNY"
+	// 充值本金必须使用站点币种，渠道结算币种由网关适配器换算。
+	currency := constants.SiteCurrencyDefault
+	if s.settingService != nil {
+		currency, err = s.settingService.GetSiteCurrency(constants.SiteCurrencyDefault)
+		if err != nil {
+			return nil, ErrPaymentCreateFailed
+		}
+	}
+	if requestedCurrency := strings.ToUpper(strings.TrimSpace(input.Currency)); requestedCurrency != "" && requestedCurrency != currency {
+		return nil, ErrPaymentCurrencyMismatch
 	}
 	if err := validatePaymentCurrencyForChannel(currency, channel); err != nil {
 		return nil, err
@@ -142,6 +146,7 @@ func (s *PaymentService) CreateWalletRechargePayment(input CreateWalletRechargeP
 		}
 		recharge = &walletdomain.RechargeOrder{
 			RechargeNo:      rechargeNo,
+			ClientIP:        strings.TrimSpace(input.ClientIP),
 			UserID:          input.UserID,
 			PaymentID:       payment.ID,
 			ChannelID:       channel.ID,
@@ -307,7 +312,8 @@ func (s *PaymentService) failRechargeAttempt(paymentID uint) {
 		if err != nil {
 			return err
 		}
-		if lockedRecharge != nil && lockedRecharge.Status == constants.WalletRechargeStatusSuccess {
+		if lockedRecharge != nil && (lockedRecharge.Status == constants.WalletRechargeStatusSuccess ||
+			lockedRecharge.Status == constants.WalletRechargeStatusPartiallyRefunded || lockedRecharge.Status == constants.WalletRechargeStatusRefunded) {
 			return nil
 		}
 		failedAt := time.Now()

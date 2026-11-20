@@ -6,17 +6,32 @@ import (
 	"testing"
 	"time"
 
-	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
-
-	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
-
 	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/money"
 	"github.com/shopspring/decimal"
+
+	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
+	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 )
 
 func newMoney(s string) money.Amount {
 	return money.FromDecimal(decimal.RequireFromString(s))
+}
+
+func TestWalletRechargePaymentPayloadIncludesRefundedAmount(t *testing.T) {
+	for _, amount := range []string{"0.00", "40.00", "100.00"} {
+		t.Run(amount, func(t *testing.T) {
+			recharge := &walletdomain.RechargeOrder{Amount: newMoney("100.00"), RefundedAmount: newMoney(amount)}
+			payload := NewWalletRechargePaymentPayload(recharge, nil, nil)
+			data, err := json.Marshal(payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(data), `"refunded_amount":"`+amount+`"`) {
+				t.Fatalf("missing refunded amount: %s", data)
+			}
+		})
+	}
 }
 
 func TestWalletAccountRespOmitsSensitiveFields(t *testing.T) {

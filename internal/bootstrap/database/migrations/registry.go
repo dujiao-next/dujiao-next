@@ -2,6 +2,9 @@ package migrations
 
 import (
 	"github.com/dujiao-next/internal/constants"
+	"github.com/dujiao-next/internal/platform/database/gormdb"
+	"gorm.io/gorm"
+
 	affiliatedomain "github.com/dujiao-next/internal/modules/affiliate/domain"
 	apicredentialdomain "github.com/dujiao-next/internal/modules/apicredential/domain"
 	auditlogdomain "github.com/dujiao-next/internal/modules/auditlog/domain"
@@ -17,6 +20,7 @@ import (
 	fulfillmentdomain "github.com/dujiao-next/internal/modules/fulfillment/domain"
 	giftcarddomain "github.com/dujiao-next/internal/modules/giftcard/domain"
 	admindomain "github.com/dujiao-next/internal/modules/identity/admin/domain"
+	adminapitokendomain "github.com/dujiao-next/internal/modules/identity/adminapitoken/domain"
 	emailverificationdomain "github.com/dujiao-next/internal/modules/identity/emailverification/domain"
 	externalidentitydomain "github.com/dujiao-next/internal/modules/identity/externalidentity/domain"
 	invitecodedomain "github.com/dujiao-next/internal/modules/identity/invitecode/domain"
@@ -35,9 +39,6 @@ import (
 	siteconnectiondomain "github.com/dujiao-next/internal/modules/siteconnection/domain"
 	broadcastdomain "github.com/dujiao-next/internal/modules/telegram/broadcast/domain"
 	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
-	"github.com/dujiao-next/internal/platform/database/gormdb"
-
-	"gorm.io/gorm"
 )
 
 // AutoMigrate owns the application-wide schema registry and ordered data migrations.
@@ -45,6 +46,7 @@ func AutoMigrate() error {
 	db := gormdb.DB
 	if err := db.AutoMigrate(
 		&admindomain.Admin{},
+		&adminapitokendomain.Token{},
 		&userdomain.User{},
 		&externalidentitydomain.Identity{},
 		&invitecodedomain.InviteCode{},

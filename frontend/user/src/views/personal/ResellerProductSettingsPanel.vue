@@ -67,16 +67,16 @@
         </div>
         <div class="mt-4 grid gap-3 sm:grid-cols-3">
           <div class="rounded-lg border bg-muted/30 px-3 py-2">
-            <div class="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{{ t('personalCenter.reseller.productSettings.basePrice') }}</div>
-            <div class="mt-1 font-mono text-sm font-bold text-foreground">{{ row.product.price_amount }}</div>
+            <div class="text-[11px] font-semibold text-muted-foreground">{{ t('personalCenter.reseller.productSettings.basePrice') }}</div>
+            <div class="mt-1 tabular-nums text-sm font-bold text-foreground">{{ row.product.price_amount }}</div>
           </div>
           <div class="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
-            <div class="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary">{{ t('personalCenter.reseller.productSettings.effectivePrice') }}</div>
-            <div class="mt-1 font-mono text-sm font-bold text-primary">{{ summarizeProductEffectivePrice(row) }}</div>
+            <div class="text-[11px] font-semibold text-primary">{{ t('personalCenter.reseller.productSettings.effectivePrice') }}</div>
+            <div class="mt-1 tabular-nums text-sm font-bold text-primary">{{ summarizeProductEffectivePrice(row) }}</div>
           </div>
           <div class="rounded-lg border bg-muted/30 px-3 py-2">
-            <div class="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{{ t('personalCenter.reseller.productSettings.listedSkuCount') }}</div>
-            <div class="mt-1 font-mono text-sm font-bold text-foreground">{{ countListedSkus(row) }} / {{ countActiveSkus(row) }}</div>
+            <div class="text-[11px] font-semibold text-muted-foreground">{{ t('personalCenter.reseller.productSettings.listedSkuCount') }}</div>
+            <div class="mt-1 tabular-nums text-sm font-bold text-foreground">{{ countListedSkus(row) }} / {{ countActiveSkus(row) }}</div>
           </div>
         </div>
 

@@ -5,22 +5,20 @@ import (
 	"strings"
 	"time"
 
-	orderapp "github.com/dujiao-next/internal/modules/order/application"
+	"github.com/dujiao-next/internal/constants"
+	"github.com/dujiao-next/internal/shared/money"
+	"github.com/shopspring/decimal"
 
 	affiliatecontract "github.com/dujiao-next/internal/modules/affiliate/contract"
 	usercontract "github.com/dujiao-next/internal/modules/identity/user/contract"
 	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
+	orderapp "github.com/dujiao-next/internal/modules/order/application"
 	ordercontract "github.com/dujiao-next/internal/modules/order/contract"
 	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
 	resellercontract "github.com/dujiao-next/internal/modules/reseller/contract"
 	settingsapp "github.com/dujiao-next/internal/modules/settings/application"
 	walletapp "github.com/dujiao-next/internal/modules/wallet/application"
 	walletcontract "github.com/dujiao-next/internal/modules/wallet/contract"
-
-	"github.com/dujiao-next/internal/constants"
-	"github.com/dujiao-next/internal/shared/money"
-
-	"github.com/shopspring/decimal"
 )
 
 // AdminManualRefundInput 管理员手动退款输入（不处理钱包/支付渠道）
@@ -383,6 +381,9 @@ func (s *Service) AdminManualRefund(input AdminManualRefundInput) (*orderdomain.
 			if err := s.resellerAccounting.HandleRefundDeduct(tx.ResellerAccounting(), &order, record, refundedBefore); err != nil {
 				return err
 			}
+		}
+		if err := orders.ApplyOrderRefund(order.UserID, amount); err != nil {
+			return err
 		}
 		return nil
 	}); err != nil {

@@ -22,8 +22,8 @@
       <Card class="p-5">
         <div class="flex items-center justify-between gap-3">
           <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{{ t('resellerConsole.site.cards.brand') }}</p>
-            <div class="mt-2 truncate text-lg font-black text-foreground">{{ siteName || t('resellerConsole.site.cards.noSiteName') }}</div>
+            <p class="text-xs font-semibold text-muted-foreground">{{ t('resellerConsole.site.cards.brand') }}</p>
+            <div class="mt-2 truncate text-lg font-bold text-foreground">{{ siteName || t('resellerConsole.site.cards.noSiteName') }}</div>
           </div>
           <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <Palette class="h-5 w-5" />
@@ -34,10 +34,10 @@
       <Card class="p-5">
         <div class="flex items-center justify-between gap-3">
           <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{{ t('resellerConsole.site.cards.support') }}</p>
-            <div class="mt-2 text-lg font-black text-foreground">{{ supportChannelsReady }}/4</div>
+            <p class="text-xs font-semibold text-muted-foreground">{{ t('resellerConsole.site.cards.support') }}</p>
+            <div class="mt-2 text-lg font-bold text-foreground">{{ supportChannelsReady }}/4</div>
           </div>
-          <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-info/10 text-info">
+          <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-secondary text-foreground">
             <LifeBuoy class="h-5 w-5" />
           </span>
         </div>
@@ -46,8 +46,8 @@
       <Card class="p-5">
         <div class="flex items-center justify-between gap-3">
           <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{{ t('resellerConsole.site.cards.domain') }}</p>
-            <div class="mt-2 truncate font-mono text-sm font-bold text-foreground">{{ primaryDomain || t('resellerConsole.site.cards.noPrimaryDomain') }}</div>
+            <p class="text-xs font-semibold text-muted-foreground">{{ t('resellerConsole.site.cards.domain') }}</p>
+            <div class="mt-2 truncate tabular-nums text-sm font-bold text-foreground">{{ primaryDomain || t('resellerConsole.site.cards.noPrimaryDomain') }}</div>
           </div>
           <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-success/10 text-success">
             <Globe class="h-5 w-5" />

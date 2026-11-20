@@ -23,7 +23,7 @@
     <ResellerPageState v-if="loading" loading :title="t('resellerConsole.common.loading')" />
 
     <template v-else>
-      <section class="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+      <section class="theme-float overflow-hidden rounded-[22px] bg-card">
         <div class="border-b border-border px-5 py-4 sm:px-6">
           <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div class="flex min-w-0 items-start gap-3">
@@ -36,23 +36,23 @@
                   <ResellerStatusBadge v-if="primaryDomain" :label="t('resellerConsole.domains.primaryBadge')" tone="accent" />
                 </div>
                 <p class="mt-1 text-sm text-muted-foreground">{{ t('resellerConsole.domains.workspaceDescription') }}</p>
-                <div class="mt-2 break-all font-mono text-sm font-semibold text-foreground">
+                <div class="mt-2 break-all tabular-nums text-sm font-semibold text-foreground">
                   {{ primaryDomain?.domain || t('resellerConsole.domains.noPrimaryDomain') }}
                 </div>
               </div>
             </div>
 
-            <div class="grid overflow-hidden rounded-lg border border-border bg-background sm:grid-cols-3">
+            <div class="grid overflow-hidden rounded-2xl bg-secondary/60 sm:grid-cols-3">
               <div class="min-w-0 px-4 py-3">
-                <div class="text-xs font-semibold uppercase text-muted-foreground">{{ t('resellerConsole.domains.primaryTitle') }}</div>
+                <div class="text-xs font-semibold text-muted-foreground">{{ t('resellerConsole.domains.primaryTitle') }}</div>
                 <div class="mt-1 text-lg font-bold text-foreground">{{ primaryDomain ? 1 : 0 }}</div>
               </div>
               <div class="min-w-0 border-t border-border px-4 py-3 sm:border-l sm:border-t-0">
-                <div class="text-xs font-semibold uppercase text-muted-foreground">{{ t('resellerConsole.domains.activeTitle') }}</div>
+                <div class="text-xs font-semibold text-muted-foreground">{{ t('resellerConsole.domains.activeTitle') }}</div>
                 <div class="mt-1 text-lg font-bold text-success">{{ activeDomains.length }}</div>
               </div>
               <div class="min-w-0 border-t border-border px-4 py-3 sm:border-l sm:border-t-0">
-                <div class="text-xs font-semibold uppercase text-muted-foreground">{{ t('resellerConsole.domains.reviewTitle') }}</div>
+                <div class="text-xs font-semibold text-muted-foreground">{{ t('resellerConsole.domains.reviewTitle') }}</div>
                 <div class="mt-1 text-lg font-bold text-warning">{{ pendingDomains.length }}</div>
               </div>
             </div>
@@ -76,7 +76,7 @@
             <div v-if="systemDomain" class="min-w-0">
               <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                 <div class="min-w-0">
-                  <div class="break-all font-mono text-base font-bold text-foreground">{{ systemDomain.domain }}</div>
+                  <div class="break-all tabular-nums text-base font-bold text-foreground">{{ systemDomain.domain }}</div>
                   <div class="mt-2 flex flex-wrap gap-2">
                     <ResellerStatusBadge :label="domainStatusLabel(systemDomain.status)" :tone="domainTone(systemDomain.status)" dot />
                     <ResellerStatusBadge :label="verificationLabel(systemDomain.verification_status)" :tone="verificationTone(systemDomain.verification_status)" />
@@ -150,7 +150,7 @@
             </div>
 
             <div v-if="customDomains.length > 0" class="border-t border-border">
-              <div class="hidden grid-cols-[minmax(0,1.3fr)_140px_150px_150px_150px] gap-3 bg-muted/30 px-5 py-3 text-xs font-semibold uppercase text-muted-foreground sm:px-6 md:grid">
+              <div class="hidden grid-cols-[minmax(0,1.3fr)_140px_150px_150px_150px] gap-3 bg-muted/30 px-5 py-3 text-xs font-semibold text-muted-foreground sm:px-6 md:grid">
                 <div>{{ t('resellerConsole.domains.tableDomain') }}</div>
                 <div>{{ t('resellerConsole.domains.tableStatus') }}</div>
                 <div>{{ t('resellerConsole.domains.tableVerification') }}</div>
@@ -166,7 +166,7 @@
                 >
                   <div class="min-w-0">
                     <div class="flex flex-wrap items-center gap-2">
-                      <div class="min-w-0 break-all font-mono text-sm font-bold text-foreground">{{ item.domain }}</div>
+                      <div class="min-w-0 break-all tabular-nums text-sm font-bold text-foreground">{{ item.domain }}</div>
                       <ResellerStatusBadge v-if="item.is_primary && isActiveVerifiedDomain(item)" :label="t('personalCenter.reseller.primaryDomain')" tone="accent" />
                     </div>
                     <div class="mt-1 text-xs text-muted-foreground md:hidden">{{ domainTypeLabel(item.type) }}</div>

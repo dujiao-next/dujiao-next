@@ -41,9 +41,9 @@
           <Card v-for="item in balances" :key="item.id" class="p-4 sm:p-5">
             <div class="flex items-start justify-between gap-3">
               <div>
-                <div class="font-mono text-sm font-bold text-foreground">{{ item.currency }}</div>
+                <div class="tabular-nums text-sm font-bold text-foreground">{{ item.currency }}</div>
                 <div class="mt-2 text-xs text-muted-foreground">{{ t('personalCenter.reseller.availableAmount') }}</div>
-                <div class="mt-1 font-mono text-lg font-black text-foreground">{{ formatResellerConsoleAmount(item.available_amount, item.currency) }}</div>
+                <div class="mt-1 tabular-nums text-lg font-bold text-foreground">{{ formatResellerConsoleAmount(item.available_amount, item.currency) }}</div>
               </div>
               <div class="flex items-center gap-1.5">
                 <ResellerStatusBadge :label="balanceStatusLabel(item.status)" :tone="balanceTone(item.status)" />

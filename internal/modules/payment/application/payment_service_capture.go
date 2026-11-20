@@ -7,14 +7,15 @@ import (
 	"strings"
 	"time"
 
-	orderapp "github.com/dujiao-next/internal/modules/order/application"
-	paymentcontract "github.com/dujiao-next/internal/modules/payment/contract"
-
-	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
-
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/logger"
 	"github.com/dujiao-next/internal/shared/jsonmap"
+
+	orderapp "github.com/dujiao-next/internal/modules/order/application"
+	paymentcontract "github.com/dujiao-next/internal/modules/payment/contract"
+	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
+	walletcontract "github.com/dujiao-next/internal/modules/wallet/contract"
+	walletdomain "github.com/dujiao-next/internal/modules/wallet/domain"
 )
 
 // CapturePaymentInput 捕获支付输入。
@@ -221,4 +222,67 @@ func (s *PaymentService) loadManualConfirmPayment(orderID, paymentID uint) (*pay
 		return nil, ErrPaymentUnderpaidCredited
 	}
 	return payment, nil
+}
+
+// GetWalletRechargeDetail 根据充值单 ID 查询充值单及其关联的支付记录。
+// 充值单不存在时返回 ErrRechargeNotFound；关联支付查询失败时保留充值单并返回错误。
+func (s *PaymentService) GetWalletRechargeDetail(id uint) (*walletdomain.RechargeOrder, *paymentdomain.Payment, error) {
+	recharge, err := s.walletRepo.GetRechargeOrderByID(id)
+	if err != nil {
+		return nil, nil, ErrPaymentUpdateFailed
+	}
+	if recharge == nil {
+		return nil, nil, walletcontract.ErrRechargeNotFound
+	}
+	payment, err := s.GetPayment(recharge.PaymentID)
+	return recharge, payment, err
+}
+
+// ManualConfirmWalletRechargeInput 管理端人工确认充值支付的输入。
+type ManualConfirmWalletRechargeInput struct {
+	RechargeID  uint
+	PaymentID   uint
+	AdminID     uint
+	ProviderRef string
+	Remark      string
+}
+
+// ManualConfirmWalletRecharge 在管理员核实渠道到账后，人工确认充值支付并将充值金额计入用户钱包。
+func (s *PaymentService) ManualConfirmWalletRecharge(input ManualConfirmWalletRechargeInput) (*paymentdomain.Payment, error) {
+	if input.RechargeID == 0 || input.AdminID == 0 || input.PaymentID == 0 {
+		return nil, ErrPaymentInvalid
+	}
+	recharge, payment, err := s.GetWalletRechargeDetail(input.RechargeID)
+	if err != nil {
+		return nil, err
+	}
+	if payment == nil || payment.OrderID != 0 || payment.ID != input.PaymentID {
+		return nil, ErrPaymentInvalid
+	}
+	ref := strings.TrimSpace(input.ProviderRef)
+	callbackRef := ""
+	if strings.TrimSpace(payment.ProviderRef) == "" {
+		callbackRef = ref
+	}
+	return s.HandleCallback(PaymentCallbackInput{
+		PaymentID: payment.ID, ChannelID: payment.ChannelID, OrderNo: recharge.RechargeNo,
+		ProviderRef: callbackRef, Status: constants.PaymentStatusSuccess, Amount: payment.Amount, Currency: payment.Currency,
+		Payload:       jsonmap.JSON{"manual_confirm": jsonmap.JSON{"admin_id": input.AdminID, "remark": strings.TrimSpace(input.Remark), "provider_ref": ref, "confirmed_at": time.Now().Format(time.RFC3339)}},
+		manualConfirm: true,
+	})
+}
+
+// GetWalletRechargeRefundFeeSnapshot 查询充值退款可冲回的商家承担渠道手续费快照。
+// 仅返回与充值单币种一致、无支付异常的成功在线支付；客户承担的手续费不属于商家成本。
+func (s *PaymentService) GetWalletRechargeRefundFeeSnapshot(id uint) (walletcontract.RechargeRefundFeeSnapshot, error) {
+	recharge, payment, err := s.GetWalletRechargeDetail(id)
+	if err != nil {
+		return walletcontract.RechargeRefundFeeSnapshot{}, err
+	}
+	if payment != nil && payment.Status == constants.PaymentStatusSuccess &&
+		payment.ProviderType != constants.PaymentProviderWallet && payment.FeePolicy == constants.PaymentFeePolicyMerchantAbsorbed &&
+		strings.TrimSpace(payment.ExceptionCode) == "" && strings.EqualFold(payment.Currency, recharge.Currency) {
+		return walletcontract.RechargeRefundFeeSnapshot{PaymentAmount: payment.Amount, PaymentFee: payment.FeeAmount}, nil
+	}
+	return walletcontract.RechargeRefundFeeSnapshot{}, nil
 }

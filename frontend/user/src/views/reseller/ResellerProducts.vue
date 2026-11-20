@@ -24,8 +24,8 @@
       <Card class="p-5">
         <div class="flex items-center justify-between gap-3">
           <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{{ t('resellerConsole.products.cards.defaultMarkup') }}</p>
-            <div class="mt-2 font-mono text-2xl font-black text-foreground">{{ profile?.default_markup_percent || '0.00' }}%</div>
+            <p class="text-xs font-semibold text-muted-foreground">{{ t('resellerConsole.products.cards.defaultMarkup') }}</p>
+            <div class="mt-2 tabular-nums text-2xl font-bold text-foreground">{{ profile?.default_markup_percent || '0.00' }}%</div>
           </div>
           <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <Percent class="h-5 w-5" />
@@ -36,10 +36,10 @@
       <Card class="p-5">
         <div class="flex items-center justify-between gap-3">
           <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{{ t('resellerConsole.products.cards.maxMarkup') }}</p>
-            <div class="mt-2 font-mono text-2xl font-black text-foreground">{{ profile?.max_markup_percent || '0.00' }}%</div>
+            <p class="text-xs font-semibold text-muted-foreground">{{ t('resellerConsole.products.cards.maxMarkup') }}</p>
+            <div class="mt-2 tabular-nums text-2xl font-bold text-foreground">{{ profile?.max_markup_percent || '0.00' }}%</div>
           </div>
-          <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-info/10 text-info">
+          <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-secondary text-foreground">
             <Gauge class="h-5 w-5" />
           </span>
         </div>
@@ -48,8 +48,8 @@
       <Card class="p-5">
         <div class="flex items-center justify-between gap-3">
           <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{{ t('resellerConsole.products.cards.storefront') }}</p>
-            <div class="mt-2 truncate font-mono text-sm font-bold text-foreground">{{ primaryDomain || t('resellerConsole.products.cards.noPrimaryDomain') }}</div>
+            <p class="text-xs font-semibold text-muted-foreground">{{ t('resellerConsole.products.cards.storefront') }}</p>
+            <div class="mt-2 truncate tabular-nums text-sm font-bold text-foreground">{{ primaryDomain || t('resellerConsole.products.cards.noPrimaryDomain') }}</div>
           </div>
           <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-success/10 text-success">
             <Globe class="h-5 w-5" />

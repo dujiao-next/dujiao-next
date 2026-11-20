@@ -6,7 +6,7 @@
         :key="item.path"
         :to="item.path"
         class="flex-1 flex flex-col items-center justify-center gap-0.5 text-xs transition-colors min-h-[44px]"
-        :class="isActive(item.path) ? 'text-primary font-semibold' : 'text-muted-foreground'"
+        :class="isActive(item.path) ? 'text-foreground font-semibold' : 'text-muted-foreground'"
       >
         <!-- Home -->
         <Home v-if="item.icon === 'home'" class="w-5 h-5" />
@@ -16,7 +16,7 @@
         <div v-else-if="item.icon === 'cart'" class="relative">
           <ShoppingCart class="w-5 h-5" />
           <span v-if="cartCount > 0"
-            class="absolute -top-1.5 -right-2.5 bg-primary text-primary-foreground font-bold text-[10px] min-w-[16px] h-4 flex items-center justify-center rounded-full px-1">
+            class="absolute -top-1.5 -right-2.5 bg-foreground text-background font-bold text-[10px] min-w-[16px] h-4 flex items-center justify-center rounded-full px-1">
             {{ cartCount > 99 ? '99+' : cartCount }}
           </span>
         </div>

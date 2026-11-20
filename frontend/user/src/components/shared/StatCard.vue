@@ -2,8 +2,8 @@
   <Card class="group relative overflow-hidden transition-shadow hover:shadow-md">
     <div class="flex items-start justify-between gap-3 p-4 sm:p-5">
       <div class="min-w-0">
-        <p class="truncate text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{{ label }}</p>
-        <div class="mt-2 truncate text-xl font-black leading-tight text-foreground sm:text-2xl" :class="{ 'font-mono': mono }">
+        <p class="truncate text-[11px] font-semibold text-muted-foreground">{{ label }}</p>
+        <div class="mt-2 truncate text-xl font-bold leading-tight text-foreground sm:text-2xl" :class="{ 'tabular-nums': mono }">
           <slot name="value">{{ value }}</slot>
         </div>
         <p v-if="hint" class="mt-1 truncate text-xs text-muted-foreground">{{ hint }}</p>

@@ -26,7 +26,7 @@
           <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <Rocket class="h-7 w-7" />
           </span>
-          <h2 class="mt-4 text-xl font-black text-foreground">{{ t('resellerConsole.dashboard.inactiveTitle') }}</h2>
+          <h2 class="mt-4 text-xl font-bold text-foreground">{{ t('resellerConsole.dashboard.inactiveTitle') }}</h2>
           <p class="mt-2 text-sm text-muted-foreground">{{ t('resellerConsole.dashboard.inactiveDescription') }}</p>
           <ul class="mx-auto mt-5 max-w-md space-y-2 text-left">
             <li v-for="(benefit, i) in benefits" :key="i" class="flex items-start gap-2 text-sm text-foreground">
@@ -46,8 +46,8 @@
       <Card class="p-5">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div class="min-w-0">
-            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-primary">{{ t('resellerConsole.dashboard.storeLabel') }}</p>
-            <h2 class="mt-1 break-all font-mono text-lg font-black text-foreground">{{ primaryDomain || t('resellerConsole.dashboard.noDomain') }}</h2>
+            <p class="text-xs font-semibold text-primary">{{ t('resellerConsole.dashboard.storeLabel') }}</p>
+            <h2 class="mt-1 break-all tabular-nums text-lg font-bold text-foreground">{{ primaryDomain || t('resellerConsole.dashboard.noDomain') }}</h2>
           </div>
           <div class="flex flex-wrap items-center gap-2">
             <ResellerStatusBadge :label="settlementText" tone="info" dot />
@@ -178,10 +178,10 @@
             </TableHeader>
             <TableBody>
               <TableRow v-for="row in recentOrders" :key="row.order_no">
-                <TableCell class="px-4 py-3 font-mono text-xs text-foreground">{{ row.order_no }}</TableCell>
+                <TableCell class="px-4 py-3 tabular-nums text-xs text-foreground">{{ row.order_no }}</TableCell>
                 <TableCell class="px-4 py-3"><ResellerStatusBadge :label="statusLabel(row.status)" :tone="statusTone(row.status)" /></TableCell>
-                <TableCell class="px-4 py-3 text-right font-mono text-xs">{{ formatResellerConsoleAmount(row.total_amount, row.currency) }}</TableCell>
-                <TableCell class="px-4 py-3 text-right font-mono text-xs">{{ formatResellerConsoleAmount(row.profit_amount, row.currency) }}</TableCell>
+                <TableCell class="px-4 py-3 text-right tabular-nums text-xs">{{ formatResellerConsoleAmount(row.total_amount, row.currency) }}</TableCell>
+                <TableCell class="px-4 py-3 text-right tabular-nums text-xs">{{ formatResellerConsoleAmount(row.profit_amount, row.currency) }}</TableCell>
                 <TableCell class="px-4 py-3 text-xs text-muted-foreground">{{ formatResellerConsoleDate(row.created_at) }}</TableCell>
               </TableRow>
             </TableBody>
@@ -197,16 +197,16 @@
             >
               <ResellerRecordCard>
                 <template #header>
-                  <span class="min-w-0 truncate font-mono text-xs font-semibold text-foreground">{{ row.order_no }}</span>
+                  <span class="min-w-0 truncate tabular-nums text-xs font-semibold text-foreground">{{ row.order_no }}</span>
                   <ResellerStatusBadge :label="statusLabel(row.status)" :tone="statusTone(row.status)" />
                 </template>
                 <div>
                   <dt class="text-muted-foreground">{{ t('resellerConsole.orders.totalAmount') }}</dt>
-                  <dd class="mt-0.5 font-mono text-foreground">{{ formatResellerConsoleAmount(row.total_amount, row.currency) }}</dd>
+                  <dd class="mt-0.5 tabular-nums text-foreground">{{ formatResellerConsoleAmount(row.total_amount, row.currency) }}</dd>
                 </div>
                 <div>
                   <dt class="text-muted-foreground">{{ t('resellerConsole.orders.profitAmount') }}</dt>
-                  <dd class="mt-0.5 font-mono text-foreground">{{ formatResellerConsoleAmount(row.profit_amount, row.currency) }}</dd>
+                  <dd class="mt-0.5 tabular-nums text-foreground">{{ formatResellerConsoleAmount(row.profit_amount, row.currency) }}</dd>
                 </div>
               </ResellerRecordCard>
             </RouterLink>
