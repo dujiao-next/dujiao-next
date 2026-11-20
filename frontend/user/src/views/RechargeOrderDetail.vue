@@ -3,13 +3,13 @@
     <div class="container mx-auto px-4">
       <div class="mb-8 flex items-center justify-between">
         <div>
-          <h1 class="text-3xl font-black text-foreground mb-2">{{ t('rechargeOrder.title') }}</h1>
+          <h1 class="mb-1 text-[28px] font-bold tracking-tight">{{ t('rechargeOrder.title') }}</h1>
           <p class="text-muted-foreground text-sm">{{ t('rechargeOrder.subtitle') }}</p>
         </div>
         <router-link to="/me/orders" class="text-muted-foreground transition-colors hover:text-foreground text-sm">{{ t('rechargeOrder.backList') }}</router-link>
       </div>
 
-      <div v-if="loading" class="h-40 border bg-muted rounded-2xl animate-pulse"></div>
+      <div v-if="loading" class="theme-skeleton h-40 rounded-[22px]"></div>
 
       <EmptyState
         v-else-if="!recharge"
@@ -21,15 +21,15 @@
 
       <div v-else class="space-y-6">
         <!-- 头部信息 -->
-        <div class="rounded-2xl border bg-card shadow-sm p-6">
+        <div class="theme-float rounded-[22px] bg-card p-5 md:p-6">
           <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <div class="text-xs uppercase tracking-wider text-muted-foreground">{{ t('personalCenter.wallet.rechargeNoLabel') }}</div>
+              <div class="text-xs text-muted-foreground">{{ t('personalCenter.wallet.rechargeNoLabel') }}</div>
               <div class="text-sm font-semibold text-foreground mt-1">{{ recharge.recharge_no }}</div>
               <div class="text-xs text-muted-foreground mt-2">{{ t('rechargeOrder.createdAtLabel') }}：{{ formatDate(recharge.created_at) }}</div>
             </div>
             <div class="flex flex-col items-start md:items-end gap-2">
-              <div class="text-xs uppercase tracking-wider text-muted-foreground">{{ t('rechargeOrder.rechargeAmount') }}</div>
+              <div class="text-xs text-muted-foreground">{{ t('rechargeOrder.rechargeAmount') }}</div>
               <div class="text-lg font-bold text-foreground">{{ formatMoney(recharge.amount, recharge.currency) }}</div>
             </div>
             <div class="flex items-center gap-3">
@@ -41,61 +41,61 @@
         </div>
 
         <!-- 金额明细 -->
-        <div class="rounded-2xl border bg-card shadow-sm p-6">
-          <h2 class="text-lg font-bold mb-4">{{ t('rechargeOrder.amountTitle') }}</h2>
+        <div class="theme-float rounded-[22px] bg-card p-5 md:p-6">
+          <h2 class="mb-4 text-[17px] font-bold">{{ t('rechargeOrder.amountTitle') }}</h2>
           <div class="grid grid-cols-1 gap-4 text-sm" :class="customerFeeApplied ? 'md:grid-cols-3' : 'md:grid-cols-2'">
-            <div class="border rounded-xl p-4">
+            <div class="rounded-2xl bg-secondary/60 p-4">
               <div class="text-xs text-muted-foreground">{{ t('rechargeOrder.rechargeAmount') }}</div>
-              <div class="text-foreground font-mono mt-1">{{ formatMoney(recharge.amount, recharge.currency) }}</div>
+              <div class="text-foreground tabular-nums mt-1">{{ formatMoney(recharge.amount, recharge.currency) }}</div>
             </div>
-            <div v-if="customerFeeApplied" class="border rounded-xl p-4 text-warning">
+            <div v-if="customerFeeApplied" class="rounded-2xl bg-secondary/60 p-4 text-warning">
               <div class="text-xs">{{ t('payment.feeAmountLabel') }}</div>
-              <div class="font-mono mt-1 font-semibold">{{ formatMoney(recharge.fee_amount, recharge.currency) }}</div>
+              <div class="tabular-nums mt-1 font-semibold">{{ formatMoney(recharge.fee_amount, recharge.currency) }}</div>
             </div>
-            <div class="border rounded-xl p-4">
+            <div class="rounded-2xl bg-secondary/60 p-4">
               <div class="text-xs text-muted-foreground">{{ t('personalCenter.wallet.payAmountLabel') }}</div>
-              <div class="text-foreground font-mono mt-1 font-bold">{{ formatMoney(recharge.payable_amount, recharge.currency) }}</div>
+              <div class="text-foreground tabular-nums mt-1 font-bold">{{ formatMoney(recharge.payable_amount, recharge.currency) }}</div>
             </div>
-            <div v-if="Number(recharge.refunded_amount) > 0" class="border rounded-xl p-4">
+            <div v-if="Number(recharge.refunded_amount) > 0" class="rounded-2xl bg-secondary/60 p-4">
               <div class="text-xs text-muted-foreground">{{ t('orderDetail.amountRefunded') }}</div>
-              <div class="text-foreground font-mono mt-1">{{ formatMoney(recharge.refunded_amount, recharge.currency) }}</div>
+              <div class="text-foreground tabular-nums mt-1">{{ formatMoney(recharge.refunded_amount, recharge.currency) }}</div>
             </div>
           </div>
         </div>
 
         <!-- 时间信息 -->
-        <div class="rounded-2xl border bg-card shadow-sm p-6">
-          <h2 class="text-lg font-bold mb-4">{{ t('rechargeOrder.timeTitle') }}</h2>
+        <div class="theme-float rounded-[22px] bg-card p-5 md:p-6">
+          <h2 class="mb-4 text-[17px] font-bold">{{ t('rechargeOrder.timeTitle') }}</h2>
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-            <div class="border rounded-xl p-4">
+            <div class="rounded-2xl bg-secondary/60 p-4">
               <div class="text-xs text-muted-foreground">{{ t('rechargeOrder.createdAtLabel') }}</div>
-              <div class="text-foreground font-mono mt-1">{{ formatDate(recharge.created_at) }}</div>
+              <div class="text-foreground tabular-nums mt-1">{{ formatDate(recharge.created_at) }}</div>
             </div>
-            <div v-if="recharge.paid_at" class="border rounded-xl p-4">
+            <div v-if="recharge.paid_at" class="rounded-2xl bg-secondary/60 p-4">
               <div class="text-xs text-muted-foreground">{{ t('rechargeOrder.paidAtLabel') }}</div>
-              <div class="text-foreground font-mono mt-1">{{ formatDate(recharge.paid_at) }}</div>
+              <div class="text-foreground tabular-nums mt-1">{{ formatDate(recharge.paid_at) }}</div>
             </div>
-            <div v-if="payment?.expires_at" class="border rounded-xl p-4">
+            <div v-if="payment?.expires_at" class="rounded-2xl bg-secondary/60 p-4">
               <div class="text-xs text-muted-foreground">{{ t('payment.expiresAt') }}</div>
-              <div class="text-foreground font-mono mt-1">{{ formatDate(payment.expires_at) }}</div>
+              <div class="text-foreground tabular-nums mt-1">{{ formatDate(payment.expires_at) }}</div>
             </div>
           </div>
         </div>
 
         <!-- 备注 -->
-        <div v-if="recharge.remark" class="rounded-2xl border bg-card shadow-sm p-6">
+        <div v-if="recharge.remark" class="theme-float rounded-[22px] bg-card p-5 md:p-6">
           <h2 class="text-lg font-bold mb-2">{{ t('rechargeOrder.remarkLabel') }}</h2>
           <p class="text-sm text-muted-foreground">{{ recharge.remark }}</p>
         </div>
 
         <!-- 支付区域（仅待支付状态） -->
-        <div v-if="isPending" class="rounded-2xl border bg-card shadow-sm p-6">
-          <h2 class="text-lg font-bold mb-4">{{ t('rechargeOrder.paymentTitle') }}</h2>
+        <div v-if="isPending" class="theme-float rounded-[22px] bg-card p-5 md:p-6">
+          <h2 class="mb-4 text-[17px] font-bold">{{ t('rechargeOrder.paymentTitle') }}</h2>
           <div v-if="isPending" class="mb-3 text-xs text-muted-foreground">
             {{ t('personalCenter.wallet.pendingHint') }}
           </div>
           <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <div v-if="showQRCode" class="rounded-xl border p-4">
+            <div v-if="showQRCode" class="rounded-2xl bg-secondary/60 p-4">
               <div class="mb-3 text-sm font-semibold text-foreground">{{ t('payment.qrTitle') }}</div>
               <div class="flex items-center justify-center">
                 <img :src="qrImageUrl" alt="Recharge QR" class="h-52 w-52 object-contain" />
@@ -104,7 +104,7 @@
                 {{ t('payment.qrFallbackHint') }}
               </div>
             </div>
-            <div class="rounded-xl border p-4">
+            <div class="rounded-2xl bg-secondary/60 p-4">
               <div v-if="hasCryptoPaymentDetails" class="space-y-2 rounded-xl border bg-muted/40 p-3 text-sm">
                 <div
                   v-for="item in cryptoPaymentDetails"
@@ -141,7 +141,7 @@
         </div>
 
         <!-- 支付成功提示 -->
-        <div v-if="recharge.status === 'success'" class="rounded-2xl border bg-card shadow-sm p-6 border-l-4 border-green-500">
+        <div v-if="recharge.status === 'success'" class="theme-float rounded-[22px] bg-card p-5 md:p-6 border-l-4 border-green-500">
           <p class="text-sm font-semibold text-foreground">{{ t('personalCenter.wallet.rechargeSuccess') }}</p>
         </div>
       </div>
