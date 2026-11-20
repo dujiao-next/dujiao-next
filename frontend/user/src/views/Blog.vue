@@ -1,78 +1,85 @@
 <template>
-  <div
-    class="blog-page min-h-screen bg-background text-foreground pt-20 pb-16 relative overflow-hidden">
-    <div class="container mx-auto px-4 relative z-10">
-      <!-- Page Header -->
-      <div class="mb-16 mt-12 text-center">
-        <h1 class="text-4xl md:text-6xl font-black mb-6 tracking-tight text-foreground">{{ t('nav.blog') }}</h1>
-        <p
-          class="text-muted-foreground max-w-2xl mx-auto text-lg leading-relaxed border-b pb-8">
-          {{ t('blog.subtitle') }}
-        </p>
-      </div>
-
-      <!-- Search Box -->
-      <div class="mb-12 max-w-xl mx-auto">
-        <div
-          class="relative bg-card backdrop-blur-md border rounded-2xl flex items-center px-5 py-3 transition-all focus-within:shadow-lg focus-within:border-primary">
-          <Search class="w-5 h-5 text-muted-foreground shrink-0" />
-          <input v-model="searchKeyword" type="text" :placeholder="t('blog.searchPlaceholder')"
-            class="flex-1 bg-transparent border-none outline-none px-3 text-foreground placeholder:text-muted-foreground" />
-          <Button v-if="searchKeyword" type="button" variant="ghost" size="sm" @click="searchKeyword = ''">
-            {{ t('blog.searchClear') }}
-          </Button>
+  <div class="min-h-screen bg-background pb-16 pt-24 text-foreground">
+    <div class="container mx-auto px-4">
+      <div class="mb-6 flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+        <div>
+          <h1 class="text-[28px] font-bold tracking-tight">{{ t('nav.blog') }}</h1>
+          <p class="mt-1 text-sm text-muted-foreground">{{ t('blog.subtitle') }}</p>
         </div>
+        <label class="flex h-11 w-full items-center gap-2 rounded-full bg-card px-4 theme-float focus-within:outline-2 focus-within:outline-primary sm:w-80">
+          <Search class="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <input
+            v-model="searchKeyword"
+            type="text"
+            :placeholder="t('blog.searchPlaceholder')"
+            :aria-label="t('blog.searchPlaceholder')"
+            class="min-w-0 flex-1 border-none bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+          />
+          <button
+            v-if="searchKeyword"
+            type="button"
+            class="-mr-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            :aria-label="t('blog.searchClear')"
+            @click="searchKeyword = ''"
+          >
+            <X class="h-4 w-4" />
+          </button>
+        </label>
       </div>
 
-      <!-- Loading State -->
-      <div v-if="loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        <div v-for="i in 6" :key="i"
-          class="bg-muted rounded-2xl h-[300px] animate-pulse border">
-        </div>
+      <div v-if="loading" class="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+        <div v-for="i in 6" :key="i" class="theme-skeleton h-[280px] rounded-[22px]"></div>
       </div>
 
-      <!-- Posts Grid -->
       <div v-else-if="posts.length > 0">
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          <article v-for="post in posts" :key="post.id"
-            class="group bg-card backdrop-blur-xl border rounded-2xl overflow-hidden shadow-sm hover:bg-muted/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl cursor-pointer flex flex-col"
-            @click="goToPost(post.slug)">
-            <!-- Thumbnail -->
-            <div v-if="post.thumbnail" class="h-48 overflow-hidden relative">
-              <img :src="getImageUrl(post.thumbnail)" :alt="getLocalizedText(post.title)"
-                loading="lazy" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110">
-              <div class="absolute inset-0 bg-black/35"></div>
+        <div class="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+          <!-- 第一篇横向铺开当头条，其余等宽 -->
+          <article
+            v-for="(post, index) in posts"
+            :key="post.id"
+            class="post-card theme-float group flex cursor-pointer flex-col rounded-[22px] bg-card p-2"
+            :class="index === 0 && 'md:col-span-2 md:flex-row'"
+            @click="goToPost(post.slug)"
+          >
+            <!-- 没封面时用标题首字占位，色相按文章 id 取，和商品卡同一套做法 -->
+            <div
+              class="flex shrink-0 items-center justify-center overflow-hidden rounded-2xl"
+              :class="[
+                index === 0 ? 'h-48 md:h-auto md:min-h-64 md:w-1/2' : 'h-44',
+                post.thumbnail ? 'bg-secondary' : 'bg-[hsl(var(--h)_62%_94%)] dark:bg-[hsl(var(--h)_32%_17%)]',
+              ]"
+              :style="{ '--h': ((Number(post.id) || 0) * 47) % 360 }"
+            >
+              <img
+                v-if="post.thumbnail"
+                :src="getImageUrl(post.thumbnail)"
+                alt=""
+                loading="lazy"
+                class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+              />
+              <span v-else class="select-none text-6xl font-black text-[hsl(var(--h)_55%_38%)] dark:text-[hsl(var(--h)_60%_76%)]" aria-hidden="true">
+                {{ Array.from(getLocalizedText(post.title).trim())[0] }}
+              </span>
             </div>
 
-            <div class="p-8 flex flex-col flex-1">
-              <div class="flex items-center justify-between mb-6">
-                <Badge :variant="post.type === 'blog' ? 'accent' : 'info'" class="uppercase tracking-wider">
-                  {{ post.type === 'blog' ? t('nav.blog') : t('nav.notice') }}
-                </Badge>
-                <time class="text-xs text-muted-foreground font-mono">
-                  {{ formatDate(post.published_at) }}
-                </time>
-              </div>
-
+            <div class="flex flex-1 flex-col p-4" :class="index === 0 && 'md:p-6'">
+              <time class="text-xs tabular-nums text-muted-foreground">{{ formatDate(post.published_at) }}</time>
               <h2
-                class="text-2xl font-bold mb-4 text-foreground transition-colors line-clamp-2 leading-tight">
-                {{ getLocalizedText(post.title) }}
+                class="mt-2 line-clamp-2 font-bold leading-snug tracking-tight"
+                :class="index === 0 ? 'text-xl md:text-[26px]' : 'text-[17px]'"
+              >
+                <router-link :to="`/blog/${post.slug}`" class="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" @click.stop>
+                  {{ getLocalizedText(post.title) }}
+                </router-link>
               </h2>
-
-              <p class="text-muted-foreground text-sm mb-8 line-clamp-3 leading-relaxed flex-1">
-                {{ getLocalizedText(post.summary) }}
-              </p>
-
-              <div
-                class="flex items-center text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors mt-auto pt-6 border-t">
-                {{ t('blog.readMore') }}
-                <ArrowRight class="w-4 h-4 ml-2 transition-transform group-hover:translate-x-2" />
+              <p class="mt-2 line-clamp-3 text-sm leading-relaxed text-muted-foreground">{{ getLocalizedText(post.summary) }}</p>
+              <div class="mt-auto pt-4">
+                <span class="theme-pill-link group-hover:bg-foreground group-hover:text-background">{{ t('blog.readMore') }}<ChevronRight class="h-3.5 w-3.5" aria-hidden="true" /></span>
               </div>
             </div>
           </article>
         </div>
 
-        <!-- Pagination -->
         <PaginationNav
           :current-page="currentPage"
           :total-pages="totalPages"
@@ -80,10 +87,9 @@
         />
       </div>
 
-      <!-- Empty State -->
       <EmptyState v-else variant="soft" size="lg" :title="searchKeyword.trim() ? t('blog.noResults') : t('blog.empty')">
         <template #icon>
-          <BookOpen class="w-20 h-20 text-muted-foreground opacity-70" :stroke-width="1.5" />
+          <BookOpen class="h-16 w-16 text-muted-foreground opacity-70" :stroke-width="1.5" />
         </template>
       </EmptyState>
     </div>
@@ -92,10 +98,8 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { ArrowRight, BookOpen, Search } from 'lucide-vue-next'
+import { BookOpen, ChevronRight, Search, X } from 'lucide-vue-next'
 import { getImageUrl } from '../utils/image'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import EmptyState from '../components/EmptyState.vue'
 import PaginationNav from '../components/PaginationNav.vue'
 import { usePostList } from '../composables/usePostList'
@@ -109,19 +113,14 @@ const {
 </script>
 
 <style scoped>
-.line-clamp-2 {
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+.post-card {
+  transition: transform 200ms var(--ui-ease-out), box-shadow 200ms var(--ui-ease-out);
 }
-
-.line-clamp-3 {
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
+.post-card:hover {
+  transform: translateY(-2px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .post-card { transition: none; }
+  .post-card:hover { transform: none; }
 }
 </style>
