@@ -226,8 +226,7 @@ const resolveAffiliateRate = (product: AdminProduct): number | null => {
 
 const affiliateBadgeClass = (product: AdminProduct) => {
   const rate = resolveAffiliateRate(product)
-  if (rate === null) return 'border-border bg-muted/30 text-muted-foreground'
-  if (rate === 0) return 'border-border bg-muted/30 text-muted-foreground'
+  if (rate === null || rate === 0) return 'border-border bg-muted/30 text-muted-foreground'
   return 'border-sky-200 bg-sky-50 text-sky-700'
 }
 

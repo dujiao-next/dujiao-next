@@ -10804,7 +10804,6 @@ const messages = {
         mappedFormSchemaLocked: 'Form schema is managed by upstream and cannot be changed',
         mappedSkuLocked: 'Only SKU prices can be modified. Codes and specs are managed by upstream',
         affiliate: {
-          enabled: 'Affiliate enabled',
           disabled: 'Affiliate disabled',
           inherit: 'Site-wide rate',
           custom: 'Commission {rate}%',

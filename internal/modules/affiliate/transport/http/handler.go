@@ -130,7 +130,7 @@ func (h *Handler) GetProductRates(c *gin.Context) {
 		case errors.Is(err, affiliateapp.ErrNotOpened):
 			ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", nil)
 		case errors.Is(err, affiliateapp.ErrNotFound):
-			ginutil.RespondError(c, response.CodeNotFound, "error.bad_request", nil)
+			ginutil.RespondError(c, response.CodeNotFound, "error.product_not_found", nil)
 		default:
 			ginutil.RespondError(c, response.CodeInternal, "error.user_fetch_failed", err)
 		}

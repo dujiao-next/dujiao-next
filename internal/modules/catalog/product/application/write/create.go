@@ -35,6 +35,11 @@ func (s *WriteService) Create(input CreateProductInput) (*productdomain.Product,
 	if err := validateProductAffiliateRate(input.AffiliateRatePercent); err != nil {
 		return nil, err
 	}
+	// 请求未携带比例字段时默认不参与返利（存 0），避免 API 脚本或仍发送旧字段的客户端创建出悄悄跟随全站比例的商品；显式 null 仍表示跟随全站。
+	if !input.AffiliateRatePercentSet {
+		zeroRate := money.FromDecimal(decimal.Zero)
+		input.AffiliateRatePercent = &zeroRate
+	}
 	purchaseType := productdomain.NormalizePurchaseType(input.PurchaseType)
 	if purchaseType == "" {
 		return nil, productcontract.ErrProductPurchaseInvalid
