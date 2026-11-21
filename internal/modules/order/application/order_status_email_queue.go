@@ -35,7 +35,7 @@ func EnqueueStatusEmailTaskIfEligible(
 		if !smtpSetting.Enabled {
 			return true, nil
 		}
-		if !smtpSetting.OrderNotificationEnabled {
+		if !smtpSetting.IsOrderStatusEmailEnabled(status) {
 			return true, nil
 		}
 	}

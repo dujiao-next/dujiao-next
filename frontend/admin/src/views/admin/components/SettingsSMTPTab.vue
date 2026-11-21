@@ -10,6 +10,15 @@ import { notifyError, notifySuccess } from '@/utils/notify'
 
 const { t } = useI18n()
 
+interface OrderNotificationStatuses {
+  paid: boolean
+  delivered: boolean
+  completed: boolean
+  refunded: boolean
+}
+
+const orderStatusKeys = ['paid', 'delivered', 'completed', 'refunded'] as const
+
 interface SMTPData {
   enabled: boolean
   host: string
@@ -22,6 +31,7 @@ interface SMTPData {
   use_tls: boolean
   use_ssl: boolean
   order_notification_enabled: boolean
+  order_notification_statuses: OrderNotificationStatuses
   verify_code: {
     expire_minutes: number
     send_interval_seconds: number
@@ -53,6 +63,7 @@ const form = reactive({
   use_tls: true,
   use_ssl: false,
   order_notification_enabled: true,
+  order_notification_statuses: { paid: true, delivered: true, completed: true, refunded: true } as OrderNotificationStatuses,
   verify_code: {
     expire_minutes: 10,
     send_interval_seconds: 60,
@@ -74,6 +85,9 @@ const syncFromProps = () => {
   form.use_tls = props.data.use_tls
   form.use_ssl = props.data.use_ssl
   form.order_notification_enabled = props.data.order_notification_enabled ?? true
+  for (const key of orderStatusKeys) {
+    form.order_notification_statuses[key] = props.data.order_notification_statuses?.[key] ?? true
+  }
   form.verify_code.expire_minutes = props.data.verify_code.expire_minutes
   form.verify_code.send_interval_seconds = props.data.verify_code.send_interval_seconds
   form.verify_code.max_attempts = props.data.verify_code.max_attempts
@@ -106,6 +120,7 @@ const save = async () => {
       use_tls: form.use_tls,
       use_ssl: form.use_ssl,
       order_notification_enabled: form.order_notification_enabled,
+      order_notification_statuses: { ...form.order_notification_statuses },
       verify_code: {
         expire_minutes: Number(form.verify_code.expire_minutes),
         send_interval_seconds: Number(form.verify_code.send_interval_seconds),
@@ -173,6 +188,22 @@ defineExpose({ save, submitting, smtpTesting })
             <div>
               <Label for="smtp-order-notification" class="text-sm font-medium">{{ t('admin.settings.smtp.orderNotificationEnabled') }}</Label>
               <p class="text-xs text-muted-foreground">{{ t('admin.settings.smtp.orderNotificationHint') }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="rounded-xl border border-border">
+          <div class="border-b border-border bg-muted/30 px-4 py-3">
+            <h3 class="text-sm font-semibold">{{ t('admin.settings.smtp.orderStatuses.title') }}</h3>
+            <p class="mt-1 text-xs text-muted-foreground">{{ t('admin.settings.smtp.orderStatuses.hint') }}</p>
+          </div>
+          <div class="grid grid-cols-1 gap-4 p-4 md:grid-cols-2">
+            <div v-for="key in orderStatusKeys" :key="key" class="flex items-center gap-3 rounded-lg border border-border bg-muted/20 px-4 py-3">
+              <Switch :id="`smtp-order-status-${key}`" v-model="form.order_notification_statuses[key]" :disabled="!form.enabled || !form.order_notification_enabled" />
+              <div>
+                <Label :for="`smtp-order-status-${key}`" class="text-sm font-medium">{{ t(`admin.settings.smtp.orderStatuses.${key}`) }}</Label>
+                <p class="text-xs text-muted-foreground">{{ t(`admin.settings.smtp.orderStatuses.${key}Hint`) }}</p>
+              </div>
             </div>
           </div>
         </div>

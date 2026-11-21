@@ -171,7 +171,7 @@ func (l *Lifecycle) EnqueueStatusEmail(orderID uint, status string) (bool, error
 		if err != nil {
 			return false, err
 		}
-		if !smtpSetting.Enabled || !smtpSetting.OrderNotificationEnabled {
+		if !smtpSetting.IsOrderStatusEmailEnabled(status) {
 			return true, nil
 		}
 	}

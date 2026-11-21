@@ -50,14 +50,18 @@ func (c *Consumer) handleOrderStatusEmail(ctx context.Context, task *asynq.Task)
 		return nil
 	}
 	// 消费侧二次校验开关：避免 SMTP/订单通知关闭后，旧任务（含 retry/scheduled 中的任务）继续触发发送。
+	var smtpSetting settingsmessaging.SMTPSetting
+	smtpLoaded := false
 	if c.SettingService != nil && c.Config != nil {
-		smtpSetting, smtpErr := c.SettingService.GetSMTPSetting(c.Config.Email)
+		var smtpErr error
+		smtpSetting, smtpErr = c.SettingService.GetSMTPSetting(c.Config.Email)
+		smtpLoaded = true
 		if smtpErr != nil {
 			// fail-closed：读不到设置就视作关闭，不重试，避免 DB 抖动放大成邮件雪崩。
 			logger.Warnw("worker_order_status_email_load_smtp_setting_failed", "order_id", payload.OrderID, "error", smtpErr)
 			return nil
 		}
-		if !smtpSetting.Enabled || !smtpSetting.OrderNotificationEnabled {
+		if !smtpSetting.IsOrderStatusEmailEnabled(payloadStatus) {
 			logger.Debugw("worker_order_status_email_skip_setting_disabled",
 				"order_id", payload.OrderID,
 				"smtp_enabled", smtpSetting.Enabled,
@@ -87,6 +91,11 @@ func (c *Consumer) handleOrderStatusEmail(ctx context.Context, task *asynq.Task)
 			"order_id", order.ID,
 			"order_no", order.OrderNo,
 		)
+		return nil
+	}
+	// payload 未带状态时，以订单当前状态再校验一次按状态开关。
+	if smtpLoaded && payloadStatus == "" && !smtpSetting.IsOrderStatusEmailEnabled(status) {
+		logger.Debugw("worker_order_status_email_skip_status_disabled", "order_id", order.ID, "status", status)
 		return nil
 	}
 	var receiverEmail string
