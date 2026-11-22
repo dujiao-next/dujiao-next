@@ -174,7 +174,7 @@ func TestValidateAndNormalizeManualFormEmailPhoneAndCheckbox(t *testing.T) {
 	}
 }
 
-func TestValidateAndNormalizeManualFormSanitizeText(t *testing.T) {
+func TestValidateAndNormalizeManualFormKeepsRawText(t *testing.T) {
 	schema := jsonmap.JSON{
 		"fields": []interface{}{
 			map[string]interface{}{
@@ -192,8 +192,8 @@ func TestValidateAndNormalizeManualFormSanitizeText(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if normalizedSubmission["memo"] != "&lt;script&gt;alert(1)&lt;/script&gt;" {
-		t.Fatalf("unexpected sanitized memo: %v", normalizedSubmission["memo"])
+	if normalizedSubmission["memo"] != "<script>alert(1)</script>" {
+		t.Fatalf("expected raw memo to be stored unescaped, got: %v", normalizedSubmission["memo"])
 	}
 }
 

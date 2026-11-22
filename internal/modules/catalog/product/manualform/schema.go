@@ -2,7 +2,6 @@ package manualform
 
 import (
 	"errors"
-	"html"
 	"net/mail"
 	"regexp"
 	"sort"
@@ -683,10 +682,9 @@ func parseCheckboxValues(raw interface{}) ([]string, bool) {
 	}
 }
 
+// sanitizeManualFormText 只做首尾空白裁剪，不做 HTML 转义。
+// 提交值按原文存储，展示端（Vue 文本插值）负责输出转义；写入时转义会让
+// 后台、用户端和上游对接拿到 &amp; / &#34; 这类实体字面量。
 func sanitizeManualFormText(raw string) string {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return ""
-	}
-	return html.EscapeString(trimmed)
+	return strings.TrimSpace(raw)
 }
