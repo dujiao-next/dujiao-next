@@ -94,7 +94,9 @@ func (h *Handler) ListCategories(c *gin.Context) {
 
 // ListProducts GET /api/v1/upstream/products
 func (h *Handler) ListProducts(c *gin.Context) {
-	page, pageSize := ginutil.ParsePaginationWithBounds(c, "page", "page_size", 50, 50)
+	// page_size 默认 50，上限 200：下游全量拉取时按上限请求可以把翻页次数压到四分之一，
+	// 从而远离每分钟的接口限流。
+	page, pageSize := ginutil.ParsePaginationWithBounds(c, "page", "page_size", 50, 200)
 
 	// 是否包含下架商品：下游同步任务用此参数识别上游下架/删除状态
 	includeInactive := c.Query("include_inactive") == "true"

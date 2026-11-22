@@ -18,6 +18,10 @@ import (
 	"github.com/dujiao-next/internal/upstream"
 )
 
+// upstreamBatchScanMinIDs 按 ID 批量导入时，选中商品达到这个数量就先整站扫一遍再取用。
+// 一个上游分页的容量（50）以下逐个 GetProduct 更省请求；超过之后扫描明显更划算。
+const upstreamBatchScanMinIDs = 50
+
 // acquireBatchImportLock 同一连接同时只允许一个批量导入：大批量导入常超过 HTTP 超时，
 // 管理员重试时后台仍在跑上一批，并发导入会产生重复商品。
 func acquireBatchImportLock(connectionID uint) (func(), error) {
@@ -71,13 +75,13 @@ func (s *Service) BatchImportUpstreamProducts(
 	//   1. 开自动创建分类（要给每个商品找到/建本地分类）；
 	//   2. 连接配了分类加价（要按分类算价，含父分类继承）。
 	// 否则每个商品都会各自 ListCategories 一次，200 个商品就是 200 次请求。
+	adapter, err := s.connections.GetAdapter(conn)
+	if err != nil {
+		return nil, err
+	}
 	needCatMap := (autoCreateCategory && categoryID == 0) || len(conn.CategoryMarkups) > 0
 	var catMap map[uint]upstream.UpstreamCategory
 	if needCatMap {
-		adapter, adapterErr := s.connections.GetAdapter(conn)
-		if adapterErr != nil {
-			return nil, adapterErr
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		fetched, fetchErr := s.fetchUpstreamCategoryMap(ctx, adapter)
@@ -88,8 +92,37 @@ func (s *Service) BatchImportUpstreamProducts(
 		catMap = fetched
 	}
 
+	// 一次选中很多商品时先整站扫一遍再按 ID 取用：逐个 GetProduct 会让大批量选中
+	// 直接撞上上游 60 次/分钟的限流，而整站扫描只需要 ceil(total/200) 次请求。
+	// 扫描失败或某个 ID 不在结果里时，回退到逐个 GetProduct，行为与之前一致。
+	scanned := map[uint]upstream.UpstreamProduct{}
+	if len(upstreamProductIDs) >= upstreamBatchScanMinIDs {
+		if allProducts, scanErr := listAllUpstreamProducts(context.Background(), adapter); scanErr == nil {
+			for _, p := range allProducts {
+				scanned[p.ID] = p
+			}
+		}
+	}
+
 	outcomes := make([]BatchUpstreamProductImportOutcome, 0, len(upstreamProductIDs))
 	for _, id := range upstreamProductIDs {
+		if p, ok := scanned[id]; ok {
+			if err := s.ensureNoMapping(connectionID, id); err != nil {
+				outcomes = append(outcomes, BatchUpstreamProductImportOutcome{
+					UpstreamProductID: id,
+					Err:               err,
+				})
+				continue
+			}
+			product := p
+			mapping, importErr := s.importUpstreamProductData(connectionID, conn, adapter, &product, categoryID, "", autoCreateCategory, catMap)
+			outcomes = append(outcomes, BatchUpstreamProductImportOutcome{
+				UpstreamProductID: id,
+				Mapping:           mapping,
+				Err:               importErr,
+			})
+			continue
+		}
 		mapping, importErr := s.importUpstreamProduct(connectionID, id, categoryID, "", autoCreateCategory, catMap)
 		outcomes = append(outcomes, BatchUpstreamProductImportOutcome{
 			UpstreamProductID: id,
@@ -189,14 +222,30 @@ func (s *Service) BatchImportByCategory(
 		}
 	}
 
-	// 逐个导入
+	// 逐个导入。这里的商品来自上面的一次全量扫描，已经带齐 SKU/内容/图片，
+	// 直接复用，避免每个商品再发一次 GetProduct 触发上游限流。
 	result := &BatchImportByCategoryResult{
 		Total:        len(targetProducts),
 		CategoryID:   categoryID,
 		CategoryName: categoryName,
 	}
-	for _, p := range targetProducts {
-		_, importErr := s.importUpstreamProduct(connectionID, p.ID, categoryID, "", autoCreateCategory, catMap)
+	for i := range targetProducts {
+		p := &targetProducts[i]
+		if err := s.ensureNoMapping(connectionID, p.ID); err != nil {
+			if errors.Is(err, mappingcontract.ErrMappingAlreadyExists) {
+				result.SuccessCount++ // 已映射的算成功
+				continue
+			}
+			result.Errors = append(result.Errors, struct {
+				UpstreamProductID uint   `json:"upstream_product_id"`
+				Error             string `json:"error"`
+			}{
+				UpstreamProductID: p.ID,
+				Error:             err.Error(),
+			})
+			continue
+		}
+		_, importErr := s.importUpstreamProductData(connectionID, conn, adapter, p, categoryID, "", autoCreateCategory, catMap)
 		if importErr != nil {
 			if errors.Is(importErr, mappingcontract.ErrMappingAlreadyExists) {
 				result.SuccessCount++ // 已映射的算成功

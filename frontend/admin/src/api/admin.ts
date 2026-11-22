@@ -649,7 +649,8 @@ export const adminAPI = {
   batchDeleteProductMappings: (ids: number[]) => api.post('/admin/product-mappings/batch-delete', { ids }),
   getUpstreamProducts: (params?: Record<string, unknown>) => api.get('/admin/upstream-products', { params }),
   getUpstreamCategories: (params: { connection_id: string }) => api.get('/admin/upstream-categories', { params }),
-  getUpstreamCategoryCounts: (params: { connection_id: string }) => api.get('/admin/upstream-category-counts', { params }),
+  // 统计要遍历上游全部分页，商品多时远超默认 60s，单独放宽超时。
+  getUpstreamCategoryCounts: (params: { connection_id: string }) => api.get('/admin/upstream-category-counts', { params, timeoutMs: 300000 }),
   batchImportByCategory: (data: Record<string, unknown>) => api.post('/admin/product-mappings/batch-import-by-category', data),
   // Procurement Orders
   getProcurementOrders: (params?: Record<string, unknown>) => api.get('/admin/procurement-orders', { params }),
