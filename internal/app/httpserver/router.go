@@ -221,11 +221,23 @@ func SetupRouter(cfg *config.Config, c *container.Container) *gin.Engine {
 		BlockSeconds:  300,
 		MessageKey:    "error.rate_limited",
 	}
+	// 上游 API 限流可配置：商品多的站点下游全量对接需要更多额度。
+	// 配置为 0 或负数时回退到默认值，避免误配置成"不限流"。
+	upstreamRL := cfg.Security.UpstreamAPIRateLimit
+	if upstreamRL.WindowSeconds <= 0 {
+		upstreamRL.WindowSeconds = 60
+	}
+	if upstreamRL.MaxRequests <= 0 {
+		upstreamRL.MaxRequests = 60
+	}
+	if upstreamRL.BlockSeconds < 0 {
+		upstreamRL.BlockSeconds = 30
+	}
 	upstreamAPIRule := middleware.RateLimitRule{
 		Prefix:        fmt.Sprintf("%s:rate:upstream_api", redisPrefix),
-		WindowSeconds: 60,
-		MaxRequests:   60,
-		BlockSeconds:  30,
+		WindowSeconds: upstreamRL.WindowSeconds,
+		MaxRequests:   upstreamRL.MaxRequests,
+		BlockSeconds:  upstreamRL.BlockSeconds,
 		MessageKey:    "error.rate_limited",
 	}
 	// 渠道 API：按 IP|渠道 Key 计数，Bot 单机高频调用给足余量

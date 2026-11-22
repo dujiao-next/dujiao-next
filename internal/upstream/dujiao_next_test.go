@@ -10,7 +10,71 @@ import (
 	siteconnectiondomain "github.com/dujiao-next/internal/modules/siteconnection/domain"
 )
 
-// 上游返回的图片地址只允许与上游站点同主机，且大小受限，防止 SSRF 把内部响应落到公开目录。
+// 被上游限流（429）时应等待 Retry-After 后重试，而不是把 429 直接冒泡成"拉取失败"。
+func TestRequestRetriesOnRateLimit(t *testing.T) {
+	disableRequestPacing(t)
+
+	var calls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			w.Header().Set("Retry-After", "0")
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = w.Write([]byte(`{"error_code":"rate_limited","error_message":"too many requests"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"ok":true,"categories":[]}`))
+	}))
+	defer server.Close()
+
+	adapter := NewDujiaoNextAdapter(&siteconnectiondomain.Connection{BaseURL: server.URL}, t.TempDir())
+	result, err := adapter.ListCategories(context.Background())
+	if err != nil {
+		t.Fatalf("expected retry to succeed, got %v", err)
+	}
+	if calls != 2 {
+		t.Fatalf("expected 2 attempts, got %d", calls)
+	}
+	if result == nil || !result.Supported {
+		t.Fatalf("expected supported categories, got %+v", result)
+	}
+}
+
+// 持续限流时重试有上限，最终把上游错误返回给调用方。
+func TestRequestStopsAfterMaxAttempts(t *testing.T) {
+	disableRequestPacing(t)
+
+	var calls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.Header().Set("Retry-After", "0")
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte(`{"error_code":"rate_limited","error_message":"too many requests"}`))
+	}))
+	defer server.Close()
+
+	adapter := NewDujiaoNextAdapter(&siteconnectiondomain.Connection{BaseURL: server.URL}, t.TempDir())
+	err := adapter.CancelOrder(context.Background(), 1)
+	if err == nil {
+		t.Fatal("expected error after exhausting retries")
+	}
+	if calls != maxRequestAttempts {
+		t.Fatalf("expected %d attempts, got %d", maxRequestAttempts, calls)
+	}
+	if code := extractUpstreamErrorCode(err); code != "rate_limited" {
+		t.Fatalf("expected rate_limited error code, got %q (%v)", code, err)
+	}
+}
+
+// disableRequestPacing 关闭客户端节流，避免测试被令牌桶拖慢。
+func disableRequestPacing(t *testing.T) {
+	t.Helper()
+	oldBurst, oldInterval := upstreamRequestBurst, upstreamRequestInterval
+	upstreamRequestBurst, upstreamRequestInterval = 0, 0
+	t.Cleanup(func() {
+		upstreamRequestBurst, upstreamRequestInterval = oldBurst, oldInterval
+	})
+}
 func TestDownloadImageRestrictsHostAndSize(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/huge.png" {

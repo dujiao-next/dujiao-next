@@ -154,6 +154,14 @@ security:
     window_seconds: 300
     max_attempts: 5
     block_seconds: 900
+  # 上游对接 API（/api/v1/upstream/*）限流，按「来源 IP + API Key」计数。
+  # 商品多的站点做全站对接/同步时需要连续翻页，额度不够会中途被限流；
+  # 下游适配器会自动等待 Retry-After 后重试，因此这里的值决定的是速度而不是完整性。
+  # 调高前请确认确实有合法的下游批量对接需求。
+  upstream_api_rate_limit:
+    window_seconds: 60
+    max_requests: 60
+    block_seconds: 30
   password_policy:
     min_length: 8
     require_upper: true
