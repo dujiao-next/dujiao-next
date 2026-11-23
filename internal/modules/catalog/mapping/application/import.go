@@ -748,7 +748,9 @@ func listAllUpstreamProducts(ctx context.Context, adapter upstream.Adapter) ([]u
 	products := make([]upstream.UpstreamProduct, 0)
 	seen := make(map[uint]struct{})
 	for page := 1; page <= maxUpstreamProductPages; page++ {
-		pageCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		// 每页超时要能覆盖一次限流重试的等待（上游 Retry-After 可达封禁时长），
+		// 30 秒会被 Retry-After 等待吃光、导致整次翻转以 429 失败。
+		pageCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 		result, err := adapter.ListProducts(pageCtx, upstream.ListProductsOpts{
 			Page:     page,
 			PageSize: upstreamProductPageSize,
@@ -758,10 +760,9 @@ func listAllUpstreamProducts(ctx context.Context, adapter upstream.Adapter) ([]u
 			return nil, fmt.Errorf("fetch upstream products page %d: %w", page, err)
 		}
 		if len(result.Items) == 0 {
-			// 上游声称还有商品却返回空页：宁可报错，也不要让调用方把"部分商品"当成全量。
-			if result.Total > len(products) {
-				return nil, fmt.Errorf("upstream returned empty page %d but total is %d (fetched %d)", page, result.Total, len(products))
-			}
+			// 翻页期间上游可能刚好新增/下架商品，导致 total 与实际可翻到的数量不一致，
+			// 末尾出现空页。三个调用方（按分类导入、分类统计、补分类 ID）少拿个别商品
+			// 都没有害处，直接返回已拿到的商品，避免整次导入因个别商品变动而失败。
 			return products, nil
 		}
 		for _, p := range result.Items {

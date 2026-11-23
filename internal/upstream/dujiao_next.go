@@ -32,11 +32,13 @@ const (
 )
 
 // 客户端节流参数（包级变量，测试可覆盖）。
-// 上游默认限流是每个 Key 60 次/分钟，这里按约 57 次/分钟补充令牌；
-// 保留 10 次突发额度，覆盖「打开导入弹窗同时请求列表 + 分类 + 统计」这类正常操作。
+// 上游默认限流是每个 Key 60 次/分钟。补充间隔 1250ms 即约 48 次/分钟，
+// 加上 10 次突发额度，第一分钟最多发出 58 次，压在 60 次/分钟以下；
+// 突发额度用来覆盖「打开导入弹窗同时请求列表 + 分类 + 统计」这类正常操作，
+// 又不会在批量翻页导入时先把额度打满、触发上游封禁。
 var (
 	upstreamRequestBurst    = 10
-	upstreamRequestInterval = 1050 * time.Millisecond
+	upstreamRequestInterval = 1250 * time.Millisecond
 )
 
 // upstreamPacer 按 baseURL|apiKey 共享的令牌桶。

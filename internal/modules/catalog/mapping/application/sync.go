@@ -543,7 +543,8 @@ func (s *Service) SyncConnectionStock(connectionID uint, connMappings []mappingd
 	expectedTotal := 0
 	page := 1
 	for {
-		ctx, cancel := context.WithTimeout(syncCtx, 30*time.Second)
+		// 与导入翻页一致：每页超时要覆盖一次限流重试的等待，避免被 Retry-After 吃光后失败。
+		ctx, cancel := context.WithTimeout(syncCtx, 2*time.Minute)
 		result, err := adapter.ListProducts(ctx, upstream.ListProductsOpts{
 			Page:            page,
 			PageSize:        pageSize,

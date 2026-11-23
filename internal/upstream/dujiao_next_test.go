@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	siteconnectiondomain "github.com/dujiao-next/internal/modules/siteconnection/domain"
 )
@@ -63,6 +64,61 @@ func TestRequestStopsAfterMaxAttempts(t *testing.T) {
 	}
 	if code := extractUpstreamErrorCode(err); code != "rate_limited" {
 		t.Fatalf("expected rate_limited error code, got %q (%v)", code, err)
+	}
+}
+
+// Retry-After 大于 0 时应等待相应时长再重试。旧用例全用 Retry-After: 0，
+// 覆盖不到「等待把每页超时吃光」的场景，所以单独补一个。
+func TestRequestRetriesOnRateLimitWithRetryAfter(t *testing.T) {
+	disableRequestPacing(t)
+
+	var calls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			w.Header().Set("Retry-After", "1")
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = w.Write([]byte(`{"error_code":"rate_limited","error_message":"too many requests"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"ok":true,"categories":[]}`))
+	}))
+	defer server.Close()
+
+	adapter := NewDujiaoNextAdapter(&siteconnectiondomain.Connection{BaseURL: server.URL}, t.TempDir())
+	start := time.Now()
+	result, err := adapter.ListCategories(context.Background())
+	if err != nil {
+		t.Fatalf("expected retry to succeed with Retry-After>0, got %v", err)
+	}
+	if calls != 2 {
+		t.Fatalf("expected 2 attempts, got %d", calls)
+	}
+	if elapsed := time.Since(start); elapsed < 900*time.Millisecond {
+		t.Fatalf("expected to wait ~1s for Retry-After, waited %v", elapsed)
+	}
+	if result == nil || !result.Supported {
+		t.Fatalf("expected supported categories, got %+v", result)
+	}
+}
+
+// upstreamRetryWait 应优先采用 Retry-After，并按 retryWaitMax 封顶，缺省时退化为按次数递增。
+func TestUpstreamRetryWaitHonorsRetryAfter(t *testing.T) {
+	mkResp := func(retryAfter string) *http.Response {
+		h := http.Header{}
+		if retryAfter != "" {
+			h.Set("Retry-After", retryAfter)
+		}
+		return &http.Response{Header: h}
+	}
+	if got := upstreamRetryWait(mkResp("5"), 1); got != 5*time.Second {
+		t.Fatalf("expected 5s from Retry-After, got %v", got)
+	}
+	if got := upstreamRetryWait(mkResp("999"), 1); got != retryWaitMax {
+		t.Fatalf("expected clamp to %v, got %v", retryWaitMax, got)
+	}
+	if got := upstreamRetryWait(mkResp(""), 3); got != 3*time.Second {
+		t.Fatalf("expected fallback to attempt-based wait, got %v", got)
 	}
 }
 
