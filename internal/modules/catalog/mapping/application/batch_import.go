@@ -18,9 +18,31 @@ import (
 	"github.com/dujiao-next/internal/upstream"
 )
 
-// upstreamBatchScanMinIDs 按 ID 批量导入时，选中商品达到这个数量就先整站扫一遍再取用。
-// 一个上游分页的容量（50）以下逐个 GetProduct 更省请求；超过之后扫描明显更划算。
+// upstreamBatchScanMinIDs 按 ID 批量导入时，选中商品达到这个数量才考虑整站扫描。
+// 是否真的扫描还要看上游规模：见 shouldScanUpstreamProducts。
 const upstreamBatchScanMinIDs = 50
+
+// shouldScanUpstreamProducts 判断整站扫描是否比逐个 GetProduct 更省请求。
+// 先取第一页拿到 total 和上游实际的 page_size，估算扫描需要的页数：
+// 需要的页数比选中数量多时，逐个取更省，就不扫（大型上游上选 50 个扫全站反而更慢）。
+// 拿不到 total（旧上游）时保持旧行为——选中够多就扫。
+func shouldScanUpstreamProducts(adapter upstream.Adapter, selected int) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	result, err := adapter.ListProducts(ctx, upstream.ListProductsOpts{
+		Page:     1,
+		PageSize: upstreamProductPageSize,
+	})
+	if err != nil || result == nil || result.Total <= 0 {
+		return true
+	}
+	pageSize := result.PageSize
+	if pageSize <= 0 {
+		pageSize = upstreamProductPageSize
+	}
+	pagesNeeded := (result.Total + pageSize - 1) / pageSize
+	return pagesNeeded <= selected
+}
 
 // acquireBatchImportLock 同一连接同时只允许一个批量导入：大批量导入常超过 HTTP 超时，
 // 管理员重试时后台仍在跑上一批，并发导入会产生重复商品。
@@ -92,11 +114,12 @@ func (s *Service) BatchImportUpstreamProducts(
 		catMap = fetched
 	}
 
-	// 一次选中很多商品时先整站扫一遍再按 ID 取用：逐个 GetProduct 会让大批量选中
-	// 直接撞上上游 60 次/分钟的限流，而整站扫描只需要 ceil(total/200) 次请求。
+	// 一次选中很多商品时，先比较「整站扫描」和「逐个 GetProduct」谁的请求更少：
+	// 扫描需要 ceil(total/page_size) 次，逐个取需要选中数量次。商品多的上游上
+	// 选中 50 个就扫全站反而更慢，所以按第一页的 total/page_size 决定。
 	// 扫描失败或某个 ID 不在结果里时，回退到逐个 GetProduct，行为与之前一致。
 	scanned := map[uint]upstream.UpstreamProduct{}
-	if len(upstreamProductIDs) >= upstreamBatchScanMinIDs {
+	if len(upstreamProductIDs) >= upstreamBatchScanMinIDs && shouldScanUpstreamProducts(adapter, len(upstreamProductIDs)) {
 		if allProducts, scanErr := listAllUpstreamProducts(context.Background(), adapter); scanErr == nil {
 			for _, p := range allProducts {
 				scanned[p.ID] = p
@@ -106,24 +129,16 @@ func (s *Service) BatchImportUpstreamProducts(
 
 	outcomes := make([]BatchUpstreamProductImportOutcome, 0, len(upstreamProductIDs))
 	for _, id := range upstreamProductIDs {
+		var mapping *mappingdomain.Mapping
+		var importErr error
 		if p, ok := scanned[id]; ok {
-			if err := s.ensureNoMapping(connectionID, id); err != nil {
-				outcomes = append(outcomes, BatchUpstreamProductImportOutcome{
-					UpstreamProductID: id,
-					Err:               err,
-				})
-				continue
+			if importErr = s.ensureNoMapping(connectionID, id); importErr == nil {
+				product := p
+				mapping, importErr = s.importUpstreamProductData(connectionID, conn, adapter, &product, categoryID, "", autoCreateCategory, catMap)
 			}
-			product := p
-			mapping, importErr := s.importUpstreamProductData(connectionID, conn, adapter, &product, categoryID, "", autoCreateCategory, catMap)
-			outcomes = append(outcomes, BatchUpstreamProductImportOutcome{
-				UpstreamProductID: id,
-				Mapping:           mapping,
-				Err:               importErr,
-			})
-			continue
+		} else {
+			mapping, importErr = s.importUpstreamProduct(connectionID, id, categoryID, "", autoCreateCategory, catMap)
 		}
-		mapping, importErr := s.importUpstreamProduct(connectionID, id, categoryID, "", autoCreateCategory, catMap)
 		outcomes = append(outcomes, BatchUpstreamProductImportOutcome{
 			UpstreamProductID: id,
 			Mapping:           mapping,
@@ -231,36 +246,25 @@ func (s *Service) BatchImportByCategory(
 	}
 	for i := range targetProducts {
 		p := &targetProducts[i]
-		if err := s.ensureNoMapping(connectionID, p.ID); err != nil {
-			if errors.Is(err, mappingcontract.ErrMappingAlreadyExists) {
-				result.SuccessCount++ // 已映射的算成功
-				continue
-			}
-			result.Errors = append(result.Errors, struct {
-				UpstreamProductID uint   `json:"upstream_product_id"`
-				Error             string `json:"error"`
-			}{
-				UpstreamProductID: p.ID,
-				Error:             err.Error(),
-			})
+		importErr := s.ensureNoMapping(connectionID, p.ID)
+		if importErr == nil {
+			_, importErr = s.importUpstreamProductData(connectionID, conn, adapter, p, categoryID, "", autoCreateCategory, catMap)
+		}
+		if importErr == nil {
+			result.SuccessCount++
 			continue
 		}
-		_, importErr := s.importUpstreamProductData(connectionID, conn, adapter, p, categoryID, "", autoCreateCategory, catMap)
-		if importErr != nil {
-			if errors.Is(importErr, mappingcontract.ErrMappingAlreadyExists) {
-				result.SuccessCount++ // 已映射的算成功
-				continue
-			}
-			result.Errors = append(result.Errors, struct {
-				UpstreamProductID uint   `json:"upstream_product_id"`
-				Error             string `json:"error"`
-			}{
-				UpstreamProductID: p.ID,
-				Error:             importErr.Error(),
-			})
-		} else {
-			result.SuccessCount++
+		if errors.Is(importErr, mappingcontract.ErrMappingAlreadyExists) {
+			result.SuccessCount++ // 已映射的算成功
+			continue
 		}
+		result.Errors = append(result.Errors, struct {
+			UpstreamProductID uint   `json:"upstream_product_id"`
+			Error             string `json:"error"`
+		}{
+			UpstreamProductID: p.ID,
+			Error:             importErr.Error(),
+		})
 	}
 
 	return result, nil
