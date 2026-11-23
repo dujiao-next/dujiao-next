@@ -319,6 +319,75 @@ func seedPaidResellerOrderSnapshot(t *testing.T, db *gorm.DB, eligible bool) (or
 	return order, payment, snapshot
 }
 
+// seedResellerOrderForProfile 给已存在的分销商再建一笔已支付订单，用于验证待抵扣跨订单冲抵。
+func seedResellerOrderForProfile(t *testing.T, db *gorm.DB, resellerID, resellerUserID uint, profitAmount, onlineAmount decimal.Decimal) (orderdomain.Order, paymentdomain.Payment) {
+	t.Helper()
+	buyer := userdomain.User{Email: fmt.Sprintf("buyer2-%d@example.test", uniqueTestID()), PasswordHash: "x"}
+	if err := db.Create(&buyer).Error; err != nil {
+		t.Fatalf("create buyer failed: %v", err)
+	}
+	now := time.Now()
+	order := orderdomain.Order{
+		OrderNo:              fmt.Sprintf("DJ-RES-%d", uniqueTestID()),
+		UserID:               buyer.ID,
+		Status:               constants.OrderStatusPaid,
+		TotalAmount:          money.FromDecimal(onlineAmount),
+		OriginalAmount:       money.FromDecimal(onlineAmount),
+		Currency:             "USD",
+		WalletPaidAmount:     money.FromDecimal(decimal.Zero),
+		OnlinePaidAmount:     money.FromDecimal(onlineAmount),
+		ResellerID:           &resellerID,
+		ResellerDomain:       "shop.example.test",
+		ResellerProfitAmount: money.FromDecimal(profitAmount),
+		PaidAt:               &now,
+		CreatedAt:            now,
+		UpdatedAt:            now,
+	}
+	if err := db.Create(&order).Error; err != nil {
+		t.Fatalf("create order failed: %v", err)
+	}
+	channel := paymentdomain.PaymentChannel{
+		Name:         fmt.Sprintf("Stripe-%d", uniqueTestID()),
+		ProviderType: constants.PaymentProviderOfficial,
+		ChannelType:  constants.PaymentChannelTypeStripe,
+		IsActive:     true,
+	}
+	if err := db.Create(&channel).Error; err != nil {
+		t.Fatalf("create payment channel failed: %v", err)
+	}
+	payment := paymentdomain.Payment{
+		OrderID:   order.ID,
+		ChannelID: channel.ID,
+		Status:    constants.PaymentStatusSuccess,
+		Amount:    money.FromDecimal(onlineAmount),
+		Currency:  "USD",
+		PaidAt:    &now,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := db.Create(&payment).Error; err != nil {
+		t.Fatalf("create payment failed: %v", err)
+	}
+	if err := db.Create(&resellerdomain.OrderSnapshot{
+		OrderID:          order.ID,
+		ResellerID:       resellerID,
+		Domain:           "shop.example.test",
+		Currency:         "USD",
+		ResellerUserID:   resellerUserID,
+		BuyerUserID:      buyer.ID,
+		BaseAmount:       money.FromDecimal(onlineAmount.Sub(profitAmount)),
+		ResellerAmount:   money.FromDecimal(onlineAmount),
+		ProfitAmount:     money.FromDecimal(profitAmount),
+		ProfitEligible:   true,
+		RiskSnapshotJSON: jsonmap.JSON{"profit_eligible": true},
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}).Error; err != nil {
+		t.Fatalf("create snapshot failed: %v", err)
+	}
+	return order, payment
+}
+
 func TestResellerAccountingPostOrderProfitIdempotent(t *testing.T) {
 	db := openResellerAccountingServiceTestDB(t)
 	order, payment, snapshot := seedPaidResellerOrderSnapshot(t, db, true)
@@ -1022,5 +1091,98 @@ func TestResellerAccountingRefundUsesNetProfitAfterChannelFee(t *testing.T) {
 	}
 	if deduct.Amount.String() != "-14.00" {
 		t.Fatalf("expected half-of-net deduction -14.00, got %s", deduct.Amount.String())
+	}
+}
+
+// TestResellerAccountingChannelFeeCarryoverAccumulates 验证利润不足以覆盖分摊额时，
+// 扣满利润后的差额记入「待抵扣」，且重复入账不会重复累计。
+func TestResellerAccountingChannelFeeCarryoverAccumulates(t *testing.T) {
+	db := openResellerAccountingServiceTestDB(t)
+	order, payment, snapshot := seedPaidResellerOrderSnapshot(t, db, true)
+	snapshot.ProfitAmount = money.FromDecimal(decimal.NewFromInt(1))
+	if err := db.Save(&snapshot).Error; err != nil {
+		t.Fatalf("shrink snapshot profit failed: %v", err)
+	}
+	repo := resellergormstore.New(db)
+	svc := newResellerAccountingTestHarnessWithFee(repo, 0, 2)
+	for i := 0; i < 2; i++ {
+		if err := db.Transaction(func(tx *gorm.DB) error {
+			return svc.ledger.PostOrderProfit(svc.store.BindTx(tx), &order, &payment)
+		}); err != nil {
+			t.Fatalf("post profit attempt %d failed: %v", i+1, err)
+		}
+	}
+	var row resellerdomain.LedgerEntry
+	if err := db.Where("idempotency_key = ?", fmt.Sprintf("order_profit:%d", order.ID)).First(&row).Error; err != nil {
+		t.Fatalf("load profit ledger failed: %v", err)
+	}
+	if row.Amount.String() != "0.00" {
+		t.Fatalf("expected profit clamped to 0.00, got %s", row.Amount.String())
+	}
+	if got := fmt.Sprint(row.MetadataJSON["channel_fee_due"]); got != "2.00" {
+		t.Fatalf("expected channel_fee_due 2.00, got %v", row.MetadataJSON["channel_fee_due"])
+	}
+	if got := fmt.Sprint(row.MetadataJSON["channel_fee_amount"]); got != "1.00" {
+		t.Fatalf("expected channel_fee_amount 1.00 (capped by profit), got %v", row.MetadataJSON["channel_fee_amount"])
+	}
+	if got := fmt.Sprint(row.MetadataJSON["channel_fee_deferred"]); got != "1.00" {
+		t.Fatalf("expected channel_fee_deferred 1.00, got %v", row.MetadataJSON["channel_fee_deferred"])
+	}
+	var balance resellerdomain.BalanceAccount
+	if err := db.Where("reseller_id = ? AND currency = ?", snapshot.ResellerID, "USD").First(&balance).Error; err != nil {
+		t.Fatalf("load balance failed: %v", err)
+	}
+	if balance.ChannelFeeCarryover.String() != "1.00" {
+		t.Fatalf("expected carryover 1.00 after idempotent posts, got %s", balance.ChannelFeeCarryover.String())
+	}
+}
+
+// TestResellerAccountingChannelFeeCarryoverOffsetByNextProfit 验证后续订单利润优先冲抵历史待抵扣。
+func TestResellerAccountingChannelFeeCarryoverOffsetByNextProfit(t *testing.T) {
+	db := openResellerAccountingServiceTestDB(t)
+	orderA, paymentA, snapshotA := seedPaidResellerOrderSnapshot(t, db, true)
+	snapshotA.ProfitAmount = money.FromDecimal(decimal.NewFromInt(1))
+	if err := db.Save(&snapshotA).Error; err != nil {
+		t.Fatalf("shrink snapshot profit failed: %v", err)
+	}
+	repo := resellergormstore.New(db)
+	svc := newResellerAccountingTestHarnessWithFee(repo, 0, 2)
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		return svc.ledger.PostOrderProfit(svc.store.BindTx(tx), &orderA, &paymentA)
+	}); err != nil {
+		t.Fatalf("post first profit failed: %v", err)
+	}
+
+	orderB, paymentB := seedResellerOrderForProfile(t, db, snapshotA.ResellerID, snapshotA.ResellerUserID,
+		decimal.NewFromInt(30), decimal.NewFromInt(100))
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		return svc.ledger.PostOrderProfit(svc.store.BindTx(tx), &orderB, &paymentB)
+	}); err != nil {
+		t.Fatalf("post second profit failed: %v", err)
+	}
+
+	var row resellerdomain.LedgerEntry
+	if err := db.Where("idempotency_key = ?", fmt.Sprintf("order_profit:%d", orderB.ID)).First(&row).Error; err != nil {
+		t.Fatalf("load second profit ledger failed: %v", err)
+	}
+	// 本单应分摊 2，加上历史待抵扣 1，共扣 3，净额 30 - 3 = 27。
+	if row.Amount.String() != "27.00" {
+		t.Fatalf("expected net profit 27.00 after offsetting carryover, got %s", row.Amount.String())
+	}
+	if got := fmt.Sprint(row.MetadataJSON["channel_fee_due"]); got != "2.00" {
+		t.Fatalf("expected channel_fee_due 2.00, got %v", row.MetadataJSON["channel_fee_due"])
+	}
+	if got := fmt.Sprint(row.MetadataJSON["channel_fee_amount"]); got != "3.00" {
+		t.Fatalf("expected channel_fee_amount 3.00 (2 due + 1 carryover), got %v", row.MetadataJSON["channel_fee_amount"])
+	}
+	if got := fmt.Sprint(row.MetadataJSON["channel_fee_deferred"]); got != "0.00" {
+		t.Fatalf("expected channel_fee_deferred 0.00, got %v", row.MetadataJSON["channel_fee_deferred"])
+	}
+	var balance resellerdomain.BalanceAccount
+	if err := db.Where("reseller_id = ? AND currency = ?", snapshotA.ResellerID, "USD").First(&balance).Error; err != nil {
+		t.Fatalf("load balance failed: %v", err)
+	}
+	if balance.ChannelFeeCarryover.String() != "0.00" {
+		t.Fatalf("expected carryover cleared to 0.00, got %s", balance.ChannelFeeCarryover.String())
 	}
 }
