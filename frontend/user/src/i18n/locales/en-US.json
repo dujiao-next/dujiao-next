@@ -945,7 +945,8 @@
         "amount": "Amount",
         "status": "Status",
         "availableAt": "Available At",
-        "createdAt": "Created At"
+        "createdAt": "Created At",
+        "channelFeeHint": "Gross {gross} · channel fee −{fee}"
       },
       "withdrawTable": {
         "amount": "Amount",

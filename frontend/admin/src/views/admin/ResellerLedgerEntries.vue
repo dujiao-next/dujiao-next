@@ -121,6 +121,23 @@ const ledgerTypeLabel = (type?: string) => {
   return type || '-'
 }
 
+// 订单收益若已按通道费分摊扣减，补充展示原毛利与扣费金额（后台接口直接返回 metadata_json）。
+const ledgerMetadataValue = (item: AdminResellerLedgerEntry, key: string) => {
+  const meta = item?.metadata_json
+  if (!meta || typeof meta !== 'object') return ''
+  const value = (meta as Record<string, unknown>)[key]
+  return value === undefined || value === null ? '' : String(value).trim()
+}
+
+const channelFeeHint = (item: AdminResellerLedgerEntry) => {
+  const fee = Number(ledgerMetadataValue(item, 'channel_fee_amount') || 0)
+  if (item?.type !== RESELLER_LEDGER_TYPE_ORDER_PROFIT || !(fee > 0)) return ''
+  return t('admin.resellerLedgerEntries.table.channelFeeHint', {
+    gross: Number(ledgerMetadataValue(item, 'gross_profit_amount') || 0).toFixed(2),
+    fee: fee.toFixed(2),
+  })
+}
+
 const statusLabel = (status?: string) => {
   if (status === RESELLER_LEDGER_STATUS_PENDING_CONFIRM) return t('admin.resellerLedgerEntries.status.pending_confirm')
   if (status === RESELLER_LEDGER_STATUS_AVAILABLE) return t('admin.resellerLedgerEntries.status.available')
@@ -263,7 +280,10 @@ onMounted(() => {
                 <span v-else>-</span>
               </TableCell>
               <TableCell class="min-w-[110px] px-6 py-4 text-xs text-foreground">{{ ledgerTypeLabel(item.type) }}</TableCell>
-              <TableCell class="px-6 py-4 font-mono text-xs text-foreground">{{ item.amount || '0.00' }}</TableCell>
+              <TableCell class="px-6 py-4 font-mono text-xs text-foreground">
+                <div>{{ item.amount || '0.00' }}</div>
+                <div v-if="channelFeeHint(item)" class="mt-0.5 font-sans text-[11px] text-muted-foreground">{{ channelFeeHint(item) }}</div>
+              </TableCell>
               <TableCell class="px-6 py-4 font-mono text-xs text-muted-foreground">{{ item.currency || '-' }}</TableCell>
               <TableCell class="min-w-[110px] px-6 py-4 text-xs">
                 <span class="inline-flex rounded-full border px-2.5 py-1 text-xs" :class="statusClass(item.status)">

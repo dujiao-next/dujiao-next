@@ -381,6 +381,10 @@ export interface ResellerLedgerData {
     available_at?: string
     withdraw_request_id?: number
     created_at: string
+    /** 通道费分摊明细：amount 已是净额，这里补充原毛利与扣费金额 */
+    gross_profit_amount?: string
+    channel_fee_percent?: string
+    channel_fee_amount?: string
 }
 
 export interface ResellerWithdrawData {
