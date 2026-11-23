@@ -165,6 +165,7 @@ onMounted(() => {
               <TableHead class="px-6 py-3">{{ t('admin.resellerBalanceAccounts.table.available') }}</TableHead>
               <TableHead class="px-6 py-3">{{ t('admin.resellerBalanceAccounts.table.locked') }}</TableHead>
               <TableHead class="px-6 py-3">{{ t('admin.resellerBalanceAccounts.table.negative') }}</TableHead>
+              <TableHead class="px-6 py-3">{{ t('admin.resellerBalanceAccounts.table.carryover') }}</TableHead>
               <TableHead class="min-w-[110px] px-6 py-3">{{ t('admin.resellerBalanceAccounts.table.status') }}</TableHead>
               <TableHead class="min-w-[100px] px-6 py-3">{{ t('admin.resellerBalanceAccounts.table.lastLedger') }}</TableHead>
               <TableHead class="min-w-[140px] px-6 py-3">{{ t('admin.resellerBalanceAccounts.table.updatedAt') }}</TableHead>
@@ -172,12 +173,12 @@ onMounted(() => {
           </TableHeader>
           <TableBody class="divide-y divide-border">
             <TableRow v-if="loading">
-              <TableCell :colspan="9" class="p-0">
+              <TableCell :colspan="10" class="p-0">
                 <TableSkeleton :columns="9" :rows="5" />
               </TableCell>
             </TableRow>
             <TableRow v-else-if="rows.length === 0">
-              <TableCell colspan="9" class="px-6 py-8 text-center text-muted-foreground">{{ t('admin.resellerBalanceAccounts.empty') }}</TableCell>
+              <TableCell colspan="10" class="px-6 py-8 text-center text-muted-foreground">{{ t('admin.resellerBalanceAccounts.empty') }}</TableCell>
             </TableRow>
             <TableRow v-for="item in rows" :key="item.id" class="hover:bg-muted/30">
               <TableCell class="px-6 py-4">
@@ -205,6 +206,9 @@ onMounted(() => {
               <TableCell class="px-6 py-4 font-mono text-xs text-foreground">{{ item.locked_amount_cache || '0.00' }}</TableCell>
               <TableCell class="px-6 py-4 font-mono text-xs" :class="isNegative(item.negative_amount_cache) ? 'text-destructive' : 'text-foreground'">
                 {{ item.negative_amount_cache || '0.00' }}
+              </TableCell>
+              <TableCell class="px-6 py-4 font-mono text-xs text-foreground">
+                {{ item.channel_fee_carryover || '0.00' }}
               </TableCell>
               <TableCell class="min-w-[110px] px-6 py-4 text-xs">
                 <span class="inline-flex rounded-full border px-2.5 py-1 text-xs" :class="statusClass(item.status)">

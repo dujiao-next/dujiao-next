@@ -20,13 +20,15 @@ type ResellerProfileSummaryResp struct {
 }
 
 type ResellerBalanceResp struct {
-	ID              uint      `json:"id"`
-	Currency        string    `json:"currency"`
-	Status          string    `json:"status"`
-	AvailableAmount string    `json:"available_amount"`
-	LockedAmount    string    `json:"locked_amount"`
-	NegativeAmount  string    `json:"negative_amount"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID              uint   `json:"id"`
+	Currency        string `json:"currency"`
+	Status          string `json:"status"`
+	AvailableAmount string `json:"available_amount"`
+	LockedAmount    string `json:"locked_amount"`
+	NegativeAmount  string `json:"negative_amount"`
+	// ChannelFeeCarryover 通道费分摊待抵扣余额，后续订单利润会优先冲抵。
+	ChannelFeeCarryover string    `json:"channel_fee_carryover"`
+	UpdatedAt           time.Time `json:"updated_at"`
 }
 
 type ResellerLedgerResp struct {
@@ -554,13 +556,14 @@ func NewResellerBalanceResp(row *resellerdomain.BalanceAccount) ResellerBalanceR
 		return ResellerBalanceResp{}
 	}
 	return ResellerBalanceResp{
-		ID:              row.ID,
-		Currency:        row.Currency,
-		Status:          row.Status,
-		AvailableAmount: row.AvailableAmountCache.String(),
-		LockedAmount:    row.LockedAmountCache.String(),
-		NegativeAmount:  row.NegativeAmountCache.String(),
-		UpdatedAt:       row.UpdatedAt,
+		ID:                  row.ID,
+		Currency:            row.Currency,
+		Status:              row.Status,
+		AvailableAmount:     row.AvailableAmountCache.String(),
+		LockedAmount:        row.LockedAmountCache.String(),
+		NegativeAmount:      row.NegativeAmountCache.String(),
+		ChannelFeeCarryover: row.ChannelFeeCarryover.String(),
+		UpdatedAt:           row.UpdatedAt,
 	}
 }
 

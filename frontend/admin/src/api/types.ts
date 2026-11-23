@@ -1153,6 +1153,7 @@ export interface AdminResellerBalanceAccount {
   available_amount_cache: number | string
   locked_amount_cache: number | string
   negative_amount_cache: number | string
+  channel_fee_carryover?: number | string
   last_ledger_entry_id: number
   risk_note?: string
   created_at: string
