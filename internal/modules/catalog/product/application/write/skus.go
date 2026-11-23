@@ -74,6 +74,10 @@ func (s *WriteService) syncSingleProductSKU(
 	}
 	target.IsActive = true
 	target.SpecValuesJSON = jsonmap.JSON{}
+	// 切回单规格后这行 SKU 在后台编辑框里是隐藏的（只有一行且编码为 DEFAULT），
+	// 残留的返利比例既看不到也清不掉，却仍会被 ResolveAffiliateRate 优先采用。
+	// 因此合并时清空，回到「跟随商品 / 全站」语义。
+	target.AffiliateRatePercent = nil
 	if strings.ToUpper(strings.TrimSpace(target.SKUCode)) != strings.ToUpper(productdomain.DefaultSKUCode) {
 		// 改名为 DEFAULT 前先清理同编码的软删除残留，否则会撞唯一索引。
 		if err := skuRepo.PurgeSoftDeletedByProductAndCode(productID, productdomain.DefaultSKUCode); err != nil {
