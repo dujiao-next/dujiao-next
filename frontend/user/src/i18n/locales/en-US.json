@@ -76,6 +76,33 @@
       "payWechat": "WeChat"
     }
   },
+  "atelier": {
+    "trustAuto": "24/7 automated instant delivery",
+    "autoShort": "Auto Delivery",
+    "manualShort": "Manual Delivery",
+    "buyShort": "Buy",
+    "quickSearch": "Quick Search",
+    "heroSubtitle": "Search by keyword or pick a category to inspect live stock and variants.",
+    "viewCard": "Cards",
+    "viewTable": "Table",
+    "catalogHeading": "All Products",
+    "receiptTitle": "Order Summary",
+    "receiptReady": "READY",
+    "receiptUnavailable": "UNAVAILABLE",
+    "receiptProduct": "Product",
+    "receiptSku": "Variant",
+    "receiptDelivery": "Delivery",
+    "receiptUnitQty": "Unit × Qty",
+    "receiptSubtotal": "Estimated Total",
+    "stepSku": "Select Variant",
+    "stepQty": "Configure Quantity",
+    "stepDetail": "Specifications & Details",
+    "changelogTag": "UPDATES",
+    "assurance": {
+      "autoDesc": "Automatically delivered upon payment",
+      "manualDesc": "Verified & delivered promptly"
+    }
+  },
   "breadcrumb": {
     "label": "Breadcrumb",
     "back": "Back to {name}"

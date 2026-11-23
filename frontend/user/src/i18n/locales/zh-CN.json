@@ -76,6 +76,33 @@
       "payWechat": "微信"
     }
   },
+  "atelier": {
+    "trustAuto": "7×24h 自动化秒级交付",
+    "autoShort": "自动交付",
+    "manualShort": "人工交付",
+    "buyShort": "选购",
+    "quickSearch": "快速检索",
+    "heroSubtitle": "直接输入关键词或选择分类，快速查看实时库存与规格报价。",
+    "viewCard": "精密卡片",
+    "viewTable": "规格横表",
+    "catalogHeading": "全部商品",
+    "receiptTitle": "实时订单回执",
+    "receiptReady": "可下单",
+    "receiptUnavailable": "暂不可购",
+    "receiptProduct": "商品",
+    "receiptSku": "已选规格",
+    "receiptDelivery": "交付方式",
+    "receiptUnitQty": "单价 × 数量",
+    "receiptSubtotal": "预计小计",
+    "stepSku": "选择商品规格",
+    "stepQty": "配置购买数量",
+    "stepDetail": "商品详情与说明",
+    "changelogTag": "UPDATES",
+    "assurance": {
+      "autoDesc": "支付完成后系统自动交付",
+      "manualDesc": "专人核验快速交付"
+    }
+  },
   "breadcrumb": {
     "label": "面包屑导航",
     "back": "返回{name}"

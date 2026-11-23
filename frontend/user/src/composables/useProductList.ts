@@ -32,6 +32,7 @@ export function useProductList(options: UseProductListOptions = {}) {
   const currentPage = ref(1)
   const pageSize = ref(defaultPageSize)
   const totalPages = ref(0)
+  const total = ref(0)
   const expandedParentIds = ref<number[]>([])
 
   const categoryGroups = computed(() => buildCategoryGroups(categories.value))
@@ -144,6 +145,9 @@ export function useProductList(options: UseProductListOptions = {}) {
       products.value = response.data.data || []
       if (response.data.pagination) {
         totalPages.value = response.data.pagination.total_page || 0
+        total.value = Number(response.data.pagination.total ?? 0)
+      } else {
+        total.value = products.value.length
       }
       // 页码超出范围时回落到末页并重新加载
       if (totalPages.value > 0 && page > totalPages.value) {
@@ -319,6 +323,7 @@ export function useProductList(options: UseProductListOptions = {}) {
     currentPage,
     pageSize,
     totalPages,
+    total,
     expandedParentIds,
     categoryGroups,
     categoryMap,

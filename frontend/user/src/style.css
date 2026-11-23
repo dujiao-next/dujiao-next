@@ -715,18 +715,18 @@ html[data-telegram-mini-app="true"] body {
   margin-top: 0;
 }
 
-/* Unlayered: 默认模板的个人中心面板和挂到 body 的弹窗（确认框 / 公告 / 邀请码 / 快速购买）与 vault 共用组件，
-   这里把主色改指向墨色，弹窗再换成浮起卡片的外形；vault 生效时 body 带 .vault-tokens，不受影响 */
+/* Unlayered: 默认模板的个人中心面板和挂到 body 的弹窗（确认框 / 公告 / 邀请码 / 快速购买）与 vault / atelier 共用组件，
+   这里把主色改指向墨色，弹窗再换成浮起卡片的外形；vault / atelier 生效时 body 带 .vault-tokens / .atelier-tokens，不受影响 */
 .pc-panels,
 .reseller-console,
-body:not(.vault-tokens) :is([role='dialog'], [role='alertdialog']) {
+body:not(.vault-tokens):not(.atelier-tokens) :is([role='dialog'], [role='alertdialog']) {
   /* @theme inline 下工具类直接引用 --ui-*，所以覆盖的是这一层 */
   --ui-accent: var(--ui-text-primary);
   --ui-accent-hover: var(--ui-text-primary);
   --ui-accent-soft: color-mix(in srgb, var(--ui-text-primary) 10%, transparent);
   --ui-text-on-accent: var(--ui-bg-page);
 }
-body:not(.vault-tokens) :is([role='dialog'], [role='alertdialog']) {
+body:not(.vault-tokens):not(.atelier-tokens) :is([role='dialog'], [role='alertdialog']) {
   /* 上面 utilities 层用 !important 把 rounded-2xl/3xl 钉在这两个变量上，只能改变量 */
   --ui-radius-lg: 28px;
   --ui-radius-xl: 28px;
@@ -735,20 +735,20 @@ body:not(.vault-tokens) :is([role='dialog'], [role='alertdialog']) {
   border-top-right-radius: 28px;
 }
 /* 快速购买在手机上是贴底抽屉，底边不圆 */
-body:not(.vault-tokens) :is([role='dialog'], [role='alertdialog']):not(.rounded-t-2xl) {
+body:not(.vault-tokens):not(.atelier-tokens) :is([role='dialog'], [role='alertdialog']):not(.rounded-t-2xl) {
   border-radius: 28px;
 }
 @media (min-width: 768px) {
-  body:not(.vault-tokens) [role='dialog'].rounded-t-2xl {
+  body:not(.vault-tokens):not(.atelier-tokens) [role='dialog'].rounded-t-2xl {
     border-radius: 28px;
   }
 }
 /* 外壳的圆角变量不往里传，值与 :root 保持一致 */
-body:not(.vault-tokens) :is([role='dialog'], [role='alertdialog']) > * {
+body:not(.vault-tokens):not(.atelier-tokens) :is([role='dialog'], [role='alertdialog']) > * {
   --ui-radius-lg: 1rem;
   --ui-radius-xl: 1.5rem;
 }
-body:not(.vault-tokens) :is([role='dialog'], [role='alertdialog']) [data-slot='button'] {
+body:not(.vault-tokens):not(.atelier-tokens) :is([role='dialog'], [role='alertdialog']) [data-slot='button'] {
   --ui-radius-sm: 9999px;
   --ui-radius-md: 9999px;
   border-radius: 9999px;
@@ -763,30 +763,30 @@ body:not(.vault-tokens) :is([role='dialog'], [role='alertdialog']) [data-slot='b
   color: var(--ui-bg-page);
 }
 /* 弹窗内的键盘焦点环不用浏览器默认蓝 */
-body:not(.vault-tokens) :is([role='dialog'], [role='alertdialog']) :focus-visible {
+body:not(.vault-tokens):not(.atelier-tokens) :is([role='dialog'], [role='alertdialog']) :focus-visible {
   outline: 2px solid var(--ui-text-primary);
   outline-offset: 2px;
 }
 /* Toast：胶囊形、无描边；普通提示用墨色，成功 / 失败保留语义色 */
-body:not(.vault-tokens) .toast-item {
+body:not(.vault-tokens):not(.atelier-tokens) .toast-item {
   border-width: 0;
   border-radius: 9999px;
   padding-inline: 1.125rem;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 12px 28px -12px rgba(0, 0, 0, 0.28);
 }
-body:not(.vault-tokens) .toast-item.bg-card {
+body:not(.vault-tokens):not(.atelier-tokens) .toast-item.bg-card {
   background-color: var(--ui-text-primary);
   color: var(--ui-bg-page);
 }
 
 /* 默认模板的勾选框、开关选中态跟主按钮一样用墨色 */
-body:not(.vault-tokens) :is([data-slot='checkbox'], [data-slot='switch']) {
+body:not(.vault-tokens):not(.atelier-tokens) :is([data-slot='checkbox'], [data-slot='switch']) {
   --ui-accent: var(--ui-text-primary);
   --ui-text-on-accent: var(--ui-bg-page);
 }
 
 /* 默认模板的主按钮统一为墨色胶囊，兜住没有单独写墨色类的 Button */
-body:not(.vault-tokens) [data-slot='button'].bg-primary {
+body:not(.vault-tokens):not(.atelier-tokens) [data-slot='button'].bg-primary {
   --ui-accent: var(--ui-text-primary);
   --ui-text-on-accent: var(--ui-bg-page);
   --ui-radius-sm: 9999px;

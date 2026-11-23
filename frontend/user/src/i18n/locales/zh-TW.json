@@ -76,6 +76,33 @@
       "payWechat": "微信"
     }
   },
+  "atelier": {
+    "trustAuto": "7×24h 自動化秒級交付",
+    "autoShort": "自動交付",
+    "manualShort": "人工交付",
+    "buyShort": "選購",
+    "quickSearch": "快速檢索",
+    "heroSubtitle": "直接輸入關鍵詞或選擇分類，快速查看即時庫存與規格報價。",
+    "viewCard": "精密卡片",
+    "viewTable": "規格橫表",
+    "catalogHeading": "全部商品",
+    "receiptTitle": "即時訂單回執",
+    "receiptReady": "可下單",
+    "receiptUnavailable": "暫不可購",
+    "receiptProduct": "商品",
+    "receiptSku": "已選規格",
+    "receiptDelivery": "交付方式",
+    "receiptUnitQty": "單價 × 數量",
+    "receiptSubtotal": "預計小計",
+    "stepSku": "選擇商品規格",
+    "stepQty": "配置購買數量",
+    "stepDetail": "商品詳情與說明",
+    "changelogTag": "UPDATES",
+    "assurance": {
+      "autoDesc": "支付完成後系統自動交付",
+      "manualDesc": "專人核驗快速交付"
+    }
+  },
   "breadcrumb": {
     "label": "麵包屑導航",
     "back": "返回{name}"

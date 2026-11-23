@@ -127,71 +127,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Home, LayoutGrid, Newspaper, Info, Mail, Headphones } from 'lucide-vue-next'
-import { useAppStore } from '../stores/app'
-import { getImageUrl } from '../utils/image'
-import { getLocalizedText } from '../utils/resellerSiteConfig'
+import { Mail, Headphones } from 'lucide-vue-next'
+import { useFooterConfig } from '../composables/useFooterConfig'
 
 const { t } = useI18n()
-const appStore = useAppStore()
-
-const config = computed(() => appStore.config)
-
-const brandSiteName = computed(() => {
-  const siteName = config.value?.brand?.site_name
-  return typeof siteName === 'string' && siteName.trim() ? siteName.trim() : 'Dujiao-Next'
-})
-
-const brandDescription = computed(() => {
-  const desc = config.value?.brand?.site_description
-  if (desc && typeof desc === 'object') {
-    const val = desc[appStore.locale] || desc['zh-CN'] || ''
-    return typeof val === 'string' ? val.trim() : ''
-  }
-  return ''
-})
-
-const brandInitial = computed(() => {
-  return brandSiteName.value.charAt(0).toUpperCase()
-})
-
-const brandLogo = computed(() => {
-  const raw = String(config.value?.brand?.site_logo || '').trim()
-  return raw ? getImageUrl(raw) : ''
-})
-
-const isListMode = computed(() => config.value?.template_mode === 'list')
-const navConfig = computed(() => config.value?.nav_config as { builtin?: Record<string, boolean> } | undefined)
-
-const quickLinks = computed(() => {
-  const items = [
-    { path: '/', label: 'nav.home', icon: Home },
-  ]
-  if (!isListMode.value) {
-    items.push({ path: '/products', label: 'nav.products', icon: LayoutGrid })
-  }
-  const builtin = navConfig.value?.builtin
-  if (!builtin || builtin.blog !== false) {
-    items.push({ path: '/blog', label: 'nav.blog', icon: Newspaper })
-  }
-  if (!builtin || builtin.about !== false) {
-    items.push({ path: '/about', label: 'nav.about', icon: Info })
-  }
-  return items
-})
-
-const footerLinks = computed(() => {
-  const links = config.value?.footer_links
-  if (!Array.isArray(links)) return []
-  return links
-    .map((item: any) => ({
-      name: typeof item?.name === 'string' ? item.name.trim() : getLocalizedText(item?.name, appStore.locale),
-      url: String(item?.url || '').trim(),
-    }))
-    .filter((item) => item.name)
-})
-
-const currentYear = new Date().getFullYear()
+const {
+  config,
+  currentYear,
+  brandSiteName,
+  brandInitial,
+  brandLogo,
+  brandDescription,
+  quickLinks,
+  footerLinks,
+} = useFooterConfig()
 </script>
