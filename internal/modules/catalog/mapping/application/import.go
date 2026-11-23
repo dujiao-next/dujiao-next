@@ -765,12 +765,19 @@ func listAllUpstreamProducts(ctx context.Context, adapter upstream.Adapter) ([]u
 			// 都没有害处，直接返回已拿到的商品，避免整次导入因个别商品变动而失败。
 			return products, nil
 		}
+		added := 0
 		for _, p := range result.Items {
 			if _, ok := seen[p.ID]; ok {
 				continue
 			}
 			seen[p.ID] = struct{}{}
 			products = append(products, p)
+			added++
+		}
+		// 某一页没有带来任何新商品：上游（或它前面的缓存）在重复返回同一批数据，
+		// 继续翻页也拿不到新内容。直接返回已拿到的商品，避免按客户端限速跑满页数上限。
+		if added == 0 {
+			return products, nil
 		}
 		if result.Total > 0 && len(products) >= result.Total {
 			return products, nil

@@ -41,6 +41,17 @@ var (
 	upstreamRequestInterval = 1250 * time.Millisecond
 )
 
+// SetRequestPacing 覆盖客户端节流参数并返回还原函数。
+// 供测试使用：其它包遍历大量请求时关闭节流，避免测试被令牌桶拖慢数分钟。
+// burst 或 interval 小于等于 0 表示关闭节流。
+func SetRequestPacing(burst int, interval time.Duration) (restore func()) {
+	oldBurst, oldInterval := upstreamRequestBurst, upstreamRequestInterval
+	upstreamRequestBurst, upstreamRequestInterval = burst, interval
+	return func() {
+		upstreamRequestBurst, upstreamRequestInterval = oldBurst, oldInterval
+	}
+}
+
 // upstreamPacer 按 baseURL|apiKey 共享的令牌桶。
 // GetAdapter 每次调用都会新建适配器实例，节流状态挂在实例上会随每次调用重置，
 // 批量导入时就起不到限流作用，所以按远端身份共享。
@@ -409,6 +420,11 @@ func (a *DujiaoNextAdapter) doRequest(ctx context.Context, method, path string, 
 
 		if attempt < maxRequestAttempts && shouldRetryUpstream(resp.StatusCode, method) {
 			wait := upstreamRetryWait(resp, attempt)
+			// 剩余期限不够等待时，这次重试注定等不到，直接返回上游错误：
+			// 否则下单库存校验、采购单巡检这类短期限调用会被无谓地拖到超时。
+			if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) <= wait {
+				return newUpstreamHTTPError(resp.StatusCode, respBody)
+			}
 			if waitErr := sleepCtx(ctx, wait); waitErr != nil {
 				// 上下文先结束：按上游错误返回，调用方才看得到 429/5xx 的真实原因。
 				return newUpstreamHTTPError(resp.StatusCode, respBody)

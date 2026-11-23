@@ -95,13 +95,45 @@ func TestListAllUpstreamProductsHonorsClampedPageSize(t *testing.T) {
 	}
 }
 
+// endlessProductsAdapter 每页都返回全新的商品，total 永远追不上，用于验证翻页上限兜底。
+type endlessProductsAdapter struct {
+	upstream.Adapter
+	calls int
+}
+
+func (a *endlessProductsAdapter) ListProducts(_ context.Context, opts upstream.ListProductsOpts) (*upstream.ProductListResult, error) {
+	a.calls++
+	size := opts.PageSize
+	if size <= 0 {
+		size = 50
+	}
+	items := make([]upstream.UpstreamProduct, 0, size)
+	for i := 0; i < size; i++ {
+		items = append(items, upstream.UpstreamProduct{ID: uint((a.calls-1)*size + i + 1)})
+	}
+	return &upstream.ProductListResult{Total: 1 << 30, Items: items, Page: opts.Page, PageSize: size}, nil
+}
+
 func TestListAllUpstreamProductsStopsAtPageLimit(t *testing.T) {
-	adapter := &pagedProductsAdapter{total: 50, ignorePage: true}
+	adapter := &endlessProductsAdapter{}
 	if _, err := listAllUpstreamProducts(context.Background(), adapter); err == nil {
-		t.Fatal("expected error when upstream pagination never terminates")
+		t.Fatal("expected error when upstream pagination never reaches total")
 	}
 	if adapter.calls != maxUpstreamProductPages {
 		t.Fatalf("expected %d calls, got %d", maxUpstreamProductPages, adapter.calls)
+	}
+}
+
+// 某一页没有带来任何新商品（上游或其缓存重复返回同一批数据）时应立即结束，
+// 不必跑满页数上限。
+func TestListAllUpstreamProductsStopsWhenPageAddsNothing(t *testing.T) {
+	adapter := &pagedProductsAdapter{total: 1 << 30, ignorePage: true}
+	products, err := listAllUpstreamProducts(context.Background(), adapter)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(products) != upstreamProductPageSize || adapter.calls != 2 {
+		t.Fatalf("expected %d products in 2 calls, got %d in %d", upstreamProductPageSize, len(products), adapter.calls)
 	}
 }
 

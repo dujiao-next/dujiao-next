@@ -125,11 +125,57 @@ func TestUpstreamRetryWaitHonorsRetryAfter(t *testing.T) {
 // disableRequestPacing 关闭客户端节流，避免测试被令牌桶拖慢。
 func disableRequestPacing(t *testing.T) {
 	t.Helper()
-	oldBurst, oldInterval := upstreamRequestBurst, upstreamRequestInterval
-	upstreamRequestBurst, upstreamRequestInterval = 0, 0
-	t.Cleanup(func() {
-		upstreamRequestBurst, upstreamRequestInterval = oldBurst, oldInterval
-	})
+	t.Cleanup(SetRequestPacing(0, 0))
+}
+
+// 限速器必须真的按「突发额度 + 补充间隔」排队：算错要么所有请求卡住，要么完全不限速。
+func TestUpstreamPacerEnforcesBurstAndInterval(t *testing.T) {
+	t.Cleanup(SetRequestPacing(2, 50*time.Millisecond))
+	p := &upstreamPacer{tokens: float64(upstreamRequestBurst)}
+	start := time.Now()
+	for i := 0; i < 4; i++ {
+		if err := p.wait(context.Background()); err != nil {
+			t.Fatalf("wait %d failed: %v", i+1, err)
+		}
+	}
+	// 前 2 次用突发额度即时通过，第 3、4 次各等约 50ms。
+	if elapsed := time.Since(start); elapsed < 90*time.Millisecond {
+		t.Fatalf("expected pacing to delay calls beyond the burst, elapsed %v", elapsed)
+	}
+}
+
+// 等不到令牌时应响应 ctx 取消，而不是继续阻塞。
+func TestUpstreamPacerHonorsContextCancellation(t *testing.T) {
+	t.Cleanup(SetRequestPacing(1, time.Hour))
+	p := &upstreamPacer{tokens: 0}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if err := p.wait(ctx); err == nil {
+		t.Fatal("expected context error while waiting for a token")
+	}
+}
+
+// ctx 剩余期限不足以等待 Retry-After 时，应立即返回上游错误，而不是把失败推迟到超时。
+func TestRequestDoesNotSleepPastContextDeadline(t *testing.T) {
+	disableRequestPacing(t)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Retry-After", "5")
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte(`{"error_code":"rate_limited","error_message":"too many requests"}`))
+	}))
+	defer server.Close()
+
+	adapter := NewDujiaoNextAdapter(&siteconnectiondomain.Connection{BaseURL: server.URL}, t.TempDir())
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	if _, err := adapter.ListCategories(ctx); err == nil {
+		t.Fatal("expected rate limited error")
+	}
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Fatalf("expected immediate failure when deadline is shorter than Retry-After, waited %v", elapsed)
+	}
 }
 func TestDownloadImageRestrictsHostAndSize(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
