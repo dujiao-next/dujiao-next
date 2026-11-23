@@ -565,6 +565,7 @@ export function useProductDetail(options: { onLoaded?: () => void } = {}) {
         currentImage.value = images.value[0] || ''
       }
       syncSelectedSku()
+      loading.value = false
       await nextTick()
       options.onLoaded?.()
     } catch (error) {
