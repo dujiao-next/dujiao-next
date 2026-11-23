@@ -76,7 +76,7 @@ func setupAdminOrderRefundHandlerTest(t *testing.T) (*ordertransport.AdminRefund
 
 	orderRepo := ordergormstore.New(db, "test-guest-credential-secret-with-32-bytes")
 	userRepo := userstore.New(db)
-	affiliateSvc := affiliateapp.NewService(affiliategormstore.New(db), nil, nil, nil, nil)
+	affiliateSvc := affiliateapp.NewService(affiliategormstore.New(db), nil, nil, nil, nil, nil)
 	paymentRepo := paymentgormstore.New(db, "test-guest-credential-secret-with-32-bytes")
 	orderRefundService := orderrefund.New(orderRepo, userRepo, affiliateSvc, nil, nil, paymentRepo)
 

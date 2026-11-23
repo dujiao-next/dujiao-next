@@ -222,7 +222,7 @@ func setupAffiliateServiceTest(t *testing.T) (*affiliateapp.Service, *gorm.DB, a
 	}
 
 	affiliateRepo := affiliategormstore.New(db)
-	return affiliateapp.NewService(affiliateRepo, userstore.New(db), nil, nil, settingSvc), db, affiliateRepo
+	return affiliateapp.NewService(affiliateRepo, userstore.New(db), nil, nil, nil, settingSvc), db, affiliateRepo
 }
 
 func createAffiliateTestUser(t *testing.T, db *gorm.DB, email string) userdomain.User {

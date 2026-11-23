@@ -132,6 +132,14 @@ func TestHandleOrderPaidResolvesPerItemAffiliateRate(t *testing.T) {
 			items:      []orderdomain.OrderItem{{ProductID: 1, TotalPrice: amountOf("100"), CouponDiscount: amountOf("40")}},
 			wantBase:   "60.00", wantAmount: "12.00", wantRate: "20.00",
 		},
+		{
+			// 金额不是整数时，记录里的比例不能被取整后的佣金带偏（9.99 × 10% 曾显示 10.01%）。
+			name:       "fractional amount keeps exact rate",
+			globalRate: 10,
+			products:   []productdomain.Product{{ID: 1, AffiliateRatePercent: ratePtr("10")}},
+			items:      []orderdomain.OrderItem{{ProductID: 1, TotalPrice: amountOf("9.99")}},
+			wantBase:   "9.99", wantAmount: "1.00", wantRate: "10.00",
+		},
 	}
 
 	for _, tc := range tests {
@@ -152,8 +160,7 @@ func TestHandleOrderPaidResolvesPerItemAffiliateRate(t *testing.T) {
 			if _, err := settings.UpdateAffiliateSetting(settingsintegration.AffiliateSetting{Enabled: true, CommissionRate: tc.globalRate}); err != nil {
 				t.Fatalf("init affiliate setting: %v", err)
 			}
-			svc := affiliateapp.NewService(store, userstore.New(db), staticOrderReader{order}, rateProductReader{tc.products}, settings)
-			svc.SetSKUReader(rateSKUReader{tc.skus})
+			svc := affiliateapp.NewService(store, userstore.New(db), staticOrderReader{order}, rateProductReader{tc.products}, rateSKUReader{tc.skus}, settings)
 
 			if err := svc.HandleOrderPaid(order.ID); err != nil {
 				t.Fatalf("HandleOrderPaid: %v", err)
@@ -230,8 +237,7 @@ func TestGetProductRates(t *testing.T) {
 		if _, err := settings.UpdateAffiliateSetting(settingsintegration.AffiliateSetting{Enabled: enabled, CommissionRate: globalRate}); err != nil {
 			t.Fatalf("init affiliate setting: %v", err)
 		}
-		svc := affiliateapp.NewService(affiliategormstore.New(db), userstore.New(db), staticOrderReader{}, rateProductReader{products}, settings)
-		svc.SetSKUReader(rateSKUReader{skus})
+		svc := affiliateapp.NewService(affiliategormstore.New(db), userstore.New(db), staticOrderReader{}, rateProductReader{products}, rateSKUReader{skus}, settings)
 		return svc, user.ID
 	}
 	active := constants.AffiliateProfileStatusActive

@@ -71,7 +71,7 @@ func setupOrderRefundWalletTest(t *testing.T) (*Service, *gorm.DB) {
 	walletService := walletServiceForTest(db)
 	orderStore := ordergormstore.New(db, "test-guest-credential-secret-with-32-bytes")
 	userRepo := userstore.New(db)
-	affiliateSvc := affiliateapp.NewService(affiliategormstore.New(db), nil, nil, nil, nil)
+	affiliateSvc := affiliateapp.NewService(affiliategormstore.New(db), nil, nil, nil, nil, nil)
 	settingSvc := settingsapp.NewService(settingsstore.New(db))
 	return New(
 		orderStore,

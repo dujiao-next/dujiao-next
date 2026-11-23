@@ -55,7 +55,7 @@ func TestAffiliateOrderPaidWorkerCreatesCommission(t *testing.T) {
 	}
 	store := affiliategormstore.New(db)
 	c := New(&container.Container{
-		AffiliateService: affiliateapp.NewService(store, nil, affiliateWorkerOrders{order}, affiliateWorkerProducts{}, settings),
+		AffiliateService: affiliateapp.NewService(store, nil, affiliateWorkerOrders{order}, affiliateWorkerProducts{}, nil, settings),
 	})
 
 	task, err := queue.NewAffiliateOrderPaidTask(queue.AffiliateOrderPaidPayload{OrderID: order.ID})

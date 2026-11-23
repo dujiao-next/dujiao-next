@@ -56,7 +56,7 @@ func TestHandleOrderPaidSkipsRefundedOrder(t *testing.T) {
 			if _, err := settings.UpdateAffiliateSetting(settingsintegration.AffiliateSetting{Enabled: true, CommissionRate: 20}); err != nil {
 				t.Fatalf("init affiliate setting: %v", err)
 			}
-			svc := affiliateapp.NewService(store, userstore.New(db), staticOrderReader{order}, staticProductReader{}, settings)
+			svc := affiliateapp.NewService(store, userstore.New(db), staticOrderReader{order}, staticProductReader{}, nil, settings)
 			if err := svc.HandleOrderPaid(order.ID); err != nil {
 				t.Fatalf("HandleOrderPaid: %v", err)
 			}

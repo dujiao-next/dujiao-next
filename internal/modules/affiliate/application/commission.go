@@ -371,7 +371,9 @@ func (s *Service) calculateCommission(order *orderdomain.Order, globalCommission
 	result.BaseAmount = baseTotal
 	result.CommissionAmount = commissionTotal
 	if baseTotal.GreaterThan(decimal.Zero) {
-		result.RatePercent = commissionTotal.Div(baseTotal).Mul(decimal.NewFromInt(100)).Round(2)
+		// 用未取整的佣金反推比例：拿取整后的佣金会让单一比例订单也漂移
+		// （9.99 元 × 10% → 佣金 1.00 → 显示 10.01%）。
+		result.RatePercent = commissionRaw.Div(baseTotal).Mul(decimal.NewFromInt(100)).Round(2)
 	}
 	return result, nil
 }
@@ -379,7 +381,7 @@ func (s *Service) calculateCommission(order *orderdomain.Order, globalCommission
 // loadAffiliateSKUMap 批量读取订单项引用的 SKU，用于解析 SKU 级返利比例。
 // 仅当订单中出现具体 SKU 时才查询；缺失的 SKU（已删除）会回退到商品级比例。
 func (s *Service) loadAffiliateSKUMap(order *orderdomain.Order) (map[uint]productdomain.ProductSKU, error) {
-	if s.skuRepo == nil || order == nil {
+	if order == nil {
 		return map[uint]productdomain.ProductSKU{}, nil
 	}
 	skuIDs := collectAffiliateSKUIDs(order)

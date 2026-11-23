@@ -84,9 +84,6 @@ func (s *Service) GetProductRates(userID, productID uint) (ProductRates, error) 
 
 	productRate := ResolveAffiliateRate(nil, product.AffiliateRatePercent, globalRate)
 	result.RatePercent = money.FromDecimal(productRate)
-	if s.skuRepo == nil {
-		return result, nil
-	}
 	skus, err := s.skuRepo.ListByProduct(productID, true)
 	if err != nil {
 		return result, err
