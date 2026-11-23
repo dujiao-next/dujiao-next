@@ -1,0 +1,284 @@
+/* =========================================================================
+   D&J Studio — atelier 模板设计令牌（方案 B：Prism 精密科技数字商店）
+   方向: 冰川极净浅灰 (#F8FAFC) / 深空石墨暗夜 (#08090D)
+         电光靛蓝主强调 (#4F46E5 / #6366F1) · 翡翠绿状态呼吸灯 (#059669 / #34D399)
+         细腻点阵画布 · 1px 顶部高光精密边框 · 悬浮胶囊岛导航 · Stripe 式回执面板
+   作用域: 全部选择器限定在 .atelier-scope / body.atelier-tokens 下，不影响 classic 与 vault。
+           暗色跟随全局 .dark（document.documentElement）。
+   ========================================================================= */
+
+/* ---------- Tokens: 亮色（冰川极净浅灰） ---------- */
+.atelier-scope,
+body.atelier-tokens {
+  --at-bg-page: #f8fafc;
+  --at-bg-surface: #ffffff;
+  --at-bg-subtle: #f1f5f9;
+  --at-bg-hover: #e2e8f0;
+  --at-bg-nav: rgba(255, 255, 255, 0.82);
+
+  --at-ink: #0f172a;
+  --at-ink-2: #475569;
+  --at-ink-3: #64748b;
+  --at-ink-on-dark: #ffffff;
+
+  --at-line: rgba(15, 23, 42, 0.085);
+  --at-line-strong: rgba(15, 23, 42, 0.16);
+  --at-line-hi: rgba(79, 70, 229, 0.42);
+
+  --at-brand: #4f46e5;
+  --at-brand-hover: #4338ca;
+  --at-brand-soft: rgba(79, 70, 229, 0.1);
+  --at-brand-glow: rgba(79, 70, 229, 0.14);
+
+  --at-emerald: #059669;
+  --at-emerald-soft: rgba(5, 150, 105, 0.1);
+  --at-vermilion: #dc2626;
+  --at-vermilion-soft: rgba(220, 38, 38, 0.1);
+  --at-amber: #d97706;
+  --at-amber-soft: rgba(217, 119, 6, 0.11);
+
+  --at-dot: rgba(15, 23, 42, 0.055);
+  --at-aurora: rgba(79, 70, 229, 0.1);
+  --at-sheen: rgba(255, 255, 255, 0.8);
+
+  --at-shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px -16px rgba(15, 23, 42, 0.12);
+  --at-shadow-card-hover: 0 4px 12px rgba(15, 23, 42, 0.05), 0 18px 36px -18px rgba(79, 70, 229, 0.22);
+  --at-shadow-float: 0 14px 40px -14px rgba(15, 23, 42, 0.18), 0 0 0 1px var(--at-line);
+  --at-shadow-dock: 0 10px 30px -14px rgba(15, 23, 42, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+
+  --at-stage-l: 95%;
+  --at-stage-s: 36%;
+  --at-glyph-l: 36%;
+
+  /* 覆盖全局 --ui-* 令牌，驱动 shadcn 组件、Badge、Dialog 与全部子页面 */
+  --ui-bg-page: var(--at-bg-page);
+  --ui-bg-elevated: var(--at-bg-surface);
+  --ui-bg-soft: var(--at-bg-subtle);
+  --ui-bg-muted: var(--at-bg-hover);
+  --ui-bg-overlay: var(--at-bg-nav);
+  --ui-bg-overlay-strong: rgba(255, 255, 255, 0.95);
+
+  --ui-text-primary: var(--at-ink);
+  --ui-text-secondary: var(--at-ink-2);
+  --ui-text-muted: var(--at-ink-3);
+  --ui-text-on-accent: #ffffff;
+
+  --ui-border: var(--at-line);
+  --ui-border-strong: var(--at-line-strong);
+
+  --ui-accent: var(--at-brand);
+  --ui-accent-hover: var(--at-brand-hover);
+  --ui-accent-soft: var(--at-brand-soft);
+  --ui-accent-warm: var(--at-amber);
+  --ui-accent-warm-hover: #b45309;
+  --ui-accent-warm-soft: var(--at-amber-soft);
+
+  --ui-success: var(--at-emerald);
+  --ui-success-soft: var(--at-emerald-soft);
+  --ui-warning: var(--at-amber);
+  --ui-warning-soft: var(--at-amber-soft);
+  --ui-danger: var(--at-vermilion);
+  --ui-danger-soft: var(--at-vermilion-soft);
+  --ui-info: var(--at-brand);
+  --ui-info-soft: var(--at-brand-soft);
+  --ui-focus-ring: rgba(79, 70, 229, 0.24);
+
+  --ui-price-primary: var(--at-ink);
+  --ui-price-promotion: var(--at-vermilion);
+  --ui-price-original: var(--at-ink-3);
+
+  /* 利落的精密科技圆角阶梯 */
+  --ui-radius-sm: 8px;
+  --ui-radius-md: 12px;
+  --ui-radius-lg: 16px;
+  --ui-radius-xl: 18px;
+
+  --ui-shadow-1: var(--at-shadow-card);
+  --ui-shadow-2: var(--at-shadow-card-hover);
+  --ui-shadow-3: var(--at-shadow-float);
+  --ui-shadow-soft: var(--at-shadow-card);
+  --ui-shadow-card: var(--at-shadow-card-hover);
+}
+
+/* ---------- Tokens: 暗色（深空石墨暗夜） ---------- */
+.dark .atelier-scope,
+.dark body.atelier-tokens {
+  --at-bg-page: #08090d;
+  --at-bg-surface: #11131a;
+  --at-bg-subtle: #171a24;
+  --at-bg-hover: #1f2433;
+  --at-bg-nav: rgba(17, 19, 26, 0.8);
+
+  --at-ink: #f1f5f9;
+  --at-ink-2: #cbd5e1;
+  --at-ink-3: #8b93a7;
+  --at-ink-on-dark: #ffffff;
+
+  --at-line: rgba(255, 255, 255, 0.085);
+  --at-line-strong: rgba(255, 255, 255, 0.16);
+  --at-line-hi: rgba(129, 140, 248, 0.5);
+
+  --at-brand: #6366f1;
+  --at-brand-hover: #4f46e5;
+  --at-brand-soft: rgba(129, 140, 248, 0.15);
+  --at-brand-glow: rgba(129, 140, 248, 0.18);
+
+  --at-emerald: #34d399;
+  --at-emerald-soft: rgba(52, 211, 153, 0.13);
+  --at-vermilion: #f87171;
+  --at-vermilion-soft: rgba(248, 113, 113, 0.14);
+  --at-amber: #fbbf24;
+  --at-amber-soft: rgba(251, 191, 36, 0.14);
+
+  --at-dot: rgba(255, 255, 255, 0.05);
+  --at-aurora: rgba(129, 140, 248, 0.15);
+  --at-sheen: rgba(255, 255, 255, 0.06);
+
+  --at-shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.055), 0 14px 32px -20px rgba(0, 0, 0, 0.75);
+  --at-shadow-card-hover: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 22px 44px -20px rgba(99, 102, 241, 0.25);
+  --at-shadow-float: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 24px 56px -14px rgba(0, 0, 0, 0.88), 0 0 0 1px var(--at-line);
+  --at-shadow-dock: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 16px 38px -16px rgba(0, 0, 0, 0.8);
+
+  --at-stage-l: 16%;
+  --at-stage-s: 28%;
+  --at-glyph-l: 76%;
+
+  --ui-bg-overlay-strong: rgba(17, 19, 26, 0.95);
+  --ui-accent: var(--at-brand);
+  --ui-accent-hover: var(--at-brand-hover);
+  --ui-accent-soft: var(--at-brand-soft);
+  --ui-text-on-accent: #ffffff;
+  --ui-focus-ring: rgba(129, 140, 248, 0.34);
+}
+
+/* ---------- 外壳根布局：精密点阵画布 ---------- */
+.atelier-scope {
+  background-color: var(--at-bg-page);
+  background-image: radial-gradient(var(--at-dot) 1px, transparent 1px);
+  background-size: 24px 24px;
+  color: var(--at-ink);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* 顶部柔和极光氛围光晕 */
+.prism-aurora {
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 440px;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(58% 92% at 50% 0%, var(--at-aurora) 0%, transparent 72%);
+}
+
+/* ---------- 精密科技卡片：1px 边框 + 顶部高光线 ---------- */
+.atelier-scope .theme-float,
+.atelier-card,
+.prism-card {
+  border: 1px solid var(--at-line);
+  box-shadow: var(--at-shadow-card);
+}
+
+.prism-card-accent {
+  border: 1px solid var(--at-line-hi);
+  box-shadow: var(--at-shadow-card-hover);
+}
+
+.prism-dock {
+  background-color: var(--at-bg-nav);
+  border: 1px solid var(--at-line);
+  box-shadow: var(--at-shadow-dock);
+}
+
+.prism-search-hub {
+  border: 1px solid var(--at-line);
+  background-color: var(--at-bg-surface);
+  box-shadow: var(--at-shadow-card), 0 0 0 4px var(--at-brand-glow);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.prism-search-hub:focus-within {
+  border-color: var(--at-line-hi);
+  box-shadow: var(--at-shadow-card-hover), 0 0 0 5px var(--at-brand-glow);
+}
+
+/* 实时呼吸状态点 */
+.prism-pulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background-color: var(--at-emerald);
+  box-shadow: 0 0 0 3px var(--at-emerald-soft);
+}
+
+/* 科技感胶囊链接 */
+.atelier-scope .theme-pill-link {
+  border: 1px solid var(--at-line);
+  background-color: var(--at-bg-surface);
+  color: var(--at-ink-2);
+}
+
+.atelier-scope .theme-pill-link:hover {
+  border-color: var(--at-line-hi);
+  background-color: var(--at-brand);
+  color: #ffffff;
+}
+
+/* Teleport 到 body 的弹窗（QuickBuy / ConfirmDialog / AnnouncementModal）继承 Prism 质感 */
+body.atelier-tokens :is([role='dialog'], [role='alertdialog']) {
+  --ui-radius-lg: 18px;
+  --ui-radius-xl: 18px;
+  border: 1px solid var(--at-line);
+  box-shadow: var(--at-shadow-float);
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
+}
+
+body.atelier-tokens :is([role='dialog'], [role='alertdialog']):not(.rounded-t-2xl) {
+  border-radius: 18px;
+}
+
+@media (min-width: 768px) {
+  body.atelier-tokens [role='dialog'].rounded-t-2xl {
+    border-radius: 18px;
+  }
+}
+
+body.atelier-tokens :is([role='dialog'], [role='alertdialog']) > * {
+  --ui-radius-lg: 12px;
+  --ui-radius-xl: 14px;
+}
+
+/* 商品图标/缩略图微光底板（按商品 id 派生柔和色相） */
+.atelier-stage {
+  background:
+    radial-gradient(85% 85% at 50% 15%, hsl(var(--h) 55% 98% / 0.9) 0%, transparent 70%),
+    hsl(var(--h) var(--at-stage-s) var(--at-stage-l));
+  border: 1px solid var(--at-line);
+}
+
+.dark .atelier-stage {
+  background:
+    radial-gradient(80% 80% at 50% 0%, hsl(var(--h) 48% 26% / 0.6) 0%, transparent 70%),
+    hsl(var(--h) var(--at-stage-s) var(--at-stage-l));
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* 顶部步骤编号徽章 */
+.prism-step-badge {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background-color: var(--at-brand-soft);
+  color: var(--at-brand);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.dark .prism-step-badge {
+  color: #a5b4fc;
+}

@@ -746,3 +746,24 @@ func TestUpdateSiteSettingValidatesContactLinks(t *testing.T) {
 		t.Fatalf("empty contact links rejected: %v", err)
 	}
 }
+
+func TestNormalizeStorefrontTemplate(t *testing.T) {
+	cases := []struct {
+		raw  interface{}
+		want string
+	}{
+		{raw: nil, want: constants.StorefrontTemplateClassic},
+		{raw: "", want: constants.StorefrontTemplateClassic},
+		{raw: "classic", want: constants.StorefrontTemplateClassic},
+		{raw: "vault", want: constants.StorefrontTemplateVault},
+		{raw: "  vault  ", want: constants.StorefrontTemplateVault},
+		{raw: "atelier", want: constants.StorefrontTemplateAtelier},
+		{raw: "  atelier  ", want: constants.StorefrontTemplateAtelier},
+		{raw: "unknown", want: constants.StorefrontTemplateClassic},
+	}
+	for _, tc := range cases {
+		if got := normalizeStorefrontTemplate(tc.raw); got != tc.want {
+			t.Fatalf("normalizeStorefrontTemplate(%v) = %q, want %q", tc.raw, got, tc.want)
+		}
+	}
+}
