@@ -1060,7 +1060,7 @@ watch(
                 </div>
                 <div class="md:col-span-1">
                   <label class="block text-xs font-medium text-muted-foreground mb-1.5">{{ t('admin.products.form.skuAffiliateRate') }}</label>
-                  <Input v-model.number="sku.affiliate_rate_percent" type="number" min="0" max="100" step="0.01" :placeholder="t('admin.products.form.skuAffiliateRatePlaceholder')" />
+                  <Input v-model.number="sku.affiliate_rate_percent" type="number" min="0" max="100" step="0.01" :placeholder="t('admin.products.form.skuAffiliateRatePlaceholder')" :disabled="form.affiliate_mode === 'disabled'" />
                   <p class="mt-1 text-xs text-muted-foreground">{{ t('admin.products.form.skuAffiliateRateTip') }}</p>
                 </div>
                 <div class="md:col-span-1 grid grid-cols-1 gap-3 sm:grid-cols-2">
