@@ -40,7 +40,11 @@ type resellerAccountingTestHarness struct {
 }
 
 func newResellerAccountingTestHarness(store *resellergormstore.Store, confirmDays int) resellerAccountingTestHarness {
-	ledger := resellerapplication.NewAccountingLedgerService(store, confirmDays)
+	return newResellerAccountingTestHarnessWithFee(store, confirmDays, 0)
+}
+
+func newResellerAccountingTestHarnessWithFee(store *resellergormstore.Store, confirmDays int, channelFeePercent float64) resellerAccountingTestHarness {
+	ledger := resellerapplication.NewAccountingLedgerService(store, confirmDays, channelFeePercent)
 	return resellerAccountingTestHarness{
 		query:    resellerapplication.NewAccountingQueryService(store),
 		withdraw: resellerapplication.NewAccountingWithdrawService(store),
@@ -51,7 +55,7 @@ func newResellerAccountingTestHarness(store *resellergormstore.Store, confirmDay
 
 func openResellerAccountingServiceTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	dsn := fmt.Sprintf("file:reseller_accounting_service_%d?mode=memory&cache=shared", time.Now().UnixNano())
+	dsn := fmt.Sprintf("file:reseller_accounting_service_%d?mode=memory&cache=shared", uniqueTestID())
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite failed: %v", err)
@@ -77,7 +81,7 @@ func openResellerAccountingServiceTestDB(t *testing.T) *gorm.DB {
 
 func seedResellerAccountingProfile(t *testing.T, db *gorm.DB) resellerdomain.Profile {
 	t.Helper()
-	user := userdomain.User{Email: fmt.Sprintf("reseller-%d@example.test", time.Now().UnixNano()), PasswordHash: "x"}
+	user := userdomain.User{Email: fmt.Sprintf("reseller-%d@example.test", uniqueTestID()), PasswordHash: "x"}
 	if err := db.Create(&user).Error; err != nil {
 		t.Fatalf("create reseller user failed: %v", err)
 	}
@@ -217,7 +221,7 @@ func TestResellerAccountingServiceApplyUserWithdrawRequiresActiveNormalProfile(t
 
 func seedPaidResellerOrderSnapshot(t *testing.T, db *gorm.DB, eligible bool) (orderdomain.Order, paymentdomain.Payment, resellerdomain.OrderSnapshot) {
 	t.Helper()
-	user := userdomain.User{Email: fmt.Sprintf("buyer-%d@example.test", time.Now().UnixNano()), PasswordHash: "x"}
+	user := userdomain.User{Email: fmt.Sprintf("buyer-%d@example.test", uniqueTestID()), PasswordHash: "x"}
 	if err := db.Create(&user).Error; err != nil {
 		t.Fatalf("create user failed: %v", err)
 	}
@@ -228,7 +232,7 @@ func seedPaidResellerOrderSnapshot(t *testing.T, db *gorm.DB, eligible bool) (or
 	resellerID := profile.ID
 	now := time.Now()
 	order := orderdomain.Order{
-		OrderNo:              fmt.Sprintf("DJ-RES-%d", now.UnixNano()),
+		OrderNo:              fmt.Sprintf("DJ-RES-%d", uniqueTestID()),
 		UserID:               user.ID,
 		Status:               constants.OrderStatusPaid,
 		TotalAmount:          money.FromDecimal(decimal.NewFromInt(130)),
@@ -889,5 +893,134 @@ func TestResellerAccountingApplyWithdrawRejectsExceedingNetAvailable(t *testing.
 	}
 	if req == nil || req.Amount.Decimal.StringFixed(2) != "50.00" {
 		t.Fatalf("unexpected withdraw request: %+v", req)
+	}
+}
+
+// TestResellerAccountingChannelFeeDeductedFromProfit 验证按在线实付金额比例从代理利润中扣除通道费。
+// 订单在线实付 100、利润 30、费率 2%，应入账 30 - 2 = 28。
+func TestResellerAccountingChannelFeeDeductedFromProfit(t *testing.T) {
+	db := openResellerAccountingServiceTestDB(t)
+	order, payment, _ := seedPaidResellerOrderSnapshot(t, db, true)
+	repo := resellergormstore.New(db)
+	svc := newResellerAccountingTestHarnessWithFee(repo, 0, 2)
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		return svc.ledger.PostOrderProfit(svc.store.BindTx(tx), &order, &payment)
+	}); err != nil {
+		t.Fatalf("post profit failed: %v", err)
+	}
+	var row resellerdomain.LedgerEntry
+	if err := db.Where("idempotency_key = ?", fmt.Sprintf("order_profit:%d", order.ID)).First(&row).Error; err != nil {
+		t.Fatalf("load profit ledger failed: %v", err)
+	}
+	if row.Amount.String() != "28.00" {
+		t.Fatalf("expected net profit 28.00 after 2%% channel fee, got %s", row.Amount.String())
+	}
+	if got := fmt.Sprint(row.MetadataJSON["channel_fee_amount"]); got != "2.00" {
+		t.Fatalf("expected channel_fee_amount 2.00, got %v", row.MetadataJSON["channel_fee_amount"])
+	}
+	if got := fmt.Sprint(row.MetadataJSON["gross_profit_amount"]); got != "30.00" {
+		t.Fatalf("expected gross_profit_amount 30.00, got %v", row.MetadataJSON["gross_profit_amount"])
+	}
+}
+
+// TestResellerAccountingChannelFeeCappedAtProfit 验证扣费封顶到当单利润，不会扣成负数。
+// 在线实付 100、费率 2% 应扣 2，但利润只有 1，只能扣 1，入账 0。
+func TestResellerAccountingChannelFeeCappedAtProfit(t *testing.T) {
+	db := openResellerAccountingServiceTestDB(t)
+	order, payment, snapshot := seedPaidResellerOrderSnapshot(t, db, true)
+	snapshot.ProfitAmount = money.FromDecimal(decimal.NewFromInt(1))
+	if err := db.Save(&snapshot).Error; err != nil {
+		t.Fatalf("shrink snapshot profit failed: %v", err)
+	}
+	repo := resellergormstore.New(db)
+	svc := newResellerAccountingTestHarnessWithFee(repo, 0, 2)
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		return svc.ledger.PostOrderProfit(svc.store.BindTx(tx), &order, &payment)
+	}); err != nil {
+		t.Fatalf("post profit failed: %v", err)
+	}
+	var row resellerdomain.LedgerEntry
+	if err := db.Where("idempotency_key = ?", fmt.Sprintf("order_profit:%d", order.ID)).First(&row).Error; err != nil {
+		t.Fatalf("load profit ledger failed: %v", err)
+	}
+	if row.Amount.String() != "0.00" {
+		t.Fatalf("expected profit clamped to 0.00, got %s", row.Amount.String())
+	}
+	if got := fmt.Sprint(row.MetadataJSON["channel_fee_amount"]); got != "1.00" {
+		t.Fatalf("expected channel_fee_amount capped to 1.00, got %v", row.MetadataJSON["channel_fee_amount"])
+	}
+}
+
+// TestResellerAccountingChannelFeeSkippedWhenCustomerPaid 验证客户已在支付时被加收手续费的订单不再从代理利润扣。
+func TestResellerAccountingChannelFeeSkippedWhenCustomerPaid(t *testing.T) {
+	db := openResellerAccountingServiceTestDB(t)
+	order, payment, _ := seedPaidResellerOrderSnapshot(t, db, true)
+	payment.FeePolicy = constants.PaymentFeePolicyCustomerSurcharge
+	repo := resellergormstore.New(db)
+	svc := newResellerAccountingTestHarnessWithFee(repo, 0, 2)
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		return svc.ledger.PostOrderProfit(svc.store.BindTx(tx), &order, &payment)
+	}); err != nil {
+		t.Fatalf("post profit failed: %v", err)
+	}
+	var row resellerdomain.LedgerEntry
+	if err := db.Where("idempotency_key = ?", fmt.Sprintf("order_profit:%d", order.ID)).First(&row).Error; err != nil {
+		t.Fatalf("load profit ledger failed: %v", err)
+	}
+	if row.Amount.String() != "30.00" {
+		t.Fatalf("expected full profit 30.00 when customer already paid fee, got %s", row.Amount.String())
+	}
+}
+
+// TestResellerAccountingChannelFeeSkippedForWalletPayment 验证钱包支付（无在线网关成本）不扣通道费。
+func TestResellerAccountingChannelFeeSkippedForWalletPayment(t *testing.T) {
+	db := openResellerAccountingServiceTestDB(t)
+	order, _, _ := seedPaidResellerOrderSnapshot(t, db, true)
+	repo := resellergormstore.New(db)
+	svc := newResellerAccountingTestHarnessWithFee(repo, 0, 2)
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		return svc.ledger.PostOrderProfit(svc.store.BindTx(tx), &order, nil)
+	}); err != nil {
+		t.Fatalf("post profit failed: %v", err)
+	}
+	var row resellerdomain.LedgerEntry
+	if err := db.Where("idempotency_key = ?", fmt.Sprintf("order_profit:%d", order.ID)).First(&row).Error; err != nil {
+		t.Fatalf("load profit ledger failed: %v", err)
+	}
+	if row.Amount.String() != "30.00" {
+		t.Fatalf("expected full profit 30.00 for wallet payment, got %s", row.Amount.String())
+	}
+}
+
+// TestResellerAccountingRefundUsesNetProfitAfterChannelFee 验证扣过通道费后退款以净利为基数冲回。
+// 入账 28（30 - 2），退一半（65/130）应扣 14，而不是按毛利 30 扣 15。
+func TestResellerAccountingRefundUsesNetProfitAfterChannelFee(t *testing.T) {
+	db := openResellerAccountingServiceTestDB(t)
+	order, payment, _ := seedPaidResellerOrderSnapshot(t, db, true)
+	repo := resellergormstore.New(db)
+	svc := newResellerAccountingTestHarnessWithFee(repo, 0, 2)
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		return svc.ledger.PostOrderProfit(svc.store.BindTx(tx), &order, &payment)
+	}); err != nil {
+		t.Fatalf("post profit failed: %v", err)
+	}
+	refundRecord := orderdomain.OrderRefundRecord{
+		UserID: order.UserID, OrderID: order.ID, Type: constants.OrderRefundTypeManual,
+		Amount: money.FromDecimal(decimal.NewFromInt(65)), Currency: "USD",
+	}
+	if err := db.Create(&refundRecord).Error; err != nil {
+		t.Fatalf("create refund record failed: %v", err)
+	}
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		return svc.ledger.HandleRefundDeduct(svc.store.BindTx(tx), &order, &refundRecord, decimal.Zero)
+	}); err != nil {
+		t.Fatalf("refund deduct failed: %v", err)
+	}
+	var deduct resellerdomain.LedgerEntry
+	if err := db.Where("idempotency_key = ?", fmt.Sprintf("refund_deduct:%d", refundRecord.ID)).First(&deduct).Error; err != nil {
+		t.Fatalf("load deduct ledger failed: %v", err)
+	}
+	if deduct.Amount.String() != "-14.00" {
+		t.Fatalf("expected half-of-net deduction -14.00, got %s", deduct.Amount.String())
 	}
 }

@@ -93,8 +93,21 @@ func (s *AccountingLedgerService) HandleRefundDeduct(
 	if !snapshot.ProfitEligible {
 		return nil
 	}
-	profit := snapshot.ProfitAmount.Decimal.Round(2)
-	if profit.LessThanOrEqual(decimal.Zero) {
+	grossProfit := snapshot.ProfitAmount.Decimal.Round(2)
+	if grossProfit.LessThanOrEqual(decimal.Zero) {
+		return nil
+	}
+	// 入账时可能已按通道费分摊扣减过利润，退款冲回要以实际入账的净利为基数，
+	// 否则会按毛利润多扣。历史订单没有分摊时两者相等。
+	profitEntry, err := store.GetLedgerEntryByIdempotencyKey(fmt.Sprintf("order_profit:%d", order.ID))
+	if err != nil {
+		return err
+	}
+	refundableProfit := grossProfit
+	if profitEntry != nil {
+		refundableProfit = profitEntry.Amount.Decimal.Round(2)
+	}
+	if refundableProfit.LessThanOrEqual(decimal.Zero) {
 		return nil
 	}
 	orderAmount := snapshot.ResellerAmount.Decimal.Round(2)
@@ -116,12 +129,12 @@ func (s *AccountingLedgerService) HandleRefundDeduct(
 	if err != nil {
 		return err
 	}
-	remainingProfit := profit.Sub(deductedSoFar.Abs().Round(2)).Round(2)
+	remainingProfit := refundableProfit.Sub(deductedSoFar.Abs().Round(2)).Round(2)
 	if remainingProfit.LessThanOrEqual(decimal.Zero) {
 		return nil
 	}
 	ratio := refundAmount.Div(orderAmount)
-	deduct := profit.Mul(ratio).Round(2)
+	deduct := refundableProfit.Mul(ratio).Round(2)
 	fullyRefunded := refundedBefore.Add(refundAmount).GreaterThanOrEqual(orderAmount)
 	if fullyRefunded || deduct.GreaterThan(remainingProfit) {
 		deduct = remainingProfit
@@ -129,7 +142,8 @@ func (s *AccountingLedgerService) HandleRefundDeduct(
 	if deduct.LessThanOrEqual(decimal.Zero) {
 		return nil
 	}
-	allocRatio := deduct.Div(profit)
+	// 按毛利占比分摊到订单项，保持原有审计口径。
+	allocRatio := deduct.Div(grossProfit)
 	allocation := refundAllocation{
 		RefundRecordID: refundRecord.ID,
 		OrderID:        order.ID,
@@ -161,10 +175,6 @@ func (s *AccountingLedgerService) HandleRefundDeduct(
 
 	deductStatus := resellerdomain.LedgerStatusAvailable
 	var deductAvailableAt *time.Time
-	profitEntry, err := store.GetLedgerEntryByIdempotencyKey(fmt.Sprintf("order_profit:%d", order.ID))
-	if err != nil {
-		return err
-	}
 	if profitEntry != nil && profitEntry.Status == resellerdomain.LedgerStatusPendingConfirm {
 		deductStatus = resellerdomain.LedgerStatusPendingConfirm
 		if profitEntry.AvailableAt != nil {

@@ -13,6 +13,7 @@ import (
 
 	resellerdomain "github.com/dujiao-next/internal/modules/reseller/domain"
 
+	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/logger"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/money"
@@ -21,11 +22,12 @@ import (
 
 // AccountingLedgerService 分销利润入账、退款扣减与到期确认用例。
 type AccountingLedgerService struct {
-	store       resellercontract.AccountingLedgerStore
-	confirmDays int
+	store             resellercontract.AccountingLedgerStore
+	confirmDays       int
+	channelFeePercent decimal.Decimal
 }
 
-func NewAccountingLedgerService(store resellercontract.AccountingLedgerStore, confirmDays int) *AccountingLedgerService {
+func NewAccountingLedgerService(store resellercontract.AccountingLedgerStore, confirmDays int, channelFeePercent float64) *AccountingLedgerService {
 	const maxConfirmDays = 3650
 	if confirmDays < 0 {
 		confirmDays = 0
@@ -33,7 +35,25 @@ func NewAccountingLedgerService(store resellercontract.AccountingLedgerStore, co
 	if confirmDays > maxConfirmDays {
 		confirmDays = maxConfirmDays
 	}
-	return &AccountingLedgerService{store: store, confirmDays: confirmDays}
+	rate := decimal.NewFromFloat(channelFeePercent)
+	if rate.LessThan(decimal.Zero) {
+		rate = decimal.Zero
+	}
+	if rate.GreaterThan(decimal.NewFromInt(100)) {
+		rate = decimal.NewFromInt(100)
+	}
+	return &AccountingLedgerService{
+		store:             store,
+		confirmDays:       confirmDays,
+		channelFeePercent: rate.Round(4),
+	}
+}
+
+// isCustomerPaidFeePolicy 判断该笔支付的手续费是否已由客户承担（加收）。
+// 客户已付的情形不再从代理利润里分摊，避免重复收费。
+func isCustomerPaidFeePolicy(policy string) bool {
+	return policy == constants.PaymentFeePolicyCustomerSurcharge ||
+		policy == constants.PaymentFeePolicyLegacyCustomerSurcharge
 }
 
 // PostOrderProfit 在调用方已开启的事务 store 上写入订单利润流水。
@@ -59,6 +79,22 @@ func (s *AccountingLedgerService) PostOrderProfit(store resellercontract.Account
 	if profit.LessThanOrEqual(decimal.Zero) {
 		return nil
 	}
+	// 分销订单通道费分摊：按在线实付金额的比例从代理利润中扣除。
+	// 客户已加收手续费的支付（FeePolicy 为加收）不再重复扣；钱包支付没走网关，payment 为 nil 同样跳过。
+	// 扣额封顶到当单利润，保证代理利润不会被扣成负数，超出部分由主站承担。
+	grossProfit := profit
+	channelFeeBase := decimal.Zero
+	channelFee := decimal.Zero
+	if s.channelFeePercent.GreaterThan(decimal.Zero) && payment != nil && !isCustomerPaidFeePolicy(payment.FeePolicy) {
+		channelFeeBase = order.OnlinePaidAmount.Decimal.Round(2)
+		if channelFeeBase.GreaterThan(decimal.Zero) {
+			channelFee = channelFeeBase.Mul(s.channelFeePercent).Div(decimal.NewFromInt(100)).Round(2)
+			if channelFee.GreaterThan(profit) {
+				channelFee = profit
+			}
+			profit = profit.Sub(channelFee).Round(2)
+		}
+	}
 	now := time.Now()
 	availableAt := now.AddDate(0, 0, s.confirmDays)
 	orderID := order.ID
@@ -69,6 +105,12 @@ func (s *AccountingLedgerService) PostOrderProfit(store resellercontract.Account
 		"online_paid_amount":  order.OnlinePaidAmount.String(),
 		"snapshot_id":         snapshot.ID,
 		"profit_block_reason": snapshot.ProfitBlockReason,
+	}
+	if s.channelFeePercent.GreaterThan(decimal.Zero) {
+		metadata["gross_profit_amount"] = grossProfit.StringFixed(2)
+		metadata["channel_fee_percent"] = s.channelFeePercent.String()
+		metadata["channel_fee_base"] = channelFeeBase.StringFixed(2)
+		metadata["channel_fee_amount"] = channelFee.StringFixed(2)
 	}
 	if payment != nil {
 		metadata["payment_id"] = payment.ID
