@@ -5,6 +5,7 @@ import (
 
 	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
 	siteconnectiondomain "github.com/dujiao-next/internal/modules/siteconnection/domain"
+	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/money"
 )
 
@@ -45,6 +46,7 @@ type SKUMapping struct {
 	ProductMappingID uint         `gorm:"index;not null" json:"product_mapping_id"`
 	LocalSKUID       uint         `gorm:"column:local_sku_id;index;not null" json:"local_sku_id"`
 	UpstreamSKUID    uint         `gorm:"column:upstream_sku_id;not null" json:"upstream_sku_id"`
+	UpstreamMetadata jsonmap.JSON `gorm:"type:json" json:"upstream_metadata"`
 	UpstreamPrice    money.Amount `gorm:"type:decimal(20,2);not null;default:0" json:"upstream_price"`
 	UpstreamStock    int          `gorm:"not null;default:0" json:"upstream_stock"`
 	UpstreamIsActive bool         `gorm:"not null;default:true" json:"upstream_is_active"`

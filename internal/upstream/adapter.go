@@ -55,25 +55,27 @@ type ProductListResult struct {
 
 // UpstreamProduct 上游商品信息
 type UpstreamProduct struct {
-	ID               uint                              `json:"id"`
-	Slug             string                            `json:"slug"`
-	SeoMeta          jsonmap.JSON                      `json:"seo_meta"`
-	Title            jsonmap.JSON                      `json:"title"`
-	Description      jsonmap.JSON                      `json:"description"`
-	Content          jsonmap.JSON                      `json:"content"`
-	Images           []string                          `json:"images"`
-	Tags             []string                          `json:"tags"`
-	PriceAmount      string                            `json:"price_amount"`
-	OriginalPrice    string                            `json:"original_price,omitempty"`
-	MemberPrice      string                            `json:"member_price,omitempty"`
-	WholesalePrices  productdomain.WholesalePriceTiers `json:"wholesale_prices,omitempty"`
-	Currency         string                            `json:"currency"`
-	FulfillmentType  string                            `json:"fulfillment_type"`
-	ManualFormSchema jsonmap.JSON                      `json:"manual_form_schema"`
-	IsActive         bool                              `json:"is_active"`
-	CategoryID       uint                              `json:"category_id"`
-	SKUs             []UpstreamSKU                     `json:"skus"`
-	UpdatedAt        time.Time                         `json:"updated_at"`
+	ID                  uint                              `json:"id"`
+	Slug                string                            `json:"slug"`
+	SeoMeta             jsonmap.JSON                      `json:"seo_meta"`
+	Title               jsonmap.JSON                      `json:"title"`
+	Description         jsonmap.JSON                      `json:"description"`
+	Content             jsonmap.JSON                      `json:"content"`
+	Images              []string                          `json:"images"`
+	Tags                []string                          `json:"tags"`
+	PriceAmount         string                            `json:"price_amount"`
+	OriginalPrice       string                            `json:"original_price,omitempty"`
+	MemberPrice         string                            `json:"member_price,omitempty"`
+	WholesalePrices     productdomain.WholesalePriceTiers `json:"wholesale_prices,omitempty"`
+	Currency            string                            `json:"currency"`
+	FulfillmentType     string                            `json:"fulfillment_type"`
+	ManualFormSchema    jsonmap.JSON                      `json:"manual_form_schema"`
+	MinPurchaseQuantity *int                              `json:"min_purchase_quantity,omitempty"`
+	MaxPurchaseQuantity *int                              `json:"max_purchase_quantity,omitempty"`
+	IsActive            bool                              `json:"is_active"`
+	CategoryID          uint                              `json:"category_id"`
+	SKUs                []UpstreamSKU                     `json:"skus"`
+	UpdatedAt           time.Time                         `json:"updated_at"`
 }
 
 // UpstreamCategory 上游分类信息
@@ -94,6 +96,7 @@ type CategoryListResult struct {
 
 // UpstreamSKU 上游 SKU 信息
 type UpstreamSKU struct {
+	Metadata      jsonmap.JSON `json:"metadata,omitempty"` // Protocol-specific purchase reference, never credentials.
 	ID            uint         `json:"id"`
 	SKUCode       string       `json:"sku_code"`
 	SpecValues    jsonmap.JSON `json:"spec_values"`
@@ -107,6 +110,7 @@ type UpstreamSKU struct {
 
 // CreateUpstreamOrderReq 创建上游采购单请求
 type CreateUpstreamOrderReq struct {
+	Metadata          jsonmap.JSON `json:"metadata,omitempty"`
 	SKUID             uint         `json:"sku_id"`
 	Quantity          int          `json:"quantity"`
 	ManualFormData    jsonmap.JSON `json:"manual_form_data,omitempty"`
@@ -117,14 +121,15 @@ type CreateUpstreamOrderReq struct {
 
 // CreateUpstreamOrderResp 创建上游采购单响应
 type CreateUpstreamOrderResp struct {
-	OK           bool   `json:"ok"`
-	OrderID      uint   `json:"order_id,omitempty"`
-	OrderNo      string `json:"order_no,omitempty"`
-	Status       string `json:"status,omitempty"`
-	Amount       string `json:"amount,omitempty"`
-	Currency     string `json:"currency,omitempty"`
-	ErrorCode    string `json:"error_code,omitempty"`
-	ErrorMessage string `json:"error_message,omitempty"`
+	Fulfillment  *UpstreamFulfillment `json:"fulfillment,omitempty"`
+	OK           bool                 `json:"ok"`
+	OrderID      uint                 `json:"order_id,omitempty"`
+	OrderNo      string               `json:"order_no,omitempty"`
+	Status       string               `json:"status,omitempty"`
+	Amount       string               `json:"amount,omitempty"`
+	Currency     string               `json:"currency,omitempty"`
+	ErrorCode    string               `json:"error_code,omitempty"`
+	ErrorMessage string               `json:"error_message,omitempty"`
 }
 
 // UpstreamFulfillment 上游交付信息
@@ -176,9 +181,16 @@ type Adapter interface {
 	DownloadImage(ctx context.Context, imageURL string) (localPath string, err error)
 }
 
+// OrderReferenceAdapter supports upstreams whose order reference is an opaque string.
+type OrderReferenceAdapter interface {
+	GetOrderByReference(ctx context.Context, orderNo string) (*UpstreamOrderDetail, error)
+}
+
 // NewAdapter 根据协议类型创建适配器
 func NewAdapter(conn *siteconnectiondomain.Connection, uploadsDir string) (Adapter, error) {
 	switch conn.Protocol {
+	case constants.ConnectionProtocolYiciyuan:
+		return NewYiciyuanAdapter(conn, uploadsDir), nil
 	case constants.ConnectionProtocolDujiaoNext:
 		return NewDujiaoNextAdapter(conn, uploadsDir), nil
 	default:

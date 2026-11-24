@@ -122,6 +122,14 @@ func (s *Service) SyncProduct(mappingID uint) error {
 	}
 	if localProduct != nil {
 		needsProductUpdate := false
+		if upProduct.MinPurchaseQuantity != nil {
+			localProduct.MinPurchaseQuantity = productdomain.NormalizePurchaseQuantityLimit(*upProduct.MinPurchaseQuantity)
+			needsProductUpdate = true
+		}
+		if upProduct.MaxPurchaseQuantity != nil {
+			localProduct.MaxPurchaseQuantity = productdomain.NormalizePurchaseQuantityLimit(*upProduct.MaxPurchaseQuantity)
+			needsProductUpdate = true
+		}
 		// 同步人工交付表单配置
 		if upProduct.ManualFormSchema != nil {
 			localProduct.ManualFormSchemaJSON = upProduct.ManualFormSchema
@@ -169,6 +177,7 @@ func (s *Service) SyncProduct(mappingID uint) error {
 		upPrice, _ := decimal.NewFromString(upSKU.PriceAmount)
 
 		// 更新 SKU 映射记录
+		skuMappings[i].UpstreamMetadata = upSKU.Metadata
 		skuMappings[i].UpstreamPrice = money.FromDecimal(upPrice.Round(2))
 		skuMappings[i].UpstreamIsActive = upSKU.IsActive
 		skuMappings[i].StockSyncedAt = &now
@@ -220,6 +229,7 @@ func (s *Service) SyncProduct(mappingID uint) error {
 			ProductMappingID: mappingID,
 			LocalSKUID:       newLocalSKU.ID,
 			UpstreamSKUID:    upSKU.ID,
+			UpstreamMetadata: upSKU.Metadata,
 			UpstreamPrice:    money.FromDecimal(skuPrice.Round(2)),
 			UpstreamIsActive: upSKU.IsActive,
 			UpstreamStock:    upSKU.StockQuantity,
@@ -682,8 +692,20 @@ func (s *Service) syncProductFromData(mapping *mappingdomain.Mapping, conn *site
 		return
 	}
 
+	needsProductUpdate := false
+	if upProduct.MinPurchaseQuantity != nil {
+		localProduct.MinPurchaseQuantity = productdomain.NormalizePurchaseQuantityLimit(*upProduct.MinPurchaseQuantity)
+		needsProductUpdate = true
+	}
+	if upProduct.MaxPurchaseQuantity != nil {
+		localProduct.MaxPurchaseQuantity = productdomain.NormalizePurchaseQuantityLimit(*upProduct.MaxPurchaseQuantity)
+		needsProductUpdate = true
+	}
 	if upProduct.ManualFormSchema != nil {
 		localProduct.ManualFormSchemaJSON = upProduct.ManualFormSchema
+		needsProductUpdate = true
+	}
+	if needsProductUpdate {
 		_ = s.products.Update(localProduct)
 	}
 
@@ -727,12 +749,14 @@ func (s *Service) syncProductFromData(mapping *mappingdomain.Mapping, conn *site
 				"error", priceErr,
 			)
 			// 仅同步库存状态，跳过价格更新
+			skuMappings[i].UpstreamMetadata = upSKU.Metadata
 			skuMappings[i].UpstreamIsActive = upSKU.IsActive
 			skuMappings[i].StockSyncedAt = now
 			skuMappings[i].UpstreamStock = upSKU.StockQuantity
 			_ = s.skuMappings.Update(&skuMappings[i])
 			continue
 		}
+		skuMappings[i].UpstreamMetadata = upSKU.Metadata
 		skuMappings[i].UpstreamPrice = money.FromDecimal(upPrice.Round(2))
 		skuMappings[i].UpstreamIsActive = upSKU.IsActive
 		skuMappings[i].StockSyncedAt = now
@@ -786,6 +810,7 @@ func (s *Service) syncProductFromData(mapping *mappingdomain.Mapping, conn *site
 				ProductMappingID: mapping.ID,
 				LocalSKUID:       newLocalSKU.ID,
 				UpstreamSKUID:    upSKU.ID,
+				UpstreamMetadata: upSKU.Metadata,
 				UpstreamPrice:    money.FromDecimal(skuPrice.Round(2)),
 				UpstreamIsActive: upSKU.IsActive,
 				UpstreamStock:    upSKU.StockQuantity,

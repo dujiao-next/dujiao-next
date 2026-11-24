@@ -11,7 +11,11 @@ import (
 	"github.com/dujiao-next/internal/shared/money"
 	"github.com/dujiao-next/internal/upstream"
 
+	siteconnectiondomain "github.com/dujiao-next/internal/modules/siteconnection/domain"
+	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/shopspring/decimal"
+	"reflect"
+	"time"
 )
 
 func TestConvertUpstreamWholesalePricesRemapsUpstreamSKUScope(t *testing.T) {
@@ -125,5 +129,64 @@ func TestBackfillUpstreamCategoryIDsFillsOnlyMissing(t *testing.T) {
 	svc.backfillUpstreamCategoryIDs(context.Background(), adapter, 1, []mappingdomain.Mapping{{ID: 9, UpstreamCategoryID: 5}})
 	if adapter.calls != 0 {
 		t.Fatalf("expected no upstream request when nothing to backfill, got %d", adapter.calls)
+	}
+}
+
+type metadataMappingRepo struct {
+	mappingcontract.SKUMappingRepository
+	rows    []mappingdomain.SKUMapping
+	created []mappingdomain.SKUMapping
+	updated []mappingdomain.SKUMapping
+}
+
+func (r *metadataMappingRepo) ListByProductMapping(_ uint) ([]mappingdomain.SKUMapping, error) {
+	return r.rows, nil
+}
+func (r *metadataMappingRepo) Create(item *mappingdomain.SKUMapping) error {
+	r.created = append(r.created, *item)
+	return nil
+}
+func (r *metadataMappingRepo) Update(item *mappingdomain.SKUMapping) error {
+	r.updated = append(r.updated, *item)
+	return nil
+}
+
+func TestCreateSKUMappingsPreservesMetadata(t *testing.T) {
+	repo := &metadataMappingRepo{}
+	metadata := jsonmap.JSON{"code": "product-code", "race": "race-a", "sku": "sku-a"}
+	err := createSKUMappings(repo, 1, []productdomain.ProductSKU{{ID: 10, SKUCode: "A"}}, []upstream.UpstreamSKU{{ID: 20, SKUCode: "A", PriceAmount: "1", Metadata: metadata}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(repo.created) != 1 || !reflect.DeepEqual(repo.created[0].UpstreamMetadata, metadata) {
+		t.Fatalf("metadata lost on import: %#v", repo.created)
+	}
+}
+
+func TestSyncSKUMappingsPreservesMetadata(t *testing.T) {
+	for _, periodic := range []bool{false, true} {
+		t.Run(map[bool]string{false: "manual", true: "periodic"}[periodic], func(t *testing.T) {
+			metadata := jsonmap.JSON{"code": "product-code", "race": "race-a", "sku": "sku-a"}
+			product := &upstream.UpstreamProduct{ID: 20, IsActive: true, SKUs: []upstream.UpstreamSKU{
+				{ID: 21, SKUCode: "A", PriceAmount: "1", IsActive: true, Metadata: metadata},
+				{ID: 22, SKUCode: "B", PriceAmount: "2", IsActive: true, Metadata: metadata},
+			}}
+			mapping := &mappingdomain.Mapping{ID: 1, ConnectionID: 1, LocalProductID: 10, UpstreamProductID: 20}
+			conn := &siteconnectiondomain.Connection{ID: 1, ExchangeRate: decimal.NewFromInt(1)}
+			repo := &metadataMappingRepo{rows: []mappingdomain.SKUMapping{{LocalSKUID: 11, UpstreamSKUID: 21}}}
+			svc := &Service{mappings: staticMappingRepo{mapping: mapping}, products: staticProductRepo{}, skus: &creatingSKURepo{}, skuMappings: repo, connections: staticConnectionProvider{conn: conn, adapter: &parentCategoryAdapter{product: product}}}
+			if periodic {
+				now := time.Now()
+				svc.syncProductFromData(mapping, conn, product, &now, nil, true)
+			} else if err := svc.SyncProduct(1); err != nil {
+				t.Fatal(err)
+			}
+			if len(repo.updated) != 1 || !reflect.DeepEqual(repo.updated[0].UpstreamMetadata, metadata) {
+				t.Fatalf("metadata lost updating mapping: %#v", repo.updated)
+			}
+			if len(repo.created) != 1 || !reflect.DeepEqual(repo.created[0].UpstreamMetadata, metadata) {
+				t.Fatalf("metadata lost creating mapping: %#v", repo.created)
+			}
+		})
 	}
 }

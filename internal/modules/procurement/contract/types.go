@@ -29,6 +29,7 @@ type Fulfillment struct {
 
 type CreateOrderRequest struct {
 	SKUID             uint
+	Metadata          jsonmap.JSON
 	Quantity          int
 	ManualFormData    jsonmap.JSON
 	DownstreamOrderNo string
@@ -45,6 +46,7 @@ type CreateOrderResult struct {
 	Currency     string
 	ErrorCode    string
 	ErrorMessage string
+	Fulfillment  *Fulfillment
 }
 
 type UpstreamOrder struct {
@@ -67,6 +69,11 @@ type UpstreamConnection interface {
 	CancelOrder(ctx context.Context, orderID uint) error
 }
 
+// OrderReferenceConnection 支持没有数字 ID 的不透明上游订单号。
+type OrderReferenceConnection interface {
+	GetOrderByReference(ctx context.Context, orderID uint, orderNo string) (*UpstreamOrder, error)
+}
+
 // UseCase 是支付、HTTP、上游回调与 Worker 共享的正式采购应用契约。
 type UseCase interface {
 	CreateForOrder(orderID uint) error
@@ -81,4 +88,12 @@ type UseCase interface {
 	FillParentOrderNo(order *procurementdomain.Order)
 	RetryManual(id uint) error
 	CancelManual(id uint) error
+}
+
+// GetOrderByReference 优先按上游协议支持的订单引用查询，兼容仅支持数字 ID 的连接。
+func GetOrderByReference(ctx context.Context, connection UpstreamConnection, orderID uint, orderNo string) (*UpstreamOrder, error) {
+	if referenceConnection, ok := connection.(OrderReferenceConnection); ok {
+		return referenceConnection.GetOrderByReference(ctx, orderID, orderNo)
+	}
+	return connection.GetOrder(ctx, orderID)
 }

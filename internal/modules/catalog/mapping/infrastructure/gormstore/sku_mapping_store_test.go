@@ -1,6 +1,8 @@
 package gormstore
 
 import (
+	"github.com/dujiao-next/internal/shared/jsonmap"
+	"reflect"
 	"testing"
 
 	mappingdomain "github.com/dujiao-next/internal/modules/catalog/mapping/domain"
@@ -59,5 +61,31 @@ func TestSKUMappingStoreDeleteHidesRowsAndPersistsMarker(t *testing.T) {
 	}
 	if persisted.DeletedAt == nil {
 		t.Fatal("DeleteByProductMapping must persist deleted_at")
+	}
+}
+
+func TestSKUMappingStorePersistsUpstreamMetadata(t *testing.T) {
+	_, store, _ := setupMappingStoreTest(t)
+	mapping := &mappingdomain.SKUMapping{ProductMappingID: 1, LocalSKUID: 81, UpstreamSKUID: 91, UpstreamMetadata: jsonmap.JSON{"code": "product-code", "race": "race-a", "sku": "sku-a"}}
+	if err := store.Create(mapping); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := store.GetByLocalSKUID(81)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded == nil || !reflect.DeepEqual(loaded.UpstreamMetadata, mapping.UpstreamMetadata) {
+		t.Fatalf("metadata not persisted: %#v", loaded)
+	}
+	loaded.UpstreamMetadata = jsonmap.JSON{"code": "product-code", "race": "race-b", "sku": "sku-b"}
+	if err := store.Update(loaded); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := store.GetByLocalSKUID(81)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded == nil || !reflect.DeepEqual(reloaded.UpstreamMetadata, loaded.UpstreamMetadata) {
+		t.Fatalf("metadata not updated: %#v", reloaded)
 	}
 }

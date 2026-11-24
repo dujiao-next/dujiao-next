@@ -80,6 +80,13 @@ func (s *Service) SubmitToUpstream(procurementOrderID uint) error {
 		TraceID:           procOrder.TraceID,
 		CallbackURL:       connection.CallbackURL(),
 	}
+	if metadataReader, ok := s.skuMapRepo.(procurementcontract.SKUMetadataReader); ok {
+		req.Metadata, err = metadataReader.FindUpstreamMetadata(item.SKUID)
+		if err != nil {
+			s.markProcurementError(procOrder, fmt.Sprintf("lookup sku metadata failed: %v", err))
+			return fmt.Errorf("lookup sku metadata: %w", err)
+		}
+	}
 
 	// 传递人工表单数据（如有）
 	if len(item.ManualFormSubmissionJSON) > 0 {
@@ -139,6 +146,9 @@ func (s *Service) SubmitToUpstream(procurementOrderID uint) error {
 	// 入队轮询任务（30s 延迟，作为回调的 fallback）
 	if s.queue != nil {
 		_ = s.queue.EnqueuePoll(procOrder.ID, 30*time.Second)
+	}
+	if resp.Fulfillment != nil && mapProcurementUpstreamStatus(resp.Status) == "delivered" {
+		return s.HandleUpstreamCallback(procOrder.ID, "delivered", resp.Fulfillment)
 	}
 
 	return nil

@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -281,6 +282,53 @@ func (r *recordingSKUMappingRepo) Create(_ *mappingdomain.SKUMapping) error {
 // staticProductRepo 返回一个固定的本地商品，供 SyncProduct 走完商品同步阶段。
 type staticProductRepo struct {
 	mappingcontract.ProductRepository
+}
+
+type purchaseLimitProductRepo struct {
+	staticProductRepo
+	product *productdomain.Product
+}
+
+func (r *purchaseLimitProductRepo) GetByID(_ string) (*productdomain.Product, error) {
+	return r.product, nil
+}
+
+func (r *purchaseLimitProductRepo) Update(product *productdomain.Product) error {
+	copy := *product
+	r.product = &copy
+	return nil
+}
+
+func TestSyncPurchaseQuantityLimits(t *testing.T) {
+	minQuantity, maxQuantity, unlimited := 2, 5, 0
+	for _, periodic := range []bool{false, true} {
+		for _, tc := range []struct {
+			name             string
+			min, max         *int
+			wantMin, wantMax int
+		}{
+			{name: "missing preserves local limits", wantMin: 3, wantMax: 8},
+			{name: "upstream limits replace local limits", min: &minQuantity, max: &maxQuantity, wantMin: 2, wantMax: 5},
+			{name: "explicit zero clears limits", min: &unlimited, max: &unlimited},
+		} {
+			t.Run(fmt.Sprintf("periodic=%t/%s", periodic, tc.name), func(t *testing.T) {
+				product := &upstream.UpstreamProduct{ID: 20, IsActive: true, MinPurchaseQuantity: tc.min, MaxPurchaseQuantity: tc.max}
+				mapping := &mappingdomain.Mapping{ID: 1, ConnectionID: 1, LocalProductID: 10, UpstreamProductID: 20}
+				conn := &siteconnectiondomain.Connection{ID: 1, ExchangeRate: decimal.NewFromInt(1)}
+				products := &purchaseLimitProductRepo{product: &productdomain.Product{ID: 10, MinPurchaseQuantity: 3, MaxPurchaseQuantity: 8}}
+				svc := &Service{mappings: staticMappingRepo{mapping: mapping}, products: products, skus: &creatingSKURepo{}, skuMappings: &recordingSKUMappingRepo{}, connections: staticConnectionProvider{conn: conn, adapter: &parentCategoryAdapter{product: product}}}
+				if periodic {
+					now := time.Now()
+					svc.syncProductFromData(mapping, conn, product, &now, nil, true)
+				} else if err := svc.SyncProduct(1); err != nil {
+					t.Fatal(err)
+				}
+				if products.product.MinPurchaseQuantity != tc.wantMin || products.product.MaxPurchaseQuantity != tc.wantMax {
+					t.Fatalf("purchase limits = (%d, %d), want (%d, %d)", products.product.MinPurchaseQuantity, products.product.MaxPurchaseQuantity, tc.wantMin, tc.wantMax)
+				}
+			})
+		}
+	}
 }
 
 func (staticProductRepo) GetByID(_ string) (*productdomain.Product, error) {

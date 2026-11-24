@@ -209,6 +209,12 @@ func (s *Service) importUpstreamProduct(connectionID uint, upstreamProductID uin
 	}
 
 	var mapping *mappingdomain.Mapping
+	if upProduct.MinPurchaseQuantity != nil {
+		product.MinPurchaseQuantity = productdomain.NormalizePurchaseQuantityLimit(*upProduct.MinPurchaseQuantity)
+	}
+	if upProduct.MaxPurchaseQuantity != nil {
+		product.MaxPurchaseQuantity = productdomain.NormalizePurchaseQuantityLimit(*upProduct.MaxPurchaseQuantity)
+	}
 
 	// 使用事务一次性创建本地商品、SKU、映射与 SKU 映射，避免留下半成功数据。
 	if err := s.transactions.WithinTransaction(func(repos mappingcontract.ImportRepositories) error {
@@ -385,6 +391,7 @@ func createSKUMappings(
 			ProductMappingID: mappingID,
 			LocalSKUID:       localSKU.ID,
 			UpstreamSKUID:    upSKU.ID,
+			UpstreamMetadata: upSKU.Metadata,
 			UpstreamPrice:    money.FromDecimal(upPrice.Round(2)),
 			UpstreamIsActive: upSKU.IsActive,
 			UpstreamStock:    upSKU.StockQuantity,

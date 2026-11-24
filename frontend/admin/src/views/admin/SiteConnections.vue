@@ -45,6 +45,7 @@ const form = reactive({
   auto_sync_price: 'false',
 })
 const reapplyingId = ref<number | null>(null)
+const isYiciyuan = computed(() => form.protocol === 'yiciyuan')
 
 // 按上游分类加价：键为上游分类 ID，值为输入框内容（空表示沿用默认加价）
 interface UpstreamCategoryItem {
@@ -422,7 +423,7 @@ onMounted(() => {
             </TableCell>
             <TableCell class="min-w-[160px] px-6 py-4 font-medium text-foreground break-words">{{ conn.name }}</TableCell>
             <TableCell class="min-w-[200px] px-6 py-4 text-xs text-muted-foreground font-mono break-all">{{ conn.base_url }}</TableCell>
-            <TableCell class="min-w-[80px] px-6 py-4 text-xs text-muted-foreground break-words">{{ conn.protocol }}</TableCell>
+            <TableCell class="min-w-[80px] px-6 py-4 text-xs text-muted-foreground break-words">{{ conn.protocol === 'yiciyuan' ? t('siteConnections.form.yiciyuan') : conn.protocol }}</TableCell>
             <TableCell class="min-w-[80px] px-6 py-4 text-xs text-muted-foreground">
               <span v-if="conn.price_markup_percent && Number(conn.price_markup_percent) !== 0" class="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs text-blue-700">
                 +{{ conn.price_markup_percent }}%
@@ -495,16 +496,17 @@ onMounted(() => {
             <div class="md:col-span-2">
               <label class="mb-1.5 block text-xs font-medium text-muted-foreground">{{ t('siteConnections.form.baseUrl') }}</label>
               <Input v-model="form.base_url" required :placeholder="t('siteConnections.form.baseUrlPlaceholder')" />
+              <p v-if="isYiciyuan" class="mt-1 text-xs text-muted-foreground">{{ t('siteConnections.form.yiciyuanBaseUrlHint') }}</p>
               <p v-if="errors.base_url" class="text-xs text-destructive mt-1">{{ errors.base_url }}</p>
             </div>
             <div>
-              <label class="mb-1.5 block text-xs font-medium text-muted-foreground">{{ t('siteConnections.form.apiKey') }}</label>
-              <Input v-model="form.api_key" :placeholder="t('siteConnections.form.apiKeyPlaceholder')" />
+              <label class="mb-1.5 block text-xs font-medium text-muted-foreground">{{ t(isYiciyuan ? 'siteConnections.form.yiciyuanAppId' : 'siteConnections.form.apiKey') }}</label>
+              <Input v-model="form.api_key" :placeholder="t(isYiciyuan ? 'siteConnections.form.yiciyuanAppId' : 'siteConnections.form.apiKeyPlaceholder')" />
               <p v-if="errors.api_key" class="text-xs text-destructive mt-1">{{ errors.api_key }}</p>
             </div>
             <div>
-              <label class="mb-1.5 block text-xs font-medium text-muted-foreground">{{ t('siteConnections.form.apiSecret') }}</label>
-              <Input v-model="form.api_secret" type="password" :placeholder="t('siteConnections.form.apiSecretPlaceholder')" />
+              <label class="mb-1.5 block text-xs font-medium text-muted-foreground">{{ t(isYiciyuan ? 'siteConnections.form.yiciyuanAppKey' : 'siteConnections.form.apiSecret') }}</label>
+              <Input v-model="form.api_secret" type="password" :placeholder="t(isYiciyuan ? 'siteConnections.form.yiciyuanAppKey' : 'siteConnections.form.apiSecretPlaceholder')" />
             </div>
             <div>
               <label class="mb-1.5 block text-xs font-medium text-muted-foreground">{{ t('siteConnections.form.protocol') }}</label>
@@ -514,10 +516,11 @@ onMounted(() => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="dujiao-next">dujiao-next</SelectItem>
+                  <SelectItem value="yiciyuan">{{ t('siteConnections.form.yiciyuan') }}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div>
+            <div v-if="!isYiciyuan">
               <label class="mb-1.5 block text-xs font-medium text-muted-foreground">{{ t('siteConnections.form.callbackUrl') }}</label>
               <Input v-model="form.callback_url" :placeholder="t('siteConnections.form.callbackUrlPlaceholder')" />
             </div>
@@ -529,6 +532,7 @@ onMounted(() => {
               <label class="mb-1.5 block text-xs font-medium text-muted-foreground">{{ t('siteConnections.form.retryIntervals') }}</label>
               <Input v-model="form.retry_intervals" placeholder="30,60,120" />
             </div>
+            <p v-if="isYiciyuan" class="text-xs text-muted-foreground md:col-span-2">{{ t('siteConnections.form.yiciyuanConnectionHint') }}</p>
           </div>
 
           <div class="border-t border-border pt-4">

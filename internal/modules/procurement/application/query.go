@@ -217,7 +217,7 @@ func (s *Service) fillUpstreamRefundRecordsForProcurementOrder(parent context.Co
 	}
 	order.UpstreamRefundRecords = nil
 	order.UpstreamRefundedAmount = ""
-	if s.connections == nil || order.UpstreamOrderID == 0 || !shouldSyncUpstreamRefundStatus(order.Status) {
+	if s.connections == nil || (order.UpstreamOrderID == 0 && strings.TrimSpace(order.UpstreamOrderNo) == "") || !shouldSyncUpstreamRefundStatus(order.Status) {
 		return
 	}
 	connection, err := s.connections.Open(order.ConnectionID)
@@ -226,7 +226,7 @@ func (s *Service) fillUpstreamRefundRecordsForProcurementOrder(parent context.Co
 	}
 	ctx, cancel := context.WithTimeout(parent, 8*time.Second)
 	defer cancel()
-	detail, err := connection.GetOrder(ctx, order.UpstreamOrderID)
+	detail, err := procurementcontract.GetOrderByReference(ctx, connection, order.UpstreamOrderID, order.UpstreamOrderNo)
 	if err != nil || detail == nil {
 		return
 	}

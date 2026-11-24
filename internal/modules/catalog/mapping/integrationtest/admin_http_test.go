@@ -147,6 +147,7 @@ func setupAdminHandlerTest(t *testing.T, upstreamHandler http.HandlerFunc) (*map
 }
 
 func TestBatchImportUpstreamProductsAutoCreatesCategory(t *testing.T) {
+	minQuantity, maxQuantity := 2, 5
 	h, db, connID, cleanup := setupAdminHandlerTest(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
@@ -161,17 +162,19 @@ func TestBatchImportUpstreamProductsAutoCreatesCategory(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"ok": true,
 				"product": upstream.UpstreamProduct{
-					ID:              101,
-					CategoryID:      9,
-					Title:           jsonmap.JSON{"zh-CN": "上游商品"},
-					Description:     jsonmap.JSON{"zh-CN": "描述"},
-					Content:         jsonmap.JSON{"zh-CN": "内容"},
-					Images:          []string{},
-					Tags:            []string{},
-					PriceAmount:     "10.00",
-					Currency:        "CNY",
-					FulfillmentType: constants.FulfillmentTypeAuto,
-					IsActive:        true,
+					ID:                  101,
+					MinPurchaseQuantity: &minQuantity,
+					MaxPurchaseQuantity: &maxQuantity,
+					CategoryID:          9,
+					Title:               jsonmap.JSON{"zh-CN": "上游商品"},
+					Description:         jsonmap.JSON{"zh-CN": "描述"},
+					Content:             jsonmap.JSON{"zh-CN": "内容"},
+					Images:              []string{},
+					Tags:                []string{},
+					PriceAmount:         "10.00",
+					Currency:            "CNY",
+					FulfillmentType:     constants.FulfillmentTypeAuto,
+					IsActive:            true,
 					SKUs: []upstream.UpstreamSKU{
 						{ID: 201, SKUCode: "SKU-A", SpecValues: jsonmap.JSON{"name": "A"}, PriceAmount: "10.00", IsActive: true},
 					},
@@ -202,6 +205,9 @@ func TestBatchImportUpstreamProductsAutoCreatesCategory(t *testing.T) {
 	}
 	if imported.CategoryID == 0 {
 		t.Fatalf("expected imported product to be assigned to auto-created category")
+	}
+	if imported.MinPurchaseQuantity != minQuantity || imported.MaxPurchaseQuantity != maxQuantity {
+		t.Fatalf("purchase limits not imported: min=%d max=%d", imported.MinPurchaseQuantity, imported.MaxPurchaseQuantity)
 	}
 
 	var category categorydomain.Category

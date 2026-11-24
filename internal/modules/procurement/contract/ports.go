@@ -4,6 +4,7 @@ import (
 	"time"
 
 	procurementdomain "github.com/dujiao-next/internal/modules/procurement/domain"
+	"github.com/dujiao-next/internal/shared/jsonmap"
 )
 
 type Repository interface {
@@ -31,6 +32,11 @@ type ProductMappingReader interface {
 
 type SKUMappingReader interface {
 	FindUpstreamSKUID(skuID uint) (upstreamSKUID uint, found bool, err error)
+}
+
+// SKUMetadataReader 可选地提供上游协议需要的商品和规格标识。
+type SKUMetadataReader interface {
+	FindUpstreamMetadata(skuID uint) (jsonmap.JSON, error)
 }
 
 type ConnectionProvider interface {

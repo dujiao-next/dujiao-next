@@ -46,6 +46,7 @@ type session struct {
 }
 
 var _ procurementcontract.UpstreamConnection = (*session)(nil)
+var _ procurementcontract.OrderReferenceConnection = (*session)(nil)
 
 func (s *session) CallbackURL() string    { return s.connection.CallbackURL }
 func (s *session) RetryMax() int          { return s.connection.RetryMax }
@@ -54,6 +55,7 @@ func (s *session) RetryIntervals() string { return s.connection.RetryIntervals }
 func (s *session) CreateOrder(ctx context.Context, request procurementcontract.CreateOrderRequest) (*procurementcontract.CreateOrderResult, error) {
 	result, err := s.adapter.CreateOrder(ctx, upstream.CreateUpstreamOrderReq{
 		SKUID: request.SKUID, Quantity: request.Quantity, ManualFormData: request.ManualFormData,
+		Metadata:          request.Metadata,
 		DownstreamOrderNo: request.DownstreamOrderNo, TraceID: request.TraceID, CallbackURL: request.CallbackURL,
 	})
 	if err != nil {
@@ -63,13 +65,29 @@ func (s *session) CreateOrder(ctx context.Context, request procurementcontract.C
 		OK: result.OK, OrderID: result.OrderID, OrderNo: result.OrderNo,
 		Status: result.Status, Amount: result.Amount, Currency: result.Currency,
 		ErrorCode: result.ErrorCode, ErrorMessage: result.ErrorMessage,
+		Fulfillment: fromUpstreamFulfillment(result.Fulfillment),
 	}, nil
 }
 
 func (s *session) GetOrder(ctx context.Context, orderID uint) (*procurementcontract.UpstreamOrder, error) {
 	detail, err := s.adapter.GetOrder(ctx, orderID)
+	return fromUpstreamOrder(detail, err)
+}
+
+func (s *session) GetOrderByReference(ctx context.Context, orderID uint, orderNo string) (*procurementcontract.UpstreamOrder, error) {
+	if adapter, ok := s.adapter.(upstream.OrderReferenceAdapter); ok {
+		detail, err := adapter.GetOrderByReference(ctx, orderNo)
+		return fromUpstreamOrder(detail, err)
+	}
+	return s.GetOrder(ctx, orderID)
+}
+
+func fromUpstreamOrder(detail *upstream.UpstreamOrderDetail, err error) (*procurementcontract.UpstreamOrder, error) {
 	if err != nil {
 		return nil, err
+	}
+	if detail == nil {
+		return nil, fmt.Errorf("upstream order detail is nil")
 	}
 	result := &procurementcontract.UpstreamOrder{
 		OrderID: detail.OrderID, OrderNo: detail.OrderNo, Status: detail.Status,

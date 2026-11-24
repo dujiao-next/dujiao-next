@@ -11,9 +11,22 @@ import (
 
 	mappingdomain "github.com/dujiao-next/internal/modules/catalog/mapping/domain"
 
+	"context"
+	"github.com/dujiao-next/internal/config"
 	"github.com/dujiao-next/internal/constants"
+	mappinggormstore "github.com/dujiao-next/internal/modules/catalog/mapping/infrastructure/gormstore"
+	ordergormstore "github.com/dujiao-next/internal/modules/order/infrastructure/gormstore"
+	procurementapp "github.com/dujiao-next/internal/modules/procurement/application"
 	procurementcontract "github.com/dujiao-next/internal/modules/procurement/contract"
+	procurementgormstore "github.com/dujiao-next/internal/modules/procurement/infrastructure/gormstore"
+	procurementmapping "github.com/dujiao-next/internal/modules/procurement/infrastructure/mappingreader"
+	procurementorder "github.com/dujiao-next/internal/modules/procurement/infrastructure/orderreader"
+	procurementupstream "github.com/dujiao-next/internal/modules/procurement/infrastructure/upstreamgateway"
 	siteconnectionapp "github.com/dujiao-next/internal/modules/siteconnection/application"
+	siteconnectiondomain "github.com/dujiao-next/internal/modules/siteconnection/domain"
+	"github.com/dujiao-next/internal/shared/jsonmap"
+	"github.com/dujiao-next/internal/upstream"
+	"reflect"
 )
 
 // ── SubmitToUpstream tests ──
@@ -368,6 +381,111 @@ func TestSubmitToUpstream_StatusChangedDuringRequest_KeepsStatusAndRecordsUpstre
 			if updated.Status != concurrent || updated.UpstreamOrderID != 999 || updated.UpstreamOrderNo != "UP-999" {
 				t.Fatalf("expected status=%q with upstream order recorded, got status=%q upstream_order_id=%d no=%q",
 					concurrent, updated.Status, updated.UpstreamOrderID, updated.UpstreamOrderNo)
+			}
+		})
+	}
+}
+
+type referenceAdapter struct {
+	upstream.Adapter
+	request   upstream.CreateUpstreamOrderReq
+	instant   bool
+	reference string
+	status    string
+}
+
+func (a *referenceAdapter) CreateOrder(_ context.Context, request upstream.CreateUpstreamOrderReq) (*upstream.CreateUpstreamOrderResp, error) {
+	a.request = request
+	result := &upstream.CreateUpstreamOrderResp{OK: true, OrderNo: "trade/opaque-A09", Status: "accepted", Amount: "50.00", Currency: "CNY"}
+	if a.instant {
+		result.Status = "delivered"
+		result.Fulfillment = &upstream.UpstreamFulfillment{Type: "auto", Status: "delivered", Payload: "CARD-INSTANT"}
+	}
+	return result, nil
+}
+
+func (a *referenceAdapter) GetOrderByReference(_ context.Context, orderNo string) (*upstream.UpstreamOrderDetail, error) {
+	a.reference = orderNo
+	status := a.status
+	if status == "" {
+		status = "delivered"
+	}
+	return &upstream.UpstreamOrderDetail{OrderNo: orderNo, Status: status, Fulfillment: &upstream.UpstreamFulfillment{Type: "auto", Status: "delivered", Payload: "CARD-POLL"}}, nil
+}
+
+type referenceProvider struct{ adapter upstream.Adapter }
+
+func (p referenceProvider) GetByID(id uint) (*siteconnectiondomain.Connection, error) {
+	return &siteconnectiondomain.Connection{ID: id}, nil
+}
+func (p referenceProvider) GetAdapter(_ *siteconnectiondomain.Connection) (upstream.Adapter, error) {
+	return p.adapter, nil
+}
+
+func TestSubmitMetadataAndOpaqueReferenceDelivery(t *testing.T) {
+	for _, instant := range []bool{false, true} {
+		t.Run(map[bool]string{false: "poll", true: "instant"}[instant], func(t *testing.T) {
+			db := setupProcurementTestDB(t)
+			order := createProcTestOrder(t, db, "PROC-REFERENCE", constants.OrderStatusPaid, constants.FulfillmentTypeUpstream)
+			metadata := jsonmap.JSON{"code": "product-code", "race": "race-a", "sku": "sku-a"}
+			if err := db.Create(&mappingdomain.SKUMapping{LocalSKUID: 1, UpstreamSKUID: 71, ProductMappingID: 1, UpstreamMetadata: metadata}).Error; err != nil {
+				t.Fatal(err)
+			}
+			proc := createTestProcurementOrder(t, db, 1, order.ID, order.OrderNo, "pending")
+			adapter := &referenceAdapter{instant: instant}
+			orders := ordergormstore.New(db, "test-guest-credential-secret-with-32-bytes")
+			svc := procurementapp.NewService(procurementapp.Options{
+				Repository: procurementgormstore.New(db), Orders: procurementorder.New(orders),
+				SKUMappings:    procurementmapping.NewSKUs(mappinggormstore.NewSKUMappingStore(db)),
+				Connections:    procurementupstream.New(referenceProvider{adapter: adapter}),
+				OrderLifecycle: procurementgormstore.NewLifecycle(db, nil, nil, config.EmailConfig{}),
+			})
+			if err := svc.SubmitToUpstream(proc.ID); err != nil {
+				t.Fatal(err)
+			}
+			if adapter.request.SKUID != 71 || !reflect.DeepEqual(adapter.request.Metadata, metadata) {
+				t.Fatalf("purchase reference lost: %#v", adapter.request)
+			}
+			var accepted ProcurementOrder
+			if err := db.First(&accepted, proc.ID).Error; err != nil {
+				t.Fatal(err)
+			}
+			if accepted.UpstreamOrderID != 0 || accepted.UpstreamOrderNo != "trade/opaque-A09" {
+				t.Fatalf("opaque reference not persisted: %#v", accepted)
+			}
+			if !instant {
+				if accepted.Status != "accepted" {
+					t.Fatalf("expected accepted, got %s", accepted.Status)
+				}
+				if err := svc.PollUpstreamStatus(proc.ID); err != nil {
+					t.Fatal(err)
+				}
+				if adapter.reference != accepted.UpstreamOrderNo {
+					t.Fatalf("wrong reference %q", adapter.reference)
+				}
+			}
+			var delivered orderdomain.Order
+			if err := db.First(&delivered, order.ID).Error; err != nil {
+				t.Fatal(err)
+			}
+			if delivered.Status != constants.OrderStatusDelivered {
+				t.Fatalf("expected delivered, got %s", delivered.Status)
+			}
+			var fulfilled ProcurementOrder
+			if err := db.First(&fulfilled, proc.ID).Error; err != nil {
+				t.Fatal(err)
+			}
+			if fulfilled.Status != constants.ProcurementStatusFulfilled {
+				t.Fatalf("expected fulfilled, got %s", fulfilled.Status)
+			}
+			adapter.status = "refunded"
+			adapter.reference = ""
+			refunded, err := svc.GetByID(proc.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if refunded.Status != constants.ProcurementStatusRefunded || adapter.reference != accepted.UpstreamOrderNo {
+				t.Fatalf("zero-ID refund query lost reference: status=%s reference=%q", refunded.Status, adapter.reference)
 			}
 		})
 	}

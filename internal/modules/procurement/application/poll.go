@@ -49,7 +49,7 @@ func (s *Service) PollUpstreamStatus(procurementOrderID uint) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	detail, err := connection.GetOrder(ctx, procOrder.UpstreamOrderID)
+	detail, err := procurementcontract.GetOrderByReference(ctx, connection, procOrder.UpstreamOrderID, procOrder.UpstreamOrderNo)
 	if err != nil {
 		logger.Warnw("procurement_poll_status_error",
 			"procurement_order_id", procOrder.ID,
@@ -179,7 +179,7 @@ func (s *Service) requeueStalledSubmissions() {
 }
 
 func (s *Service) syncAcceptedOrder(ctx context.Context, procOrder *procurementdomain.Order) {
-	if procOrder.UpstreamOrderID == 0 {
+	if procOrder.UpstreamOrderID == 0 && strings.TrimSpace(procOrder.UpstreamOrderNo) == "" {
 		return
 	}
 	connection, err := s.connections.Open(procOrder.ConnectionID)
@@ -187,7 +187,7 @@ func (s *Service) syncAcceptedOrder(ctx context.Context, procOrder *procurementd
 		return
 	}
 	reqCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-	detail, err := connection.GetOrder(reqCtx, procOrder.UpstreamOrderID)
+	detail, err := procurementcontract.GetOrderByReference(reqCtx, connection, procOrder.UpstreamOrderID, procOrder.UpstreamOrderNo)
 	cancel()
 	if err != nil {
 		logger.Warnw("procurement_sync_accepted_poll_error",
