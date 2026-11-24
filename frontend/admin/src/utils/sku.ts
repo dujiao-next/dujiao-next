@@ -78,6 +78,13 @@ export const formatSkuSpecValues = (specValues: unknown, locale?: string) => {
     .join(' / ')
 }
 
+export const formatCurrentLocaleSkuSpec = (specValues: Record<string, string> | undefined, locale: string) => {
+  if (specValues && SUPPORTED_LOCALES.some((code) => code in specValues)) {
+    return normalizeText(specValues[locale])
+  }
+  return formatSkuSpecValues(specValues, locale)
+}
+
 export const resolveSkuCodeFromSnapshot = (snapshot: unknown, options?: { defaultLabel?: string }) => {
   if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return ''
   const row = snapshot as Record<string, unknown>
