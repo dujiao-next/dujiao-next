@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/dujiao-next/internal/constants"
 	"testing"
 	"time"
 
@@ -18,6 +19,48 @@ import (
 
 	"github.com/shopspring/decimal"
 )
+
+type summaryStockAdapter struct {
+	parentCategoryAdapter
+	err error
+}
+
+func (a *summaryStockAdapter) ListProducts(context.Context, upstream.ListProductsOpts) (*upstream.ProductListResult, error) {
+	return &upstream.ProductListResult{Total: 1, Items: []upstream.UpstreamProduct{{ID: 20, IsActive: true}}}, nil
+}
+
+func (a *summaryStockAdapter) GetProduct(context.Context, uint) (*upstream.UpstreamProduct, error) {
+	return a.product, a.err
+}
+
+func TestYiciyuanPeriodicSyncUsesDetailsAndPreservesStockOnFailure(t *testing.T) {
+	for _, fail := range []bool{false, true} {
+		t.Run(fmt.Sprintf("failure=%t", fail), func(t *testing.T) {
+			mapping := &mappingdomain.Mapping{ID: 1, ConnectionID: 1, LocalProductID: 10, UpstreamProductID: 20}
+			conn := &siteconnectiondomain.Connection{ID: 1, Protocol: constants.ConnectionProtocolYiciyuan, ExchangeRate: decimal.NewFromInt(1)}
+			adapter := &summaryStockAdapter{parentCategoryAdapter: parentCategoryAdapter{product: &upstream.UpstreamProduct{ID: 20, IsActive: true, SKUs: []upstream.UpstreamSKU{{ID: 21, PriceAmount: "35", StockQuantity: 8, IsActive: true, Metadata: jsonmap.JSON{"code": "ABC"}}}}}}
+			repo := &metadataMappingRepo{rows: []mappingdomain.SKUMapping{{LocalSKUID: 11, UpstreamSKUID: 21}}}
+			svc := &Service{mappings: staticMappingRepo{mapping: mapping}, products: staticProductRepo{}, skus: &recordingSKURepo{}, skuMappings: repo, connections: staticConnectionProvider{conn: conn, adapter: adapter}}
+			if err := svc.SyncProduct(1); err != nil {
+				t.Fatal(err)
+			}
+			repo.updated = nil
+			if fail {
+				adapter.err = errors.New("supplier timed out")
+			}
+			err := svc.SyncConnectionStock(1, []mappingdomain.Mapping{*mapping}, 50, 200)
+			if fail {
+				if err == nil || len(repo.updated) != 0 {
+					t.Fatalf("failed request overwrote stock: %v %#v", err, repo.updated)
+				}
+				return
+			}
+			if err != nil || len(repo.updated) != 1 || repo.updated[0].UpstreamStock != 8 || !repo.updated[0].UpstreamIsActive || repo.updated[0].UpstreamMetadata["code"] != "ABC" {
+				t.Fatalf("periodic sync lost detailed inventory: %v %#v", err, repo.updated)
+			}
+		})
+	}
+}
 
 // fakeSettingsProvider 以固定同步间隔实现 SettingsProvider。
 type fakeSettingsProvider struct {

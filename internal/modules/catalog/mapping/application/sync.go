@@ -506,6 +506,19 @@ func (s *Service) SyncConnectionStock(connectionID uint, connMappings []mappingd
 		return fmt.Errorf("get connection %d: %w", connectionID, err)
 	}
 
+	// 异次元的列表仅含概要，不含 SKU；不能把缺少 SKU 当成删除。
+	// 只对已映射商品复用详情同步，每件独立超时，失败时保留已有库存。
+	if conn.Protocol == constants.ConnectionProtocolYiciyuan {
+		var syncErrors []error
+		for _, mapping := range connMappings {
+			if err := s.SyncProduct(mapping.ID); err != nil {
+				logger.Warnw("sync_yiciyuan_product_failed", "mapping_id", mapping.ID, "error", err)
+				syncErrors = append(syncErrors, fmt.Errorf("sync mapping %d: %w", mapping.ID, err))
+			}
+		}
+		return errors.Join(syncErrors...)
+	}
+
 	adapter, err := s.connections.GetAdapter(conn)
 	if err != nil {
 		return fmt.Errorf("get adapter for connection %d: %w", connectionID, err)
