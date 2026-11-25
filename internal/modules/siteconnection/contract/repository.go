@@ -19,3 +19,10 @@ type Repository interface {
 	List(filter ListFilter) ([]siteconnectiondomain.Connection, int64, error)
 	ListActive() ([]siteconnectiondomain.Connection, error)
 }
+
+// CatalogConnection is the non-secret connection metadata used by catalog monitoring.
+type CatalogConnection struct {
+	ID     uint   `json:"id"`
+	Name   string `json:"name"`
+	Status string `json:"status"`
+}

@@ -396,6 +396,7 @@ const (
 	TaskProcurementSyncAccepted     = "procurement:sync_accepted"
 	TaskUpstreamSyncProducts        = "upstream:sync_products"
 	TaskUpstreamSyncStock           = "upstream:sync_stock"
+	TaskUpstreamCatalogScan         = "upstream:scan_catalog"
 	TaskReconciliationRun           = "reconciliation:run"
 	TaskDownstreamCallback          = "downstream:callback"
 	TaskBotNotify                   = "bot:notify"

@@ -175,8 +175,10 @@ func (a *DujiaoNextAdapter) Ping(ctx context.Context) (*PingResult, error) {
 // ListCategories 拉取上游分类列表
 func (a *DujiaoNextAdapter) ListCategories(ctx context.Context) (*CategoryListResult, error) {
 	var result struct {
-		OK         bool               `json:"ok"`
-		Categories []UpstreamCategory `json:"categories"`
+		OK                        bool               `json:"ok"`
+		Categories                []UpstreamCategory `json:"categories"`
+		ProductCategoryFilter     bool               `json:"product_category_filter"`
+		ProductUpdatedAfterFilter bool               `json:"product_updated_after_filter"`
 	}
 	if err := a.doRequest(ctx, http.MethodGet, "/api/v1/upstream/categories", nil, &result); err != nil {
 		// 旧版上游不支持分类 API，返回空列表
@@ -186,23 +188,36 @@ func (a *DujiaoNextAdapter) ListCategories(ctx context.Context) (*CategoryListRe
 		}
 		return nil, err
 	}
-	return &CategoryListResult{Supported: true, Categories: result.Categories}, nil
+	return &CategoryListResult{
+		Supported: true, Categories: result.Categories,
+		ProductCategoryFilter:     result.ProductCategoryFilter,
+		ProductUpdatedAfterFilter: result.ProductUpdatedAfterFilter,
+	}, nil
 }
 
 // ListProducts 拉取上游商品列表
 func (a *DujiaoNextAdapter) ListProducts(ctx context.Context, opts ListProductsOpts) (*ProductListResult, error) {
 	path := fmt.Sprintf("/api/v1/upstream/products?page=%d&page_size=%d", opts.Page, opts.PageSize)
+	if opts.CategoryID != 0 {
+		path += fmt.Sprintf("&category_id=%d", opts.CategoryID)
+	}
 	if opts.UpdatedAfter != nil {
 		path += "&updated_after=" + opts.UpdatedAfter.Format(time.RFC3339)
 	}
 	if opts.IncludeInactive {
 		path += "&include_inactive=true"
 	}
-	var result ProductListResult
+	var result struct {
+		OK *bool `json:"ok"`
+		ProductListResult
+	}
 	if err := a.doRequest(ctx, http.MethodGet, path, nil, &result); err != nil {
 		return nil, err
 	}
-	return &result, nil
+	if result.OK != nil && !*result.OK {
+		return nil, errors.New("upstream product list rejected")
+	}
+	return &result.ProductListResult, nil
 }
 
 // GetProduct 获取单个商品详情
@@ -374,6 +389,9 @@ func (a *DujiaoNextAdapter) doRequest(ctx context.Context, method, path string, 
 		if err := pacer.wait(ctx); err != nil {
 			return err
 		}
+		if err := waitCatalogRequest(ctx); err != nil {
+			return err
+		}
 
 		timestamp := time.Now().Unix()
 		signature := Sign(a.apiSecret, method, signPath, timestamp, bodyBytes)
@@ -398,6 +416,10 @@ func (a *DujiaoNextAdapter) doRequest(ctx context.Context, method, path string, 
 		resp, err := a.client.Do(req)
 		if err != nil {
 			return fmt.Errorf("send request: %w", err)
+		}
+		if limit := catalogRateLimit(ctx, resp); limit != nil {
+			_ = resp.Body.Close()
+			return limit
 		}
 		respBody, readErr := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()

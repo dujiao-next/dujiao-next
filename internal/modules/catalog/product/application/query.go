@@ -110,13 +110,16 @@ func (s *Service) ListPublicForTenant(tenant reseller.TenantContext, resellerRep
 
 // ListForUpstreamSync 上游同步专用：可选包含已下架商品，便于下游识别下架状态
 // includeInactive=true 时返回所有未软删商品（含 is_active=false）
-func (s *Service) ListForUpstreamSync(updatedAfter *time.Time, includeInactive bool, page, pageSize int) ([]productdomain.Product, int64, error) {
+func (s *Service) ListForUpstreamSync(updatedAfter *time.Time, includeInactive bool, page, pageSize int, categoryID uint) ([]productdomain.Product, int64, error) {
 	filter := productcontract.ListFilter{
 		Page:         page,
 		PageSize:     pageSize,
 		OnlyActive:   !includeInactive,
 		WithCategory: true,
 		UpdatedAfter: updatedAfter,
+	}
+	if categoryID != 0 {
+		filter.CategoryIDs = []uint{categoryID}
 	}
 	return s.products.List(filter)
 }

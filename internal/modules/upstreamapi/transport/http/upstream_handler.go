@@ -78,7 +78,7 @@ type CategoryRepository interface {
 }
 
 type ProductService interface {
-	ListForUpstreamSync(updatedAfter *time.Time, includeInactive bool, page, pageSize int) ([]productdomain.Product, int64, error)
+	ListForUpstreamSync(updatedAfter *time.Time, includeInactive bool, page, pageSize int, categoryID uint) ([]productdomain.Product, int64, error)
 	ApplyAutoStockCounts(products []productdomain.Product) error
 	GetAdminByID(id string) (*productdomain.Product, error)
 }

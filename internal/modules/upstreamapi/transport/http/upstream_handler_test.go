@@ -28,6 +28,48 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+type catalogFilterProducts struct {
+	ProductService
+	categoryID uint
+	pageSize   int
+}
+
+func (s *catalogFilterProducts) ListForUpstreamSync(_ *time.Time, _ bool, _ int, pageSize int, categoryID uint) ([]productdomain.Product, int64, error) {
+	s.categoryID = categoryID
+	s.pageSize = pageSize
+	return nil, 0, nil
+}
+
+func (s *catalogFilterProducts) ApplyAutoStockCounts([]productdomain.Product) error { return nil }
+
+func TestListProductsCategoryFilter(t *testing.T) {
+	products := &catalogFilterProducts{}
+	handler := &Handler{Dependencies: Dependencies{Products: products}}
+	for _, test := range []struct {
+		query      string
+		status     int
+		categoryID uint
+	}{
+		{"?page_size=200&category_id=9", http.StatusOK, 9},
+		{"?page_size=200", http.StatusOK, 0},
+		{"?category_id=0", http.StatusBadRequest, 0},
+		{"?category_id=abc", http.StatusBadRequest, 0},
+	} {
+		t.Run(test.query, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Request = httptest.NewRequest(http.MethodGet, "/api/v1/upstream/products"+test.query, nil)
+			handler.ListProducts(ctx)
+			if recorder.Code != test.status {
+				t.Fatalf("status = %d, want %d", recorder.Code, test.status)
+			}
+			if recorder.Code == http.StatusOK && (products.categoryID != test.categoryID || products.pageSize != 200) {
+				t.Fatalf("category = %d, page size = %d", products.categoryID, products.pageSize)
+			}
+		})
+	}
+}
+
 func TestMapCallbackStatus(t *testing.T) {
 	tests := []struct {
 		name   string

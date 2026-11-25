@@ -69,6 +69,7 @@ func (c *Consumer) Register(mux *asynq.ServeMux) {
 	mux.HandleFunc(queue.TaskAffiliateConfirmCommissions, withPanicRecovery(queue.TaskAffiliateConfirmCommissions, c.handleAffiliateConfirmCommissions))
 	mux.HandleFunc(queue.TaskResellerConfirmLedger, withPanicRecovery(queue.TaskResellerConfirmLedger, c.handleResellerConfirmLedger))
 	mux.HandleFunc(queue.TaskUpstreamSyncStock, withPanicRecovery(queue.TaskUpstreamSyncStock, c.handleUpstreamSyncStock))
+	mux.HandleFunc(queue.TaskUpstreamCatalogScan, withPanicRecovery(queue.TaskUpstreamCatalogScan, c.handleUpstreamCatalogScan))
 	mux.HandleFunc(queue.TaskProcurementSubmit, withPanicRecovery(queue.TaskProcurementSubmit, c.handleProcurementSubmit))
 	mux.HandleFunc(queue.TaskProcurementPollStatus, withPanicRecovery(queue.TaskProcurementPollStatus, c.handleProcurementPollStatus))
 	mux.HandleFunc(queue.TaskProcurementSyncAccepted, withPanicRecovery(queue.TaskProcurementSyncAccepted, c.handleProcurementSyncAccepted))

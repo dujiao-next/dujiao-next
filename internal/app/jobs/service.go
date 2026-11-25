@@ -3,6 +3,7 @@ package jobs
 import (
 	"context"
 	"errors"
+	"time"
 
 	jobconsumer "github.com/dujiao-next/internal/app/jobs/consumer"
 	"github.com/dujiao-next/internal/config"
@@ -91,6 +92,14 @@ func registerPeriodicTasks(scheduler *asynq.Scheduler, consumer *jobconsumer.Con
 			logger.Warnw("scheduler_register_upstream_sync_stock_failed", "error", err)
 		} else {
 			logger.Infow("scheduler_register_upstream_sync_stock_ok", "entry_id", entryID, "interval", syncInterval)
+		}
+	}
+	if consumer.UpstreamCatalog != nil {
+		_, err := scheduler.Register("@every 1m", queue.NewUpstreamCatalogScanTask(),
+			asynq.Queue(queue.DefaultQueue), asynq.Timeout(48*time.Minute),
+			asynq.Unique(50*time.Minute), asynq.MaxRetry(0))
+		if err != nil {
+			logger.Warnw("scheduler_register_upstream_catalog_failed", "error", err)
 		}
 	}
 	if consumer.NotificationService != nil {

@@ -39,6 +39,7 @@ import (
 	siteconnectiontransport "github.com/dujiao-next/internal/modules/siteconnection/transport/http"
 	broadcasthttp "github.com/dujiao-next/internal/modules/telegram/broadcast/transport/http"
 	uploadtransport "github.com/dujiao-next/internal/modules/upload/transport/http"
+	catalogwatchtransport "github.com/dujiao-next/internal/modules/upstreamwatch/transport/http"
 	wallettransport "github.com/dujiao-next/internal/modules/wallet/transport/http"
 	"github.com/dujiao-next/internal/platform/http/response"
 	systemtransport "github.com/dujiao-next/internal/platform/http/system"
@@ -192,6 +193,7 @@ func registerAdminRoutes(
 		c.SiteConnectionService,
 		c.ProductMappingService,
 	))
+	catalogwatchtransport.RegisterAdminRoutes(authorized, c.UpstreamCatalog)
 
 	// 商品映射管理
 	mappinghttp.RegisterAdminRoutes(authorized, adminCatalogProductMappingHandler)
