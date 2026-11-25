@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -210,6 +211,8 @@ func RateLimitMiddleware(client *redis.Client, rule RateLimitRule, keyFunc RateL
 				msgKey = "error.rate_limited"
 			}
 			msg := i18n.Sprintf(i18n.ResolveLocale(c), msgKey, waitSeconds)
+			// 标准重试提示：下游适配器据此等待而不是盲目重试。
+			c.Header("Retry-After", strconv.Itoa(waitSeconds))
 			if isChannelAPIRequest(c) {
 				response.ChannelError(c, http.StatusTooManyRequests, response.CodeTooManyRequests, msg, "rate_limit_exceeded")
 			} else {

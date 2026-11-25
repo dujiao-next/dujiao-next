@@ -2,6 +2,7 @@ package procurement_test
 
 import (
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/dujiao-next/internal/platform/database/gormdb"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/money"
+	"github.com/dujiao-next/internal/upstream"
 
 	"github.com/glebarez/sqlite"
 	"github.com/shopspring/decimal"
@@ -129,4 +131,13 @@ func newTestProcurementService(db *gorm.DB, connections *siteconnectionapp.Servi
 		Connections:     procurementupstream.New(connections),
 		OrderLifecycle:  procurementgormstore.NewLifecycle(db, nil, nil, config.EmailConfig{}),
 	})
+}
+
+// 本包的巡检用例会向上游测试服务器发数百次请求，客户端节流会让整个包跑上几分钟。
+// 这里统一关闭节流；限速逻辑本身由 internal/upstream 的用例覆盖。
+func TestMain(m *testing.M) {
+	restore := upstream.SetRequestPacing(0, 0)
+	code := m.Run()
+	restore()
+	os.Exit(code)
 }

@@ -12,7 +12,9 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	siteconnectiondomain "github.com/dujiao-next/internal/modules/siteconnection/domain"
@@ -21,6 +23,93 @@ import (
 
 	"github.com/google/uuid"
 )
+
+const (
+	// maxRequestAttempts 单次上游请求的最大尝试次数（含首次）。
+	maxRequestAttempts = 3
+	// retryWaitMax 单次重试的最长等待，防止上游返回异常大的 Retry-After 卡住调用方。
+	retryWaitMax = 30 * time.Second
+)
+
+// 客户端节流参数（包级变量，测试可覆盖）。
+// 上游默认限流是每个 Key 60 次/分钟。补充间隔 1250ms 即约 48 次/分钟，
+// 加上 10 次突发额度，第一分钟最多发出 58 次，压在 60 次/分钟以下；
+// 突发额度用来覆盖「打开导入弹窗同时请求列表 + 分类 + 统计」这类正常操作，
+// 又不会在批量翻页导入时先把额度打满、触发上游封禁。
+var (
+	upstreamRequestBurst    = 10
+	upstreamRequestInterval = 1250 * time.Millisecond
+)
+
+// SetRequestPacing 覆盖客户端节流参数并返回还原函数。
+// 供测试使用：其它包遍历大量请求时关闭节流，避免测试被令牌桶拖慢数分钟。
+// burst 或 interval 小于等于 0 表示关闭节流。
+func SetRequestPacing(burst int, interval time.Duration) (restore func()) {
+	oldBurst, oldInterval := upstreamRequestBurst, upstreamRequestInterval
+	upstreamRequestBurst, upstreamRequestInterval = burst, interval
+	return func() {
+		upstreamRequestBurst, upstreamRequestInterval = oldBurst, oldInterval
+	}
+}
+
+// upstreamPacer 按 baseURL|apiKey 共享的令牌桶。
+// GetAdapter 每次调用都会新建适配器实例，节流状态挂在实例上会随每次调用重置，
+// 批量导入时就起不到限流作用，所以按远端身份共享。
+type upstreamPacer struct {
+	mu     sync.Mutex
+	tokens float64
+	last   time.Time
+}
+
+var (
+	upstreamPacerMu sync.Mutex
+	upstreamPacers  = map[string]*upstreamPacer{}
+)
+
+func pacerFor(key string) *upstreamPacer {
+	upstreamPacerMu.Lock()
+	defer upstreamPacerMu.Unlock()
+	p, ok := upstreamPacers[key]
+	if !ok {
+		p = &upstreamPacer{tokens: float64(upstreamRequestBurst)}
+		upstreamPacers[key] = p
+	}
+	return p
+}
+
+// wait 取一个令牌，必要时阻塞到令牌可用。上游已经限流时由重试逻辑兜底。
+func (p *upstreamPacer) wait(ctx context.Context) error {
+	if upstreamRequestInterval <= 0 || upstreamRequestBurst <= 0 {
+		return nil
+	}
+	for {
+		p.mu.Lock()
+		now := time.Now()
+		if p.last.IsZero() {
+			p.last = now
+		}
+		p.tokens += float64(now.Sub(p.last)) / float64(upstreamRequestInterval)
+		if p.tokens > float64(upstreamRequestBurst) {
+			p.tokens = float64(upstreamRequestBurst)
+		}
+		p.last = now
+		if p.tokens >= 1 {
+			p.tokens--
+			p.mu.Unlock()
+			return nil
+		}
+		wait := time.Duration((1 - p.tokens) * float64(upstreamRequestInterval))
+		p.mu.Unlock()
+
+		timer := time.NewTimer(wait)
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		}
+	}
+}
 
 // upstreamHTTPError 上游返回非 200 时的结构化错误
 type upstreamHTTPError struct {
@@ -261,7 +350,8 @@ func (a *DujiaoNextAdapter) DownloadImage(ctx context.Context, imageURL string) 
 	return "/uploads/upstream/" + filename, nil
 }
 
-// doRequest 发送签名请求
+// doRequest 发送签名请求。被限流（429）时按 Retry-After 或退避等待后重试，
+// 并对同一远端的所有请求做客户端节流，避免批量导入把上游打满后只导入一部分。
 func (a *DujiaoNextAdapter) doRequest(ctx context.Context, method, path string, body interface{}, result interface{}) error {
 	var bodyBytes []byte
 	if body != nil {
@@ -278,61 +368,126 @@ func (a *DujiaoNextAdapter) doRequest(ctx context.Context, method, path string, 
 		signPath = path[:idx]
 	}
 
-	timestamp := time.Now().Unix()
-	signature := Sign(a.apiSecret, method, signPath, timestamp, bodyBytes)
+	pacer := pacerFor(a.baseURL + "|" + a.apiKey)
 
-	url := a.baseURL + path
-	var bodyReader io.Reader
-	if bodyBytes != nil {
-		bodyReader = bytes.NewReader(bodyBytes)
-	}
+	for attempt := 1; ; attempt++ {
+		if err := pacer.wait(ctx); err != nil {
+			return err
+		}
 
-	req, err := http.NewRequestWithContext(ctx, method, url, bodyReader)
-	if err != nil {
-		return fmt.Errorf("create request: %w", err)
-	}
+		timestamp := time.Now().Unix()
+		signature := Sign(a.apiSecret, method, signPath, timestamp, bodyBytes)
 
-	req.Header.Set(HeaderApiKey, a.apiKey)
-	req.Header.Set(HeaderTimestamp, fmt.Sprintf("%d", timestamp))
-	req.Header.Set(HeaderSignature, signature)
-	if bodyBytes != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
+		var bodyReader io.Reader
+		if bodyBytes != nil {
+			bodyReader = bytes.NewReader(bodyBytes)
+		}
 
-	resp, err := a.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("send request: %w", err)
-	}
-	defer resp.Body.Close()
+		req, err := http.NewRequestWithContext(ctx, method, a.baseURL+path, bodyReader)
+		if err != nil {
+			return fmt.Errorf("create request: %w", err)
+		}
 
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("read response: %w", err)
-	}
+		req.Header.Set(HeaderApiKey, a.apiKey)
+		req.Header.Set(HeaderTimestamp, fmt.Sprintf("%d", timestamp))
+		req.Header.Set(HeaderSignature, signature)
+		if bodyBytes != nil {
+			req.Header.Set("Content-Type", "application/json")
+		}
 
-	if resp.StatusCode != http.StatusOK {
+		resp, err := a.client.Do(req)
+		if err != nil {
+			return fmt.Errorf("send request: %w", err)
+		}
+		respBody, readErr := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if readErr != nil {
+			return fmt.Errorf("read response: %w", readErr)
+		}
+
+		if resp.StatusCode == http.StatusOK {
+			if result != nil {
+				if err := json.Unmarshal(respBody, result); err != nil {
+					return fmt.Errorf("unmarshal response: %w", err)
+				}
+			}
+			return nil
+		}
+
 		logger.Warnw("upstream_request_error",
 			"method", method, "path", path,
-			"status", resp.StatusCode, "body", string(respBody))
-		// 尝试解析结构化错误响应
-		var errPayload struct {
-			ErrorCode    string `json:"error_code"`
-			ErrorMessage string `json:"error_message"`
+			"status", resp.StatusCode, "attempt", attempt, "body", string(respBody))
+
+		if attempt < maxRequestAttempts && shouldRetryUpstream(resp.StatusCode, method) {
+			wait := upstreamRetryWait(resp, attempt)
+			// 剩余期限不够等待时，这次重试注定等不到，直接返回上游错误：
+			// 否则下单库存校验、采购单巡检这类短期限调用会被无谓地拖到超时。
+			if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) <= wait {
+				return newUpstreamHTTPError(resp.StatusCode, respBody)
+			}
+			if waitErr := sleepCtx(ctx, wait); waitErr != nil {
+				// 上下文先结束：按上游错误返回，调用方才看得到 429/5xx 的真实原因。
+				return newUpstreamHTTPError(resp.StatusCode, respBody)
+			}
+			continue
 		}
-		_ = json.Unmarshal(respBody, &errPayload)
-		return &upstreamHTTPError{
-			Status:  resp.StatusCode,
-			Code:    errPayload.ErrorCode,
-			Message: errPayload.ErrorMessage,
-			Body:    string(respBody),
+
+		return newUpstreamHTTPError(resp.StatusCode, respBody)
+	}
+}
+
+func newUpstreamHTTPError(status int, respBody []byte) error {
+	var errPayload struct {
+		ErrorCode    string `json:"error_code"`
+		ErrorMessage string `json:"error_message"`
+	}
+	_ = json.Unmarshal(respBody, &errPayload)
+	return &upstreamHTTPError{
+		Status:  status,
+		Code:    errPayload.ErrorCode,
+		Message: errPayload.ErrorMessage,
+		Body:    string(respBody),
+	}
+}
+
+// shouldRetryUpstream 429 表示请求被限流拒绝、上游没有处理，任何方法重试都安全；
+// 网关类 5xx 只对幂等请求重试，避免重复创建采购单。
+func shouldRetryUpstream(status int, method string) bool {
+	if status == http.StatusTooManyRequests {
+		return true
+	}
+	if method == http.MethodGet || method == http.MethodHead {
+		switch status {
+		case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+			return true
 		}
 	}
+	return false
+}
 
-	if result != nil {
-		if err := json.Unmarshal(respBody, result); err != nil {
-			return fmt.Errorf("unmarshal response: %w", err)
+func upstreamRetryWait(resp *http.Response, attempt int) time.Duration {
+	wait := time.Duration(attempt) * time.Second
+	if header := strings.TrimSpace(resp.Header.Get("Retry-After")); header != "" {
+		if seconds, err := strconv.Atoi(header); err == nil && seconds >= 0 {
+			wait = time.Duration(seconds) * time.Second
 		}
 	}
+	if wait > retryWaitMax {
+		wait = retryWaitMax
+	}
+	return wait
+}
 
-	return nil
+func sleepCtx(ctx context.Context, wait time.Duration) error {
+	if wait <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }

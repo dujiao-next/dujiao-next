@@ -41,12 +41,14 @@ func TestConvertUpstreamWholesalePricesDropsUnmappedUpstreamSKUID(t *testing.T) 
 	}
 }
 
-// pagedProductsAdapter 只实现 ListProducts：前 total 条商品按页返回，ignorePage 模拟上游忽略 page 参数。
+// pagedProductsAdapter 只实现 ListProducts：前 total 条商品按页返回，ignorePage 模拟上游忽略 page 参数，
+// clampPageSize 模拟旧上游把 page_size 压到自己的上限（并在响应里回声）。
 type pagedProductsAdapter struct {
 	upstream.Adapter
-	total      int
-	ignorePage bool
-	calls      int
+	total         int
+	ignorePage    bool
+	clampPageSize int
+	calls         int
 }
 
 func (a *pagedProductsAdapter) ListProducts(_ context.Context, opts upstream.ListProductsOpts) (*upstream.ProductListResult, error) {
@@ -55,18 +57,35 @@ func (a *pagedProductsAdapter) ListProducts(_ context.Context, opts upstream.Lis
 	if a.ignorePage {
 		page = 1
 	}
+	pageSize := opts.PageSize
+	if a.clampPageSize > 0 && pageSize > a.clampPageSize {
+		pageSize = a.clampPageSize
+	}
 	var items []upstream.UpstreamProduct
-	for id := (page-1)*opts.PageSize + 1; id <= a.total && len(items) < opts.PageSize; id++ {
+	for id := (page-1)*pageSize + 1; id <= a.total && len(items) < pageSize; id++ {
 		items = append(items, upstream.UpstreamProduct{ID: uint(id), CategoryID: uint(id % 3)})
 	}
 	if a.ignorePage {
-		return &upstream.ProductListResult{Total: 1 << 30, Items: items}, nil
+		return &upstream.ProductListResult{Total: 1 << 30, Items: items, Page: page, PageSize: pageSize}, nil
 	}
-	return &upstream.ProductListResult{Total: a.total, Items: items}, nil
+	return &upstream.ProductListResult{Total: a.total, Items: items, Page: page, PageSize: pageSize}, nil
 }
 
 func TestListAllUpstreamProductsWalksEveryPage(t *testing.T) {
 	adapter := &pagedProductsAdapter{total: 120}
+	products, err := listAllUpstreamProducts(context.Background(), adapter)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(products) != 120 || adapter.calls != 1 {
+		t.Fatalf("expected 120 products in 1 call, got %d in %d", len(products), adapter.calls)
+	}
+}
+
+// 旧上游会把 page_size 压到 50：不能把"返回条数 < 请求条数"当成最后一页，
+// 否则商品多的站点只能拉到第一页。
+func TestListAllUpstreamProductsHonorsClampedPageSize(t *testing.T) {
+	adapter := &pagedProductsAdapter{total: 120, clampPageSize: 50}
 	products, err := listAllUpstreamProducts(context.Background(), adapter)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -76,13 +95,45 @@ func TestListAllUpstreamProductsWalksEveryPage(t *testing.T) {
 	}
 }
 
+// endlessProductsAdapter 每页都返回全新的商品，total 永远追不上，用于验证翻页上限兜底。
+type endlessProductsAdapter struct {
+	upstream.Adapter
+	calls int
+}
+
+func (a *endlessProductsAdapter) ListProducts(_ context.Context, opts upstream.ListProductsOpts) (*upstream.ProductListResult, error) {
+	a.calls++
+	size := opts.PageSize
+	if size <= 0 {
+		size = 50
+	}
+	items := make([]upstream.UpstreamProduct, 0, size)
+	for i := 0; i < size; i++ {
+		items = append(items, upstream.UpstreamProduct{ID: uint((a.calls-1)*size + i + 1)})
+	}
+	return &upstream.ProductListResult{Total: 1 << 30, Items: items, Page: opts.Page, PageSize: size}, nil
+}
+
 func TestListAllUpstreamProductsStopsAtPageLimit(t *testing.T) {
-	adapter := &pagedProductsAdapter{total: 50, ignorePage: true}
+	adapter := &endlessProductsAdapter{}
 	if _, err := listAllUpstreamProducts(context.Background(), adapter); err == nil {
-		t.Fatal("expected error when upstream pagination never terminates")
+		t.Fatal("expected error when upstream pagination never reaches total")
 	}
 	if adapter.calls != maxUpstreamProductPages {
 		t.Fatalf("expected %d calls, got %d", maxUpstreamProductPages, adapter.calls)
+	}
+}
+
+// 某一页没有带来任何新商品（上游或其缓存重复返回同一批数据）时应立即结束，
+// 不必跑满页数上限。
+func TestListAllUpstreamProductsStopsWhenPageAddsNothing(t *testing.T) {
+	adapter := &pagedProductsAdapter{total: 1 << 30, ignorePage: true}
+	products, err := listAllUpstreamProducts(context.Background(), adapter)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(products) != upstreamProductPageSize || adapter.calls != 2 {
+		t.Fatalf("expected %d products in 2 calls, got %d in %d", upstreamProductPageSize, len(products), adapter.calls)
 	}
 }
 

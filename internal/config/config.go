@@ -252,15 +252,25 @@ func DefaultCORSAllowedHeaders() []string {
 
 // SecurityConfig 安全配置
 type SecurityConfig struct {
-	LoginRateLimit    LoginRateLimitConfig    `mapstructure:"login_rate_limit"`
-	AdminAPIRateLimit AdminAPIRateLimitConfig `mapstructure:"admin_api_rate_limit"`
-	PasswordPolicy    PasswordPolicyConfig    `mapstructure:"password_policy"`
+	LoginRateLimit       LoginRateLimitConfig       `mapstructure:"login_rate_limit"`
+	AdminAPIRateLimit    AdminAPIRateLimitConfig    `mapstructure:"admin_api_rate_limit"`
+	UpstreamAPIRateLimit UpstreamAPIRateLimitConfig `mapstructure:"upstream_api_rate_limit"`
+	PasswordPolicy       PasswordPolicyConfig       `mapstructure:"password_policy"`
 }
 
 // AdminAPIRateLimitConfig limits machine requests by source IP and verified token.
 type AdminAPIRateLimitConfig struct {
 	WindowSeconds int `mapstructure:"window_seconds"`
 	MaxRequests   int `mapstructure:"max_requests"`
+}
+
+// UpstreamAPIRateLimitConfig 上游对接 API（本站作为上游站点对外开放）的限流配置。
+// 下游全量同步/导入会连续翻页，商品多的站点需要的额度明显高于普通接口；
+// 调高前先确认下游确实在做批量对接，否则保持默认。
+type UpstreamAPIRateLimitConfig struct {
+	WindowSeconds int `mapstructure:"window_seconds"`
+	MaxRequests   int `mapstructure:"max_requests"`
+	BlockSeconds  int `mapstructure:"block_seconds"`
 }
 
 // LoginRateLimitConfig 登录限流配置
@@ -393,6 +403,9 @@ func Load() *Config {
 	viper.SetDefault("security.login_rate_limit.block_seconds", 900)
 	viper.SetDefault("security.admin_api_rate_limit.window_seconds", 60)
 	viper.SetDefault("security.admin_api_rate_limit.max_requests", 120)
+	viper.SetDefault("security.upstream_api_rate_limit.window_seconds", 60)
+	viper.SetDefault("security.upstream_api_rate_limit.max_requests", 60)
+	viper.SetDefault("security.upstream_api_rate_limit.block_seconds", 30)
 	viper.SetDefault("security.password_policy.min_length", 8)
 	viper.SetDefault("security.password_policy.require_upper", true)
 	viper.SetDefault("security.password_policy.require_lower", true)

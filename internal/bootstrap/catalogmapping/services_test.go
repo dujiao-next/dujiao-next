@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	mappingdomain "github.com/dujiao-next/internal/modules/catalog/mapping/domain"
@@ -495,6 +496,57 @@ func listProductsHandler(items []upstream.UpstreamProduct, includesInactive bool
 			"page_size":         50,
 			"includes_inactive": includesInactive,
 		})
+	}
+}
+
+// 按分类批量导入必须复用列表里已拿到的商品数据，不能逐商品再 GetProduct：
+// 上游默认 60 次/分钟，逐个请求会让商品多的站点导入半路被限流。
+func TestBatchImportByCategoryReusesListedProducts(t *testing.T) {
+	var getProductCalls int32
+	svc, _, mapping, cleanup := setupMappingWithUpstreamHandler(t,
+		"file:batch_import_reuses_list?mode=memory&cache=shared",
+		func(w http.ResponseWriter, r *http.Request) {
+			// 列表接口能拿到完整商品，导入不应再走详情接口；这里对详情请求返回 429，
+			// 一旦代码回退到逐商品 GetProduct，测试会因导入失败而失败。
+			if strings.HasPrefix(r.URL.Path, "/api/v1/upstream/products/") {
+				atomic.AddInt32(&getProductCalls, 1)
+				w.WriteHeader(http.StatusTooManyRequests)
+				_ = json.NewEncoder(w).Encode(map[string]any{"error_code": "rate_limited", "error_message": "too many requests"})
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"ok": true,
+				"items": []upstream.UpstreamProduct{{
+					ID:              901,
+					Slug:            "batch-listed",
+					Title:           jsonmap.JSON{"zh-CN": "列表商品"},
+					PriceAmount:     "10.00",
+					Currency:        "CNY",
+					FulfillmentType: constants.FulfillmentTypeAuto,
+					IsActive:        true,
+					CategoryID:      1,
+					SKUs: []upstream.UpstreamSKU{
+						{ID: 902, SKUCode: "SKU-B", PriceAmount: "10.00", IsActive: true},
+					},
+				}},
+				"total":     1,
+				"page":      1,
+				"page_size": 200,
+			})
+		},
+	)
+	defer cleanup()
+
+	result, err := svc.BatchImportByCategory(mapping.ConnectionID, 1, false, 1)
+	if err != nil {
+		t.Fatalf("BatchImportByCategory returned error: %v", err)
+	}
+	if result.Total != 1 || result.SuccessCount != 1 {
+		t.Fatalf("expected 1/1 imported, got total=%d success=%d errors=%+v", result.Total, result.SuccessCount, result.Errors)
+	}
+	if calls := atomic.LoadInt32(&getProductCalls); calls != 0 {
+		t.Fatalf("batch import must reuse listed products, got %d GetProduct calls", calls)
 	}
 }
 
