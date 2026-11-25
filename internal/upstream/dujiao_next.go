@@ -207,11 +207,17 @@ func (a *DujiaoNextAdapter) ListProducts(ctx context.Context, opts ListProductsO
 	if opts.IncludeInactive {
 		path += "&include_inactive=true"
 	}
-	var result ProductListResult
+	var result struct {
+		OK *bool `json:"ok"`
+		ProductListResult
+	}
 	if err := a.doRequest(ctx, http.MethodGet, path, nil, &result); err != nil {
 		return nil, err
 	}
-	return &result, nil
+	if result.OK != nil && !*result.OK {
+		return nil, errors.New("upstream product list rejected")
+	}
+	return &result.ProductListResult, nil
 }
 
 // GetProduct 获取单个商品详情
@@ -383,6 +389,9 @@ func (a *DujiaoNextAdapter) doRequest(ctx context.Context, method, path string, 
 		if err := pacer.wait(ctx); err != nil {
 			return err
 		}
+		if err := waitCatalogRequest(ctx); err != nil {
+			return err
+		}
 
 		timestamp := time.Now().Unix()
 		signature := Sign(a.apiSecret, method, signPath, timestamp, bodyBytes)
@@ -407,6 +416,10 @@ func (a *DujiaoNextAdapter) doRequest(ctx context.Context, method, path string, 
 		resp, err := a.client.Do(req)
 		if err != nil {
 			return fmt.Errorf("send request: %w", err)
+		}
+		if limit := catalogRateLimit(ctx, resp); limit != nil {
+			_ = resp.Body.Close()
+			return limit
 		}
 		respBody, readErr := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()

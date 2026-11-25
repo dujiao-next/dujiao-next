@@ -79,6 +79,7 @@ import (
 	broadcastapp "github.com/dujiao-next/internal/modules/telegram/broadcast/application"
 	broadcastcontract "github.com/dujiao-next/internal/modules/telegram/broadcast/contract"
 	uploadapp "github.com/dujiao-next/internal/modules/upload/application"
+	catalogwatchapp "github.com/dujiao-next/internal/modules/upstreamwatch/application"
 	walletapp "github.com/dujiao-next/internal/modules/wallet/application"
 	walletgormstore "github.com/dujiao-next/internal/modules/wallet/infrastructure/gormstore"
 	"github.com/dujiao-next/internal/queue"
@@ -187,6 +188,7 @@ type Container struct {
 	ResellerOperationsService     *reseller.OperationsService
 	ApiCredentialService          *apicredentialapp.Service
 	SiteConnectionService         *siteconnectionapp.Service
+	UpstreamCatalog               *catalogwatchapp.Service
 	ProductMappingService         *mappingapp.Service
 	ProcurementOrderService       *procurementapp.Service
 	DownstreamCallbackService     *downstreamcallbackapp.Service

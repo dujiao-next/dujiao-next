@@ -2,6 +2,7 @@ package migrations
 
 import (
 	"github.com/dujiao-next/internal/constants"
+	catalogwatchdomain "github.com/dujiao-next/internal/modules/upstreamwatch/domain"
 	"github.com/dujiao-next/internal/platform/database/gormdb"
 	"gorm.io/gorm"
 
@@ -87,6 +88,11 @@ func AutoMigrate() error {
 		&settingsstore.SettingRecord{},
 		&apicredentialdomain.ApiCredential{},
 		&siteconnectiondomain.Connection{},
+		&catalogwatchdomain.Scan{},
+		&catalogwatchdomain.ScopeCategory{},
+		&catalogwatchdomain.Product{},
+		&catalogwatchdomain.UnavailableProduct{},
+		&catalogwatchdomain.Category{},
 		&mappingdomain.Mapping{},
 		&mappingdomain.SKUMapping{},
 		&procurementdomain.Order{},

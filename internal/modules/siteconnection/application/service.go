@@ -343,3 +343,26 @@ func (s *Service) normalizeExchangeRate(rate float64) decimal.Decimal {
 	}
 	return decimal.NewFromFloat(rate)
 }
+
+func (s *Service) CatalogConnections() ([]siteconnectioncontract.CatalogConnection, error) {
+	connections, _, err := s.List(siteconnectioncontract.ListFilter{})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]siteconnectioncontract.CatalogConnection, 0, len(connections))
+	for _, conn := range connections {
+		result = append(result, siteconnectioncontract.CatalogConnection{ID: conn.ID, Name: conn.Name, Status: conn.Status})
+	}
+	return result, nil
+}
+
+func (s *Service) OpenCatalog(id uint) (upstream.Adapter, error) {
+	conn, err := s.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if conn == nil || conn.Status != constants.ConnectionStatusActive {
+		return nil, siteconnectioncontract.ErrNotFound
+	}
+	return s.GetAdapter(conn)
+}

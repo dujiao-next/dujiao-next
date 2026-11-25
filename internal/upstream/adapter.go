@@ -2,6 +2,7 @@ package upstream
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -58,6 +59,8 @@ type ProductListResult struct {
 	// IncludesInactive 上游是否真的返回了下架商品（响应回声字段）
 	// 旧上游不识别 include_inactive 参数，此字段为 false，下游不可据此推断"missing=已删除"
 	IncludesInactive bool `json:"includes_inactive"`
+	// Products outside the selected category may still count toward storefront pagination.
+	ExcludedProductIDs []uint `json:"-"`
 }
 
 // UpstreamProduct 上游商品信息
@@ -103,15 +106,32 @@ type CategoryListResult struct {
 
 // UpstreamSKU 上游 SKU 信息
 type UpstreamSKU struct {
-	ID            uint         `json:"id"`
-	SKUCode       string       `json:"sku_code"`
-	SpecValues    jsonmap.JSON `json:"spec_values"`
-	PriceAmount   string       `json:"price_amount"`
-	OriginalPrice string       `json:"original_price,omitempty"`
-	MemberPrice   string       `json:"member_price,omitempty"`
-	StockStatus   string       `json:"stock_status"`
-	StockQuantity int          `json:"stock_quantity"` // 实际可用库存（-1=无限）
-	IsActive      bool         `json:"is_active"`
+	ID                    uint         `json:"id"`
+	SKUCode               string       `json:"sku_code"`
+	SpecValues            jsonmap.JSON `json:"spec_values"`
+	PriceAmount           string       `json:"price_amount"`
+	OriginalPrice         string       `json:"original_price,omitempty"`
+	MemberPrice           string       `json:"member_price,omitempty"`
+	StockStatus           string       `json:"stock_status"`
+	StockQuantity         int          `json:"stock_quantity"` // 实际可用库存（-1=无限）
+	IsActive              bool         `json:"is_active"`
+	StockQuantityReported bool         `json:"-"`
+}
+
+func (sku *UpstreamSKU) UnmarshalJSON(data []byte) error {
+	type fields UpstreamSKU
+	value := struct {
+		*fields
+		StockQuantity *int `json:"stock_quantity"`
+	}{fields: (*fields)(sku)}
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	sku.StockQuantityReported = value.StockQuantity != nil
+	if value.StockQuantity != nil {
+		sku.StockQuantity = *value.StockQuantity
+	}
+	return nil
 }
 
 // CreateUpstreamOrderReq 创建上游采购单请求

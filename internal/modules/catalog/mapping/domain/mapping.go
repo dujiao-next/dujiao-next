@@ -18,9 +18,9 @@ const (
 // Mapping 表示一个本地商品与上游商品之间的映射。
 type Mapping struct {
 	ID                      uint       `gorm:"primarykey" json:"id"`
-	ConnectionID            uint       `gorm:"index;not null" json:"connection_id"`
+	ConnectionID            uint       `gorm:"index;index:idx_mapping_upstream_lookup,priority:1;not null" json:"connection_id"`
 	LocalProductID          uint       `gorm:"uniqueIndex;not null" json:"local_product_id"`
-	UpstreamProductID       uint       `gorm:"not null" json:"upstream_product_id"`
+	UpstreamProductID       uint       `gorm:"index:idx_mapping_upstream_lookup,priority:2;not null" json:"upstream_product_id"`
 	UpstreamCategoryID      uint       `gorm:"not null;default:0" json:"upstream_category_id"`                              // 上游分类 ID，用于按分类加价；0 表示未知或上游未分类
 	UpstreamFulfillmentType string     `gorm:"type:varchar(20);not null;default:'manual'" json:"upstream_fulfillment_type"` // 上游原始交付类型（auto/manual）
 	UpstreamStatus          string     `gorm:"type:varchar(16);not null;default:'active';index" json:"upstream_status"`     // 上游商品状态：active/inactive/deleted
@@ -28,7 +28,7 @@ type Mapping struct {
 	LastSyncedAt            *time.Time `json:"last_synced_at,omitempty"`
 	CreatedAt               time.Time  `gorm:"index" json:"created_at"`
 	UpdatedAt               time.Time  `gorm:"index" json:"updated_at"`
-	DeletedAt               *time.Time `gorm:"index" json:"-"`
+	DeletedAt               *time.Time `gorm:"index;index:idx_mapping_upstream_lookup,priority:3" json:"-"`
 
 	Connection *siteconnectiondomain.Connection `gorm:"foreignKey:ConnectionID" json:"connection,omitempty"`
 	Product    *productdomain.Product           `gorm:"foreignKey:LocalProductID" json:"product,omitempty"`

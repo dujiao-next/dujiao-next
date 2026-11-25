@@ -24,6 +24,13 @@ func (c *Consumer) handleUpstreamSyncStock(_ context.Context, _ *asynq.Task) err
 	return nil
 }
 
+func (c *Consumer) handleUpstreamCatalogScan(ctx context.Context, _ *asynq.Task) error {
+	if c == nil || c.UpstreamCatalog == nil {
+		return nil
+	}
+	return c.UpstreamCatalog.RunDue(ctx)
+}
+
 // handleProcurementSubmit 处理采购单提交上游任务。
 func (c *Consumer) handleProcurementSubmit(_ context.Context, task *asynq.Task) error {
 	if c == nil || task == nil || c.ProcurementOrderService == nil {

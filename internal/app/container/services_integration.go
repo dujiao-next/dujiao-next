@@ -38,6 +38,8 @@ import (
 	broadcastapp "github.com/dujiao-next/internal/modules/telegram/broadcast/application"
 	notifyapp "github.com/dujiao-next/internal/modules/telegram/notify/application"
 	notifybotapi "github.com/dujiao-next/internal/modules/telegram/notify/infrastructure/botapi"
+	catalogwatchapp "github.com/dujiao-next/internal/modules/upstreamwatch/application"
+	catalogwatchstore "github.com/dujiao-next/internal/modules/upstreamwatch/infrastructure/gormstore"
 	"github.com/dujiao-next/internal/platform/database/gormdb"
 )
 
@@ -61,6 +63,7 @@ func (c *Container) initIntegrationServices() {
 	)
 	c.ApiCredentialService = apicredentialapp.NewService(c.ApiCredentialRepo)
 	c.SiteConnectionService = siteconnectionapp.NewService(c.SiteConnectionRepo, c.Config.App.SecretKey, "uploads")
+	c.UpstreamCatalog = catalogwatchapp.New(catalogwatchstore.New(gormdb.DB), c.SiteConnectionService)
 	mediaCore := contentapp.NewMediaService(
 		contentgormstore.NewMediaStore(gormdb.DB),
 		localfilestore.New(),
