@@ -41,7 +41,8 @@
                   <p v-if="itemSkuDisplay(item)" class="mt-1 truncate text-[13px] text-muted-foreground">{{ itemSkuDisplay(item) }}</p>
                   <div class="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                     <span class="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 font-medium text-foreground">
-                      <Zap v-if="item.fulfillmentType === 'auto'" class="h-3 w-3 text-warm" aria-hidden="true" />
+                      <Zap v-if="item.fulfillmentType === 'auto'" class="h-3 w-3 shrink-0 fill-current text-info" aria-hidden="true" />
+                      <Clock v-else class="h-3 w-3 shrink-0 text-amber-600 dark:text-amber-300" aria-hidden="true" />
                       {{ item.fulfillmentType === 'auto' ? t('products.fulfillmentType.auto') : t('products.fulfillmentType.manual') }}
                     </span>
                     <span class="rounded-full bg-secondary px-2 py-0.5 font-medium text-foreground">
@@ -134,7 +135,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { Minus, Plus, Trash2, Zap } from 'lucide-vue-next'
+import { Clock, Minus, Plus, Trash2, Zap } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import EmptyState from '../components/EmptyState.vue'
 import SmartImage from '../components/SmartImage.vue'
