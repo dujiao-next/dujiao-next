@@ -312,7 +312,7 @@ func (s *Service) calculateCommission(order *orderdomain.Order, globalCommission
 	if order == nil || s.productRepo == nil {
 		return result, nil
 	}
-	productIDs := collectAffiliateProductIDs(order)
+	productIDs := collectAffiliateItemIDs(order, func(item orderdomain.OrderItem) uint { return item.ProductID })
 	if len(productIDs) == 0 {
 		return result, nil
 	}
@@ -381,10 +381,10 @@ func (s *Service) calculateCommission(order *orderdomain.Order, globalCommission
 // loadAffiliateSKUMap 批量读取订单项引用的 SKU，用于解析 SKU 级返利比例。
 // 仅当订单中出现具体 SKU 时才查询；缺失的 SKU（已删除）会回退到商品级比例。
 func (s *Service) loadAffiliateSKUMap(order *orderdomain.Order) (map[uint]productdomain.ProductSKU, error) {
-	if order == nil {
+	if order == nil || s.skuRepo == nil {
 		return map[uint]productdomain.ProductSKU{}, nil
 	}
-	skuIDs := collectAffiliateSKUIDs(order)
+	skuIDs := collectAffiliateItemIDs(order, func(item orderdomain.OrderItem) uint { return item.SKUID })
 	if len(skuIDs) == 0 {
 		return map[uint]productdomain.ProductSKU{}, nil
 	}
@@ -399,49 +399,23 @@ func (s *Service) loadAffiliateSKUMap(order *orderdomain.Order) (map[uint]produc
 	return result, nil
 }
 
-// collectAffiliateSKUIDs 收集订单（含子订单）引用的非零 SKU ID。
-func collectAffiliateSKUIDs(order *orderdomain.Order) []uint {
+// collectAffiliateItemIDs 收集订单（含子订单）订单项里去重后的非零 ID，pick 决定取商品 ID 还是 SKU ID。
+func collectAffiliateItemIDs(order *orderdomain.Order, pick func(orderdomain.OrderItem) uint) []uint {
 	if order == nil {
 		return nil
 	}
 	ids := make([]uint, 0)
 	seen := make(map[uint]struct{})
 	appendItem := func(item orderdomain.OrderItem) {
-		if item.SKUID == 0 {
+		id := pick(item)
+		if id == 0 {
 			return
 		}
-		if _, ok := seen[item.SKUID]; ok {
+		if _, ok := seen[id]; ok {
 			return
 		}
-		seen[item.SKUID] = struct{}{}
-		ids = append(ids, item.SKUID)
-	}
-	for _, item := range order.Items {
-		appendItem(item)
-	}
-	for _, child := range order.Children {
-		for _, item := range child.Items {
-			appendItem(item)
-		}
-	}
-	return ids
-}
-
-func collectAffiliateProductIDs(order *orderdomain.Order) []uint {
-	if order == nil {
-		return nil
-	}
-	ids := make([]uint, 0)
-	seen := make(map[uint]struct{})
-	appendItem := func(item orderdomain.OrderItem) {
-		if item.ProductID == 0 {
-			return
-		}
-		if _, ok := seen[item.ProductID]; ok {
-			return
-		}
-		seen[item.ProductID] = struct{}{}
-		ids = append(ids, item.ProductID)
+		seen[id] = struct{}{}
+		ids = append(ids, id)
 	}
 	for _, item := range order.Items {
 		appendItem(item)

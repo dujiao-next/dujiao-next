@@ -2,7 +2,6 @@ package affiliatehttp
 
 import (
 	"errors"
-	"strconv"
 	"strings"
 
 	affiliatedomain "github.com/dujiao-next/internal/modules/affiliate/domain"
@@ -117,12 +116,12 @@ func (h *Handler) GetProductRates(c *gin.Context) {
 	if !ok {
 		return
 	}
-	productID, err := strconv.ParseUint(strings.TrimSpace(c.Param("id")), 10, 64)
-	if err != nil || productID == 0 {
+	productID, err := ginutil.ParseParamUint(c, "id")
+	if err != nil {
 		ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", nil)
 		return
 	}
-	data, err := h.svc.GetProductRates(uid, uint(productID))
+	data, err := h.svc.GetProductRates(uid, productID)
 	if err != nil {
 		switch {
 		case errors.Is(err, affiliateapp.ErrDisabled):
