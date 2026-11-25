@@ -10,10 +10,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { getLocalizedText } from '@/utils/format'
+import { formatCurrentLocaleSkuSpec } from '@/utils/sku'
 import CardSecretBatchCreateModal from './components/CardSecretBatchCreateModal.vue'
 import { adminUrl } from '@/utils/adminBase'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const productKeyword = ref('')
 const productOptions = ref<AdminProduct[]>([])
@@ -40,25 +41,9 @@ const parseSkuId = () => {
   return Math.floor(parsed)
 }
 
-const formatSkuSpecValues = (specValues: Record<string, string> | null | undefined) => {
-  if (!specValues || typeof specValues !== 'object' || Array.isArray(specValues)) return ''
-  return Object.entries(specValues as Record<string, string>)
-    .map(([key, value]) => {
-      const keyText = String(key || '').trim()
-      const valueText = Array.isArray(value)
-        ? value.map((entry) => String(entry || '').trim()).filter(Boolean).join(', ')
-        : String(value ?? '').trim()
-      if (!valueText) return ''
-      if (!keyText) return valueText
-      return `${keyText}:${valueText}`
-    })
-    .filter(Boolean)
-    .join(' / ')
-}
-
 const buildSkuLabel = (sku: AdminProductSKU | null | undefined) => {
   const skuCode = String(sku?.sku_code || '').trim()
-  const specText = formatSkuSpecValues(sku?.spec_values)
+  const specText = formatCurrentLocaleSkuSpec(sku?.spec_values, locale.value)
   if (skuCode && specText) return `${skuCode} · ${specText}`
   if (skuCode) return skuCode
   if (specText) return specText
