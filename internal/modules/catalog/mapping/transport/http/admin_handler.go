@@ -163,6 +163,10 @@ func (h *AdminHandler) ImportUpstreamProduct(c *gin.Context) {
 			ginutil.RespondError(c, response.CodeBadRequest, "error.product_category_invalid", nil)
 			return
 		}
+		if errors.Is(err, productcontract.ErrProductPurchaseLimitInvalid) {
+			ginutil.RespondError(c, response.CodeBadRequest, "error.product_purchase_limit_invalid", nil)
+			return
+		}
 		if errors.Is(err, mappingcontract.ErrUpstreamProductNoCategory) {
 			ginutil.RespondError(c, response.CodeBadRequest, "error.mapping_upstream_no_category", nil)
 			return

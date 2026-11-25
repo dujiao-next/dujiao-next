@@ -117,6 +117,12 @@ func (s *Service) importUpstreamProduct(connectionID uint, upstreamProductID uin
 // 每个商品一次 GetProduct —— 上游默认 60 次/分钟，逐商品请求会让大批量导入半路被限流。
 // 调用方负责确认映射尚不存在，且传入的商品必须处于上架状态。
 func (s *Service) importUpstreamProductData(connectionID uint, conn *siteconnectiondomain.Connection, adapter upstream.Adapter, upProduct *upstream.UpstreamProduct, categoryID uint, slug string, autoCreateCategory bool, catMap map[uint]upstream.UpstreamCategory) (*mappingdomain.Mapping, error) {
+	minPurchaseQuantity := productdomain.NormalizePurchaseQuantityLimit(upProduct.MinPurchaseQuantity)
+	maxPurchaseQuantity := productdomain.NormalizePurchaseQuantityLimit(upProduct.MaxPurchaseQuantity)
+	if minPurchaseQuantity > 0 && maxPurchaseQuantity > 0 && minPurchaseQuantity > maxPurchaseQuantity {
+		return nil, productcontract.ErrProductPurchaseLimitInvalid
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -230,6 +236,9 @@ func (s *Service) importUpstreamProductData(connectionID uint, conn *siteconnect
 		IsActive:             false, // 默认下架，管理员手动上架
 		AffiliateRatePercent: &zeroAffiliateRate,
 		SortOrder:            0,
+
+		MinPurchaseQuantity: minPurchaseQuantity,
+		MaxPurchaseQuantity: maxPurchaseQuantity,
 	}
 
 	var mapping *mappingdomain.Mapping
