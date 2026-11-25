@@ -134,7 +134,7 @@ func TestSendVerifyCodeRejectsEmailDomainBeforeEmailSend(t *testing.T) {
 		t.Fatalf("update registration config failed: %v", err)
 	}
 
-	err := svc.SendVerifyCode(context.Background(), "buyer@example.com", constants.VerifyPurposeRegister, constants.LocaleZhCN, "")
+	err := svc.SendVerifyCode(context.Background(), "buyer@example.com", constants.VerifyPurposeRegister, constants.LocaleZhCN, "", "192.0.2.1")
 	if !errors.Is(err, settingsapp.ErrEmailDomainNotAllowed) {
 		t.Fatalf("expected ErrEmailDomainNotAllowed, got %v", err)
 	}
@@ -152,7 +152,7 @@ func TestSendVerifyCodePropagatesRequestTenantBrandToSender(t *testing.T) {
 	tenant := resellercontract.ResellerTenantContext("shop.example.test", 31, 310, "shop.example.test")
 	ctx := resellercontract.WithTenantContext(context.Background(), tenant)
 
-	if err := svc.SendVerifyCode(ctx, "brand-buyer@example.com", constants.VerifyPurposeRegister, constants.LocaleZhCN, ""); err != nil {
+	if err := svc.SendVerifyCode(ctx, "brand-buyer@example.com", constants.VerifyPurposeRegister, constants.LocaleZhCN, "", "192.0.2.1"); err != nil {
 		t.Fatalf("send verify code failed: %v", err)
 	}
 	if !resolver.resolverRun || resolver.resellerID != 31 {
@@ -170,6 +170,36 @@ func (s *countingVerificationEmailSender) SendVerifyCode(_, _, _, _ string, _ ma
 	return nil
 }
 
+type blockedRegistrationEmailLimiter struct {
+	ip, recipient string
+}
+
+func (l *blockedRegistrationEmailLimiter) Reserve(_ context.Context, ip, recipient string, _ time.Duration) (time.Duration, func(), error) {
+	l.ip, l.recipient = ip, recipient
+	return 2 * time.Minute, nil, nil
+}
+
+func TestRegistrationIPLimitBlocksSendBeforeCreatingCode(t *testing.T) {
+	sender := &countingVerificationEmailSender{}
+	svc, _, db := newRegistrationDomainPolicyAuthServiceWithSender(t, sender)
+	limiter := &blockedRegistrationEmailLimiter{}
+	svc.SetRegistrationEmailLimiter(limiter)
+	ctx := context.Background()
+	const email = "register@example.test"
+	const ip = "192.0.2.5"
+	err := svc.SendVerifyCode(ctx, " REGISTER@example.test ", constants.VerifyPurposeRegister, constants.LocaleZhCN, "", ip)
+	var limited *userauthapp.RegistrationEmailRateLimitError
+	if !errors.As(err, &limited) || limited.RetryAfter != 2*time.Minute {
+		t.Fatalf("expected rate limit with retry time, got %v", err)
+	}
+	if limiter.ip != ip || limiter.recipient != email || sender.sent != 0 {
+		t.Fatalf("IP or mailbox admission skipped, or email sent: limiter=%+v sends=%d", limiter, sender.sent)
+	}
+	if code, err := emailverificationstore.New(db).GetLatest(email, constants.VerifyPurposeRegister); code != nil || err != nil {
+		t.Fatalf("a blocked attempt should not create a code, got code=%v error=%v", code != nil, err)
+	}
+}
+
 // 更换邮箱用途只能走登录态接口，公开发信入口必须拒绝且不发信。
 func TestSendVerifyCodeRejectsChangeEmailPurposes(t *testing.T) {
 	for _, purpose := range []string{
@@ -180,7 +210,7 @@ func TestSendVerifyCodeRejectsChangeEmailPurposes(t *testing.T) {
 		sender := &countingVerificationEmailSender{}
 		svc, _, _ := newRegistrationDomainPolicyAuthServiceWithSender(t, sender)
 
-		err := svc.SendVerifyCode(context.Background(), "stranger@example.com", purpose, constants.LocaleZhCN, "")
+		err := svc.SendVerifyCode(context.Background(), "stranger@example.com", purpose, constants.LocaleZhCN, "", "192.0.2.1")
 		if !errors.Is(err, userauthapp.ErrInvalidVerifyPurpose) {
 			t.Fatalf("purpose %q: expected ErrInvalidVerifyPurpose, got %v", purpose, err)
 		}
@@ -204,11 +234,11 @@ func TestSendVerifyCodeFailedSendDoesNotBlockResend(t *testing.T) {
 	sender := &toggleVerificationEmailSender{fail: true}
 	svc, _, _ := newRegistrationDomainPolicyAuthServiceWithSender(t, sender)
 
-	if err := svc.SendVerifyCode(context.Background(), "resend@example.com", constants.VerifyPurposeRegister, constants.LocaleZhCN, ""); err == nil {
+	if err := svc.SendVerifyCode(context.Background(), "resend@example.com", constants.VerifyPurposeRegister, constants.LocaleZhCN, "", "192.0.2.1"); err == nil {
 		t.Fatal("expected send failure")
 	}
 	sender.fail = false
-	if err := svc.SendVerifyCode(context.Background(), "resend@example.com", constants.VerifyPurposeRegister, constants.LocaleZhCN, ""); err != nil {
+	if err := svc.SendVerifyCode(context.Background(), "resend@example.com", constants.VerifyPurposeRegister, constants.LocaleZhCN, "", "192.0.2.1"); err != nil {
 		t.Fatalf("resend after failed send should succeed, got %v", err)
 	}
 }

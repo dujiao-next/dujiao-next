@@ -3,7 +3,10 @@ package userauthhttp
 import (
 	"context"
 	"errors"
+	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/i18n"
@@ -34,7 +37,7 @@ type UserVerifySettings interface {
 
 // UserVerifyAuth 是发送邮箱验证码端口。
 type UserVerifyAuth interface {
-	SendVerifyCode(ctx context.Context, email, purpose, locale, inviteCode string) error
+	SendVerifyCode(ctx context.Context, email, purpose, locale, inviteCode, clientIP string) (time.Duration, error)
 }
 
 // UserVerifyHandler 处理公开的发送邮箱验证码 HTTP 请求。
@@ -109,7 +112,15 @@ func (h *UserVerifyHandler) SendUserVerifyCode(c *gin.Context) {
 	}
 
 	locale := i18n.ResolveLocale(c)
-	if err := h.auth.SendVerifyCode(c.Request.Context(), req.Email, req.Purpose, locale, req.InviteCode); err != nil {
+	retryAfter, err := h.auth.SendVerifyCode(c.Request.Context(), req.Email, purpose, locale, req.InviteCode, c.ClientIP())
+	if retryAfter > 0 {
+		seconds := int((retryAfter + time.Second - 1) / time.Second)
+		c.Header("Retry-After", strconv.Itoa(seconds))
+		msg := i18n.Sprintf(locale, "error.register_verify_code_rate_limited", seconds)
+		response.ErrorWithHTTPStatus(c, http.StatusTooManyRequests, response.CodeTooManyRequests, msg)
+		return
+	}
+	if err != nil {
 		if respondInviteCodeError(c, err) {
 			return
 		}

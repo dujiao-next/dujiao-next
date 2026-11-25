@@ -116,6 +116,9 @@ func (c *Container) initIdentityAndCatalogServices() {
 	c.UserAuthService.SetGoogleRedirectStore(userauthcachestore.NewGoogleRedirectStore())
 	c.UserAuthService.SetAuthUnitOfWork(userauthgormstore.New(gormdb.DB))
 	c.UserAuthService.SetEmailBrandResolver(c.EmailBrandResolver)
+	if redisClient := cache.Client(); redisClient != nil {
+		c.UserAuthService.SetRegistrationEmailLimiter(userauthcachestore.NewRegistrationEmailLimiter(redisClient, c.Config.Redis.Prefix))
+	}
 	c.InviteCodeService = invitecodeapp.NewService(invitecodestore.New(gormdb.DB))
 	c.UserAuthService.SetInviteCodeChecker(c.InviteCodeService)
 	c.UploadService = uploadapp.NewService(uploadapp.Policy{

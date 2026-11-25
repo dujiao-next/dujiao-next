@@ -169,7 +169,7 @@ func (s *Service) SendChangeEmailCode(ctx context.Context, userID uint, kind, ne
 		if mode == EmailChangeModeBindOnly {
 			return ErrEmailChangeInvalid
 		}
-		return s.sendVerifyCode(ctx, user.Email, constants.VerifyPurposeChangeEmailOld, locale)
+		return s.sendVerifyCode(ctx, user.Email, constants.VerifyPurposeChangeEmailOld, locale, "")
 	case "new":
 		normalized, err := normalizeUserSuppliedEmail(newEmail)
 		if err != nil {
@@ -185,7 +185,7 @@ func (s *Service) SendChangeEmailCode(ctx context.Context, userID uint, kind, ne
 		if exist != nil {
 			return ErrEmailChangeExists
 		}
-		return s.sendVerifyCode(ctx, normalized, constants.VerifyPurposeChangeEmailNew, locale)
+		return s.sendVerifyCode(ctx, normalized, constants.VerifyPurposeChangeEmailNew, locale, "")
 	default:
 		return ErrEmailChangeInvalid
 	}

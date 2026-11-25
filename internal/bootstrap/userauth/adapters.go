@@ -110,8 +110,13 @@ func (a userVerifyTransportAdapter) GetRegistrationEnabled(defaultValue bool) (b
 	return a.settings.GetRegistrationEnabled(defaultValue)
 }
 
-func (a userVerifyTransportAdapter) SendVerifyCode(ctx context.Context, email, purpose, locale, inviteCode string) error {
-	return mapUserAuthTransportError(a.auth.SendVerifyCode(ctx, email, purpose, locale, inviteCode))
+func (a userVerifyTransportAdapter) SendVerifyCode(ctx context.Context, email, purpose, locale, inviteCode, clientIP string) (time.Duration, error) {
+	err := a.auth.SendVerifyCode(ctx, email, purpose, locale, inviteCode, clientIP)
+	var limit *userauthapp.RegistrationEmailRateLimitError
+	if errors.As(err, &limit) {
+		return limit.RetryAfter, nil
+	}
+	return 0, mapUserAuthTransportError(err)
 }
 
 // userTelegramTransportAdapter 将用户认证服务适配为 Telegram widget/MiniApp transport 端口。
