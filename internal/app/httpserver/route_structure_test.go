@@ -1,6 +1,16 @@
 package httpserver
 
 import (
+	"archive/zip"
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	systemhttp "github.com/dujiao-next/internal/platform/http/system"
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -209,4 +219,41 @@ func readRouterSource(t *testing.T, path string) string {
 		t.Fatalf("read router source %s: %v", path, err)
 	}
 	return string(raw)
+}
+
+func TestDownloadSourceUpdateRejectsStaleSnapshot(t *testing.T) {
+	dir := t.TempDir()
+	snapshot := filepath.Join(dir, "source.tar.gz")
+	packagePath := filepath.Join(dir, "increment.zip")
+	t.Setenv("DUJIAO_SOURCE_UPDATE_BASE", "v1.0.0")
+	t.Setenv("DUJIAO_SOURCE_UPDATE_SNAPSHOT", snapshot)
+	t.Setenv("DUJIAO_SOURCE_UPDATE_SCRIPT", filepath.Join(dir, "prepare.py"))
+	t.Setenv("DUJIAO_SOURCE_UPDATE_PACKAGE", packagePath)
+	content := []byte("snapshot fixture")
+	require.NoError(t, os.WriteFile(snapshot, content, 0o600))
+	hash := sha256.Sum256(content)
+	var data bytes.Buffer
+	archive := zip.NewWriter(&data)
+	entry, err := archive.Create("plan.json")
+	require.NoError(t, err)
+	require.NoError(t, json.NewEncoder(entry).Encode(map[string]string{
+		"base": "v1.0.0", "target": "v1.1.0", "snapshot_sha256": hex.EncodeToString(hash[:]),
+	}))
+	require.NoError(t, archive.Close())
+	require.NoError(t, os.WriteFile(packagePath, data.Bytes(), 0o600))
+
+	download := func() *httptest.ResponseRecorder {
+		response := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(response)
+		ctx.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/system/update/source/package", nil)
+		systemhttp.NewAdminHandler(nil).DownloadSourceUpdate(ctx)
+		return response
+	}
+	valid := download()
+	require.Equal(t, http.StatusOK, valid.Code)
+	require.Equal(t, data.Bytes(), valid.Body.Bytes())
+	require.NoError(t, os.WriteFile(snapshot, []byte("different snapshot"), 0o600))
+	stale := download()
+	require.Empty(t, stale.Header().Get("Content-Disposition"))
+	require.NotEqual(t, data.Bytes(), stale.Body.Bytes())
 }

@@ -276,6 +276,8 @@ func BuiltinRoleSeeds() []RoleSeed {
 				// 一键升级（下载替换二进制 / 回滚 / 重启进程）
 				{Object: "/admin/system/update/capability", Action: "GET"},
 				{Object: "/admin/system/update/status", Action: "GET"},
+				{Object: "/admin/system/update/source/prepare", Action: "POST"},
+				{Object: "/admin/system/update/source/package", Action: "GET"},
 				{Object: "/admin/system/update/start", Action: "POST"},
 				{Object: "/admin/system/update/rollback", Action: "POST"},
 				{Object: "/admin/system/restart", Action: "POST"},

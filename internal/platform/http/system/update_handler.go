@@ -1,11 +1,22 @@
 package systemhttp
 
 import (
+	"archive/zip"
+	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"sync"
+	"time"
 
 	ginutil "github.com/dujiao-next/internal/platform/http/ginutil"
 	"github.com/dujiao-next/internal/platform/http/response"
 	"github.com/dujiao-next/internal/selfupdate"
+	"github.com/dujiao-next/internal/version"
 
 	"github.com/gin-gonic/gin"
 )
@@ -14,15 +25,28 @@ import (
 // 前端据此决定展示升级按钮还是手动升级指引（容器部署走 compose 命令）。
 // GET /api/v1/admin/system/update/capability
 func (h *AdminHandler) GetUpdateCapability(c *gin.Context) {
+	capability := selfupdate.Detect()
+	var sourceUI gin.H
+	if h.sourceUpdate != nil {
+		capability.CanUpdate = false
+		capability.HasBackup = false
+		plan, _ := h.sourceUpdate.cachedPlan()
+		sourceUI = gin.H{"base": h.sourceUpdate.base, "plan": plan}
+	}
 	response.Success(c, gin.H{
-		"capability": selfupdate.Detect(),
-		"state":      h.updates.Snapshot(),
+		"capability":    capability,
+		"state":         h.updates.Snapshot(),
+		"source_update": sourceUI,
 	})
 }
 
 // StartUpdate 启动一键升级任务。任务在后台执行，进度由 GetUpdateStatus 轮询。
 // POST /api/v1/admin/system/update/start
 func (h *AdminHandler) StartUpdate(c *gin.Context) {
+	if h.sourceUpdate != nil {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.update_not_supported", nil)
+		return
+	}
 	err := h.updates.Start(c.Request.Context())
 	switch {
 	case err == nil:
@@ -62,6 +86,10 @@ type rollbackRequest struct {
 // `dujiao-next rollback`，它不依赖 HTTP 服务与数据库。
 // POST /api/v1/admin/system/update/rollback
 func (h *AdminHandler) RollbackUpdate(c *gin.Context) {
+	if h.sourceUpdate != nil {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.update_not_supported", nil)
+		return
+	}
 	var req rollbackRequest
 	// 允许空 body：老前端与 curl 调用不带 JSON 时按 force=false 处理
 	_ = c.ShouldBindJSON(&req)
@@ -109,4 +137,127 @@ func logOperation(c *gin.Context, action string, kv ...any) {
 	adminID, _ := ginutil.GetAdminID(c)
 	fields := append([]any{"admin_id", adminID, "client_ip", c.ClientIP()}, kv...)
 	ginutil.RequestLog(c).Infow(action, fields...)
+}
+
+type sourceUpdate struct {
+	base, snapshot, script, packagePath string
+	snapshotHash                        string
+	mu                                  sync.Mutex
+}
+
+type sourcePlan struct {
+	Base          string         `json:"base"`
+	Target        string         `json:"target"`
+	Summary       map[string]int `json:"summary"`
+	Conflicts     []string       `json:"conflicts"`
+	ReadyForBuild bool           `json:"ready_for_build"`
+	SnapshotHash  string         `json:"snapshot_sha256"`
+}
+
+func configuredSourceUpdate() *sourceUpdate {
+	paths := &sourceUpdate{
+		base:        os.Getenv("DUJIAO_SOURCE_UPDATE_BASE"),
+		snapshot:    os.Getenv("DUJIAO_SOURCE_UPDATE_SNAPSHOT"),
+		script:      os.Getenv("DUJIAO_SOURCE_UPDATE_SCRIPT"),
+		packagePath: os.Getenv("DUJIAO_SOURCE_UPDATE_PACKAGE"),
+	}
+	if paths.base == "" || paths.snapshot == "" || paths.script == "" || paths.packagePath == "" {
+		return nil
+	}
+	if file, err := os.Open(paths.snapshot); err == nil {
+		hash := sha256.New()
+		if size, err := io.Copy(hash, io.LimitReader(file, (32<<20)+1)); err == nil && size <= 32<<20 {
+			paths.snapshotHash = fmt.Sprintf("%x", hash.Sum(nil))
+		}
+		_ = file.Close()
+	}
+	return paths
+}
+
+func (s *sourceUpdate) cachedPlan() (*sourcePlan, error) {
+	archive, err := zip.OpenReader(s.packagePath)
+	if err != nil {
+		return nil, err
+	}
+	defer archive.Close()
+	for _, entry := range archive.File {
+		if entry.Name != "plan.json" {
+			continue
+		}
+		if entry.UncompressedSize64 > 8<<20 {
+			break
+		}
+		file, err := entry.Open()
+		if err != nil {
+			return nil, err
+		}
+		data, err := io.ReadAll(io.LimitReader(file, 8<<20))
+		_ = file.Close()
+		if err != nil {
+			return nil, err
+		}
+		var plan sourcePlan
+		if err := json.Unmarshal(data, &plan); err != nil {
+			return nil, err
+		}
+		if plan.Base != s.base || s.snapshotHash == "" || plan.SnapshotHash != s.snapshotHash {
+			return nil, os.ErrNotExist
+		}
+		return &plan, nil
+	}
+	return nil, errors.New("source update package has no valid manifest")
+}
+
+func (h *AdminHandler) PrepareSourceUpdate(c *gin.Context) {
+	source := h.sourceUpdate
+	if source == nil || source.snapshotHash == "" {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.update_not_supported", nil)
+		return
+	}
+	if !source.mu.TryLock() {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.update_in_progress", nil)
+		return
+	}
+	defer source.mu.Unlock()
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 52*time.Second)
+	defer cancel()
+	release, err := h.releases.CheckLatestRelease(ctx)
+	if err != nil {
+		ginutil.RespondError(c, response.CodeInternal, "error.update_check_failed", err)
+		return
+	}
+	newer, err := version.IsNewerVersion(release.LatestVersion, source.base)
+	if err != nil || !newer {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.update_already_latest", err)
+		return
+	}
+
+	command := exec.CommandContext(ctx, "/usr/bin/python3", "-I", source.script,
+		source.base, release.LatestVersion, source.snapshot, source.packagePath)
+	if output, err := command.CombinedOutput(); err != nil {
+		ginutil.RespondError(c, response.CodeInternal, "error.update_source_failed",
+			fmt.Errorf("source update: %w: %s", err, output))
+		return
+	}
+	plan, err := source.cachedPlan()
+	if err != nil {
+		ginutil.RespondError(c, response.CodeInternal, "error.update_source_failed", err)
+		return
+	}
+	logOperation(c, "source_update_prepared", "base_version", source.base, "target_version", release.LatestVersion)
+	response.Success(c, plan)
+}
+
+func (h *AdminHandler) DownloadSourceUpdate(c *gin.Context) {
+	if h.sourceUpdate == nil {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.update_not_supported", nil)
+		return
+	}
+	if _, err := h.sourceUpdate.cachedPlan(); err != nil {
+		ginutil.RespondError(c, response.CodeNotFound, "error.update_source_missing", err)
+		return
+	}
+	c.Header("Cache-Control", "private, no-store")
+	c.FileAttachment(h.sourceUpdate.packagePath, "dujiao-source-increment.zip")
 }
