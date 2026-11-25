@@ -29,7 +29,8 @@ func (defaultReleaseChecker) CheckLatestRelease(ctx context.Context) (*version.C
 type AdminHandler struct {
 	releases ReleaseChecker
 	// updates 一键升级任务管理器。进程内单例，串行化升级任务并保存可轮询的进度。
-	updates *selfupdate.Manager
+	updates      *selfupdate.Manager
+	sourceUpdate *sourceUpdate
 }
 
 func NewAdminHandler(releases ReleaseChecker) *AdminHandler {
@@ -37,8 +38,9 @@ func NewAdminHandler(releases ReleaseChecker) *AdminHandler {
 		releases = defaultReleaseChecker{}
 	}
 	return &AdminHandler{
-		releases: releases,
-		updates:  selfupdate.NewManager(),
+		releases:     releases,
+		updates:      selfupdate.NewManager(),
+		sourceUpdate: configuredSourceUpdate(),
 	}
 }
 
