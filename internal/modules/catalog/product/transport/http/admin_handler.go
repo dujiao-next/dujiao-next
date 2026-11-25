@@ -239,8 +239,11 @@ type CreateProductRequest struct {
 	PaymentChannelIDs   []uint                   `json:"payment_channel_ids"`
 	// AffiliateRatePercent 为商品级返利比例：未携带表示保留现有比例，null 表示继承全站，0 表示不参与返利。
 	AffiliateRatePercent json.RawMessage `json:"affiliate_rate_percent"`
-	IsActive             *bool           `json:"is_active"`
-	SortOrder            int             `json:"sort_order"`
+	// IsAffiliateEnabled 是已废弃的旧开关，仅在未携带 affiliate_rate_percent 时生效：
+	// 升级前打开、未刷新的后台页面和旧 API 脚本只会发它，直接忽略会让「关闭返利」静默失效。
+	IsAffiliateEnabled *bool `json:"is_affiliate_enabled"`
+	IsActive           *bool `json:"is_active"`
+	SortOrder          int   `json:"sort_order"`
 }
 
 // optionalRate 解析可空的比例字段，区分「未携带」「显式 null」与具体数值。
@@ -316,6 +319,14 @@ func toCreateProductInput(req *CreateProductRequest) (productwrite.CreateProduct
 	rate, err := parseOptionalRate(req.AffiliateRatePercent)
 	if err != nil {
 		return productwrite.CreateProductInput{}, err
+	}
+	if !rate.set && req.IsAffiliateEnabled != nil {
+		// 旧开关：true → null（跟随全站），false → 0（不参与返利），与数据迁移口径一致。
+		rate.set = true
+		if !*req.IsAffiliateEnabled {
+			zero := money.FromDecimal(decimal.Zero)
+			rate.amount = &zero
+		}
 	}
 	skus, err := toProductSKUInputs(req.SKUs)
 	if err != nil {

@@ -617,6 +617,18 @@ func TestUpdateProductAffiliateRateTriState(t *testing.T) {
 		t.Fatalf("explicit null should clear the override, got %+v", got.AffiliateRatePercent)
 	}
 
+	// 旧开关 is_affiliate_enabled：未刷新的旧后台页面只会发它，false 必须真的关掉返利。
+	if got := update(t, `"is_affiliate_enabled":false,`); got.AffiliateRatePercent == nil || !got.AffiliateRatePercent.IsZero() {
+		t.Fatalf("legacy false should store 0, got %+v", got.AffiliateRatePercent)
+	}
+	if got := update(t, `"is_affiliate_enabled":true,`); got.AffiliateRatePercent != nil {
+		t.Fatalf("legacy true should follow the site-wide rate, got %+v", got.AffiliateRatePercent)
+	}
+	// 两个字段同时出现时以新字段为准。
+	if got := update(t, `"is_affiliate_enabled":false,"affiliate_rate_percent":25,`); got.AffiliateRatePercent == nil || !got.AffiliateRatePercent.Equal(decimal.NewFromInt(25)) {
+		t.Fatalf("new field should win over the legacy switch, got %+v", got.AffiliateRatePercent)
+	}
+
 	// 超出范围仍返回 400 而不是 500。
 	body := fmt.Sprintf(`{"category_id":%d,"slug":"affiliate-tri-state","title":{"zh-CN":"affiliate-tri-state"},"price_amount":10,"purchase_type":"member","fulfillment_type":"manual","manual_stock_total":0,"affiliate_rate_percent":150,"sort_order":0}`, category.ID)
 	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/v1/admin/products/%d", product.ID), strings.NewReader(body))
