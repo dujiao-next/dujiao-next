@@ -30,7 +30,8 @@
         <p v-if="description" class="mt-0.5 truncate text-[13px] text-muted-foreground max-md:hidden">{{ description }}</p>
         <p class="mt-1 flex items-center gap-1.5 truncate text-xs text-muted-foreground empty:hidden">
           <span class="inline-flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap md:hidden">
-            <Zap v-if="product.fulfillment_type === 'auto'" class="h-3 w-3 shrink-0 fill-current text-warm" aria-hidden="true" />
+            <Zap v-if="product.fulfillment_type === 'auto'" class="h-3 w-3 shrink-0 fill-current text-info" aria-hidden="true" />
+            <Clock v-else class="h-3 w-3 shrink-0 text-amber-600 dark:text-amber-300" aria-hidden="true" />
             {{ getFulfillmentTypeLabel(product.fulfillment_type) }}
           </span>
           <span class="shrink-0 md:hidden" :class="stock.text">{{ getStockStatusLabel(product) }}</span>
@@ -45,7 +46,8 @@
       <span
         class="inline-flex h-6 items-center gap-1 rounded-full bg-card px-2.5 text-xs font-medium text-foreground"
       >
-        <Zap v-if="product.fulfillment_type === 'auto'" class="h-3 w-3 shrink-0 fill-current text-warm" aria-hidden="true" />
+        <Zap v-if="product.fulfillment_type === 'auto'" class="h-3 w-3 shrink-0 fill-current text-info" aria-hidden="true" />
+        <Clock v-else class="h-3 w-3 shrink-0 text-amber-600 dark:text-amber-300" aria-hidden="true" />
         {{ getFulfillmentTypeLabel(product.fulfillment_type) }}
       </span>
     </span>
@@ -128,7 +130,8 @@
       </p>
       <div class="mt-1 flex flex-wrap items-center justify-between gap-x-2 text-xs text-muted-foreground">
         <span class="inline-flex min-w-0 items-center gap-1">
-          <Zap v-if="product.fulfillment_type === 'auto'" class="h-3 w-3 shrink-0 fill-current text-warm" aria-hidden="true" />
+          <Zap v-if="product.fulfillment_type === 'auto'" class="h-3 w-3 shrink-0 fill-current text-info" aria-hidden="true" />
+          <Clock v-else class="h-3 w-3 shrink-0 text-amber-600 dark:text-amber-300" aria-hidden="true" />
           <span class="shrink-0">{{ getFulfillmentTypeLabel(product.fulfillment_type) }}</span>
           <span v-for="(tag, tagIndex) in (product.tags ?? []).slice(0, maxTags)" :key="tagIndex"
             class="min-w-0 truncate rounded bg-secondary px-1.5 leading-5">
@@ -185,7 +188,7 @@ export const rowColsClass = 'md:grid md:grid-cols-[minmax(0,1fr)_6.5rem_8.5rem_8
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { computed, ref, watch } from 'vue'
-import { ShoppingCart, Zap } from 'lucide-vue-next'
+import { Clock, ShoppingCart, Zap } from 'lucide-vue-next'
 import { getFirstImageUrl, getImageUrl, placeholderHue } from '../utils/image'
 import { useLocalized, useProductLabels } from '../composables/useProduct'
 
@@ -233,8 +236,8 @@ const deal = computed(() => {
   const p = props.product
   if (exclusivePrice.value !== null) return { label: t('products.memberPriceTag'), class: 'bg-amber-400 text-black' }
   if (hasPromotionPrice(p)) return { label: t('products.promotionTag'), class: 'bg-danger text-white' }
-  if (hasWholesalePrices(p)) return { label: t('products.wholesaleTag'), class: 'bg-success text-white' }
-  if (hasPromotionRules(p)) return { label: t('products.promotionBadge'), class: 'bg-warm text-white' }
+  if (hasWholesalePrices(p)) return { label: t('products.wholesaleTag'), class: 'bg-success text-white dark:bg-emerald-950 dark:text-emerald-200' }
+  if (hasPromotionRules(p)) return { label: t('products.promotionBadge'), class: 'bg-warm text-white dark:bg-amber-900 dark:text-amber-200' }
   return null
 })
 
