@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"regexp"
 	"strings"
 	"time"
 
@@ -68,6 +69,49 @@ func (s *ManagementService) GetUserManagementSnapshot(userID uint) (*resellerdom
 	}
 	canApply := profile.Status == resellerdomain.ProfileStatusRejected && s.cfg.Enabled && s.cfg.SelfApplyEnabled
 	return profile, domains, canApply, nil
+}
+
+// Matches the precision of the decimal(10,2) profile column.
+var defaultMarkupFormat = regexp.MustCompile(`^[0-9]{1,8}(\.[0-9]{1,2})?$`)
+
+func (s *ManagementService) UpdateUserDefaultMarkup(userID uint, value string) (*resellerdomain.Profile, error) {
+	if s == nil || s.store == nil || !s.cfg.Enabled || userID == 0 {
+		return nil, resellercontract.ErrNotOpened
+	}
+	value = strings.TrimSpace(value)
+	if !defaultMarkupFormat.MatchString(value) {
+		return nil, resellercontract.ErrDefaultMarkupInvalid
+	}
+	percent, err := decimal.NewFromString(value)
+	if err != nil {
+		return nil, resellercontract.ErrDefaultMarkupInvalid
+	}
+
+	var profile *resellerdomain.Profile
+	err = s.store.WithinManagementTransaction(func(store resellercontract.ManagementStore) error {
+		updated, err := store.UpdateActiveProfileDefaultMarkup(userID, money.FromDecimal(percent))
+		if err != nil {
+			return err
+		}
+		profile, err = store.GetProfileByUserID(userID)
+		if err != nil {
+			return err
+		}
+		if profile == nil {
+			return resellercontract.ErrNotOpened
+		}
+		if profile.Status != resellerdomain.ProfileStatusActive {
+			return resellercontract.ErrProfileInactive
+		}
+		if !updated {
+			return resellercontract.ErrMarkupExceeded
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return profile, nil
 }
 
 func (s *ManagementService) ApplyUserReseller(userID uint, input ResellerApplyInput) (*resellerdomain.Profile, error) {

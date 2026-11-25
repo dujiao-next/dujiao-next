@@ -22,6 +22,8 @@ var userManagementErrorRules = []mappedError{
 	{target: resellermodule.ErrNotOpened, code: response.CodeBadRequest, key: "error.bad_request"},
 	{target: resellermodule.ErrApplyDisabled, code: response.CodeForbidden, key: "error.forbidden"},
 	{target: resellermodule.ErrProfileInactive, code: response.CodeBadRequest, key: "error.forbidden"},
+	{target: resellermodule.ErrDefaultMarkupInvalid, code: response.CodeBadRequest, key: "error.reseller_default_markup_invalid"},
+	{target: resellermodule.ErrMarkupExceeded, code: response.CodeBadRequest, key: "error.reseller_markup_exceeded"},
 	{target: resellermodule.ErrDomainInvalid, code: response.CodeBadRequest, key: "error.reseller_domain_invalid"},
 	{target: resellermodule.ErrDomainMainHostNotAllowed, code: response.CodeBadRequest, key: "error.reseller_domain_main_host_not_allowed"},
 	{target: resellermodule.ErrDomainConflict, code: response.CodeBadRequest, key: "error.reseller_domain_conflict"},
