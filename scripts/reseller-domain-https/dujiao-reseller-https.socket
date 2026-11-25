@@ -1,0 +1,14 @@
+[Unit]
+Description=Dujiao-Next reseller HTTPS provisioning socket
+
+[Socket]
+ListenStream=/run/dujiao-reseller-https.sock
+SocketUser=root
+SocketGroup=dujiao
+SocketMode=0660
+Accept=yes
+MaxConnections=4
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target

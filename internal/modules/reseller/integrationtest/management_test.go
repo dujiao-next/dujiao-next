@@ -1,6 +1,7 @@
 package integrationtest
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -115,7 +116,49 @@ func newAdminResellerManagementContext(method, target string, body *strings.Read
 }
 
 func adminResellerManagementHTTP(h *adminResellerFixture) *resellerhttp.AdminManagementHandler {
-	return resellerhttp.NewAdminManagementHandler(h.ResellerManagementService, h.ResellerStore, h.AuthzAuditService)
+	return resellerhttp.NewAdminManagementHandler(h.ResellerManagementService, h.ResellerStore, h.AuthzAuditService, nil)
+}
+
+type readyDomainHTTPS struct {
+	domainID uint
+}
+
+func (worker *readyDomainHTTPS) Setup(_ context.Context, domainID uint) (string, error) {
+	worker.domainID = domainID
+	return "ready", nil
+}
+
+func TestAdminResellerHTTPSSetupLeavesDomainPending(t *testing.T) {
+	h, db := setupAdminResellerManagementHandlerTest(t)
+	profile := seedAdminResellerManagementProfile(t, db, resellerdomain.ProfileStatusActive)
+	domain := resellerdomain.Domain{
+		ResellerID: profile.ID, Domain: "shop.example.test", Type: resellerdomain.DomainTypeCustom,
+		Status: resellerdomain.DomainStatusPendingReview, VerificationStatus: resellerdomain.DomainVerificationPending,
+	}
+	if err := db.Create(&domain).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	path := fmt.Sprintf("/admin/resellers/domains/%d/setup-https", domain.ID)
+	c, recorder := newAdminResellerManagementContext(http.MethodPost, path, nil)
+	c.Params = gin.Params{{Key: "id", Value: fmt.Sprint(domain.ID)}}
+	worker := &readyDomainHTTPS{}
+	handler := resellerhttp.NewAdminManagementHandler(h.ResellerManagementService, h.ResellerStore, h.AuthzAuditService, worker)
+	handler.SetupDomainHTTPS(c)
+
+	if worker.domainID != domain.ID || !strings.Contains(recorder.Body.String(), `"https_ready":true`) {
+		t.Fatalf("expected successful HTTPS setup for domain %d, got %d: %s", domain.ID, worker.domainID, recorder.Body.String())
+	}
+	if err := db.First(&domain, domain.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if domain.Status != resellerdomain.DomainStatusPendingReview || domain.VerificationStatus != resellerdomain.DomainVerificationPending {
+		t.Fatalf("HTTPS setup changed review state: %s / %s", domain.Status, domain.VerificationStatus)
+	}
+	var audits int64
+	if err := db.Model(&auditlogdomain.AuthzAuditLog{}).Where("action = ?", "reseller_domain_setup_https").Count(&audits).Error; err != nil || audits != 1 {
+		t.Fatalf("expected one HTTPS setup audit record, got %d: %v", audits, err)
+	}
 }
 
 func adminResellerProfileDetailHTTP(h *adminResellerFixture) *resellerhttp.AdminProfileDetailHandler {

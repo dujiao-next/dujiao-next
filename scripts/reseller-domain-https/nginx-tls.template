@@ -1,0 +1,20 @@
+# Example TLS template for the optional custom-domain HTTPS worker.
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name @DOMAIN@;
+    server_tokens off;
+    ssl_certificate @CERT_DIR@/fullchain.pem;
+    ssl_certificate_key @CERT_DIR@/privkey.pem;
+
+    location ^~ /api/v1/admin/ {
+        return 404;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+}
