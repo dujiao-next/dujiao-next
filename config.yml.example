@@ -142,14 +142,6 @@ security:
     window_seconds: 300
     max_attempts: 5
     block_seconds: 900
-  # 上游对接 API（/api/v1/upstream/*）限流，按「来源 IP + API Key」计数。
-  # 注意：单个下游进程的导入速度由它自己的客户端节流决定（约 48 次/分钟），
-  # 调高这里的额度不会加快单进程导入；只有多个下游进程/工具共用同一个 Key 时才有意义。
-  # 调高前请确认确实有合法的下游批量对接需求。
-  upstream_api_rate_limit:
-    window_seconds: 60
-    max_requests: 60
-    block_seconds: 30
   password_policy:
     min_length: 8
     require_upper: true

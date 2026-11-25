@@ -550,6 +550,68 @@ func TestBatchImportByCategoryReusesListedProducts(t *testing.T) {
 	}
 }
 
+// 按 ID 批量导入选中够多时走整站扫描：列表里有的商品不再逐个 GetProduct，
+// 列表里没有的 ID 回退到 GetProduct，两条路都要导入成功。
+func TestBatchImportByIDsScansListAndFallsBackForMissing(t *testing.T) {
+	const missingID = 2000
+	upstreamItem := func(id uint) upstream.UpstreamProduct {
+		return upstream.UpstreamProduct{
+			ID:              id,
+			Slug:            "scan-" + strconv.Itoa(int(id)),
+			Title:           jsonmap.JSON{"zh-CN": "扫描商品"},
+			PriceAmount:     "10.00",
+			Currency:        "CNY",
+			FulfillmentType: constants.FulfillmentTypeAuto,
+			IsActive:        true,
+			CategoryID:      1,
+			SKUs:            []upstream.UpstreamSKU{{ID: id + 10000, SKUCode: "SKU", PriceAmount: "10.00", IsActive: true}},
+		}
+	}
+	listed := make([]upstream.UpstreamProduct, 0, 60)
+	for id := uint(1001); id <= 1060; id++ {
+		listed = append(listed, upstreamItem(id))
+	}
+
+	var getProductCalls int32
+	svc, _, mapping, cleanup := setupMappingWithUpstreamHandler(t,
+		"file:batch_import_ids_scan?mode=memory&cache=shared",
+		func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			if strings.HasPrefix(r.URL.Path, "/api/v1/upstream/products/") {
+				atomic.AddInt32(&getProductCalls, 1)
+				_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "product": upstreamItem(missingID)})
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"ok": true, "items": listed, "total": len(listed), "page": 1, "page_size": 200,
+			})
+		},
+	)
+	defer cleanup()
+
+	ids := make([]uint, 0, 50)
+	for id := uint(1001); id <= 1049; id++ {
+		ids = append(ids, id)
+	}
+	ids = append(ids, missingID)
+
+	outcomes, err := svc.BatchImportUpstreamProducts(mapping.ConnectionID, ids, 1, false)
+	if err != nil {
+		t.Fatalf("BatchImportUpstreamProducts returned error: %v", err)
+	}
+	if len(outcomes) != len(ids) {
+		t.Fatalf("expected %d outcomes, got %d", len(ids), len(outcomes))
+	}
+	for _, o := range outcomes {
+		if o.Err != nil || o.Mapping == nil {
+			t.Fatalf("upstream product %d not imported: %v", o.UpstreamProductID, o.Err)
+		}
+	}
+	if calls := atomic.LoadInt32(&getProductCalls); calls != 1 {
+		t.Fatalf("expected GetProduct only for the product missing from the list, got %d calls", calls)
+	}
+}
+
 func TestSyncConnectionStockMarksDeletedWhenFullSyncMissing(t *testing.T) {
 	// 上游 ListProducts 返回空列表 + includes_inactive=true →
 	// 全量模式下 mapping 在列表中 missing 必定意味着上游已软删

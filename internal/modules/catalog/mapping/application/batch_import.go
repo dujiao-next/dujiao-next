@@ -24,7 +24,8 @@ const upstreamBatchScanMinIDs = 50
 
 // shouldScanUpstreamProducts 判断整站扫描是否比逐个 GetProduct 更省请求。
 // 先取第一页拿到 total 和上游实际的 page_size，估算扫描需要的页数：
-// 需要的页数比选中数量多时，逐个取更省，就不扫（大型上游上选 50 个扫全站反而更慢）。
+// 需要的页数不少于选中数量时就不扫：请求数打平时逐个取下载的数据少得多
+// （大型上游上选 50 个扫全站反而更慢）。
 // 拿不到 total（旧上游）时保持旧行为——选中够多就扫。
 func shouldScanUpstreamProducts(adapter upstream.Adapter, selected int) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -41,7 +42,7 @@ func shouldScanUpstreamProducts(adapter upstream.Adapter, selected int) bool {
 		pageSize = upstreamProductPageSize
 	}
 	pagesNeeded := (result.Total + pageSize - 1) / pageSize
-	return pagesNeeded <= selected
+	return pagesNeeded < selected
 }
 
 // acquireBatchImportLock 同一连接同时只允许一个批量导入：大批量导入常超过 HTTP 超时，

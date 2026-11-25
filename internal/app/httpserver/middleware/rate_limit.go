@@ -200,7 +200,9 @@ func RateLimitMiddleware(client *redis.Client, rule RateLimitRule, keyFunc RateL
 		}
 		if count > int64(rule.MaxRequests) {
 			waitSeconds := int(ttlSeconds)
-			if waitSeconds < 1 {
+			// 负数表示键没有过期时间，按整个窗口等；0 是 Redis 四舍五入后的"不到半秒"，
+			// 落到下面按 1 秒处理，否则 Retry-After 会让下游白等一整个窗口。
+			if ttlSeconds < 0 {
 				waitSeconds = rule.WindowSeconds
 			}
 			if waitSeconds < 1 {
