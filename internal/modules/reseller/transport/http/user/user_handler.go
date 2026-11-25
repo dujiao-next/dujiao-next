@@ -19,6 +19,7 @@ import (
 
 type ManagementService interface {
 	GetUserManagementSnapshot(userID uint) (*resellerdomain.Profile, []resellerdomain.Domain, bool, error)
+	UpdateUserDefaultMarkup(userID uint, value string) (*resellerdomain.Profile, error)
 	ApplyUserReseller(userID uint, input resellermodule.ResellerApplyInput) (*resellerdomain.Profile, error)
 	SubmitUserCustomDomain(userID uint, rawDomain string) (*resellerdomain.Domain, error)
 }
@@ -89,6 +90,27 @@ func (h *UserHandler) GetManagementSnapshot(c *gin.Context) {
 		return
 	}
 	response.Success(c, dto.NewResellerManagementSnapshotResp(profile, domains, canApply))
+}
+
+// UpdateDefaultMarkup 保存当前分销商的默认加价。
+func (h *UserHandler) UpdateDefaultMarkup(c *gin.Context) {
+	uid, ok := ginutil.GetUserID(c)
+	if !ok {
+		return
+	}
+	var req struct {
+		DefaultMarkupPercent string `json:"default_markup_percent"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		ginutil.RespondBindError(c, err)
+		return
+	}
+	profile, err := h.management.UpdateUserDefaultMarkup(uid, req.DefaultMarkupPercent)
+	if err != nil {
+		respondUserManagementError(c, err, "error.save_failed")
+		return
+	}
+	response.Success(c, dto.NewResellerManagementProfileResp(profile))
 }
 
 // ApplyProfile 提交当前用户的分销商申请。

@@ -9,7 +9,10 @@ import (
 
 	resellergormstore "github.com/dujiao-next/internal/modules/reseller/infrastructure/gormstore"
 
+	resellerapplication "github.com/dujiao-next/internal/modules/reseller/application"
+	resellercontract "github.com/dujiao-next/internal/modules/reseller/contract"
 	resellerdomain "github.com/dujiao-next/internal/modules/reseller/domain"
+	"github.com/dujiao-next/internal/shared/money"
 
 	userdomain "github.com/dujiao-next/internal/modules/identity/user/domain"
 
@@ -48,6 +51,64 @@ func newResellerManagementServiceForTest(db *gorm.DB) *ResellerManagementService
 		SubdomainBase:    "shop.example.test",
 		MainHosts:        []string{"main.example.test"},
 	})
+}
+
+func TestResellerManagementUpdateUserDefaultMarkup(t *testing.T) {
+	db := openResellerManagementServiceTestDB(t)
+	svc := newResellerManagementServiceForTest(db)
+	owner := seedResellerManagementUser(t, db, "markup-owner@example.test")
+	other := seedResellerManagementUser(t, db, "markup-other@example.test")
+	pending := seedResellerManagementUser(t, db, "markup-pending@example.test")
+	reviewer := uint(17)
+	profiles := []resellerdomain.Profile{
+		{UserID: owner.ID, Status: resellerdomain.ProfileStatusActive, MaxMarkupPercent: money.FromDecimal(decimal.NewFromInt(25)), SettlementStatus: resellerdomain.SettlementStatusFrozen, ReviewedBy: &reviewer},
+		{UserID: other.ID, Status: resellerdomain.ProfileStatusActive, DefaultMarkupPercent: money.FromDecimal(decimal.NewFromInt(7))},
+		{UserID: pending.ID, Status: resellerdomain.ProfileStatusPendingReview},
+	}
+	if err := db.Create(&profiles).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range []struct {
+		userID uint
+		value  string
+		want   error
+	}{
+		{owner.ID, "25.01", resellercontract.ErrMarkupExceeded},
+		{owner.ID, "-1", resellercontract.ErrDefaultMarkupInvalid},
+		{owner.ID, "2.123", resellercontract.ErrDefaultMarkupInvalid},
+		{owner.ID, "1e3", resellercontract.ErrDefaultMarkupInvalid},
+		{owner.ID, "100000000", resellercontract.ErrDefaultMarkupInvalid},
+		{pending.ID, "20", resellercontract.ErrProfileInactive},
+		{pending.ID + 1, "20", resellercontract.ErrNotOpened},
+	} {
+		if _, err := svc.UpdateUserDefaultMarkup(tc.userID, tc.value); !errors.Is(err, tc.want) {
+			t.Fatalf("user %d markup %q: got %v, want %v", tc.userID, tc.value, err, tc.want)
+		}
+	}
+
+	profile, err := svc.UpdateUserDefaultMarkup(owner.ID, "25.00")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if profile.DefaultMarkupPercent.String() != "25.00" || profile.MaxMarkupPercent.String() != "25.00" ||
+		profile.SettlementStatus != resellerdomain.SettlementStatusFrozen || profile.ReviewedBy == nil || *profile.ReviewedBy != reviewer {
+		t.Fatalf("unexpected updated profile: %+v", profile)
+	}
+	unit, _, err := resellerapplication.ResolveUnitAmount(profile, nil, nil, decimal.NewFromInt(100))
+	if err != nil || !unit.Equal(decimal.NewFromInt(125)) {
+		t.Fatalf("expected updated default to price at 125, got %s, %v", unit, err)
+	}
+	otherProfile, err := resellergormstore.New(db).GetProfileByUserID(other.ID)
+	if err != nil || otherProfile.DefaultMarkupPercent.String() != "7.00" {
+		t.Fatalf("other reseller was affected: %+v, %v", otherProfile, err)
+	}
+	if profile, err := svc.UpdateUserDefaultMarkup(other.ID, "42.75"); err != nil || profile.DefaultMarkupPercent.String() != "42.75" {
+		t.Fatalf("zero cap should allow a positive markup: %+v, %v", profile, err)
+	}
+	if profile, err := svc.UpdateUserDefaultMarkup(owner.ID, "0"); err != nil || profile.DefaultMarkupPercent.String() != "0.00" {
+		t.Fatalf("zero should reset markup: %+v, %v", profile, err)
+	}
 }
 
 func TestResellerManagementApplyCreatesPendingAndReapplyRejected(t *testing.T) {

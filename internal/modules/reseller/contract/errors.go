@@ -27,6 +27,8 @@ var (
 	ErrSiteConfigNotFound = errors.New("reseller site config not found")
 	// ErrPriceBelowBase 表示分销价低于底价或成本价。
 	ErrPriceBelowBase = errors.New("reseller price below base")
+	// ErrDefaultMarkupInvalid 表示默认加价的数值或精度不合法。
+	ErrDefaultMarkupInvalid = errors.New("invalid reseller default markup")
 	// ErrMarkupExceeded 表示加价超过资料上限。
 	ErrMarkupExceeded = errors.New("reseller markup exceeded")
 	// ErrPricingModeInvalid 表示定价模式不合法。

@@ -9,6 +9,7 @@ func RegisterUserConsoleRoutes(console gin.IRoutes, handler *UserHandler) {
 		panic("reseller user console routes: required dependency is nil")
 	}
 	console.GET("/profile", handler.GetManagementSnapshot)
+	console.PUT("/profile/default-markup", handler.UpdateDefaultMarkup)
 	console.POST("/apply", handler.ApplyProfile)
 	console.GET("/domains", handler.ListDomains)
 	console.POST("/domains", handler.SubmitCustomDomain)

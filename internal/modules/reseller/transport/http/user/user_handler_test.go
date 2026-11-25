@@ -31,6 +31,10 @@ func (s managementStub) GetUserManagementSnapshot(userID uint) (*resellerdomain.
 	return s.profile, s.domains, s.canApply, s.err
 }
 
+func (s managementStub) UpdateUserDefaultMarkup(userID uint, value string) (*resellerdomain.Profile, error) {
+	return s.profile, s.err
+}
+
 func (s managementStub) ApplyUserReseller(userID uint, input resellermodule.ResellerApplyInput) (*resellerdomain.Profile, error) {
 	if s.err != nil {
 		return nil, s.err

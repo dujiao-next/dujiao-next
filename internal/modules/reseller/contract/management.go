@@ -5,6 +5,7 @@ import (
 
 	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
 	resellerdomain "github.com/dujiao-next/internal/modules/reseller/domain"
+	"github.com/dujiao-next/internal/shared/money"
 )
 
 // ProfileListFilter 管理端分销商资料过滤条件。
@@ -66,6 +67,7 @@ type ManagementStore interface {
 	GetProfileByID(id uint) (*resellerdomain.Profile, error)
 	CreateProfile(profile *resellerdomain.Profile) error
 	UpdateProfile(profile *resellerdomain.Profile) error
+	UpdateActiveProfileDefaultMarkup(userID uint, markup money.Amount) (bool, error)
 	ListDomainsByResellerID(resellerID uint) ([]resellerdomain.Domain, error)
 	UpsertDomain(domain resellerdomain.Domain) (*resellerdomain.Domain, error)
 	GetDomainByID(id uint) (*resellerdomain.Domain, error)

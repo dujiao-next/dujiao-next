@@ -7,6 +7,7 @@ import (
 	resellercontract "github.com/dujiao-next/internal/modules/reseller/contract"
 
 	resellerdomain "github.com/dujiao-next/internal/modules/reseller/domain"
+	"github.com/dujiao-next/internal/shared/money"
 
 	"gorm.io/gorm"
 )
@@ -62,6 +63,15 @@ func (r *Store) UpdateProfile(profile *resellerdomain.Profile) error {
 		Where("id = ? AND deleted_at IS NULL", profile.ID).
 		Select("*").
 		Updates(profile).Error
+}
+
+// UpdateActiveProfileDefaultMarkup 在同一次写入中校验归属、状态和当前封顶。
+func (r *Store) UpdateActiveProfileDefaultMarkup(userID uint, markup money.Amount) (bool, error) {
+	result := r.db.Model(&resellerdomain.Profile{}).
+		Where("user_id = ? AND status = ? AND deleted_at IS NULL", userID, resellerdomain.ProfileStatusActive).
+		Where("(max_markup_percent = 0 OR max_markup_percent >= ?)", markup).
+		Update("default_markup_percent", markup)
+	return result.RowsAffected != 0, result.Error
 }
 
 // ListProfiles 分页列出分销商资料。
