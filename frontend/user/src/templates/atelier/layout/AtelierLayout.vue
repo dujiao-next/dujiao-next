@@ -398,16 +398,6 @@
         <div class="flex flex-col items-center justify-between gap-3 pt-6 text-xs text-muted-foreground sm:flex-row">
           <div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 sm:justify-start">
             <span>&copy; {{ currentYear }} {{ brandSiteName }}. {{ t('footer.rights') }}</span>
-            <a
-              href="https://github.com/dujiao-next"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Dujiao-Next on GitHub"
-              class="inline-flex items-center gap-1 transition-colors hover:text-foreground"
-            >
-              <Github class="h-3.5 w-3.5" />
-              <span>Dujiao-Next</span>
-            </a>
           </div>
 
           <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 sm:justify-end">
@@ -443,7 +433,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
   ClipboardList,
-  Github,
   Headphones,
   Languages,
   LogOut,
