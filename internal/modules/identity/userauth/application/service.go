@@ -38,19 +38,20 @@ import (
 
 // Service 用户认证服务
 type Service struct {
-	cfg                   *config.Config
-	userRepo              usercontract.Store
-	userOAuthIdentityRepo externalidentitycontract.Store
-	codeRepo              emailverificationcontract.Store
-	settingService        *settingsapp.Service
-	emailService          VerificationEmailSender
-	emailBrandResolver    mailbrand.Resolver
-	telegramAuthService   *telegramauthapp.Service
-	googleAuthService     *googleauthapp.Service
-	googleRedirectStore   GoogleRedirectStore
-	memberLevelSvc        MemberLevelAssigner
-	authUnitOfWork        AuthUnitOfWork
-	inviteCodes           InviteCodeChecker
+	cfg                      *config.Config
+	userRepo                 usercontract.Store
+	userOAuthIdentityRepo    externalidentitycontract.Store
+	codeRepo                 emailverificationcontract.Store
+	settingService           *settingsapp.Service
+	emailService             VerificationEmailSender
+	registrationEmailLimiter RegistrationEmailLimiter
+	emailBrandResolver       mailbrand.Resolver
+	telegramAuthService      *telegramauthapp.Service
+	googleAuthService        *googleauthapp.Service
+	googleRedirectStore      GoogleRedirectStore
+	memberLevelSvc           MemberLevelAssigner
+	authUnitOfWork           AuthUnitOfWork
+	inviteCodes              InviteCodeChecker
 }
 
 type MemberLevelAssigner interface {
@@ -83,6 +84,10 @@ func (s *Service) SetAuthUnitOfWork(unitOfWork AuthUnitOfWork) {
 // verification emails.
 func (s *Service) SetEmailBrandResolver(resolver mailbrand.Resolver) {
 	s.emailBrandResolver = resolver
+}
+
+func (s *Service) SetRegistrationEmailLimiter(limiter RegistrationEmailLimiter) {
+	s.registrationEmailLimiter = limiter
 }
 
 // NewService 创建用户认证服务
@@ -214,7 +219,7 @@ func (s *Service) ParseUserJWT(tokenString string) (*UserJWTClaims, error) {
 }
 
 // SendVerifyCode 发送邮箱验证码；inviteCode 仅在注册用途且开启邀请注册时校验（不核销）。
-func (s *Service) SendVerifyCode(ctx context.Context, email, purpose, locale, inviteCode string) error {
+func (s *Service) SendVerifyCode(ctx context.Context, email, purpose, locale, inviteCode, clientIP string) error {
 	if s.emailService == nil {
 		return ErrEmailServiceNotConfigured
 	}
@@ -282,7 +287,7 @@ func (s *Service) SendVerifyCode(ctx context.Context, email, purpose, locale, in
 		}
 	}
 
-	return s.sendVerifyCode(ctx, normalized, purpose, locale)
+	return s.sendVerifyCode(ctx, normalized, purpose, locale, clientIP)
 }
 
 // Register 用户注册
@@ -551,14 +556,22 @@ func (s *Service) verifyCode(email, purpose, code string) (*emailverificationdom
 	return record, nil
 }
 
-func (s *Service) sendVerifyCode(ctx context.Context, email, purpose, locale string) error {
+type RegistrationEmailRateLimitError struct {
+	RetryAfter time.Duration
+}
+
+func (*RegistrationEmailRateLimitError) Error() string {
+	return "registration email send rate exceeded"
+}
+
+func (s *Service) sendVerifyCode(ctx context.Context, email, purpose, locale, clientIP string) error {
 	latest, err := s.codeRepo.GetLatest(email, purpose)
 	if err != nil {
 		return err
 	}
 	now := time.Now()
+	interval := time.Duration(resolveSendIntervalSeconds(s.cfg.Email.VerifyCode)) * time.Second
 	if latest != nil {
-		interval := time.Duration(resolveSendIntervalSeconds(s.cfg.Email.VerifyCode)) * time.Second
 		if !latest.SentAt.IsZero() && now.Sub(latest.SentAt) < interval {
 			return ErrVerifyCodeTooFrequent
 		}
@@ -576,6 +589,18 @@ func (s *Service) sendVerifyCode(ctx context.Context, email, purpose, locale str
 		}
 	}
 
+	var release func()
+	if purpose == constants.VerifyPurposeRegister && s.registrationEmailLimiter != nil {
+		retry, cancel, err := s.registrationEmailLimiter.Reserve(ctx, clientIP, email, interval)
+		if err != nil {
+			return err
+		}
+		if retry > 0 {
+			return &RegistrationEmailRateLimitError{RetryAfter: retry}
+		}
+		release = cancel
+	}
+
 	record := &emailverificationdomain.Code{
 		Email:     email,
 		Purpose:   strings.ToLower(purpose),
@@ -585,13 +610,18 @@ func (s *Service) sendVerifyCode(ctx context.Context, email, purpose, locale str
 		CreatedAt: now,
 	}
 	// 先落库再发信：落库即占用发送间隔，挡住连续重复请求。
-	// shortcut: 查最新记录与落库之间仍有空窗，并发请求可各发一封；出现邮件轰炸再加 Redis SETNX(email+purpose) 锁。
 	if err := s.codeRepo.Create(record); err != nil {
+		if release != nil {
+			release()
+		}
 		return err
 	}
 	if err := s.emailService.SendVerifyCode(email, code, purpose, locale, brand); err != nil {
 		// 未送达的验证码不能占用发送间隔，也不能顶替用户手里仍有效的上一封；删除失败只退回旧行为，不掩盖发信错误
 		_ = s.codeRepo.Delete(record.ID)
+		if release != nil {
+			release()
+		}
 		return err
 	}
 	return nil

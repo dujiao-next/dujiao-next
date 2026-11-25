@@ -204,13 +204,13 @@ func TestInviteOnlySendVerifyCodeRequiresUsableCode(t *testing.T) {
 	}
 	createInviteCode(t, db, "MAIL", 1)
 	ctx := context.Background()
-	if err := svc.SendVerifyCode(ctx, "a@example.com", constants.VerifyPurposeRegister, constants.LocaleZhCN, ""); !errors.Is(err, userauthapp.ErrInviteCodeRequired) {
+	if err := svc.SendVerifyCode(ctx, "a@example.com", constants.VerifyPurposeRegister, constants.LocaleZhCN, "", "192.0.2.1"); !errors.Is(err, userauthapp.ErrInviteCodeRequired) {
 		t.Fatalf("no code: want ErrInviteCodeRequired, got %v", err)
 	}
-	if err := svc.SendVerifyCode(ctx, "a@example.com", constants.VerifyPurposeRegister, constants.LocaleZhCN, "BAD"); !errors.Is(err, userauthapp.ErrInviteCodeInvalid) {
+	if err := svc.SendVerifyCode(ctx, "a@example.com", constants.VerifyPurposeRegister, constants.LocaleZhCN, "BAD", "192.0.2.1"); !errors.Is(err, userauthapp.ErrInviteCodeInvalid) {
 		t.Fatalf("bad code: want ErrInviteCodeInvalid, got %v", err)
 	}
-	if err := svc.SendVerifyCode(ctx, "a@example.com", constants.VerifyPurposeRegister, constants.LocaleZhCN, "mail"); err != nil {
+	if err := svc.SendVerifyCode(ctx, "a@example.com", constants.VerifyPurposeRegister, constants.LocaleZhCN, "mail", "192.0.2.1"); err != nil {
 		t.Fatalf("valid code: %v", err)
 	}
 	var code invitecodedomain.InviteCode

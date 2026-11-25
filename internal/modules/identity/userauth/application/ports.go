@@ -16,6 +16,12 @@ type VerificationEmailSender interface {
 	SendVerifyCode(toEmail, code, purpose, locale string, brand mailbrand.Brand) error
 }
 
+// RegistrationEmailLimiter reserves a send attempt and a recipient cooldown.
+// Releasing a failed send clears the cooldown while retaining the attempt.
+type RegistrationEmailLimiter interface {
+	Reserve(ctx context.Context, clientIP, email string, cooldown time.Duration) (retryAfter time.Duration, release func(), err error)
+}
+
 // AuthTransaction is the persistence surface required by cross-aggregate
 // authentication mutations. Implementations must execute every method on the
 // same database transaction.
