@@ -17,9 +17,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      # 前端源码已在本仓库 frontend/ 下，不再需要跨仓库 checkout。
-      # 实际的前端构建与嵌入由 .goreleaser.yaml 的 before hooks 完成，
-      # 这里只负责把 pnpm / Node 工具链准备好。
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -43,3 +40,36 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docker:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: APP_VERSION=${{ github.ref_name }}
+          tags: |
+            dujiaonext/dujiao-next:${{ github.ref_name }}
+            dujiaonext/dujiao-next:latest
+            dujiaonext/api:${{ github.ref_name }}
+            dujiaonext/api:latest
