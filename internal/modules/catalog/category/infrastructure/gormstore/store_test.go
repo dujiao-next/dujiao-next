@@ -2,6 +2,7 @@ package gormstore
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -22,6 +23,63 @@ func setupCategoryStoreTest(t *testing.T) *CategoryStore {
 		t.Fatalf("migrate category failed: %v", err)
 	}
 	return NewCategoryStore(db)
+}
+
+func TestCategoryStoreUpdatesRootAndChildrenTogether(t *testing.T) {
+	store := setupCategoryStoreTest(t)
+	create := func(slug string, parentID uint) uint {
+		t.Helper()
+		row := categorydomain.Category{Slug: slug, ParentID: parentID, NameJSON: jsonmap.JSON{}}
+		if err := store.Create(&row); err != nil {
+			t.Fatalf("create %s: %v", slug, err)
+		}
+		return row.ID
+	}
+	root := create("root", 0)
+	childA := create("child-a", root)
+	childB := create("child-b", root)
+	otherRoot := create("other-root", 0)
+	otherChild := create("other-child", otherRoot)
+
+	assertActive := func(id uint, want bool) {
+		t.Helper()
+		row, err := store.GetByID(fmt.Sprint(id))
+		if err != nil || row == nil || row.IsActive != want {
+			t.Fatalf("id %d: got %+v and %v, want active=%t", id, row, err, want)
+		}
+	}
+	update := func(id uint, active bool) {
+		t.Helper()
+		if err := store.UpdateActive(fmt.Sprint(id), active); err != nil {
+			t.Fatalf("set id %d active=%t: %v", id, active, err)
+		}
+	}
+
+	update(root, false)
+	for _, id := range []uint{root, childA, childB} {
+		assertActive(id, false)
+	}
+	update(childA, true)
+	assertActive(root, false)
+	assertActive(childB, false)
+	rows, err := store.ListActive()
+	if err != nil {
+		t.Fatalf("list active categories: %v", err)
+	}
+	got := make([]uint, 0, len(rows))
+	for _, row := range rows {
+		got = append(got, row.ID)
+	}
+	if want := []uint{otherRoot, otherChild}; !slices.Equal(got, want) {
+		t.Fatalf("visible IDs = %v, want %v", got, want)
+	}
+	update(root, false)
+	assertActive(childA, false)
+
+	update(root, true)
+	for _, id := range []uint{root, childA, childB, otherRoot, otherChild} {
+		assertActive(id, true)
+	}
 }
 
 func TestCategoryStoreListSortOrderDescending(t *testing.T) {
