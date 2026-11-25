@@ -12,9 +12,13 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
+	"gorm.io/plugin/dbresolver"
 )
 
 var DB *gorm.DB
+
+// sqliteReadConns 是 SQLite 只读连接池大小。WAL 下读不阻塞写，写连接数仍由 pool.MaxOpenConns（默认 1）控制。
+const sqliteReadConns = 8
 
 // DBPoolConfig 数据库连接池配置
 type DBPoolConfig struct {
@@ -58,8 +62,27 @@ func InitDB(driver, dsn string, pool DBPoolConfig, mode string) error {
 		DB.Exec("PRAGMA journal_mode=WAL")
 		DB.Exec("PRAGMA busy_timeout=5000")
 		DB.Exec("PRAGMA synchronous=NORMAL")
+		// 内存库每条连接都是独立的库，无法读写分离
+		if !strings.Contains(dsn, ":memory:") && !strings.Contains(dsn, "mode=memory") {
+			return useSQLiteReadPool(DB, dsn, pool)
+		}
 	}
 	return nil
+}
+
+// useSQLiteReadPool 把非事务的读查询路由到独立的只读连接池，慢查询不再占住唯一的写连接。
+// 事务、写操作、FOR UPDATE 查询仍走主连接；事务内经全局 DB 的读会落到读池，读不到本事务未提交的数据。
+func useSQLiteReadPool(db *gorm.DB, dsn string, pool DBPoolConfig) error {
+	// query_only：被误路由到读池的写直接报错，而不是悄悄变成第二个写者
+	readDB, err := sql.Open(sqlite.DriverName, appendSQLitePragmas(dsn)+"&_pragma=query_only(1)")
+	if err != nil {
+		return err
+	}
+	pool.MaxOpenConns, pool.MaxIdleConns = sqliteReadConns, sqliteReadConns
+	applyDBPool(readDB, pool)
+	return db.Use(dbresolver.Register(dbresolver.Config{
+		Replicas: []gorm.Dialector{sqlite.Dialector{Conn: readDB}},
+	}))
 }
 
 func newGORMLogger(mode string, writer gormlogger.Writer) gormlogger.Interface {

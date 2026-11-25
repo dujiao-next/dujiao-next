@@ -29,7 +29,7 @@ database:
   driver: sqlite  # sqlite / postgres
   dsn: ./db/dujiao.db
   pool:
-    max_open_conns: 1
+    max_open_conns: 1  # SQLite 下是写连接数，保持 1；读查询走内置的只读连接池，不受此项影响
     max_idle_conns: 1
     conn_max_lifetime_seconds: 0  # 0 表示不限制
     conn_max_idle_time_seconds: 0  # 0 表示不限制

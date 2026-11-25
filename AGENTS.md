@@ -25,7 +25,8 @@
    - 模块之间只能通过对方的 `contract/` 交互，禁止 import 其他模块内部包。
    - `internal/shared` 不依赖任何模块 / GORM / Gin；`internal/platform` 不依赖业务模块。
    - 测试失败时修代码，**不要改 architecture 测试去放行**。
-2. **SQLite 自锁死锁（极其重要）**：SQLite 运行在 `MaxOpenConns=1`。事务闭包（`WithinTransaction` / `WithTx(tx)`）内：
+2. **SQLite 自锁死锁（极其重要）**：SQLite 的写连接运行在 `MaxOpenConns=1`；非事务的读走独立的只读连接池（`gormdb.useSQLiteReadPool`）。
+   因此事务内经全局 DB 的**写**会永久卡死，**读**不会卡死但读不到本事务未提交的数据——两者都是 bug。事务闭包（`WithinTransaction` / `WithTx(tx)`）内：
    - 所有查询必须走事务句柄或绑定到它的 store，禁止触碰全局 DB 连接——包括间接调用会自己查库的 service（如读取设置）。
    - 需要的配置、设置 **在开启事务前读好**，以变量传入闭包。
    - 禁止在事务内发外部 HTTP 请求（支付网关等），提交后再调用。
