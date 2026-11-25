@@ -17,7 +17,8 @@ export const useAppStore = defineStore('app', () => {
     const serverTimeOffset = ref(0)
     const siteIconHref = computed(() => {
         const siteIcon = String(config.value?.brand?.site_icon || '').trim()
-        return siteIcon ? getImageUrl(siteIcon) : '/dj.svg'
+        // 未配置站点图标时使用空内联图标，避免浏览器请求默认图标文件。
+        return siteIcon ? getImageUrl(siteIcon) : 'data:,'
     })
     const isResellerTenant = computed(() => {
         return String(config.value?.tenant?.mode || '').trim().toLowerCase() === 'reseller'
