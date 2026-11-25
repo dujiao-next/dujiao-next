@@ -5,6 +5,8 @@ import (
 
 	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
 
+	"github.com/dujiao-next/internal/shared/money"
+
 	"github.com/shopspring/decimal"
 )
 
@@ -106,9 +108,13 @@ type CreateProductInput struct {
 	ManualStockTotal    *int
 	SKUs                []ProductSKUInput
 	PaymentChannelIDs   []uint
-	IsAffiliateEnabled  *bool
-	IsActive            *bool
-	SortOrder           int
+	// AffiliateRatePercent 是商品级返利比例：nil 表示继承全站比例，0 表示不参与返利。
+	// 需配合 AffiliateRatePercentSet 使用：未携带字段时保留原值，显式 null 才清除为继承。
+	AffiliateRatePercent *money.Amount
+	// AffiliateRatePercentSet 表示请求是否携带了 AffiliateRatePercent 字段（含显式 null）。
+	AffiliateRatePercentSet bool
+	IsActive                *bool
+	SortOrder               int
 }
 
 // ProductSKUInput 描述商品 SKU 的完整写入值。
@@ -121,8 +127,13 @@ type ProductSKUInput struct {
 	// ManualStockTotal 为 nil 表示保持该 SKU 现有的实时库存（新建 SKU 视为 0），
 	// 避免后台用打开表单时的旧值覆盖期间被下单预占后的库存。
 	ManualStockTotal *int
-	IsActive         *bool
-	SortOrder        int
+	// AffiliateRatePercent 为 SKU 级返利比例：nil 表示继承商品/全站比例。
+	// 需配合 AffiliateRatePercentSet 使用：未携带字段时保留原值，显式 null 才清除为继承。
+	AffiliateRatePercent *money.Amount
+	// AffiliateRatePercentSet 表示请求是否携带了 AffiliateRatePercent 字段（含显式 null）。
+	AffiliateRatePercentSet bool
+	IsActive                *bool
+	SortOrder               int
 }
 
 func (s *WriteService) filterAvailablePaymentChannelIDs(ids []uint) ([]uint, error) {

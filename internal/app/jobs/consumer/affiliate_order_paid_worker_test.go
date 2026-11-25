@@ -29,7 +29,7 @@ func (r affiliateWorkerOrders) GetByID(uint) (*orderdomain.Order, error) { retur
 type affiliateWorkerProducts struct{}
 
 func (affiliateWorkerProducts) ListByIDs([]uint) ([]productdomain.Product, error) {
-	return []productdomain.Product{{ID: 1, IsAffiliateEnabled: true}}, nil
+	return []productdomain.Product{{ID: 1}}, nil
 }
 
 // 支付时佣金创建失败投递的重试任务，消费后应补上佣金。
@@ -55,7 +55,7 @@ func TestAffiliateOrderPaidWorkerCreatesCommission(t *testing.T) {
 	}
 	store := affiliategormstore.New(db)
 	c := New(&container.Container{
-		AffiliateService: affiliateapp.NewService(store, nil, affiliateWorkerOrders{order}, affiliateWorkerProducts{}, settings),
+		AffiliateService: affiliateapp.NewService(store, nil, affiliateWorkerOrders{order}, affiliateWorkerProducts{}, nil, settings),
 	})
 
 	task, err := queue.NewAffiliateOrderPaidTask(queue.AffiliateOrderPaidPayload{OrderID: order.ID})

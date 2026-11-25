@@ -38,6 +38,7 @@ func (s *Service) GetUserDashboard(userID uint) (Dashboard, error) {
 	}
 	dashboard.Opened = true
 	dashboard.AffiliateCode = profile.AffiliateCode
+	dashboard.Status = profile.Status
 	dashboard.PromotionPath = "/?aff=" + profile.AffiliateCode
 	dashboard.ClickCount = stats.ClickCount
 	dashboard.ValidOrderCount = stats.ValidOrderCount
@@ -46,6 +47,52 @@ func (s *Service) GetUserDashboard(userID uint) (Dashboard, error) {
 	dashboard.AvailableCommission = stats.AvailableCommission
 	dashboard.WithdrawnCommission = stats.WithdrawnCommission
 	return dashboard, nil
+}
+
+// GetProductRates 返回当前推广员对某个商品（及其各规格）生效的返利比例。
+//
+// 比例与结算共用 ResolveAffiliateRate，保证“页面展示的比例”与“实际发放的比例”不会出现两套口径。
+// 只对已开通且未停用的推广员开放：比例反映站点的毛利结构，不能暴露给普通访客。
+func (s *Service) GetProductRates(userID, productID uint) (ProductRates, error) {
+	result := ProductRates{SKUs: []SKURate{}}
+	if userID == 0 || productID == 0 || s.repo == nil || s.productRepo == nil {
+		return result, ErrNotOpened
+	}
+	setting, err := s.settings.GetAffiliateSetting()
+	if err != nil {
+		return result, err
+	}
+	if !setting.Enabled {
+		return result, ErrDisabled
+	}
+	profile, err := s.repo.GetProfileByUserID(userID)
+	if err != nil {
+		return result, err
+	}
+	if profile == nil || strings.TrimSpace(profile.Status) != constants.AffiliateProfileStatusActive {
+		return result, ErrNotOpened
+	}
+	products, err := s.productRepo.ListByIDs([]uint{productID})
+	if err != nil {
+		return result, err
+	}
+	if len(products) == 0 || !products[0].IsActive {
+		return result, ErrNotFound
+	}
+	product := products[0]
+	globalRate := decimal.NewFromFloat(setting.CommissionRate).Round(2)
+
+	productRate := ResolveAffiliateRate(nil, product.AffiliateRatePercent, globalRate)
+	result.RatePercent = money.FromDecimal(productRate)
+	skus, err := s.skuRepo.ListByProduct(productID, true)
+	if err != nil {
+		return result, err
+	}
+	for _, sku := range skus {
+		rate := ResolveAffiliateRate(sku.AffiliateRatePercent, product.AffiliateRatePercent, globalRate)
+		result.SKUs = append(result.SKUs, SKURate{SKUID: sku.ID, RatePercent: money.FromDecimal(rate)})
+	}
+	return result, nil
 }
 
 // ListUserCommissions 查询用户佣金记录

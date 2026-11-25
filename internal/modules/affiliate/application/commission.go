@@ -27,7 +27,8 @@ func (s *Service) HandleOrderPaid(orderID uint) error {
 	if err != nil {
 		return err
 	}
-	if !setting.Enabled || setting.CommissionRate <= 0 {
+	// 全站比例可能为 0：此时仍要处理商品/SKU 级覆盖的订单项，不能提前返回。
+	if !setting.Enabled {
 		return nil
 	}
 
@@ -62,18 +63,16 @@ func (s *Service) HandleOrderPaid(orderID uint) error {
 		return nil
 	}
 
-	baseAmount, err := s.calculateCommissionBaseAmount(order)
+	calculation, err := s.calculateCommission(order, setting.CommissionRate)
 	if err != nil {
 		return err
 	}
-	if baseAmount.LessThanOrEqual(decimal.Zero) {
-		return nil
-	}
-	rate := decimal.NewFromFloat(setting.CommissionRate).Round(2)
-	commissionAmount := baseAmount.Mul(rate).Div(decimal.NewFromInt(100)).Round(2)
+	baseAmount := calculation.BaseAmount
+	commissionAmount := calculation.CommissionAmount
 	if commissionAmount.LessThanOrEqual(decimal.Zero) {
 		return nil
 	}
+	rate := calculation.RatePercent
 
 	paidAt := time.Now()
 	if order.PaidAt != nil {
@@ -265,43 +264,167 @@ func (s *Service) resolveAffiliateProfileForOrder(order *orderdomain.Order) (*af
 	return nil, nil
 }
 
-func (s *Service) calculateCommissionBaseAmount(order *orderdomain.Order) (decimal.Decimal, error) {
+// ResolveAffiliateRate 按 SKU → 商品 → 全站 的优先级解析返利比例（百分比）。
+//
+// 任一层显式配置了比例即停止向上继承：0 表示该层级单独关闭返利，
+// 因此配置为 0 的 SKU 不会回退到商品或全站比例。
+// 结果被约束在 0-100 之间；返回 0 时调用方应视为该订单项不参与返利。
+func ResolveAffiliateRate(skuRate, productRate *money.Amount, globalRate decimal.Decimal) decimal.Decimal {
+	// 商品显式设为 0 表示整个商品不参与返利，SKU 上残留的比例不再生效。
+	if productRate != nil && clampAffiliateRate(productRate.Decimal).IsZero() {
+		return decimal.Zero
+	}
+	if skuRate != nil {
+		return clampAffiliateRate(skuRate.Decimal)
+	}
+	if productRate != nil {
+		return clampAffiliateRate(productRate.Decimal)
+	}
+	return clampAffiliateRate(globalRate)
+}
+
+// clampAffiliateRate 把比例限制在 0-100 并保留两位小数。
+func clampAffiliateRate(rate decimal.Decimal) decimal.Decimal {
+	rate = rate.Round(2)
+	if rate.LessThan(decimal.Zero) {
+		return decimal.Zero
+	}
+	if rate.GreaterThan(decimal.NewFromInt(100)) {
+		return decimal.NewFromInt(100)
+	}
+	return rate
+}
+
+// commissionCalculation 描述一次佣金计算的结果：可返利基数、佣金金额与加权平均比例。
+type commissionCalculation struct {
+	BaseAmount       decimal.Decimal
+	CommissionAmount decimal.Decimal
+	// RatePercent 是按各订单项金额加权后的平均比例，用于佣金记录快照展示。
+	RatePercent decimal.Decimal
+}
+
+// calculateCommission 按订单项解析各自生效的返利比例并汇总佣金。
+//
+// 比例优先级为 SKU → 商品 → 全站；任一层显式配置 0 即表示该订单项不参与返利，
+// 因此不会回退到更上层的非零比例。
+func (s *Service) calculateCommission(order *orderdomain.Order, globalCommissionRate float64) (commissionCalculation, error) {
+	result := commissionCalculation{}
 	if order == nil || s.productRepo == nil {
-		return decimal.Zero, nil
+		return result, nil
 	}
 	productIDs := collectAffiliateProductIDs(order)
 	if len(productIDs) == 0 {
-		return decimal.Zero, nil
+		return result, nil
 	}
 	products, err := s.productRepo.ListByIDs(productIDs)
 	if err != nil {
-		return decimal.Zero, err
+		return result, err
 	}
 	productMap := make(map[uint]productdomain.Product, len(products))
 	for _, product := range products {
 		productMap[product.ID] = product
 	}
+	skuMap, err := s.loadAffiliateSKUMap(order)
+	if err != nil {
+		return result, err
+	}
+
+	globalRate := decimal.NewFromFloat(globalCommissionRate).Round(2)
 
 	targetOrders := order.Children
 	if len(targetOrders) == 0 {
 		targetOrders = []orderdomain.Order{*order}
 	}
 
-	total := decimal.Zero
+	baseTotal := decimal.Zero
+	// 逐项金额先不取整，汇总后只取整一次：每个订单项各自四舍五入会让小额多行订单累计偏差，
+	// 也会让「记录里的加权比例」偏离实际比例（三项 0.33 元、比例 10% 时差 1 分钱）。
+	commissionRaw := decimal.Zero
 	for _, current := range targetOrders {
 		for _, item := range current.Items {
 			product, ok := productMap[item.ProductID]
-			if !ok || !product.IsAffiliateEnabled {
+			if !ok {
 				continue
 			}
 			payable := item.TotalPrice.Decimal.Sub(item.CouponDiscount.Decimal).Round(2)
-			if payable.LessThan(decimal.Zero) {
-				payable = decimal.Zero
+			if payable.LessThanOrEqual(decimal.Zero) {
+				continue
 			}
-			total = total.Add(payable).Round(2)
+			var skuRate *money.Amount
+			if item.SKUID > 0 {
+				if sku, exists := skuMap[item.SKUID]; exists {
+					skuRate = sku.AffiliateRatePercent
+				}
+			}
+			rate := ResolveAffiliateRate(skuRate, product.AffiliateRatePercent, globalRate)
+			if rate.LessThanOrEqual(decimal.Zero) {
+				continue
+			}
+			baseTotal = baseTotal.Add(payable)
+			commissionRaw = commissionRaw.Add(payable.Mul(rate).Div(decimal.NewFromInt(100)))
 		}
 	}
-	return total, nil
+
+	baseTotal = baseTotal.Round(2)
+	commissionTotal := commissionRaw.Round(2)
+
+	result.BaseAmount = baseTotal
+	result.CommissionAmount = commissionTotal
+	if baseTotal.GreaterThan(decimal.Zero) {
+		// 用未取整的佣金反推比例：拿取整后的佣金会让单一比例订单也漂移
+		// （9.99 元 × 10% → 佣金 1.00 → 显示 10.01%）。
+		result.RatePercent = commissionRaw.Div(baseTotal).Mul(decimal.NewFromInt(100)).Round(2)
+	}
+	return result, nil
+}
+
+// loadAffiliateSKUMap 批量读取订单项引用的 SKU，用于解析 SKU 级返利比例。
+// 仅当订单中出现具体 SKU 时才查询；缺失的 SKU（已删除）会回退到商品级比例。
+func (s *Service) loadAffiliateSKUMap(order *orderdomain.Order) (map[uint]productdomain.ProductSKU, error) {
+	if order == nil {
+		return map[uint]productdomain.ProductSKU{}, nil
+	}
+	skuIDs := collectAffiliateSKUIDs(order)
+	if len(skuIDs) == 0 {
+		return map[uint]productdomain.ProductSKU{}, nil
+	}
+	skus, err := s.skuRepo.ListByIDs(skuIDs)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[uint]productdomain.ProductSKU, len(skus))
+	for _, sku := range skus {
+		result[sku.ID] = sku
+	}
+	return result, nil
+}
+
+// collectAffiliateSKUIDs 收集订单（含子订单）引用的非零 SKU ID。
+func collectAffiliateSKUIDs(order *orderdomain.Order) []uint {
+	if order == nil {
+		return nil
+	}
+	ids := make([]uint, 0)
+	seen := make(map[uint]struct{})
+	appendItem := func(item orderdomain.OrderItem) {
+		if item.SKUID == 0 {
+			return
+		}
+		if _, ok := seen[item.SKUID]; ok {
+			return
+		}
+		seen[item.SKUID] = struct{}{}
+		ids = append(ids, item.SKUID)
+	}
+	for _, item := range order.Items {
+		appendItem(item)
+	}
+	for _, child := range order.Children {
+		for _, item := range child.Items {
+			appendItem(item)
+		}
+	}
+	return ids
 }
 
 func collectAffiliateProductIDs(order *orderdomain.Order) []uint {

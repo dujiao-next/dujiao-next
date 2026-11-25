@@ -378,6 +378,20 @@
                   <span>{{ t('productDetail.addToCart') }}</span>
                 </Button>
               </template>
+
+              <div v-if="canShareAffiliateLink" class="space-y-1">
+                <Button
+                  variant="ghost"
+                  class="h-10 w-full rounded-[11px] font-semibold"
+                  @click="copyAffiliateLink"
+                >
+                  <Link2 class="h-4 w-4" />
+                  <span>{{ t('productDetail.copyAffiliateLink') }}</span>
+                </Button>
+                <p v-if="affiliateRateHint" class="text-center text-xs text-muted-foreground">
+                  {{ affiliateRateHint }}
+                </p>
+              </div>
             </div>
 
             <!-- 底部交付提示 -->
@@ -444,6 +458,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  Link2,
   Lock,
   Minus,
   Plus,
@@ -505,6 +520,7 @@ const {
   categoryName, images,
   backToListTo,
   addToCart, buyNow, goLogin, loadProduct,
+  canShareAffiliateLink, copyAffiliateLink, affiliateRateHint,
   mobileBarShowMemberPrice, mobileBarMemberPriceDisplay,
   mobileBarShowSkuPromotionPrice, mobileBarSkuPromotionPriceDisplay,
   mobileBarShowSkuPrice, mobileBarSkuPriceDisplay,

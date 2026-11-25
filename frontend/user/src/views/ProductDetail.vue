@@ -186,6 +186,12 @@
                   {{ t('productDetail.buyNow') }}
                 </Button>
               </div>
+              <div v-if="canShareAffiliateLink" class="space-y-1">
+                <Button variant="ghost" class="w-full" @click="copyAffiliateLink">
+                  <Link2 class="h-4 w-4" /> {{ t('productDetail.copyAffiliateLink') }}
+                </Button>
+                <p v-if="affiliateRateHint" class="text-center text-xs text-muted-foreground">{{ affiliateRateHint }}</p>
+              </div>
             </div>
           </div>
 
@@ -274,7 +280,7 @@
 <script setup lang="ts">
 import { computed, ref, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Lock, Minus, Pencil, Plus, RotateCw, ShoppingCart, Tag, UserPlus, Zap } from 'lucide-vue-next'
+import { ArrowLeft, Link2, Lock, Minus, Pencil, Plus, RotateCw, ShoppingCart, Tag, UserPlus, Zap } from 'lucide-vue-next'
 import { getImageUrl } from '../utils/image'
 import { processHtmlForDisplay } from '../utils/content'
 import { useProductDetail } from '../composables/useProductDetail'
@@ -330,6 +336,7 @@ const {
   categoryName, images,
   backToListTo,
   addToCart, buyNow, goLogin, loadProduct,
+  canShareAffiliateLink, copyAffiliateLink, affiliateRateHint,
   mobileBarShowMemberPrice, mobileBarMemberPriceDisplay,
   mobileBarShowSkuPromotionPrice, mobileBarSkuPromotionPriceDisplay,
   mobileBarShowSkuPrice, mobileBarSkuPriceDisplay,

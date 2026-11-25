@@ -363,4 +363,42 @@ func TestUpdateMappedProductPreservesUpstreamManualForm(t *testing.T) {
 	}
 }
 
+// 多规格带返利比例 → 切单规格：存续行不能残留比例。
+// 切回单规格后这行 SKU 在后台编辑框里是隐藏的（只有一行且编码为 DEFAULT），
+// 残留比例既看不到也清不掉，却仍会被 ResolveAffiliateRate 优先采用去发佣金。
+func TestSyncSingleProductSKUSingleModeClearsSurvivingAffiliateRate(t *testing.T) {
+	service := NewWriteService(Options{})
+	repo := newSyncSingleSKURepo(t)
+	productID := uint(2011)
+
+	rate := money.FromDecimal(decimal.NewFromInt(50))
+	withRate := productdomain.ProductSKU{
+		ProductID:            productID,
+		SKUCode:              "A",
+		PriceAmount:          money.FromDecimal(decimal.NewFromInt(20)),
+		ManualStockTotal:     2,
+		IsActive:             true,
+		AffiliateRatePercent: &rate,
+	}
+	if err := repo.Create(&withRate); err != nil {
+		t.Fatalf("create sku with affiliate rate failed: %v", err)
+	}
+
+	targetPrice := decimal.NewFromInt(20)
+	if err := service.syncSingleProductSKU(repo, nil, productID, "", targetPrice, decimal.Zero, stockPtr(5)); err != nil {
+		t.Fatalf("sync single sku failed: %v", err)
+	}
+
+	skus, err := repo.ListByProduct(productID, false)
+	if err != nil {
+		t.Fatalf("list sku failed: %v", err)
+	}
+	if len(skus) != 1 {
+		t.Fatalf("expected exactly one sku after collapsing to single spec, got %d: %+v", len(skus), skus)
+	}
+	if skus[0].AffiliateRatePercent != nil {
+		t.Fatalf("expected surviving sku affiliate rate cleared, got %s", skus[0].AffiliateRatePercent.String())
+	}
+}
+
 func stockPtr(value int) *int { return &value }

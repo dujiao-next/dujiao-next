@@ -211,6 +211,11 @@ func TestBatchImportUpstreamProductsAutoCreatesCategory(t *testing.T) {
 	if category.Slug != "upstream-streaming" {
 		t.Fatalf("expected auto-created category slug upstream-streaming, got %q", category.Slug)
 	}
+
+	// 导入的对接商品默认不参与返利，不能悄悄跟随全站比例。
+	if imported.AffiliateRatePercent == nil || !imported.AffiliateRatePercent.IsZero() {
+		t.Fatalf("expected imported product affiliate rate 0, got %+v", imported.AffiliateRatePercent)
+	}
 }
 
 func TestBatchImportUpstreamProductsAutoCategoryRejectsUpstreamProductWithoutCategory(t *testing.T) {

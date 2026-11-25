@@ -16,6 +16,9 @@
       </div>
 
       <template v-else-if="dashboard?.opened">
+        <Alert v-if="dashboard.status === 'disabled'" class="mb-5" :class="pageAlertToneClass('warning')">
+          <AlertDescription>{{ t('personalCenter.affiliate.disabledNotice') }}</AlertDescription>
+        </Alert>
         <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div class="rounded-xl border p-4 md:col-span-2">
             <div class="text-xs text-muted-foreground">{{ t('personalCenter.affiliate.affiliateCode') }}</div>
@@ -97,7 +100,7 @@
           />
         </div>
         <div class="flex items-end">
-          <Button type="submit" :disabled="submittingWithdraw" class="h-11 w-full px-5 font-bold">
+          <Button type="submit" :disabled="submittingWithdraw || dashboard?.status === 'disabled'" class="h-11 w-full px-5 font-bold">
             {{ submittingWithdraw ? t('personalCenter.affiliate.withdrawing') : t('personalCenter.affiliate.withdrawSubmit') }}
           </Button>
         </div>
