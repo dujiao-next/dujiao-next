@@ -1,0 +1,13 @@
+[Unit]
+Description=Dujiao-Next reseller HTTPS provisioning request
+
+[Service]
+Type=exec
+EnvironmentFile=/etc/dujiao-reseller-https.env
+ExecStart=/usr/bin/python3 -I /usr/local/libexec/dujiao-reseller-https.py
+StandardInput=socket
+StandardOutput=socket
+StandardError=journal
+NoNewPrivileges=yes
+PrivateTmp=yes
+RuntimeMaxSec=65s

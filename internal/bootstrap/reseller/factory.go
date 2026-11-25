@@ -1,7 +1,10 @@
 package resellerbootstrap
 
 import (
+	"os"
+
 	"github.com/dujiao-next/internal/app/container"
+	"github.com/dujiao-next/internal/modules/reseller/infrastructure/domainhttps"
 	adminhttp "github.com/dujiao-next/internal/modules/reseller/transport/http/admin"
 	userhttp "github.com/dujiao-next/internal/modules/reseller/transport/http/user"
 )
@@ -34,6 +37,7 @@ func New(c *container.Container) Handlers {
 		UserOrder: userhttp.NewUserOrderHandler(c.ResellerOrderService),
 		AdminManagement: adminhttp.NewAdminManagementHandler(
 			c.ResellerManagementService, c.ResellerStore, c.AuthzAuditService,
+			domainHTTPSProvisioner(),
 		),
 		AdminProfileDetail: adminhttp.NewAdminProfileDetailHandler(
 			c.ResellerStore, c.ResellerProductSettingService, c.ResellerAccountingQuery, c.ResellerOrderService,
@@ -50,4 +54,11 @@ func New(c *container.Container) Handlers {
 			c.ResellerAccountingWithdraw,
 		),
 	}
+}
+
+func domainHTTPSProvisioner() adminhttp.DomainHTTPSProvisioner {
+	if path := os.Getenv("RESELLER_HTTPS_SOCKET"); path != "" {
+		return domainhttps.Worker{SocketPath: path}
+	}
+	return nil
 }

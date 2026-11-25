@@ -40,17 +40,22 @@ type ProfileDirectory interface {
 	ListDomains(filter resellercontract.DomainListFilter) ([]resellerdomain.Domain, int64, error)
 }
 
-type AdminManagementHandler struct {
-	management AdminManagementService
-	directory  ProfileDirectory
-	audit      AuditRecorder
+type DomainHTTPSProvisioner interface {
+	Setup(context.Context, uint) (string, error)
 }
 
-func NewAdminManagementHandler(management AdminManagementService, directory ProfileDirectory, audit AuditRecorder) *AdminManagementHandler {
+type AdminManagementHandler struct {
+	management  AdminManagementService
+	directory   ProfileDirectory
+	audit       AuditRecorder
+	domainHTTPS DomainHTTPSProvisioner
+}
+
+func NewAdminManagementHandler(management AdminManagementService, directory ProfileDirectory, audit AuditRecorder, domainHTTPS DomainHTTPSProvisioner) *AdminManagementHandler {
 	if management == nil || directory == nil {
 		panic("reseller admin management handler: required dependency is nil")
 	}
-	return &AdminManagementHandler{management: management, directory: directory, audit: audit}
+	return &AdminManagementHandler{management: management, directory: directory, audit: audit, domainHTTPS: domainHTTPS}
 }
 
 type profileApproveRequest struct {
@@ -281,6 +286,41 @@ func (h *AdminManagementHandler) RestoreProfile(c *gin.Context) {
 		"next_status": row.Status,
 	})
 	response.Success(c, row)
+}
+
+func (h *AdminManagementHandler) SetupDomainHTTPS(c *gin.Context) {
+	if _, ok := ginutil.GetAdminID(c); !ok {
+		return
+	}
+	id, err := ginutil.ParseParamUint(c, "id")
+	if err != nil || id == 0 {
+		ginutil.RespondError(c, response.CodeBadRequest, "error.bad_request", nil)
+		return
+	}
+	if h.domainHTTPS == nil {
+		ginutil.RespondError(c, response.CodeInternal, "error.reseller_https_unavailable", nil)
+		return
+	}
+	result, err := h.domainHTTPS.Setup(c.Request.Context(), id)
+	if err != nil {
+		ginutil.RespondError(c, response.CodeInternal, "error.reseller_https_unavailable", err)
+		return
+	}
+	switch result {
+	case "ready":
+		h.recordAudit(c, "reseller_domain_setup_https", "/admin/resellers/domains/:id/setup-https", gin.H{"domain_id": id})
+		response.Success(c, gin.H{"https_ready": true})
+	case "dns":
+		ginutil.RespondError(c, response.CodeBadRequest, "error.reseller_https_dns", nil)
+	case "conflict":
+		ginutil.RespondError(c, response.CodeBadRequest, "error.reseller_https_conflict", nil)
+	case "busy":
+		ginutil.RespondError(c, response.CodeBadRequest, "error.reseller_https_busy", nil)
+	case "invalid":
+		ginutil.RespondError(c, response.CodeBadRequest, "error.reseller_domain_invalid", nil)
+	default:
+		ginutil.RespondError(c, response.CodeInternal, "error.reseller_https_failed", nil)
+	}
 }
 
 // ApproveDomain 审核通过自定义域名。
