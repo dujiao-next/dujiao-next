@@ -122,6 +122,10 @@ func createTestProcurementOrder(t *testing.T, db *gorm.DB, connID, localOrderID 
 }
 
 func newTestProcurementService(db *gorm.DB, connections *siteconnectionapp.Service) *procurementapp.Service {
+	return newTestProcurementServiceWithQueue(db, connections, nil)
+}
+
+func newTestProcurementServiceWithQueue(db *gorm.DB, connections *siteconnectionapp.Service, queue procurementcontract.Enqueuer) *procurementapp.Service {
 	orders := ordergormstore.New(db, "test-guest-credential-secret-with-32-bytes")
 	return procurementapp.NewService(procurementapp.Options{
 		Repository:      procurementgormstore.New(db),
@@ -130,6 +134,7 @@ func newTestProcurementService(db *gorm.DB, connections *siteconnectionapp.Servi
 		SKUMappings:     procurementmapping.NewSKUs(mappinggormstore.NewSKUMappingStore(db)),
 		Connections:     procurementupstream.New(connections),
 		OrderLifecycle:  procurementgormstore.NewLifecycle(db, nil, nil, config.EmailConfig{}),
+		Queue:           queue,
 	})
 }
 
