@@ -50,9 +50,6 @@ func (service *Service) SetActive(id string, active bool) (*categorydomain.Categ
 	if category == nil {
 		return nil, ErrNotFound
 	}
-	if category.IsActive == active {
-		return category, nil
-	}
 	if err := service.repository.UpdateActive(id, active); err != nil {
 		return nil, err
 	}

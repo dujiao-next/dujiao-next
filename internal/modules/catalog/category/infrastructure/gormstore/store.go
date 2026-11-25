@@ -34,10 +34,14 @@ func (r *CategoryStore) List() ([]categorydomain.Category, error) {
 	return categories, nil
 }
 
-// ListActive 启用的分类列表
+// ListActive 返回自身和父分类均启用的分类。
 func (r *CategoryStore) ListActive() ([]categorydomain.Category, error) {
+	activeParents := r.db.Model(&categorydomain.Category{}).Select("id").
+		Where("parent_id = 0 AND deleted_at IS NULL AND is_active = ?", true)
+
 	var categories []categorydomain.Category
-	if err := r.db.Where("deleted_at IS NULL AND is_active = ?", true).Order("sort_order DESC, id ASC").Find(&categories).Error; err != nil {
+	if err := r.db.Where("deleted_at IS NULL AND is_active = ? AND (parent_id = 0 OR parent_id IN (?))", true, activeParents).
+		Order("sort_order DESC, id ASC").Find(&categories).Error; err != nil {
 		return nil, err
 	}
 	return categories, nil
@@ -69,9 +73,13 @@ func (r *CategoryStore) Update(category *categorydomain.Category) error {
 	return r.db.Save(category).Error
 }
 
-// UpdateActive 更新启用状态
+// UpdateActive 同时更新一级分类及其直属子分类的启用状态。
 func (r *CategoryStore) UpdateActive(id string, active bool) error {
-	return r.db.Model(&categorydomain.Category{}).Where("id = ?", id).Update("is_active", active).Error
+	root := r.db.Model(&categorydomain.Category{}).Select("id").
+		Where("id = ? AND parent_id = 0 AND deleted_at IS NULL", id)
+	return r.db.Model(&categorydomain.Category{}).
+		Where("deleted_at IS NULL AND (id = ? OR parent_id IN (?))", id, root).
+		Update("is_active", active).Error
 }
 
 // Delete 删除分类
