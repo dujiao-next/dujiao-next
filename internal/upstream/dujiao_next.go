@@ -175,8 +175,10 @@ func (a *DujiaoNextAdapter) Ping(ctx context.Context) (*PingResult, error) {
 // ListCategories 拉取上游分类列表
 func (a *DujiaoNextAdapter) ListCategories(ctx context.Context) (*CategoryListResult, error) {
 	var result struct {
-		OK         bool               `json:"ok"`
-		Categories []UpstreamCategory `json:"categories"`
+		OK                        bool               `json:"ok"`
+		Categories                []UpstreamCategory `json:"categories"`
+		ProductCategoryFilter     bool               `json:"product_category_filter"`
+		ProductUpdatedAfterFilter bool               `json:"product_updated_after_filter"`
 	}
 	if err := a.doRequest(ctx, http.MethodGet, "/api/v1/upstream/categories", nil, &result); err != nil {
 		// 旧版上游不支持分类 API，返回空列表
@@ -186,12 +188,19 @@ func (a *DujiaoNextAdapter) ListCategories(ctx context.Context) (*CategoryListRe
 		}
 		return nil, err
 	}
-	return &CategoryListResult{Supported: true, Categories: result.Categories}, nil
+	return &CategoryListResult{
+		Supported: true, Categories: result.Categories,
+		ProductCategoryFilter:     result.ProductCategoryFilter,
+		ProductUpdatedAfterFilter: result.ProductUpdatedAfterFilter,
+	}, nil
 }
 
 // ListProducts 拉取上游商品列表
 func (a *DujiaoNextAdapter) ListProducts(ctx context.Context, opts ListProductsOpts) (*ProductListResult, error) {
 	path := fmt.Sprintf("/api/v1/upstream/products?page=%d&page_size=%d", opts.Page, opts.PageSize)
+	if opts.CategoryID != 0 {
+		path += fmt.Sprintf("&category_id=%d", opts.CategoryID)
+	}
 	if opts.UpdatedAfter != nil {
 		path += "&updated_after=" + opts.UpdatedAfter.Format(time.RFC3339)
 	}
