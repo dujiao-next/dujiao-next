@@ -22,7 +22,7 @@ import (
 
 func openResellerManagementServiceTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:reseller_management_%d?mode=memory&cache=shared", time.Now().UnixNano())), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:reseller_management_%d?mode=memory&cache=shared", uniqueTestID())), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open db failed: %v", err)
 	}

@@ -65,11 +65,14 @@ type BalanceAccount struct {
 	AvailableAmountCache money.Amount `gorm:"type:decimal(20,2);not null;default:0" json:"available_amount_cache"`
 	LockedAmountCache    money.Amount `gorm:"type:decimal(20,2);not null;default:0" json:"locked_amount_cache"`
 	NegativeAmountCache  money.Amount `gorm:"type:decimal(20,2);not null;default:0" json:"negative_amount_cache"`
-	LastLedgerEntryID    uint         `gorm:"not null;default:0" json:"last_ledger_entry_id"`
-	RiskNote             string       `gorm:"type:text" json:"risk_note,omitempty"`
-	CreatedAt            time.Time    `gorm:"index" json:"created_at"`
-	UpdatedAt            time.Time    `gorm:"index" json:"updated_at"`
-	DeletedAt            *time.Time   `gorm:"index" json:"-"`
+	// ChannelFeeCarryover 通道费分摊的待抵扣余额：当单利润不足以覆盖应分摊金额时，
+	// 扣满利润后剩余的差额记在这里，由后续订单利润优先冲抵。不会计入负余额。
+	ChannelFeeCarryover money.Amount `gorm:"type:decimal(20,2);not null;default:0" json:"channel_fee_carryover"`
+	LastLedgerEntryID   uint         `gorm:"not null;default:0" json:"last_ledger_entry_id"`
+	RiskNote            string       `gorm:"type:text" json:"risk_note,omitempty"`
+	CreatedAt           time.Time    `gorm:"index" json:"created_at"`
+	UpdatedAt           time.Time    `gorm:"index" json:"updated_at"`
+	DeletedAt           *time.Time   `gorm:"index" json:"-"`
 
 	Profile *Profile `gorm:"foreignKey:ResellerID" json:"profile,omitempty"`
 }

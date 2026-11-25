@@ -64,7 +64,10 @@
                 {{ ledgerTypeLabel(item.type) }}
               </span>
             </TableCell>
-            <TableCell class="px-4 py-3 text-right tabular-nums text-xs font-semibold" :class="amountClass(item)">{{ amountDisplay(item) }}</TableCell>
+            <TableCell class="px-4 py-3 text-right text-xs font-semibold" :class="amountClass(item)">
+              <div class="tabular-nums">{{ amountDisplay(item) }}</div>
+              <div v-if="channelFeeHint(item)" class="mt-0.5 text-[11px] font-normal text-muted-foreground">{{ channelFeeHint(item) }}</div>
+            </TableCell>
             <TableCell class="px-4 py-3"><ResellerStatusBadge :label="ledgerStatusLabel(item.status)" :tone="ledgerTone(item.status)" /></TableCell>
             <TableCell class="px-4 py-3 text-xs text-muted-foreground">{{ formatResellerConsoleDate(item.available_at) }}</TableCell>
             <TableCell class="px-4 py-3 text-xs text-muted-foreground">{{ formatResellerConsoleDate(item.created_at) }}</TableCell>
@@ -82,6 +85,9 @@
             </span>
             <span class="tabular-nums text-sm font-bold" :class="amountClass(item)">{{ amountDisplay(item) }}</span>
           </template>
+          <div v-if="channelFeeHint(item)" class="col-span-2 text-[11px] text-muted-foreground">
+            {{ channelFeeHint(item) }}
+          </div>
           <div>
             <dt class="text-muted-foreground">{{ t('personalCenter.reseller.ledgerTable.status') }}</dt>
             <dd class="mt-0.5"><ResellerStatusBadge :label="ledgerStatusLabel(item.status)" :tone="ledgerTone(item.status)" /></dd>
@@ -194,6 +200,16 @@ const amountDisplay = (item: ResellerLedgerData) => {
   const abs = Math.abs(Number(item.amount) || 0)
   const prefix = dir === 'income' ? '+' : dir === 'expense' ? '−' : ''
   return `${prefix}${abs.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${item.currency}`
+}
+
+// 订单利润已按通道费分摊扣减过时，补充展示原毛利与扣费金额。
+const channelFeeHint = (item: ResellerLedgerData) => {
+  const fee = Number(item.channel_fee_amount || 0)
+  if (item.type !== 'order_profit' || !(fee > 0)) return ''
+  return t('personalCenter.reseller.ledgerTable.channelFeeHint', {
+    gross: Number(item.gross_profit_amount || 0).toFixed(2),
+    fee: fee.toFixed(2),
+  })
 }
 
 const amountClass = (item: ResellerLedgerData) => {

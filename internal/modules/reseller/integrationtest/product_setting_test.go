@@ -3,7 +3,6 @@ package integrationtest
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	resellergormstore "github.com/dujiao-next/internal/modules/reseller/infrastructure/gormstore"
 
@@ -27,7 +26,7 @@ import (
 
 func openResellerProductSettingServiceTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	dsn := fmt.Sprintf("file:reseller_product_setting_service_%d?mode=memory&cache=shared", time.Now().UnixNano())
+	dsn := fmt.Sprintf("file:reseller_product_setting_service_%d?mode=memory&cache=shared", uniqueTestID())
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite failed: %v", err)
@@ -47,7 +46,7 @@ func openResellerProductSettingServiceTestDB(t *testing.T) *gorm.DB {
 
 func seedResellerProductSettingServiceData(t *testing.T, db *gorm.DB) (userdomain.User, resellerdomain.Profile, productdomain.Product, []productdomain.ProductSKU) {
 	t.Helper()
-	user := userdomain.User{Email: fmt.Sprintf("setting-service-%d@example.test", time.Now().UnixNano()), PasswordHash: "hash", Status: constants.UserStatusActive}
+	user := userdomain.User{Email: fmt.Sprintf("setting-service-%d@example.test", uniqueTestID()), PasswordHash: "hash", Status: constants.UserStatusActive}
 	if err := db.Create(&user).Error; err != nil {
 		t.Fatalf("create user failed: %v", err)
 	}

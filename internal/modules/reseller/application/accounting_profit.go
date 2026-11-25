@@ -13,6 +13,7 @@ import (
 
 	resellerdomain "github.com/dujiao-next/internal/modules/reseller/domain"
 
+	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/logger"
 	"github.com/dujiao-next/internal/shared/jsonmap"
 	"github.com/dujiao-next/internal/shared/money"
@@ -21,11 +22,12 @@ import (
 
 // AccountingLedgerService 分销利润入账、退款扣减与到期确认用例。
 type AccountingLedgerService struct {
-	store       resellercontract.AccountingLedgerStore
-	confirmDays int
+	store             resellercontract.AccountingLedgerStore
+	confirmDays       int
+	channelFeePercent decimal.Decimal
 }
 
-func NewAccountingLedgerService(store resellercontract.AccountingLedgerStore, confirmDays int) *AccountingLedgerService {
+func NewAccountingLedgerService(store resellercontract.AccountingLedgerStore, confirmDays int, channelFeePercent float64) *AccountingLedgerService {
 	const maxConfirmDays = 3650
 	if confirmDays < 0 {
 		confirmDays = 0
@@ -33,7 +35,25 @@ func NewAccountingLedgerService(store resellercontract.AccountingLedgerStore, co
 	if confirmDays > maxConfirmDays {
 		confirmDays = maxConfirmDays
 	}
-	return &AccountingLedgerService{store: store, confirmDays: confirmDays}
+	rate := decimal.NewFromFloat(channelFeePercent)
+	if rate.LessThan(decimal.Zero) {
+		rate = decimal.Zero
+	}
+	if rate.GreaterThan(decimal.NewFromInt(100)) {
+		rate = decimal.NewFromInt(100)
+	}
+	return &AccountingLedgerService{
+		store:             store,
+		confirmDays:       confirmDays,
+		channelFeePercent: rate.Round(4),
+	}
+}
+
+// isCustomerPaidFeePolicy 判断该笔支付的手续费是否已由客户承担（加收）。
+// 客户已付的情形不再从代理利润里分摊，避免重复收费。
+func isCustomerPaidFeePolicy(policy string) bool {
+	return policy == constants.PaymentFeePolicyCustomerSurcharge ||
+		policy == constants.PaymentFeePolicyLegacyCustomerSurcharge
 }
 
 // PostOrderProfit 在调用方已开启的事务 store 上写入订单利润流水。
@@ -59,6 +79,54 @@ func (s *AccountingLedgerService) PostOrderProfit(store resellercontract.Account
 	if profit.LessThanOrEqual(decimal.Zero) {
 		return nil
 	}
+	currency := strings.TrimSpace(snapshot.Currency)
+	if currency == "" {
+		currency = strings.TrimSpace(order.Currency)
+	}
+	if currency == "" {
+		return resellercontract.ErrLedgerInvalidSnapshot
+	}
+	// 分销订单通道费分摊：按在线实付金额的比例从代理利润中扣除。
+	// 客户已加收手续费的支付（FeePolicy 为加收）不再重复扣；钱包支付没走网关，payment 为 nil 同样跳过。
+	// 当单利润不足以覆盖应分摊金额时，先扣满利润，剩余差额记入余额账户的「待抵扣」，
+	// 由后续订单利润优先冲抵——既不把利润扣成负数，也不会让主站永久承担差额。
+	grossProfit := profit
+	channelFeeBase := decimal.Zero
+	channelFeeDue := decimal.Zero
+	channelFeeDeducted := decimal.Zero
+	channelFeeDeferred := decimal.Zero
+	carryoverAfter := decimal.Zero
+	var carryoverAccount *resellerdomain.BalanceAccount
+	if s.channelFeePercent.GreaterThan(decimal.Zero) && payment != nil && !isCustomerPaidFeePolicy(payment.FeePolicy) {
+		channelFeeBase = order.OnlinePaidAmount.Decimal.Round(2)
+		if channelFeeBase.GreaterThan(decimal.Zero) {
+			channelFeeDue = channelFeeBase.Mul(s.channelFeePercent).Div(decimal.NewFromInt(100)).Round(2)
+		}
+	}
+	if channelFeeDue.GreaterThan(decimal.Zero) {
+		account, err := store.GetOrCreateBalanceAccountForUpdate(snapshot.ResellerID, currency)
+		if err != nil {
+			return err
+		}
+		carryoverBefore := account.ChannelFeeCarryover.Decimal.Round(2)
+		owed := carryoverBefore.Add(channelFeeDue).Round(2)
+		channelFeeDeducted = owed
+		if channelFeeDeducted.GreaterThan(profit) {
+			channelFeeDeducted = profit
+		}
+		carryoverAfter = owed.Sub(channelFeeDeducted).Round(2)
+		// 扣款优先冲抵历史待抵扣，剩余部分才算本单已扣的分摊额；本单未扣到的部分继续挂账。
+		paidOld := channelFeeDeducted
+		if paidOld.GreaterThan(carryoverBefore) {
+			paidOld = carryoverBefore
+		}
+		channelFeeDeferred = channelFeeDue.Sub(channelFeeDeducted.Sub(paidOld)).Round(2)
+		if channelFeeDeferred.LessThan(decimal.Zero) {
+			channelFeeDeferred = decimal.Zero
+		}
+		profit = profit.Sub(channelFeeDeducted).Round(2)
+		carryoverAccount = account
+	}
 	now := time.Now()
 	availableAt := now.AddDate(0, 0, s.confirmDays)
 	orderID := order.ID
@@ -69,6 +137,15 @@ func (s *AccountingLedgerService) PostOrderProfit(store resellercontract.Account
 		"online_paid_amount":  order.OnlinePaidAmount.String(),
 		"snapshot_id":         snapshot.ID,
 		"profit_block_reason": snapshot.ProfitBlockReason,
+	}
+	if s.channelFeePercent.GreaterThan(decimal.Zero) {
+		metadata["gross_profit_amount"] = grossProfit.StringFixed(2)
+		metadata["channel_fee_percent"] = s.channelFeePercent.String()
+		metadata["channel_fee_base"] = channelFeeBase.StringFixed(2)
+		metadata["channel_fee_due"] = channelFeeDue.StringFixed(2)
+		metadata["channel_fee_amount"] = channelFeeDeducted.StringFixed(2)
+		metadata["channel_fee_deferred"] = channelFeeDeferred.StringFixed(2)
+		metadata["channel_fee_carryover"] = carryoverAfter.StringFixed(2)
 	}
 	if payment != nil {
 		metadata["payment_id"] = payment.ID
@@ -81,19 +158,13 @@ func (s *AccountingLedgerService) PostOrderProfit(store resellercontract.Account
 		OrderID:        &orderID,
 		Type:           resellerdomain.LedgerTypeOrderProfit,
 		Amount:         money.FromDecimal(profit),
-		Currency:       strings.TrimSpace(snapshot.Currency),
+		Currency:       currency,
 		IdempotencyKey: fmt.Sprintf("order_profit:%d", order.ID),
 		MetadataJSON:   metadata,
 		Status:         resellerdomain.LedgerStatusPendingConfirm,
 		AvailableAt:    &availableAt,
 		CreatedAt:      now,
 		UpdatedAt:      now,
-	}
-	if entry.Currency == "" {
-		entry.Currency = strings.TrimSpace(order.Currency)
-	}
-	if entry.Currency == "" {
-		return resellercontract.ErrLedgerInvalidSnapshot
 	}
 	created, err := store.CreateLedgerEntryIfNotExists(entry)
 	if err != nil {
@@ -102,7 +173,14 @@ func (s *AccountingLedgerService) PostOrderProfit(store resellercontract.Account
 	if !created {
 		return nil
 	}
-	return RefreshBalanceAccount(store, snapshot.ResellerID, entry.Currency, now)
+	// 只在流水首次写入后更新待抵扣，保证重复入账（幂等重放）不会重复累计。
+	if carryoverAccount != nil {
+		carryoverAccount.ChannelFeeCarryover = money.FromDecimal(carryoverAfter)
+		if err := store.UpdateBalanceAccount(carryoverAccount); err != nil {
+			return err
+		}
+	}
+	return RefreshBalanceAccount(store, snapshot.ResellerID, currency, now)
 }
 
 // PostOrderProfitForOrder 在订单状态流转事务中入账分销利润。

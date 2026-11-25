@@ -50,7 +50,7 @@ func setupAdminResellerManagementHandlerTest(t *testing.T) (*adminResellerFixtur
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
-	dsn := fmt.Sprintf("file:admin_reseller_management_%d?mode=memory&cache=shared", time.Now().UnixNano())
+	dsn := fmt.Sprintf("file:admin_reseller_management_%d?mode=memory&cache=shared", uniqueTestID())
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open db failed: %v", err)
@@ -94,7 +94,7 @@ func setupAdminResellerManagementHandlerTest(t *testing.T) (*adminResellerFixtur
 		ResellerProductSettingService: resellermodule.NewProductSettingService(resellerStore, productRepo),
 		ResellerAccountingQuery:       resellermodule.NewAccountingQueryService(resellerStore),
 		ResellerAccountingWithdraw:    resellermodule.NewAccountingWithdrawService(resellerStore),
-		ResellerAccountingLedger:      resellermodule.NewAccountingLedgerService(resellerStore, 7),
+		ResellerAccountingLedger:      resellermodule.NewAccountingLedgerService(resellerStore, 7, 0),
 		ResellerOrderService:          resellermodule.NewOrderQueryService(resellerStore),
 		AuthzAuditService:             auditlogapp.NewAuthzService(auditRepo),
 	}}, db
@@ -133,7 +133,7 @@ func adminResellerSiteConfigHTTP(h *adminResellerFixture) *resellerhttp.AdminSit
 
 func seedAdminResellerManagementProfile(t *testing.T, db *gorm.DB, status string) resellerdomain.Profile {
 	t.Helper()
-	user := userdomain.User{Email: fmt.Sprintf("reseller-management-%d@example.test", time.Now().UnixNano()), PasswordHash: "hash", DisplayName: "Reseller Management"}
+	user := userdomain.User{Email: fmt.Sprintf("reseller-management-%d@example.test", uniqueTestID()), PasswordHash: "hash", DisplayName: "Reseller Management"}
 	if err := db.Create(&user).Error; err != nil {
 		t.Fatalf("create user failed: %v", err)
 	}
@@ -467,13 +467,13 @@ func TestAdminResellerManagementSetPrimaryDomainRejectsUnverifiedDomain(t *testi
 
 func seedResellerProductSettingProductForAdminHandler(t *testing.T, db *gorm.DB) (productdomain.Product, []productdomain.ProductSKU) {
 	t.Helper()
-	category := categorydomain.Category{Slug: fmt.Sprintf("admin-setting-cat-%d", time.Now().UnixNano()), NameJSON: jsonmap.JSON{"zh-CN": "分类"}, IsActive: true}
+	category := categorydomain.Category{Slug: fmt.Sprintf("admin-setting-cat-%d", uniqueTestID()), NameJSON: jsonmap.JSON{"zh-CN": "分类"}, IsActive: true}
 	if err := db.Create(&category).Error; err != nil {
 		t.Fatalf("create category failed: %v", err)
 	}
 	product := productdomain.Product{
 		CategoryID:      category.ID,
-		Slug:            fmt.Sprintf("admin-setting-product-%d", time.Now().UnixNano()),
+		Slug:            fmt.Sprintf("admin-setting-product-%d", uniqueTestID()),
 		TitleJSON:       jsonmap.JSON{"zh-CN": "后台商品", "zh-TW": "後台商品", "en-US": "Admin Product"},
 		PriceAmount:     money.FromDecimal(decimal.RequireFromString("100.00")),
 		CostPriceAmount: money.FromDecimal(decimal.RequireFromString("80.00")),

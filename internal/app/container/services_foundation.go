@@ -57,6 +57,7 @@ func (c *Container) initPolicyAndSettingServices() {
 	c.ResellerAccountingLedger = reseller.NewAccountingLedgerService(
 		c.ResellerStore,
 		c.Config.Reseller.SettlementConfirmDays,
+		c.Config.Reseller.ChannelFeePercent,
 	)
 	c.ResellerOrderService = reseller.NewOrderQueryService(c.ResellerStore)
 	c.ResellerOperationsService = reseller.NewOperationsService(c.ResellerStore)

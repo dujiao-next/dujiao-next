@@ -1,6 +1,8 @@
 package presenter
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	resellerdomain "github.com/dujiao-next/internal/modules/reseller/domain"
@@ -18,13 +20,15 @@ type ResellerProfileSummaryResp struct {
 }
 
 type ResellerBalanceResp struct {
-	ID              uint      `json:"id"`
-	Currency        string    `json:"currency"`
-	Status          string    `json:"status"`
-	AvailableAmount string    `json:"available_amount"`
-	LockedAmount    string    `json:"locked_amount"`
-	NegativeAmount  string    `json:"negative_amount"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID              uint   `json:"id"`
+	Currency        string `json:"currency"`
+	Status          string `json:"status"`
+	AvailableAmount string `json:"available_amount"`
+	LockedAmount    string `json:"locked_amount"`
+	NegativeAmount  string `json:"negative_amount"`
+	// ChannelFeeCarryover 通道费分摊待抵扣余额，后续订单利润会优先冲抵。
+	ChannelFeeCarryover string    `json:"channel_fee_carryover"`
+	UpdatedAt           time.Time `json:"updated_at"`
 }
 
 type ResellerLedgerResp struct {
@@ -37,6 +41,11 @@ type ResellerLedgerResp struct {
 	AvailableAt       *time.Time `json:"available_at,omitempty"`
 	WithdrawRequestID *uint      `json:"withdraw_request_id,omitempty"`
 	CreatedAt         time.Time  `json:"created_at"`
+	// 通道费分摊明细（仅 order_profit 且配置了分摊比例时出现）：
+	// Amount 已是扣除后的净额，这里补充原毛利与扣费金额，供前端展示明细。
+	GrossProfitAmount string `json:"gross_profit_amount,omitempty"`
+	ChannelFeePercent string `json:"channel_fee_percent,omitempty"`
+	ChannelFeeAmount  string `json:"channel_fee_amount,omitempty"`
 }
 
 type ResellerWithdrawResp struct {
@@ -547,13 +556,14 @@ func NewResellerBalanceResp(row *resellerdomain.BalanceAccount) ResellerBalanceR
 		return ResellerBalanceResp{}
 	}
 	return ResellerBalanceResp{
-		ID:              row.ID,
-		Currency:        row.Currency,
-		Status:          row.Status,
-		AvailableAmount: row.AvailableAmountCache.String(),
-		LockedAmount:    row.LockedAmountCache.String(),
-		NegativeAmount:  row.NegativeAmountCache.String(),
-		UpdatedAt:       row.UpdatedAt,
+		ID:                  row.ID,
+		Currency:            row.Currency,
+		Status:              row.Status,
+		AvailableAmount:     row.AvailableAmountCache.String(),
+		LockedAmount:        row.LockedAmountCache.String(),
+		NegativeAmount:      row.NegativeAmountCache.String(),
+		ChannelFeeCarryover: row.ChannelFeeCarryover.String(),
+		UpdatedAt:           row.UpdatedAt,
 	}
 }
 
@@ -579,7 +589,22 @@ func NewResellerLedgerResp(row *resellerdomain.LedgerEntry) ResellerLedgerResp {
 		AvailableAt:       row.AvailableAt,
 		WithdrawRequestID: row.WithdrawRequestID,
 		CreatedAt:         row.CreatedAt,
+		GrossProfitAmount: ledgerMetadataString(row.MetadataJSON, "gross_profit_amount"),
+		ChannelFeePercent: ledgerMetadataString(row.MetadataJSON, "channel_fee_percent"),
+		ChannelFeeAmount:  ledgerMetadataString(row.MetadataJSON, "channel_fee_amount"),
 	}
+}
+
+// ledgerMetadataString 从流水 metadata 中取字符串值，缺失时返回空串。
+func ledgerMetadataString(m jsonmap.JSON, key string) string {
+	if m == nil {
+		return ""
+	}
+	value, ok := m[key]
+	if !ok || value == nil {
+		return ""
+	}
+	return strings.TrimSpace(fmt.Sprint(value))
 }
 
 func NewResellerLedgerRespList(rows []resellerdomain.LedgerEntry) []ResellerLedgerResp {

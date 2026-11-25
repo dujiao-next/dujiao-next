@@ -899,7 +899,8 @@
         "amount": "金额",
         "status": "状态",
         "availableAt": "可用时间",
-        "createdAt": "创建时间"
+        "createdAt": "创建时间",
+        "channelFeeHint": "毛利 {gross} · 通道费 −{fee}"
       },
       "withdrawTable": {
         "amount": "金额",

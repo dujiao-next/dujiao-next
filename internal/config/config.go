@@ -307,6 +307,9 @@ type ResellerConfig struct {
 	SelfApplyEnabled     bool     `mapstructure:"self_apply_enabled"`
 	// SettlementConfirmDays 分销利润入账后转为可提现的确认天数（0 表示即时到账）。
 	SettlementConfirmDays int `mapstructure:"settlement_confirm_days"`
+	// ChannelFeePercent 分销订单通道费分摊比例（按在线实付金额的百分比）。
+	// 从代理利润中扣除，最多扣到当单利润为 0；0 表示不分摊。
+	ChannelFeePercent float64 `mapstructure:"channel_fee_percent"`
 }
 
 // Load 从 config.yml 加载配置

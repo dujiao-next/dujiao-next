@@ -3767,6 +3767,7 @@ const messages = {
           availableAt: '可用时间',
           withdrawRequest: '提现单',
           createdAt: '创建时间',
+          channelFeeHint: '毛利 {gross} · 通道费 −{fee}',
         },
         types: {
           order_profit: '订单收益',
@@ -3800,6 +3801,7 @@ const messages = {
           available: '可用余额',
           locked: '锁定余额',
           negative: '负余额',
+          carryover: '待抵扣通道费',
           status: '状态',
           lastLedger: '最新流水',
           updatedAt: '更新时间',
@@ -8478,6 +8480,7 @@ const messages = {
           availableAt: '可用時間',
           withdrawRequest: '提現單',
           createdAt: '建立時間',
+          channelFeeHint: '毛利 {gross} · 通道費 −{fee}',
         },
         types: {
           order_profit: '訂單收益',
@@ -8511,6 +8514,7 @@ const messages = {
           available: '可用餘額',
           locked: '鎖定餘額',
           negative: '負餘額',
+          carryover: '待抵扣通道費',
           status: '狀態',
           lastLedger: '最新流水',
           updatedAt: '更新時間',
@@ -13189,6 +13193,7 @@ const messages = {
           availableAt: 'Available At',
           withdrawRequest: 'Withdraw',
           createdAt: 'Created At',
+          channelFeeHint: 'Gross {gross} · channel fee −{fee}',
         },
         types: {
           order_profit: 'Order Profit',
@@ -13222,6 +13227,7 @@ const messages = {
           available: 'Available',
           locked: 'Locked',
           negative: 'Negative',
+          carryover: 'Channel Fee Carryover',
           status: 'Status',
           lastLedger: 'Last Ledger',
           updatedAt: 'Updated At',

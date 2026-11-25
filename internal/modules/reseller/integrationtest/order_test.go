@@ -24,7 +24,7 @@ import (
 
 func openResellerOrderServiceTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:reseller_order_service_%d?mode=memory&cache=shared", time.Now().UnixNano())), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:reseller_order_service_%d?mode=memory&cache=shared", uniqueTestID())), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite failed: %v", err)
 	}
@@ -57,7 +57,7 @@ func seedResellerOrderFixture(t *testing.T, db *gorm.DB, email string) (reseller
 	}
 	paidAt := time.Now().Add(-time.Hour)
 	order := orderdomain.Order{
-		OrderNo:              fmt.Sprintf("DJ-RES-%d", time.Now().UnixNano()),
+		OrderNo:              fmt.Sprintf("DJ-RES-%d", uniqueTestID()),
 		UserID:               999,
 		Status:               constants.OrderStatusPaid,
 		Currency:             "USD",
@@ -137,7 +137,7 @@ func seedResellerOrderWithChildItemsFixture(t *testing.T, db *gorm.DB, email str
 	}
 	paidAt := time.Now().Add(-time.Hour)
 	parent := orderdomain.Order{
-		OrderNo:              fmt.Sprintf("DJ-RES-PARENT-%d", time.Now().UnixNano()),
+		OrderNo:              fmt.Sprintf("DJ-RES-PARENT-%d", uniqueTestID()),
 		UserID:               user.ID,
 		Status:               constants.OrderStatusPaid,
 		Currency:             "USD",

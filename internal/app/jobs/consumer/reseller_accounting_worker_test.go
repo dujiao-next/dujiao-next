@@ -42,7 +42,7 @@ func TestResellerConfirmLedgerWorkerMarksDueEntriesAvailable(t *testing.T) {
 	}
 	repo := resellergormstore.New(db)
 	c := New(&container.Container{
-		ResellerAccountingLedger: resellerapplication.NewAccountingLedgerService(repo, 0),
+		ResellerAccountingLedger: resellerapplication.NewAccountingLedgerService(repo, 0, 0),
 	})
 	if err := c.handleResellerConfirmLedger(context.Background(), queue.NewResellerConfirmLedgerTask()); err != nil {
 		t.Fatalf("worker handler failed: %v", err)
