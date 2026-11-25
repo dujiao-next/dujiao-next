@@ -35,6 +35,7 @@ import (
 	reconciliationqueue "github.com/dujiao-next/internal/modules/reconciliation/infrastructure/queueadapter"
 	reconciliationupstream "github.com/dujiao-next/internal/modules/reconciliation/infrastructure/upstreamreader"
 	siteconnectionapp "github.com/dujiao-next/internal/modules/siteconnection/application"
+	siteconnectionstore "github.com/dujiao-next/internal/modules/siteconnection/infrastructure/gormstore"
 	broadcastapp "github.com/dujiao-next/internal/modules/telegram/broadcast/application"
 	notifyapp "github.com/dujiao-next/internal/modules/telegram/notify/application"
 	notifybotapi "github.com/dujiao-next/internal/modules/telegram/notify/infrastructure/botapi"
@@ -61,6 +62,7 @@ func (c *Container) initIntegrationServices() {
 	)
 	c.ApiCredentialService = apicredentialapp.NewService(c.ApiCredentialRepo)
 	c.SiteConnectionService = siteconnectionapp.NewService(c.SiteConnectionRepo, c.Config.App.SecretKey, "uploads")
+	c.UpstreamManagement = siteconnectionapp.NewManagement(c.SiteConnectionService, siteconnectionstore.New(gormdb.DB), c.ProductMappingRepo)
 	mediaCore := contentapp.NewMediaService(
 		contentgormstore.NewMediaStore(gormdb.DB),
 		localfilestore.New(),

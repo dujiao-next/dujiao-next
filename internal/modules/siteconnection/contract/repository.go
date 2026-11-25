@@ -19,3 +19,9 @@ type Repository interface {
 	List(filter ListFilter) ([]siteconnectiondomain.Connection, int64, error)
 	ListActive() ([]siteconnectiondomain.Connection, error)
 }
+
+type BalanceRepository interface {
+	ListBalanceSnapshots(ids []uint) ([]siteconnectiondomain.BalanceSnapshot, error)
+	SaveBalanceCheck(snapshot *siteconnectiondomain.BalanceSnapshot) error
+	SaveBalanceThreshold(connectionID uint, amount, currency string) error
+}

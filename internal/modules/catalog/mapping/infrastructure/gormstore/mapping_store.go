@@ -22,6 +22,25 @@ func NewMappingStore(db *gorm.DB) *MappingStore {
 	return &MappingStore{db: db}
 }
 
+func (r *MappingStore) ConnectionProductStats(ids []uint) ([]mappingcontract.ConnectionProductStats, error) {
+	var rows []mappingcontract.ConnectionProductStats
+	if len(ids) == 0 {
+		return rows, nil
+	}
+	// A window keeps last_synced_at as the original timestamp column on SQLite.
+	query := r.db.Table("product_mappings AS m").
+		Select(`m.connection_id, COUNT(*) OVER (PARTITION BY m.connection_id) AS mapped,
+			SUM(CASE WHEN p.is_active THEN 1 ELSE 0 END) OVER (PARTITION BY m.connection_id) AS listed,
+			m.last_synced_at, ROW_NUMBER() OVER (PARTITION BY m.connection_id
+				ORDER BY m.last_synced_at DESC NULLS LAST, m.id) AS position`).
+		Joins("JOIN products AS p ON p.id = m.local_product_id AND p.deleted_at IS NULL").
+		Where("m.deleted_at IS NULL AND m.connection_id IN ?", ids)
+	err := r.db.Table("(?) AS stats", query).
+		Select("connection_id, mapped, listed, last_synced_at").
+		Where("position = 1").Scan(&rows).Error
+	return rows, err
+}
+
 // WithTx 绑定事务
 func (r *MappingStore) WithTx(tx *gorm.DB) *MappingStore {
 	if tx == nil {

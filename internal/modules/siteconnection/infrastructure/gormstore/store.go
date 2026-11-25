@@ -8,6 +8,7 @@ import (
 	siteconnectiondomain "github.com/dujiao-next/internal/modules/siteconnection/domain"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // Store 是 SiteConnection 的 GORM 持久化实现。
@@ -16,6 +17,7 @@ type Store struct {
 }
 
 var _ siteconnectioncontract.Repository = (*Store)(nil)
+var _ siteconnectioncontract.BalanceRepository = (*Store)(nil)
 
 // New 创建连接仓库。
 func New(db *gorm.DB) *Store {
@@ -96,4 +98,32 @@ func (r *Store) ListActive() ([]siteconnectiondomain.Connection, error) {
 		return nil, err
 	}
 	return conns, nil
+}
+
+func (r *Store) ListBalanceSnapshots(ids []uint) ([]siteconnectiondomain.BalanceSnapshot, error) {
+	var snapshots []siteconnectiondomain.BalanceSnapshot
+	if len(ids) == 0 {
+		return snapshots, nil
+	}
+	err := r.db.Where("connection_id IN ?", ids).Find(&snapshots).Error
+	return snapshots, err
+}
+
+func (r *Store) SaveBalanceCheck(snapshot *siteconnectiondomain.BalanceSnapshot) error {
+	return r.db.Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "connection_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{
+			"account_version", "amount", "currency", "check_state", "checked_at", "last_success_at",
+		}),
+	}).Create(snapshot).Error
+}
+
+func (r *Store) SaveBalanceThreshold(connectionID uint, amount, currency string) error {
+	snapshot := siteconnectiondomain.BalanceSnapshot{
+		ConnectionID: connectionID, Threshold: amount, ThresholdCurrency: currency,
+	}
+	return r.db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "connection_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"threshold", "threshold_currency"}),
+	}).Create(&snapshot).Error
 }
