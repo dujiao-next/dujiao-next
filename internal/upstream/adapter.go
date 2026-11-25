@@ -40,14 +40,16 @@ type PingResult struct {
 type ListProductsOpts struct {
 	Page            int
 	PageSize        int
+	CategoryID      uint
 	UpdatedAfter    *time.Time
 	IncludeInactive bool // 是否包含已下架商品（用于下游识别上游下架/删除）
 }
 
 // ProductListResult 商品列表结果
 type ProductListResult struct {
-	Total int               `json:"total"`
-	Items []UpstreamProduct `json:"items"`
+	Total      int               `json:"total"`
+	Items      []UpstreamProduct `json:"items"`
+	CategoryID uint              `json:"category_id,omitempty"`
 	// Page/PageSize 是上游回声的分页参数。上游会把 page_size 压到自己的上限，
 	// 下游翻页时必须以这里为准，否则请求 200 条只拿回 50 条会被误判成最后一页。
 	// 旧版上游不返回这两个字段时为 0，调用方需回退到请求值。
@@ -93,8 +95,10 @@ type UpstreamCategory struct {
 
 // CategoryListResult 分类列表结果
 type CategoryListResult struct {
-	Supported  bool               `json:"supported"`
-	Categories []UpstreamCategory `json:"categories"`
+	Supported                 bool               `json:"supported"`
+	Categories                []UpstreamCategory `json:"categories"`
+	ProductCategoryFilter     bool               `json:"product_category_filter"`
+	ProductUpdatedAfterFilter bool               `json:"product_updated_after_filter"`
 }
 
 // UpstreamSKU 上游 SKU 信息

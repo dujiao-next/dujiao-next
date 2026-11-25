@@ -87,8 +87,10 @@ func (h *Handler) ListCategories(c *gin.Context) {
 	}
 
 	successResponse(c, gin.H{
-		"ok":         true,
-		"categories": items,
+		"ok":                           true,
+		"categories":                   items,
+		"product_category_filter":      true,
+		"product_updated_after_filter": true,
 	})
 }
 
@@ -97,6 +99,16 @@ func (h *Handler) ListProducts(c *gin.Context) {
 	// page_size 默认 50，上限 200：下游全量拉取时按上限请求可以把翻页次数压到四分之一，
 	// 从而远离每分钟的接口限流。
 	page, pageSize := ginutil.ParsePaginationWithBounds(c, "page", "page_size", 50, 200)
+
+	var categoryID uint
+	if raw, exists := c.GetQuery("category_id"); exists {
+		id, err := ginutil.ParseQueryUint(raw, true)
+		if err != nil || id == 0 {
+			errorResponse(c, http.StatusBadRequest, "invalid_argument", "invalid category_id")
+			return
+		}
+		categoryID = id
+	}
 
 	// 是否包含下架商品：下游同步任务用此参数识别上游下架/删除状态
 	includeInactive := c.Query("include_inactive") == "true"
@@ -109,7 +121,7 @@ func (h *Handler) ListProducts(c *gin.Context) {
 		}
 	}
 
-	products, total, err := h.Products.ListForUpstreamSync(updatedAfter, includeInactive, page, pageSize)
+	products, total, err := h.Products.ListForUpstreamSync(updatedAfter, includeInactive, page, pageSize, categoryID)
 	if err != nil {
 		logger.Errorw("upstream_list_products_failed", "error", err)
 		errorResponse(c, http.StatusInternalServerError, "internal_error", "failed to list products")
@@ -145,14 +157,18 @@ func (h *Handler) ListProducts(c *gin.Context) {
 		items = append(items, h.toUpstreamProductWithMemberPrice(p, priceBook, memberLevelID, fulfillmentTypeMap))
 	}
 
-	successResponse(c, gin.H{
+	payload := gin.H{
 		"ok":                true,
 		"items":             items,
 		"total":             total,
 		"page":              page,
 		"page_size":         pageSize,
 		"includes_inactive": includeInactive, // 回声告诉下游本次响应是否包含下架商品
-	})
+	}
+	if categoryID != 0 {
+		payload["category_id"] = categoryID
+	}
+	successResponse(c, payload)
 }
 
 // GetProduct GET /api/v1/upstream/products/:id

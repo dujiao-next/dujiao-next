@@ -48,8 +48,8 @@ type productServiceAdapter struct {
 	products *productapplication.Service
 }
 
-func (a productServiceAdapter) ListForUpstreamSync(updatedAfter *time.Time, includeInactive bool, page, pageSize int) ([]productdomain.Product, int64, error) {
-	return a.products.ListForUpstreamSync(updatedAfter, includeInactive, page, pageSize)
+func (a productServiceAdapter) ListForUpstreamSync(updatedAfter *time.Time, includeInactive bool, page, pageSize int, categoryID uint) ([]productdomain.Product, int64, error) {
+	return a.products.ListForUpstreamSync(updatedAfter, includeInactive, page, pageSize, categoryID)
 }
 
 func (a productServiceAdapter) ApplyAutoStockCounts(products []productdomain.Product) error {
