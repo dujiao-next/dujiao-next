@@ -1,10 +1,20 @@
 package contract
 
 import (
+	"time"
+
 	categorydomain "github.com/dujiao-next/internal/modules/catalog/category/domain"
 	mappingdomain "github.com/dujiao-next/internal/modules/catalog/mapping/domain"
 	productdomain "github.com/dujiao-next/internal/modules/catalog/product/domain"
 )
+
+// ConnectionProductStats counts mapped local products, including their storefront listing state.
+type ConnectionProductStats struct {
+	ConnectionID uint
+	Mapped       int
+	Listed       int
+	LastSyncedAt *time.Time
+}
 
 // ListFilter 是商品映射列表筛选条件。
 type ListFilter struct {

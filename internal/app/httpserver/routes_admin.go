@@ -192,6 +192,7 @@ func registerAdminRoutes(
 		c.SiteConnectionService,
 		c.ProductMappingService,
 	))
+	siteconnectiontransport.RegisterManagementRoutes(authorized, c.UpstreamManagement)
 
 	// 商品映射管理
 	mappinghttp.RegisterAdminRoutes(authorized, adminCatalogProductMappingHandler)

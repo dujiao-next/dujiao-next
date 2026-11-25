@@ -36,3 +36,20 @@ type Connection struct {
 func (Connection) TableName() string {
 	return "site_connections"
 }
+
+// BalanceSnapshot stores account checks independently of connection credentials and order processing.
+type BalanceSnapshot struct {
+	ConnectionID      uint   `gorm:"primaryKey;autoIncrement:false"`
+	AccountVersion    string `gorm:"size:64"`
+	Amount            string `gorm:"size:80"`
+	Currency          string `gorm:"size:16"`
+	CheckState        string `gorm:"size:20"`
+	CheckedAt         *time.Time
+	LastSuccessAt     *time.Time
+	Threshold         string `gorm:"size:80"`
+	ThresholdCurrency string `gorm:"size:16"`
+}
+
+func (BalanceSnapshot) TableName() string {
+	return "upstream_balance_snapshots"
+}

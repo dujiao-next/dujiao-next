@@ -1,5 +1,7 @@
 package application
 
+import "time"
+
 // CreateInput 创建对接连接输入。
 type CreateInput struct {
 	Name               string  `json:"name"`
@@ -44,4 +46,25 @@ type PingResult struct {
 	Balance         string                 `json:"balance"`
 	Currency        string                 `json:"currency"`
 	MemberLevel     map[string]interface{} `json:"member_level,omitempty"`
+}
+
+type BalanceView struct {
+	Amount        string     `json:"amount"`
+	Currency      string     `json:"currency"`
+	State         string     `json:"state"`
+	Risk          string     `json:"risk"`
+	CheckedAt     *time.Time `json:"checked_at"`
+	LastSuccessAt *time.Time `json:"last_success_at"`
+	Threshold     string     `json:"threshold"`
+}
+
+type UpstreamOverview struct {
+	ID             uint        `json:"id"`
+	Name           string      `json:"name"`
+	Protocol       string      `json:"protocol"`
+	Status         string      `json:"status"`
+	MappedProducts int         `json:"mapped_products"`
+	ListedProducts int         `json:"listed_products"`
+	LastSyncedAt   *time.Time  `json:"last_synced_at"`
+	Balance        BalanceView `json:"balance"`
 }

@@ -2,7 +2,12 @@ package application
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	mappingcontract "github.com/dujiao-next/internal/modules/catalog/mapping/contract"
+	"golang.org/x/sync/singleflight"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -342,4 +347,218 @@ func (s *Service) normalizeExchangeRate(rate float64) decimal.Decimal {
 		return decimal.NewFromInt(1)
 	}
 	return decimal.NewFromFloat(rate)
+}
+
+const (
+	balanceCheckTimeout  = 8 * time.Second
+	balanceCheckCooldown = 20 * time.Second
+	balanceStaleAfter    = 15 * time.Minute
+)
+
+var balanceNumber = regexp.MustCompile(`^-?[0-9]{1,24}(\.[0-9]{1,12})?$`)
+var currencyCode = regexp.MustCompile(`^[A-Z]{2,12}$`)
+
+type connectionProductStatsReader interface {
+	ConnectionProductStats(ids []uint) ([]mappingcontract.ConnectionProductStats, error)
+}
+
+// Management reads account balances without changing connection state or purchasing behavior.
+type Management struct {
+	connections *Service
+	balances    siteconnectioncontract.BalanceRepository
+	products    connectionProductStatsReader
+	checks      singleflight.Group
+}
+
+func NewManagement(connections *Service, balances siteconnectioncontract.BalanceRepository, products connectionProductStatsReader) *Management {
+	return &Management{connections: connections, balances: balances, products: products}
+}
+
+func (m *Management) Overview() ([]UpstreamOverview, error) {
+	connections, _, err := m.connections.List(siteconnectioncontract.ListFilter{})
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]uint, 0, len(connections))
+	for _, conn := range connections {
+		ids = append(ids, conn.ID)
+	}
+	snapshots, err := m.balances.ListBalanceSnapshots(ids)
+	if err != nil {
+		return nil, err
+	}
+	balances := make(map[uint]siteconnectiondomain.BalanceSnapshot, len(snapshots))
+	for _, snapshot := range snapshots {
+		balances[snapshot.ConnectionID] = snapshot
+	}
+	counts, err := m.products.ConnectionProductStats(ids)
+	if err != nil {
+		return nil, err
+	}
+	stats := make(map[uint]mappingcontract.ConnectionProductStats, len(counts))
+	for _, count := range counts {
+		stats[count.ConnectionID] = count
+	}
+
+	rows := make([]UpstreamOverview, 0, len(connections))
+	now := time.Now()
+	for _, conn := range connections {
+		count := stats[conn.ID]
+		rows = append(rows, UpstreamOverview{
+			ID: conn.ID, Name: conn.Name, Protocol: conn.Protocol, Status: conn.Status,
+			MappedProducts: count.Mapped, ListedProducts: count.Listed, LastSyncedAt: count.LastSyncedAt,
+			Balance: balanceView(&conn, balances[conn.ID], now),
+		})
+	}
+	return rows, nil
+}
+
+func (m *Management) Refresh(ctx context.Context, id uint) (BalanceView, error) {
+	// The check is shared by concurrent visitors, even if one closes the page.
+	ch := m.checks.DoChan(strconv.FormatUint(uint64(id), 10), func() (any, error) {
+		return m.refresh(context.WithoutCancel(ctx), id)
+	})
+	select {
+	case <-ctx.Done():
+		return BalanceView{}, ctx.Err()
+	case result := <-ch:
+		if result.Err != nil {
+			return BalanceView{}, result.Err
+		}
+		return result.Val.(BalanceView), nil
+	}
+}
+
+func (m *Management) refresh(ctx context.Context, id uint) (BalanceView, error) {
+	conn, snapshot, err := m.load(id)
+	if err != nil {
+		return BalanceView{}, err
+	}
+	now := time.Now()
+	if conn.Status != constants.ConnectionStatusActive {
+		return balanceView(conn, snapshot, now), nil
+	}
+	version := balanceAccountVersion(conn)
+	if snapshot.AccountVersion != version {
+		snapshot = siteconnectiondomain.BalanceSnapshot{ConnectionID: id, AccountVersion: version}
+	}
+	if snapshot.CheckedAt != nil && now.Sub(*snapshot.CheckedAt) < balanceCheckCooldown {
+		return balanceView(conn, snapshot, now), nil
+	}
+
+	snapshot.CheckState = "error"
+	if adapter, err := m.connections.GetAdapter(conn); err == nil {
+		callCtx, cancel := context.WithTimeout(ctx, balanceCheckTimeout)
+		result, pingErr := adapter.Ping(callCtx)
+		cancel()
+		if pingErr == nil {
+			snapshot.CheckState = "unavailable"
+			if result != nil && balanceNumber.MatchString(strings.TrimSpace(result.Balance)) {
+				snapshot.Amount = strings.TrimSpace(result.Balance)
+				snapshot.Currency = strings.ToUpper(strings.TrimSpace(result.Currency))
+				if !currencyCode.MatchString(snapshot.Currency) {
+					snapshot.Currency = ""
+				}
+				snapshot.CheckState = "ok"
+				success := time.Now().UTC()
+				snapshot.LastSuccessAt = &success
+			}
+		}
+	}
+	checkedAt := time.Now().UTC()
+	snapshot.CheckedAt = &checkedAt
+	if err := m.balances.SaveBalanceCheck(&snapshot); err != nil {
+		return BalanceView{}, err
+	}
+	conn, snapshot, err = m.load(id)
+	if err != nil {
+		return BalanceView{}, err
+	}
+	return balanceView(conn, snapshot, time.Now()), nil
+}
+
+func (m *Management) SetThreshold(id uint, amount, currency string) (BalanceView, error) {
+	conn, snapshot, err := m.load(id)
+	if err != nil {
+		return BalanceView{}, err
+	}
+	current := balanceView(conn, snapshot, time.Now())
+	amount = strings.TrimSpace(amount)
+	if current.Currency == "" || currency != current.Currency {
+		return BalanceView{}, siteconnectioncontract.ErrInvalid
+	}
+	if amount != "" {
+		if !balanceNumber.MatchString(amount) {
+			return BalanceView{}, siteconnectioncontract.ErrInvalid
+		}
+		value, _ := decimal.NewFromString(amount)
+		if value.IsNegative() {
+			return BalanceView{}, siteconnectioncontract.ErrInvalid
+		}
+		amount = value.String()
+	}
+	if err := m.balances.SaveBalanceThreshold(id, amount, currency); err != nil {
+		return BalanceView{}, err
+	}
+	snapshot.Threshold, snapshot.ThresholdCurrency = amount, currency
+	return balanceView(conn, snapshot, time.Now()), nil
+}
+
+func (m *Management) load(id uint) (*siteconnectiondomain.Connection, siteconnectiondomain.BalanceSnapshot, error) {
+	conn, err := m.connections.GetByID(id)
+	if err != nil {
+		return nil, siteconnectiondomain.BalanceSnapshot{}, err
+	}
+	if conn == nil {
+		return nil, siteconnectiondomain.BalanceSnapshot{}, siteconnectioncontract.ErrNotFound
+	}
+	snapshots, err := m.balances.ListBalanceSnapshots([]uint{id})
+	if len(snapshots) == 0 || err != nil {
+		return conn, siteconnectiondomain.BalanceSnapshot{}, err
+	}
+	return conn, snapshots[0], nil
+}
+
+func balanceAccountVersion(conn *siteconnectiondomain.Connection) string {
+	hash := sha256.Sum256([]byte(strings.Join([]string{conn.Protocol, conn.BaseURL, conn.ApiKey, conn.ApiSecret}, "\x00")))
+	return hex.EncodeToString(hash[:])
+}
+
+func balanceView(conn *siteconnectiondomain.Connection, snapshot siteconnectiondomain.BalanceSnapshot, now time.Time) BalanceView {
+	view := BalanceView{State: "unchecked", Risk: "unknown"}
+	if snapshot.AccountVersion == balanceAccountVersion(conn) && snapshot.CheckedAt != nil {
+		view.Amount, view.Currency = snapshot.Amount, snapshot.Currency
+		view.CheckedAt, view.LastSuccessAt = snapshot.CheckedAt, snapshot.LastSuccessAt
+		view.State = snapshot.CheckState
+		if view.State == "ok" && now.Sub(*view.CheckedAt) >= balanceStaleAfter {
+			view.State = "stale"
+		}
+	}
+	if conn.Status != constants.ConnectionStatusActive {
+		view.State = "disabled"
+	}
+	if snapshot.Threshold != "" && view.Currency == snapshot.ThresholdCurrency {
+		view.Threshold = snapshot.Threshold
+	} else {
+		switch view.Currency {
+		case "CNY":
+			view.Threshold = "50"
+		case "USD", "USDT":
+			view.Threshold = "10"
+		}
+	}
+	amount, err := decimal.NewFromString(view.Amount)
+	if err != nil || view.State == "disabled" {
+		return view
+	}
+	threshold, _ := decimal.NewFromString(view.Threshold)
+	switch {
+	case !amount.IsPositive():
+		view.Risk = "empty"
+	case amount.LessThanOrEqual(threshold):
+		view.Risk = "low"
+	default:
+		view.Risk = "normal"
+	}
+	return view
 }

@@ -187,6 +187,7 @@ type Container struct {
 	ResellerOperationsService     *reseller.OperationsService
 	ApiCredentialService          *apicredentialapp.Service
 	SiteConnectionService         *siteconnectionapp.Service
+	UpstreamManagement            *siteconnectionapp.Management
 	ProductMappingService         *mappingapp.Service
 	ProcurementOrderService       *procurementapp.Service
 	DownstreamCallbackService     *downstreamcallbackapp.Service
