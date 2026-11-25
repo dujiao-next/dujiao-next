@@ -3,20 +3,42 @@ package consumer
 import (
 	"github.com/dujiao-next/internal/app/container"
 	"github.com/dujiao-next/internal/logger"
-	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
 	"github.com/dujiao-next/internal/queue"
-
 	"github.com/hibiken/asynq"
+
+	notificationcontract "github.com/dujiao-next/internal/modules/notification/contract"
+	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
+	settingsmessaging "github.com/dujiao-next/internal/modules/settings/schema/messaging"
 )
 
 // Consumer 异步任务消费者
 type Consumer struct {
 	*container.Container
 	orderReader orderReader
+	emailSender orderStatusEmailSender
+}
+
+// orderStatusEmailSender 为订单及充值退款通知提供状态邮件发送能力。
+type orderStatusEmailSender interface {
+	SendOrderStatusEmailWithTemplate(string, notificationcontract.OrderStatusEmailInput, string, *settingsmessaging.OrderEmailTemplateSetting) error
 }
 
 type orderReader interface {
 	GetByID(id uint) (*orderdomain.Order, error)
+}
+
+// resolveStatusEmailSender 优先使用注入的发送器，否则使用应用装配的邮件服务。
+func (c *Consumer) resolveStatusEmailSender() orderStatusEmailSender {
+	if c == nil {
+		return nil
+	}
+	if c.emailSender != nil {
+		return c.emailSender
+	}
+	if c.Container == nil || c.EmailSender == nil {
+		return nil
+	}
+	return c.EmailSender
 }
 
 // New 创建消费者
@@ -38,6 +60,7 @@ func (c *Consumer) Register(mux *asynq.ServeMux) {
 		return
 	}
 	mux.HandleFunc(queue.TaskOrderStatusEmail, withPanicRecovery(queue.TaskOrderStatusEmail, c.handleOrderStatusEmail))
+	mux.HandleFunc(queue.TaskWalletRechargeRefundEmail, withPanicRecovery(queue.TaskWalletRechargeRefundEmail, c.handleWalletRechargeRefundEmail))
 	mux.HandleFunc(queue.TaskOrderAutoFulfill, withPanicRecovery(queue.TaskOrderAutoFulfill, c.handleOrderAutoFulfill))
 	mux.HandleFunc(queue.TaskOrderTimeoutCancel, withPanicRecovery(queue.TaskOrderTimeoutCancel, c.handleOrderTimeoutCancel))
 	mux.HandleFunc(queue.TaskWalletRechargeExpire, withPanicRecovery(queue.TaskWalletRechargeExpire, c.handleWalletRechargeExpire))

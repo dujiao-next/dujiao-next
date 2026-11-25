@@ -11,6 +11,7 @@ func RegisterPublicRoutes(public gin.IRoutes, handler *Handler) {
 func RegisterUserRoutes(user gin.IRoutes, handler *Handler) {
 	user.POST("/affiliate/open", handler.OpenAffiliate)
 	user.GET("/affiliate/dashboard", handler.GetAffiliateDashboard)
+	user.GET("/affiliate/products/:id/rates", handler.GetProductRates)
 	user.GET("/affiliate/commissions", handler.ListAffiliateCommissions)
 	user.GET("/affiliate/withdraws", handler.ListAffiliateWithdraws)
 	user.POST("/affiliate/withdraws", handler.ApplyAffiliateWithdraw)

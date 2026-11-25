@@ -113,7 +113,7 @@ interface DashboardRankings {
   top_channels: DashboardChannelRanking[]
 }
 
-const { t, locale } = useI18n()
+const { t, locale, availableLocales } = useI18n()
 
 const rankingSkuLabel = (item: DashboardProductRanking) =>
   formatSkuDisplayLabel({ sku_code: item.sku_code, spec_values: item.sku_spec_values }, locale.value)
@@ -345,8 +345,12 @@ const inventoryAlertBadgeClass = (item: AdminDashboardInventoryAlert) => {
 }
 
 const skuSpecLabel = (item: AdminDashboardInventoryAlert) => {
-  if (!item.sku_spec_values || Object.keys(item.sku_spec_values).length === 0) return ''
-  return Object.values(item.sku_spec_values).join(' / ')
+  const specs = item.sku_spec_values
+  if (!specs) return ''
+  if (availableLocales.some((language) => language in specs)) {
+    return specs[locale.value]?.trim() ?? ''
+  }
+  return Object.values(specs).join(' / ')
 }
 
 const displayedInventoryAlerts = computed(() => {
@@ -729,7 +733,7 @@ onMounted(() => {
                     {{ getLocalizedText(item.product_title) }}
                   </router-link>
                   <div v-if="skuSpecLabel(item)" class="text-xs text-muted-foreground mt-0.5">
-                    SKU: {{ skuSpecLabel(item) }}
+                    {{ t('admin.dashboard.inventoryAlerts.skuSpec', { spec: skuSpecLabel(item) }) }}
                     <span v-if="item.sku_code" class="ml-1">({{ item.sku_code }})</span>
                   </div>
                 </div>

@@ -1,13 +1,13 @@
 <template>
-  <div class="flex min-h-screen flex-col bg-background">
+  <div class="reseller-console flex min-h-screen flex-col bg-background">
     <ResellerConsoleTopbar :title="currentTitle" :nav-groups="navGroups" />
 
     <div class="mx-auto flex w-full max-w-7xl flex-1 gap-6 px-0 lg:px-6 lg:py-6">
       <aside class="hidden w-60 shrink-0 lg:block">
-        <div class="sticky top-20 rounded-xl border bg-card p-3 shadow-sm">
-          <nav class="space-y-4">
+        <div class="theme-float sticky top-20 rounded-[28px] bg-card p-2">
+          <nav class="space-y-2">
             <div v-for="group in navGroups" :key="group.key">
-              <p class="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              <p class="px-4 pb-1 pt-2 text-xs font-medium text-muted-foreground">
                 {{ group.title }}
               </p>
               <div class="space-y-1">
@@ -15,15 +15,12 @@
                   v-for="item in group.items"
                   :key="item.to"
                   :to="item.to"
-                  class="group relative flex items-center gap-2.5 rounded-lg py-2.5 pl-4 pr-3 text-sm font-semibold transition-colors"
+                  class="flex h-10 items-center gap-2.5 rounded-[14px] px-4 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
                   :class="isActive(item.to)
-                    ? 'bg-accent text-foreground'
-                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'"
+                    ? 'bg-foreground font-semibold text-background'
+                    : 'text-muted-foreground hover:bg-secondary hover:text-foreground'"
+                  :aria-current="isActive(item.to) ? 'page' : undefined"
                 >
-                  <span
-                    class="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full transition-all"
-                    :class="isActive(item.to) ? 'bg-primary' : 'bg-transparent'"
-                  ></span>
                   <component :is="item.icon" class="h-5 w-5 shrink-0" />
                   <span class="truncate">{{ item.label }}</span>
                 </RouterLink>
@@ -140,3 +137,31 @@ const initializeProfile = async () => {
 
 onMounted(initializeProfile)
 </script>
+
+<style scoped>
+/* 控制台各页沿用自己的 Card / 表格 / 筛选条，这里从外壳统一成默认模板的浮起卡片与胶囊按钮；
+   主色改墨色的变量覆盖在 style.css（与个人中心面板、弹窗共用一份）。
+   utilities 层用 !important 把 rounded-xl 钉在 --ui-radius-md 上，所以圆角只能改变量 */
+.reseller-console :deep(.rounded-xl.border.bg-card:not(.border-dashed)) {
+  --ui-radius-md: 22px;
+  border-width: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 10px 28px -14px rgba(0, 0, 0, 0.14);
+}
+.reseller-console :deep(.rounded-xl.border.bg-card > *) {
+  --ui-radius-md: 0.75rem;
+}
+:global(.dark) .reseller-console :deep(.rounded-xl.border.bg-card:not(.border-dashed)) {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+/* 卡片里再套的卡片不再浮起，退成灰底块 */
+.reseller-console :deep(.rounded-xl.border.bg-card .rounded-xl.border.bg-card:not(.border-dashed)) {
+  --ui-radius-md: 1rem;
+  background-color: color-mix(in srgb, var(--ui-bg-soft) 60%, transparent);
+  box-shadow: none;
+}
+.reseller-console :deep([data-slot='button']) {
+  --ui-radius-sm: 9999px;
+  --ui-radius-md: 9999px;
+  border-radius: 9999px;
+}
+</style>

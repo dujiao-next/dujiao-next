@@ -27,7 +27,7 @@ func (r staticOrderReader) GetByID(uint) (*orderdomain.Order, error) { return r.
 type staticProductReader struct{}
 
 func (staticProductReader) ListByIDs([]uint) ([]productdomain.Product, error) {
-	return []productdomain.Product{{ID: 1, IsAffiliateEnabled: true}}, nil
+	return []productdomain.Product{{ID: 1}}, nil
 }
 
 // 佣金重试任务晚于退款执行时，退款流程已找不到佣金可冲销，重试不能再生成佣金。
@@ -56,7 +56,7 @@ func TestHandleOrderPaidSkipsRefundedOrder(t *testing.T) {
 			if _, err := settings.UpdateAffiliateSetting(settingsintegration.AffiliateSetting{Enabled: true, CommissionRate: 20}); err != nil {
 				t.Fatalf("init affiliate setting: %v", err)
 			}
-			svc := affiliateapp.NewService(store, userstore.New(db), staticOrderReader{order}, staticProductReader{}, settings)
+			svc := affiliateapp.NewService(store, userstore.New(db), staticOrderReader{order}, staticProductReader{}, nil, settings)
 			if err := svc.HandleOrderPaid(order.ID); err != nil {
 				t.Fatalf("HandleOrderPaid: %v", err)
 			}

@@ -9,14 +9,14 @@
           { label: t('orderDetail.title') },
         ]"
       />
-      <div class="mb-8">
-        <h1 class="text-3xl font-black text-foreground mb-2">{{ t('orderDetail.title') }}</h1>
+      <div class="mb-6">
+        <h1 class="mb-1 text-[28px] font-bold tracking-tight">{{ t('orderDetail.title') }}</h1>
         <p class="text-muted-foreground text-sm">{{ t('orderDetail.subtitle') }}</p>
       </div>
 
       <!-- Loading Skeleton -->
       <div v-if="loading" class="space-y-6">
-        <div class="rounded-2xl border bg-card shadow-sm p-6 space-y-4">
+        <div class="theme-float rounded-[22px] bg-card p-5 md:p-6 space-y-4">
           <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div class="space-y-2">
               <div class="h-3 w-20 rounded theme-skeleton"></div>
@@ -31,7 +31,7 @@
             </div>
           </div>
         </div>
-        <div class="rounded-2xl border bg-card shadow-sm p-6 space-y-4">
+        <div class="theme-float rounded-[22px] bg-card p-5 md:p-6 space-y-4">
           <div class="h-5 w-28 rounded theme-skeleton"></div>
           <div v-for="i in 2" :key="i" class="flex gap-4">
             <div class="w-16 h-16 rounded-xl theme-skeleton shrink-0"></div>
@@ -53,15 +53,15 @@
       />
 
       <div v-else class="space-y-6">
-        <div class="rounded-2xl border bg-card shadow-sm p-6">
+        <div class="theme-float rounded-[22px] bg-card p-5 md:p-6">
           <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <div class="text-xs uppercase tracking-wider text-muted-foreground">{{ t('orders.orderNo') }}</div>
+              <div class="text-xs text-muted-foreground">{{ t('orders.orderNo') }}</div>
               <div class="text-sm font-semibold text-foreground mt-1">{{ order.order_no }}</div>
                 <div class="text-xs text-muted-foreground mt-2">{{ t('orderDetail.createdAtLabel') }}：{{ formatDate(order.created_at) }}</div>
             </div>
             <div class="flex flex-col items-start md:items-end gap-2">
-              <div class="text-xs uppercase tracking-wider text-muted-foreground">{{ t('orderDetail.amountTotal') }}</div>
+              <div class="text-xs text-muted-foreground">{{ t('orderDetail.amountTotal') }}</div>
               <div class="text-lg font-bold text-foreground">{{ formatMoney(order.total_amount,
                 order.currency) }}</div>
             </div>
@@ -69,7 +69,7 @@
               <Badge :variant="statusVariant(order.status)" size="sm">
                 {{ statusLabel(order.status) }}
               </Badge>
-              <Button v-if="order.status === 'pending_payment'" as-child size="sm">
+              <Button v-if="order.status === 'pending_payment'" as-child size="sm" class="rounded-full bg-foreground font-semibold text-background hover:bg-foreground/85">
                 <router-link :to="`/pay?order_no=${order.order_no}`">{{ t('orderDetail.payNow') }}</router-link>
               </Button>
               <Button v-if="order.status === 'pending_payment'" variant="destructive" size="sm" @click="cancelOrder">
@@ -80,18 +80,18 @@
         </div>
 
         <div v-if="order.children && order.children.length > 0"
-          class="rounded-2xl border bg-card shadow-sm p-6">
-          <h2 class="text-lg font-bold mb-4">{{ t('orderDetail.childOrdersTitle') }}</h2>
+          class="theme-float rounded-[22px] bg-card p-5 md:p-6">
+          <h2 class="mb-4 text-[17px] font-bold">{{ t('orderDetail.childOrdersTitle') }}</h2>
           <div class="space-y-4">
             <div v-for="child in order.children" :key="child.id"
-              class="border rounded-2xl p-4">
+              class="rounded-2xl bg-secondary/60 p-4">
               <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                 <div>
                   <div class="text-sm text-muted-foreground">{{ t('orderDetail.childOrderNo') }}：{{ child.order_no }}</div>
                   <div class="text-xs text-muted-foreground mt-1">{{ t('orderDetail.childOrderAmount') }}：{{
                     formatMoney(child.total_amount, child.currency || order.currency) }}</div>
                 </div>
-                <Badge :variant="statusVariant(resolvedChildStatus(child))" size="sm">
+                <Badge :variant="statusVariant(resolvedChildStatus(child))" size="sm" class="self-start md:self-auto">
                   {{ statusLabel(resolvedChildStatus(child)) }}
                 </Badge>
               </div>
@@ -100,9 +100,9 @@
                   }}</h3>
                 <div v-if="child.items && child.items.length" class="space-y-3">
                   <div v-for="(item, cidx) in child.items" :key="cidx"
-                    class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 border-b border-gray-100 pb-3 text-sm text-muted-foreground dark:border-white/5">
+                    class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 border-b pb-3 last:border-b-0 last:pb-0 text-sm text-muted-foreground">
                     <div class="flex min-w-0 items-start gap-3">
-                      <div class="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-white transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm dark:border-white/10 dark:bg-black/30 sm:h-16 sm:w-16">
+                      <div class="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-secondary sm:h-16 sm:w-16">
                         <SmartImage
                           :src="orderItemImage(item)"
                           :alt="getLocalizedText(item.title)"
@@ -120,7 +120,7 @@
                           <Badge v-for="(tag, index) in item.tags" :key="index" variant="neutral" size="sm" class="rounded-full">{{ tag }}</Badge>
                         </div>
                         <div v-if="manualSubmissionRows(item.manual_form_submission, item.manual_form_schema_snapshot).length"
-                          class="mt-3 rounded-xl border border-gray-200 bg-white p-3 text-xs text-gray-600 dark:border-white/10 dark:bg-black/30 dark:text-gray-300">
+                          class="mt-3 rounded-xl bg-card p-3 text-xs text-muted-foreground">
                           <div class="mb-2 font-semibold text-muted-foreground">{{ t('orderDetail.manualSubmissionTitle') }}</div>
                           <div v-for="row in manualSubmissionRows(item.manual_form_submission, item.manual_form_schema_snapshot)" :key="row.key" class="mb-1 last:mb-0">
                             <span class="text-foreground">{{ row.label }}</span>：{{ row.value }}
@@ -160,14 +160,12 @@
                 <div class="flex items-center justify-between mb-3">
                   <h3 class="text-sm font-semibold text-foreground">{{
                     t('orderDetail.childFulfillmentTitle') }}</h3>
-                  <button v-if="child.fulfillment?.status === 'delivered'"
-                    class="inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shadow-sm"
-                    :class="fulfillmentCopied ? 'bg-emerald-600 text-white' : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'"
+                  <Button v-if="child.fulfillment?.status === 'delivered'" size="sm"
                     @click="handleCopyFulfillment(child.fulfillment)">
                     <Copy v-if="!fulfillmentCopied" class="w-3.5 h-3.5" :stroke-width="2" />
                     <Check v-else class="w-3.5 h-3.5" :stroke-width="2" />
                     {{ fulfillmentCopied ? t('orderDetail.fulfillmentCopied') : t('orderDetail.fulfillmentCopy') }}
-                  </button>
+                  </Button>
                 </div>
                 <div v-if="child.fulfillment">
                   <div class="text-sm text-muted-foreground">{{ t('orderDetail.fulfillmentType') }}：{{
@@ -177,35 +175,35 @@
                   <div v-if="isFulfillmentTruncated(child.fulfillment)" class="mt-3">
                     <div class="flex items-center justify-between mb-2">
                       <span class="text-sm text-muted-foreground">{{ t('orderDetail.fulfillmentTotalLines', { count: child.fulfillment.payload_line_count }) }}</span>
-                      <button class="inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 transition-colors shadow-sm disabled:opacity-50"
+                      <Button size="sm"
                         :disabled="fulfillmentDownloading"
                         @click="handleDownloadFulfillment(child.order_no || order.order_no)">
                         <Download class="w-3.5 h-3.5" :stroke-width="2" />
                         {{ fulfillmentDownloading ? t('orderDetail.fulfillmentDownloading') : t('orderDetail.fulfillmentDownload') }}
-                      </button>
+                      </Button>
                     </div>
                     <div class="mb-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
                       {{ t('orderDetail.fulfillmentTruncatedHint') }}
                     </div>
-                    <div class="border rounded-xl p-4 text-sm text-muted-foreground whitespace-pre-wrap break-all overflow-hidden max-h-48 overflow-y-auto">{{ child.fulfillment.payload }}</div>
+                    <div class="rounded-2xl bg-secondary/60 p-4 text-sm text-muted-foreground whitespace-pre-wrap break-all overflow-hidden max-h-48 overflow-y-auto">{{ child.fulfillment.payload }}</div>
                   </div>
                   <div v-else-if="fulfillmentDeliveryLines(child.fulfillment).length"
-                    class="mt-3 border rounded-xl p-4 text-sm text-muted-foreground space-y-1 break-all overflow-hidden">
+                    class="mt-3 rounded-2xl bg-secondary/60 p-4 text-sm text-muted-foreground space-y-1 break-all overflow-hidden">
                     <div v-for="(line, index) in fulfillmentDeliveryLines(child.fulfillment)" :key="`child-fulfillment-${child.id}-${index}`">{{ line }}</div>
                   </div>
                   <div v-else-if="child.fulfillment.payload"
-                    class="mt-3 border rounded-xl p-4 text-sm text-muted-foreground whitespace-pre-wrap break-all overflow-hidden">
+                    class="mt-3 rounded-2xl bg-secondary/60 p-4 text-sm text-muted-foreground whitespace-pre-wrap break-all overflow-hidden">
                     {{ child.fulfillment.payload }}
                   </div>
                   <div v-if="child.fulfillment.status === 'delivered' && instructionBlocks(child.items).length"
                     class="mt-4 space-y-3">
                     <div v-for="(block, bi) in instructionBlocks(child.items)" :key="`child-inst-${child.id}-${bi}`"
-                      class="rounded-xl border border-blue-200 bg-blue-50/50 dark:border-blue-900 dark:bg-blue-950/30 p-4">
-                      <div class="flex items-center gap-2 mb-2 text-sm font-semibold text-blue-700 dark:text-blue-300">
+                      class="rounded-2xl bg-secondary/60 p-4">
+                      <div class="flex items-center gap-2 mb-2 text-sm font-semibold text-foreground">
                         <Info class="w-4 h-4" :stroke-width="2" />
                         {{ t('orderDetail.instructionsTitle') }}
                       </div>
-                      <div class="prose prose-sm max-w-none dark:prose-invert text-muted-foreground break-words" v-html="block.html"></div>
+                      <div class="prose prose-sm max-w-none dark:prose-invert text-muted-foreground break-words [&_img]:max-h-80 [&_img]:w-auto" v-html="block.html"></div>
                     </div>
                   </div>
                 </div>
@@ -216,25 +214,22 @@
         </div>
 
         <div v-if="order.fulfillment"
-          class="rounded-2xl border bg-card shadow-sm p-6">
+          class="theme-float rounded-[22px] bg-card p-5 md:p-6">
           <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg font-bold">{{ t('orderDetail.fulfillmentTitle') }}</h2>
+            <h2 class="text-[17px] font-bold">{{ t('orderDetail.fulfillmentTitle') }}</h2>
             <div class="flex items-center gap-2">
-              <button v-if="isFulfillmentTruncated(order.fulfillment)"
-                class="inline-flex items-center gap-1 text-sm font-medium px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 transition-colors shadow-sm disabled:opacity-50"
+              <Button v-if="isFulfillmentTruncated(order.fulfillment)"
                 :disabled="fulfillmentDownloading"
                 @click="handleDownloadFulfillment(order.order_no)">
                 <Download class="w-4 h-4" :stroke-width="2" />
                 {{ fulfillmentDownloading ? t('orderDetail.fulfillmentDownloading') : t('orderDetail.fulfillmentDownload') }}
-              </button>
-              <button v-if="order.fulfillment.status === 'delivered' && !isFulfillmentTruncated(order.fulfillment)"
-                class="inline-flex items-center gap-1 text-sm font-medium px-4 py-2 rounded-lg transition-colors shadow-sm"
-                :class="fulfillmentCopied ? 'bg-emerald-600 text-white' : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'"
+              </Button>
+              <Button v-if="order.fulfillment.status === 'delivered' && !isFulfillmentTruncated(order.fulfillment)"
                 @click="handleCopyFulfillment(order.fulfillment)">
                 <Copy v-if="!fulfillmentCopied" class="w-4 h-4" :stroke-width="2" />
                 <Check v-else class="w-4 h-4" :stroke-width="2" />
                 {{ fulfillmentCopied ? t('orderDetail.fulfillmentCopied') : t('orderDetail.fulfillmentCopy') }}
-              </button>
+              </Button>
             </div>
           </div>
           <div class="text-sm text-muted-foreground">{{ t('orderDetail.fulfillmentType') }}：{{
@@ -246,36 +241,36 @@
             <div class="mb-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
               {{ t('orderDetail.fulfillmentTruncatedHint') }}
             </div>
-            <div class="border rounded-xl p-4 text-sm text-muted-foreground whitespace-pre-wrap break-all overflow-hidden max-h-64 overflow-y-auto">{{ order.fulfillment.payload }}</div>
+            <div class="rounded-2xl bg-secondary/60 p-4 text-sm text-muted-foreground whitespace-pre-wrap break-all overflow-hidden max-h-64 overflow-y-auto">{{ order.fulfillment.payload }}</div>
           </div>
           <div v-else-if="fulfillmentDeliveryLines(order.fulfillment).length"
-            class="mt-4 border rounded-xl p-4 text-sm text-muted-foreground space-y-1 break-all overflow-hidden">
+            class="mt-4 rounded-2xl bg-secondary/60 p-4 text-sm text-muted-foreground space-y-1 break-all overflow-hidden">
             <div v-for="(line, index) in fulfillmentDeliveryLines(order.fulfillment)" :key="`fulfillment-${order.order_no || 'order'}-${index}`">{{ line }}</div>
           </div>
           <div v-else
-            class="mt-4 border rounded-xl p-4 text-sm text-muted-foreground whitespace-pre-wrap break-all overflow-hidden">
+            class="mt-4 rounded-2xl bg-secondary/60 p-4 text-sm text-muted-foreground whitespace-pre-wrap break-all overflow-hidden">
             {{ order.fulfillment.payload }}
           </div>
           <div v-if="order.fulfillment.status === 'delivered' && instructionBlocks(order.items).length"
             class="mt-4 space-y-3">
             <div v-for="(block, bi) in instructionBlocks(order.items)" :key="`order-inst-${bi}`"
-              class="rounded-xl border border-blue-200 bg-blue-50/50 dark:border-blue-900 dark:bg-blue-950/30 p-4">
-              <div class="flex items-center gap-2 mb-2 text-sm font-semibold text-blue-700 dark:text-blue-300">
+              class="rounded-2xl bg-secondary/60 p-4">
+              <div class="flex items-center gap-2 mb-2 text-sm font-semibold text-foreground">
                 <Info class="w-4 h-4" :stroke-width="2" />
                 {{ t('orderDetail.instructionsTitle') }}
               </div>
-              <div class="prose prose-sm max-w-none dark:prose-invert text-muted-foreground break-words" v-html="block.html"></div>
+              <div class="prose prose-sm max-w-none dark:prose-invert text-muted-foreground break-words [&_img]:max-h-80 [&_img]:w-auto" v-html="block.html"></div>
             </div>
           </div>
         </div>
 
-        <div class="rounded-2xl border bg-card shadow-sm p-6">
-          <h2 class="text-lg font-bold mb-4">{{ t('orderDetail.itemsTitle') }}</h2>
+        <div class="theme-float rounded-[22px] bg-card p-5 md:p-6">
+          <h2 class="mb-4 text-[17px] font-bold">{{ t('orderDetail.itemsTitle') }}</h2>
           <div v-if="order.items && order.items.length > 0" class="space-y-4">
             <div v-for="(item, idx) in order.items" :key="idx"
-              class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 border-b border-gray-100 pb-3 dark:border-white/5">
+              class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 border-b pb-3 last:border-b-0 last:pb-0">
               <div class="flex min-w-0 items-start gap-3">
-                <div class="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-white transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm dark:border-white/10 dark:bg-black/30 sm:h-16 sm:w-16">
+                <div class="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-secondary sm:h-16 sm:w-16">
                   <SmartImage
                     :src="orderItemImage(item)"
                     :alt="getLocalizedText(item.title)"
@@ -293,7 +288,7 @@
                     <Badge v-for="(tag, index) in item.tags" :key="index" variant="neutral" size="sm" class="rounded-full">{{ tag }}</Badge>
                   </div>
                   <div v-if="manualSubmissionRows(item.manual_form_submission, item.manual_form_schema_snapshot).length"
-                    class="mt-3 rounded-xl border border-gray-200 bg-white p-3 text-xs text-gray-600 dark:border-white/10 dark:bg-black/30 dark:text-gray-300">
+                    class="mt-3 rounded-xl bg-card p-3 text-xs text-muted-foreground">
                     <div class="mb-2 font-semibold text-muted-foreground">{{ t('orderDetail.manualSubmissionTitle') }}</div>
                     <div v-for="row in manualSubmissionRows(item.manual_form_submission, item.manual_form_schema_snapshot)" :key="row.key" class="mb-1 last:mb-0">
                       <span class="text-foreground">{{ row.label }}</span>：{{ row.value }}
@@ -332,58 +327,58 @@
           <div v-else class="text-sm text-muted-foreground">{{ t('orderDetail.noItems') }}</div>
         </div>
 
-        <div class="rounded-2xl border bg-card shadow-sm p-6">
-          <h2 class="text-lg font-bold mb-4">{{ t('orderDetail.amountTitle') }}</h2>
+        <div class="theme-float rounded-[22px] bg-card p-5 md:p-6">
+          <h2 class="mb-4 text-[17px] font-bold">{{ t('orderDetail.amountTitle') }}</h2>
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-            <div class="border rounded-xl p-4">
+            <div class="rounded-2xl bg-secondary/60 p-4">
               <div class="text-xs text-muted-foreground">{{ t('orderDetail.amountOriginal') }}</div>
-              <div class="text-foreground font-mono mt-1">{{ formatMoney(order.original_amount,
+              <div class="text-foreground tabular-nums mt-1">{{ formatMoney(order.original_amount,
                 order.currency) }}</div>
             </div>
-            <div class="border rounded-xl p-4">
+            <div class="rounded-2xl bg-secondary/60 p-4">
               <div class="text-xs text-muted-foreground">{{ t('orderDetail.amountDiscount') }}</div>
               <div
-                class="font-mono mt-1"
+                class="tabular-nums mt-1"
                 :class="hasDiscountAmount(order.discount_amount) ? 'text-rose-600 dark:text-rose-300' : 'text-foreground'"
               >
                 {{ formatDiscountMoney(order.discount_amount, order.currency) }}
               </div>
             </div>
-            <div class="border rounded-xl p-4">
+            <div class="rounded-2xl bg-secondary/60 p-4">
               <div class="text-xs text-muted-foreground">{{ t('orderDetail.amountTotal') }}</div>
-              <div class="text-foreground font-mono mt-1">{{ formatMoney(order.total_amount,
+              <div class="text-foreground tabular-nums mt-1">{{ formatMoney(order.total_amount,
                 order.currency) }}</div>
             </div>
-            <div v-if="hasAmount(order.wallet_paid_amount)" class="border rounded-xl p-4">
+            <div v-if="hasAmount(order.wallet_paid_amount)" class="rounded-2xl bg-secondary/60 p-4">
               <div class="text-xs text-muted-foreground">{{ t('orderDetail.amountWalletPaid') }}</div>
-              <div class="text-foreground font-mono mt-1">{{ formatMoney(order.wallet_paid_amount,
+              <div class="text-foreground tabular-nums mt-1">{{ formatMoney(order.wallet_paid_amount,
                 order.currency) }}</div>
             </div>
-            <div v-if="hasAmount(order.online_paid_amount)" class="border rounded-xl p-4">
+            <div v-if="hasAmount(order.online_paid_amount)" class="rounded-2xl bg-secondary/60 p-4">
               <div class="text-xs text-muted-foreground">{{ t('orderDetail.amountOnlinePaid') }}</div>
-              <div class="text-foreground font-mono mt-1">{{ formatMoney(order.online_paid_amount,
+              <div class="text-foreground tabular-nums mt-1">{{ formatMoney(order.online_paid_amount,
                 order.currency) }}</div>
             </div>
-            <div v-if="hasAmount(order.refunded_amount)" class="border rounded-xl p-4">
+            <div v-if="hasAmount(order.refunded_amount)" class="rounded-2xl bg-secondary/60 p-4">
               <div class="text-xs text-muted-foreground">{{ t('orderDetail.amountRefunded') }}</div>
-              <div class="text-foreground font-mono mt-1">{{ formatMoney(order.refunded_amount,
+              <div class="text-foreground tabular-nums mt-1">{{ formatMoney(order.refunded_amount,
                 order.currency) }}</div>
             </div>
             <div v-if="hasDiscountAmount(order.member_discount_amount)" class="border border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/30 rounded-xl p-4">
               <div class="text-xs text-amber-700 dark:text-amber-400">{{ t('orderDetail.amountMemberDiscount') }}</div>
-              <div class="text-amber-700 dark:text-amber-400 font-mono mt-1">{{ formatDiscountMoney(order.member_discount_amount,
+              <div class="text-amber-700 dark:text-amber-400 tabular-nums mt-1">{{ formatDiscountMoney(order.member_discount_amount,
                 order.currency) }}</div>
             </div>
             <div v-if="hasDiscountAmount(order.wholesale_discount_amount)" class="border border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/30 rounded-xl p-4">
               <div class="text-xs text-emerald-700 dark:text-emerald-400">{{ t('orderDetail.amountWholesaleDiscount') }}</div>
-              <div class="text-emerald-700 dark:text-emerald-400 font-mono mt-1">{{ formatDiscountMoney(order.wholesale_discount_amount,
+              <div class="text-emerald-700 dark:text-emerald-400 tabular-nums mt-1">{{ formatDiscountMoney(order.wholesale_discount_amount,
                 order.currency) }}</div>
             </div>
           </div>
         </div>
 
-        <div v-if="showRefundRecordsCard" class="rounded-2xl border bg-card shadow-sm p-6">
-          <h2 class="text-lg font-bold mb-4">{{ t('orderDetail.refundRecordsTitle') }}</h2>
+        <div v-if="showRefundRecordsCard" class="theme-float rounded-[22px] bg-card p-5 md:p-6">
+          <h2 class="mb-4 text-[17px] font-bold">{{ t('orderDetail.refundRecordsTitle') }}</h2>
           <div v-if="refundRecords.length > 0" class="overflow-x-auto rounded-xl border">
             <Table>
               <TableHeader>
@@ -399,7 +394,7 @@
                   :key="`refund-record-row-${idx}`"
                 >
                   <TableCell class="px-4 text-xs text-muted-foreground whitespace-nowrap">{{ formatDate(record.created_at) }}</TableCell>
-                  <TableCell class="px-4 font-mono text-sm text-foreground whitespace-nowrap">{{ formatMoney(record.amount, record.currency || order.currency) }}</TableCell>
+                  <TableCell class="px-4 tabular-nums text-sm text-foreground whitespace-nowrap">{{ formatMoney(record.amount, record.currency || order.currency) }}</TableCell>
                   <TableCell class="px-4 text-xs text-muted-foreground whitespace-pre-wrap break-words">{{ refundReasonText(record.remark) }}</TableCell>
                 </TableRow>
               </TableBody>
@@ -408,22 +403,22 @@
           <div v-else class="text-sm text-muted-foreground">{{ t('orderDetail.refundRecordsEmpty') }}</div>
         </div>
 
-        <div v-if="showTimeCard" class="rounded-2xl border bg-card shadow-sm p-6">
-          <h2 class="text-lg font-bold mb-4">{{ t('orderDetail.timeTitle') }}</h2>
+        <div v-if="showTimeCard" class="theme-float rounded-[22px] bg-card p-5 md:p-6">
+          <h2 class="mb-4 text-[17px] font-bold">{{ t('orderDetail.timeTitle') }}</h2>
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-            <div class="border rounded-xl p-4">
+            <div class="rounded-2xl bg-secondary/60 p-4">
               <div class="text-xs text-muted-foreground">{{ t('orderDetail.createdAtLabel') }}</div>
               <div class="text-foreground mt-1">{{ formatDate(order.created_at) }}</div>
             </div>
-            <div v-if="order.paid_at" class="border rounded-xl p-4">
+            <div v-if="order.paid_at" class="rounded-2xl bg-secondary/60 p-4">
               <div class="text-xs text-muted-foreground">{{ t('orderDetail.paidAtLabel') }}</div>
               <div class="text-foreground mt-1">{{ formatDate(order.paid_at) }}</div>
             </div>
-            <div v-if="order.expires_at" class="border rounded-xl p-4">
+            <div v-if="order.expires_at" class="rounded-2xl bg-secondary/60 p-4">
               <div class="text-xs text-muted-foreground">{{ t('orderDetail.expiresAtLabel') }}</div>
               <div class="text-foreground mt-1">{{ formatDate(order.expires_at) }}</div>
             </div>
-            <div v-if="order.canceled_at" class="border rounded-xl p-4">
+            <div v-if="order.canceled_at" class="rounded-2xl bg-secondary/60 p-4">
               <div class="text-xs text-muted-foreground">{{ t('orderDetail.canceledAtLabel') }}</div>
               <div class="text-foreground mt-1">{{ formatDate(order.canceled_at) }}</div>
             </div>

@@ -1,128 +1,88 @@
 <template>
-  <div
-    class="blog-detail-page min-h-screen bg-background text-foreground pt-24 pb-16 relative overflow-hidden">
-    <div class="container mx-auto px-4 max-w-4xl relative z-10">
-      <!-- Loading State -->
-      <div v-if="loading" class="animate-pulse space-y-8">
-        <div class="h-8 bg-muted rounded w-1/3"></div>
-        <div class="space-y-4">
-          <div class="h-12 bg-muted rounded w-3/4"></div>
-          <div class="h-6 bg-muted rounded w-1/2"></div>
-        </div>
-        <div class="h-96 bg-muted rounded-3xl"></div>
+  <div class="min-h-screen bg-background pb-16 pt-24 text-foreground">
+    <div class="container mx-auto max-w-3xl px-4">
+      <div v-if="loading" class="space-y-5">
+        <div class="theme-skeleton h-5 w-1/3 rounded"></div>
+        <div class="theme-skeleton h-96 rounded-[22px]"></div>
       </div>
 
-      <!-- Post Content -->
       <article v-else-if="post">
-        <!-- Breadcrumb -->
-        <nav class="mb-8 flex items-center space-x-2 text-sm text-muted-foreground font-medium">
-          <router-link to="/" class="text-muted-foreground transition-colors hover:text-foreground">{{ t('nav.home')
-          }}</router-link>
-          <span>/</span>
-          <router-link :to="backLink" class="text-muted-foreground transition-colors hover:text-foreground">{{ backText
-          }}</router-link>
-          <span>/</span>
-          <span class="text-foreground truncate max-w-[200px]">{{ getLocalizedText(post.title) }}</span>
+        <nav class="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
+          <router-link to="/" class="transition-colors hover:text-foreground">{{ t('nav.home') }}</router-link>
+          <span aria-hidden="true">/</span>
+          <router-link :to="backLink" class="transition-colors hover:text-foreground">{{ post.type === 'blog' ? t('nav.blog') : t('nav.notice') }}</router-link>
+          <span aria-hidden="true">/</span>
+          <span class="min-w-0 truncate text-foreground">{{ getLocalizedText(post.title) }}</span>
         </nav>
 
-        <Card
-          class="backdrop-blur-xl rounded-3xl p-8 md:p-12 shadow-2xl relative overflow-hidden">
-          <!-- Featured Image -->
-          <div v-if="post.thumbnail" class="mb-12 relative h-64 md:h-96 rounded-2xl overflow-hidden group">
-            <img :src="getImageUrl(post.thumbnail)" :alt="getLocalizedText(post.title)"
-              loading="lazy" class="w-full h-full object-cover">
-            <div class="absolute inset-0 bg-black/20 dark:bg-black/35"></div>
-          </div>
-
-          <!-- Post Header -->
-          <header class="mb-12 border-b pb-12">
-            <div class="flex flex-wrap items-center gap-4 mb-6">
-              <Badge :variant="post.type === 'blog' ? 'accent' : 'info'" class="uppercase tracking-wider">
-                {{ post.type === 'blog' ? t('nav.blog') : t('nav.notice') }}
-              </Badge>
-              <time class="text-sm text-muted-foreground font-mono">
-                {{ formatDate(post.published_at) }}
-              </time>
-            </div>
-
-            <h1 class="text-3xl md:text-5xl font-black text-foreground mb-6 leading-tight tracking-tight">
-              {{ getLocalizedText(post.title) }}
-            </h1>
-
-            <p v-if="post.summary" class="text-xl text-muted-foreground leading-relaxed font-light">
-              {{ getLocalizedText(post.summary) }}
+        <div class="theme-float rounded-[22px] bg-card p-5 md:rounded-[28px] md:p-10">
+          <header>
+            <p class="flex items-center gap-2 text-[13px] text-muted-foreground">
+              <span class="rounded-full bg-secondary px-2.5 py-0.5 font-medium text-foreground">{{ post.type === 'blog' ? t('nav.blog') : t('nav.notice') }}</span>
+              <time class="tabular-nums">{{ formatDate(post.published_at) }}</time>
             </p>
+            <h1 class="post-title mt-4 text-[28px] font-bold md:text-[40px]">{{ getLocalizedText(post.title) }}</h1>
+            <p v-if="post.summary" class="mt-4 text-[17px] leading-relaxed text-muted-foreground">{{ getLocalizedText(post.summary) }}</p>
           </header>
 
-          <!-- Post Content -->
-          <div v-html="processHtmlForDisplay(getLocalizedText(post.content))"
-            class="prose prose-lg max-w-none dark:prose-invert theme-prose">
-          </div>
+          <img
+            v-if="post.thumbnail"
+            :src="getImageUrl(post.thumbnail)"
+            :alt="getLocalizedText(post.title)"
+            class="mt-8 max-h-96 w-full rounded-2xl object-cover"
+          />
 
-          <!-- Related Products -->
-          <section v-if="relatedProducts.length"
-            class="mt-16 pt-12 border-t">
-            <h2 class="text-2xl font-bold text-foreground mb-8 flex items-center gap-3">
-              <span class="w-1.5 h-7 bg-primary rounded-full"></span>
-              {{ t('blog.relatedProducts') }}
-            </h2>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div
+            v-html="processHtmlForDisplay(getLocalizedText(post.content))"
+            class="prose max-w-none theme-prose mt-8 border-t pt-8 dark:prose-invert md:prose-lg"
+          ></div>
+
+          <section v-if="relatedProducts.length" class="mt-10 border-t pt-8">
+            <h2 class="text-[17px] font-bold">{{ t('blog.relatedProducts') }}</h2>
+            <div class="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
               <router-link
                 v-for="rp in relatedProducts"
                 :key="rp.id"
                 :to="`/products/${rp.slug}`"
-                class="group flex items-center gap-4 bg-card backdrop-blur-md border rounded-2xl p-4 hover:shadow-xl hover:-translate-y-0.5 transition-all"
+                class="flex items-center gap-3 rounded-2xl bg-secondary/60 p-2 pr-4 transition-colors hover:bg-secondary focus-visible:outline-2 focus-visible:outline-primary"
               >
-                <div v-if="rp.image"
-                  class="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-muted">
-                  <img :src="getImageUrl(rp.image)" :alt="getLocalizedText(rp.title)" loading="lazy"
-                    class="h-full w-full object-cover transition-transform group-hover:scale-110" />
+                <div v-if="rp.image" class="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-card">
+                  <img :src="getImageUrl(rp.image)" alt="" loading="lazy" class="h-full w-full object-cover" />
                 </div>
-                <div class="min-w-0 flex-1">
-                  <div class="font-semibold text-foreground truncate">{{ getLocalizedText(rp.title) }}</div>
-                  <div class="mt-1 font-mono text-sm text-muted-foreground">
-                    {{ formatPrice(rp.price_amount) }}
-                  </div>
+                <div class="min-w-0 flex-1" :class="!rp.image && 'pl-2'">
+                  <div class="truncate text-[15px] font-semibold">{{ getLocalizedText(rp.title) }}</div>
+                  <div class="mt-0.5 text-sm font-bold tabular-nums">{{ formatPrice(rp.price_amount) }}</div>
                 </div>
+                <ChevronRight class="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
               </router-link>
             </div>
           </section>
 
-          <!-- Footer -->
-          <footer class="mt-16 pt-12 border-t flex justify-center">
-            <Button variant="secondary" as-child class="rounded-full h-11 px-6">
-              <router-link :to="backLink" class="group">
-                <ArrowLeft class="transition-transform group-hover:-translate-x-1" />
-                <span class="font-medium">{{ backText }}</span>
-              </router-link>
-            </Button>
+          <footer class="mt-10 border-t pt-6">
+            <router-link :to="backLink" class="theme-pill-link pl-2.5 pr-3.5">
+              <ChevronLeft class="h-3.5 w-3.5" aria-hidden="true" />{{ backText }}
+            </router-link>
           </footer>
-        </Card>
+        </div>
       </article>
 
-      <!-- Error State -->
-      <Card v-else
-        class="text-center py-24 rounded-3xl backdrop-blur-sm">
-        <AlertCircle class="w-20 h-20 mx-auto text-muted-foreground mb-6" :stroke-width="1.5" />
-        <p class="text-muted-foreground text-xl mb-8">
-          {{ t('blogDetail.notFound') }}
-        </p>
-        <Button as-child class="rounded-full h-11 px-8">
+      <div v-else class="theme-float rounded-[22px] bg-card px-6 py-20 text-center">
+        <AlertCircle class="mx-auto mb-5 h-14 w-14 text-muted-foreground" :stroke-width="1.5" />
+        <p class="mb-6 text-lg text-muted-foreground">{{ t('blogDetail.notFound') }}</p>
+        <Button as-child class="h-11 rounded-full bg-foreground px-6 font-semibold text-background hover:bg-foreground/85">
           <router-link to="/blog">{{ t('blogDetail.backToBlog') }}</router-link>
         </Button>
-      </Card>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, AlertCircle } from 'lucide-vue-next'
+import { AlertCircle, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import { getImageUrl } from '../utils/image'
 import { processHtmlForDisplay } from '../utils/content'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
 import { useBlogDetail } from '../composables/useBlogDetail'
 
 const { t } = useI18n()
@@ -131,3 +91,11 @@ const {
   loading, post, relatedProducts, getLocalizedText, formatDate, formatPrice, backLink, backText,
 } = useBlogDetail()
 </script>
+
+<style scoped>
+.post-title {
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+</style>

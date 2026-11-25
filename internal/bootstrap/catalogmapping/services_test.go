@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	mappingdomain "github.com/dujiao-next/internal/modules/catalog/mapping/domain"
@@ -495,6 +496,119 @@ func listProductsHandler(items []upstream.UpstreamProduct, includesInactive bool
 			"page_size":         50,
 			"includes_inactive": includesInactive,
 		})
+	}
+}
+
+// 按分类批量导入必须复用列表里已拿到的商品数据，不能逐商品再 GetProduct：
+// 上游默认 60 次/分钟，逐个请求会让商品多的站点导入半路被限流。
+func TestBatchImportByCategoryReusesListedProducts(t *testing.T) {
+	var getProductCalls int32
+	svc, _, mapping, cleanup := setupMappingWithUpstreamHandler(t,
+		"file:batch_import_reuses_list?mode=memory&cache=shared",
+		func(w http.ResponseWriter, r *http.Request) {
+			// 列表接口能拿到完整商品，导入不应再走详情接口；这里对详情请求返回 429，
+			// 一旦代码回退到逐商品 GetProduct，测试会因导入失败而失败。
+			if strings.HasPrefix(r.URL.Path, "/api/v1/upstream/products/") {
+				atomic.AddInt32(&getProductCalls, 1)
+				w.WriteHeader(http.StatusTooManyRequests)
+				_ = json.NewEncoder(w).Encode(map[string]any{"error_code": "rate_limited", "error_message": "too many requests"})
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"ok": true,
+				"items": []upstream.UpstreamProduct{{
+					ID:              901,
+					Slug:            "batch-listed",
+					Title:           jsonmap.JSON{"zh-CN": "列表商品"},
+					PriceAmount:     "10.00",
+					Currency:        "CNY",
+					FulfillmentType: constants.FulfillmentTypeAuto,
+					IsActive:        true,
+					CategoryID:      1,
+					SKUs: []upstream.UpstreamSKU{
+						{ID: 902, SKUCode: "SKU-B", PriceAmount: "10.00", IsActive: true},
+					},
+				}},
+				"total":     1,
+				"page":      1,
+				"page_size": 200,
+			})
+		},
+	)
+	defer cleanup()
+
+	result, err := svc.BatchImportByCategory(mapping.ConnectionID, 1, false, 1)
+	if err != nil {
+		t.Fatalf("BatchImportByCategory returned error: %v", err)
+	}
+	if result.Total != 1 || result.SuccessCount != 1 {
+		t.Fatalf("expected 1/1 imported, got total=%d success=%d errors=%+v", result.Total, result.SuccessCount, result.Errors)
+	}
+	if calls := atomic.LoadInt32(&getProductCalls); calls != 0 {
+		t.Fatalf("batch import must reuse listed products, got %d GetProduct calls", calls)
+	}
+}
+
+// 按 ID 批量导入选中够多时走整站扫描：列表里有的商品不再逐个 GetProduct，
+// 列表里没有的 ID 回退到 GetProduct，两条路都要导入成功。
+func TestBatchImportByIDsScansListAndFallsBackForMissing(t *testing.T) {
+	const missingID = 2000
+	upstreamItem := func(id uint) upstream.UpstreamProduct {
+		return upstream.UpstreamProduct{
+			ID:              id,
+			Slug:            "scan-" + strconv.Itoa(int(id)),
+			Title:           jsonmap.JSON{"zh-CN": "扫描商品"},
+			PriceAmount:     "10.00",
+			Currency:        "CNY",
+			FulfillmentType: constants.FulfillmentTypeAuto,
+			IsActive:        true,
+			CategoryID:      1,
+			SKUs:            []upstream.UpstreamSKU{{ID: id + 10000, SKUCode: "SKU", PriceAmount: "10.00", IsActive: true}},
+		}
+	}
+	listed := make([]upstream.UpstreamProduct, 0, 60)
+	for id := uint(1001); id <= 1060; id++ {
+		listed = append(listed, upstreamItem(id))
+	}
+
+	var getProductCalls int32
+	svc, _, mapping, cleanup := setupMappingWithUpstreamHandler(t,
+		"file:batch_import_ids_scan?mode=memory&cache=shared",
+		func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			if strings.HasPrefix(r.URL.Path, "/api/v1/upstream/products/") {
+				atomic.AddInt32(&getProductCalls, 1)
+				_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "product": upstreamItem(missingID)})
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"ok": true, "items": listed, "total": len(listed), "page": 1, "page_size": 200,
+			})
+		},
+	)
+	defer cleanup()
+
+	ids := make([]uint, 0, 50)
+	for id := uint(1001); id <= 1049; id++ {
+		ids = append(ids, id)
+	}
+	ids = append(ids, missingID)
+
+	outcomes, err := svc.BatchImportUpstreamProducts(mapping.ConnectionID, ids, 1, false)
+	if err != nil {
+		t.Fatalf("BatchImportUpstreamProducts returned error: %v", err)
+	}
+	if len(outcomes) != len(ids) {
+		t.Fatalf("expected %d outcomes, got %d", len(ids), len(outcomes))
+	}
+	for _, o := range outcomes {
+		if o.Err != nil || o.Mapping == nil {
+			t.Fatalf("upstream product %d not imported: %v", o.UpstreamProductID, o.Err)
+		}
+	}
+	if calls := atomic.LoadInt32(&getProductCalls); calls != 1 {
+		t.Fatalf("expected GetProduct only for the product missing from the list, got %d calls", calls)
 	}
 }
 

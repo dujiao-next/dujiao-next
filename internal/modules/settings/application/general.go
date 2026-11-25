@@ -3,7 +3,6 @@ package settingsapp
 import (
 	"encoding/json"
 	"errors"
-	settingsvalue "github.com/dujiao-next/internal/modules/settings/schema/value"
 	"net/mail"
 	"strings"
 	"time"
@@ -11,6 +10,9 @@ import (
 	"github.com/dujiao-next/internal/config"
 	"github.com/dujiao-next/internal/constants"
 	"github.com/dujiao-next/internal/shared/jsonmap"
+
+	settingscontract "github.com/dujiao-next/internal/modules/settings/contract"
+	settingsvalue "github.com/dujiao-next/internal/modules/settings/schema/value"
 )
 
 var (
@@ -26,20 +28,15 @@ const (
 	orderPaymentExpireMinutesMin     = 1
 	orderPaymentExpireMinutesMax     = 10080
 
-	orderRefundMaxDaysDefault = 30
-	orderRefundMaxDaysMin     = 0
-	orderRefundMaxDaysMax     = 3650
+	orderRefundMaxDaysDefault = settingscontract.DefaultOrderMaxRefundDays
+	orderRefundMaxDaysMin     = settingscontract.OrderMaxRefundDaysMin
+	orderRefundMaxDaysMax     = settingscontract.OrderMaxRefundDaysLimit
 )
 
 // OrderConfig 订单配置。
 type OrderConfig struct {
 	PaymentExpireMinutes int `json:"payment_expire_minutes"`
 	MaxRefundDays        int `json:"max_refund_days"`
-}
-
-// OrderRefundConfig 订单退款配置。
-type OrderRefundConfig struct {
-	MaxRefundDays int `json:"max_refund_days"`
 }
 
 // SiteBrand 站点品牌信息
@@ -129,19 +126,13 @@ func NormalizeOrderConfig(cfg OrderConfig) OrderConfig {
 }
 
 // DefaultOrderRefundConfig 默认订单退款配置。
-func DefaultOrderRefundConfig() OrderRefundConfig {
-	return OrderRefundConfig{
-		MaxRefundDays: DefaultOrderConfig().MaxRefundDays,
-	}
+func DefaultOrderRefundConfig() settingscontract.OrderRefundConfig {
+	return settingscontract.DefaultOrderRefundConfig()
 }
 
 // NormalizeOrderRefundConfig 归一化订单退款配置。
-func NormalizeOrderRefundConfig(cfg OrderRefundConfig) OrderRefundConfig {
-	normalized := NormalizeOrderConfig(OrderConfig{
-		PaymentExpireMinutes: DefaultOrderConfig().PaymentExpireMinutes,
-		MaxRefundDays:        cfg.MaxRefundDays,
-	})
-	return OrderRefundConfig{MaxRefundDays: normalized.MaxRefundDays}
+func NormalizeOrderRefundConfig(cfg settingscontract.OrderRefundConfig) settingscontract.OrderRefundConfig {
+	return settingscontract.NormalizeOrderRefundConfig(cfg)
 }
 
 // orderConfigFromJSON 从 JSON map 解析订单配置。
@@ -211,32 +202,18 @@ func (s *Service) GetOrderConfig(defaultCfg config.OrderConfig) (OrderConfig, er
 }
 
 // GetOrderRefundConfig 获取订单退款配置。
-func (s *Service) GetOrderRefundConfig() (OrderRefundConfig, error) {
+func (s *Service) GetOrderRefundConfig() (settingscontract.OrderRefundConfig, error) {
 	fallback := DefaultOrderRefundConfig()
 	cfg, err := s.GetOrderConfig(config.OrderConfig{})
 	if err != nil {
 		return fallback, err
 	}
-	return OrderRefundConfig{MaxRefundDays: cfg.MaxRefundDays}, nil
+	return settingscontract.OrderRefundConfig{MaxRefundDays: cfg.MaxRefundDays}, nil
 }
 
 // IsOrderRefundWindowExpired 判断订单是否已超过可退款时间窗口（优先 paidAt，其次 createdAt）。
 func IsOrderRefundWindowExpired(createdAt time.Time, paidAt *time.Time, maxRefundDays int, now time.Time) bool {
-	normalizedDays := NormalizeOrderRefundConfig(OrderRefundConfig{
-		MaxRefundDays: maxRefundDays,
-	}).MaxRefundDays
-	if normalizedDays == 0 {
-		return false
-	}
-	baseAt := createdAt
-	if paidAt != nil && !paidAt.IsZero() {
-		baseAt = *paidAt
-	}
-	if baseAt.IsZero() {
-		return false
-	}
-	deadline := baseAt.AddDate(0, 0, normalizedDays)
-	return now.After(deadline)
+	return settingscontract.IsOrderRefundWindowExpired(createdAt, paidAt, maxRefundDays, now)
 }
 
 // GetOrderPaymentExpireMinutes 获取订单超时分钟配置

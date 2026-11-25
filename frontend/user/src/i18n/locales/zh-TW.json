@@ -76,6 +76,33 @@
       "payWechat": "微信"
     }
   },
+  "atelier": {
+    "trustAuto": "7×24h 自動化秒級交付",
+    "autoShort": "自動交付",
+    "manualShort": "人工交付",
+    "buyShort": "選購",
+    "quickSearch": "快速檢索",
+    "heroSubtitle": "直接輸入關鍵詞或選擇分類，快速查看即時庫存與規格報價。",
+    "viewCard": "精密卡片",
+    "viewTable": "規格橫表",
+    "catalogHeading": "全部商品",
+    "receiptTitle": "即時訂單回執",
+    "receiptReady": "可下單",
+    "receiptUnavailable": "暫不可購",
+    "receiptProduct": "商品",
+    "receiptSku": "已選規格",
+    "receiptDelivery": "交付方式",
+    "receiptUnitQty": "單價 × 數量",
+    "receiptSubtotal": "預計小計",
+    "stepSku": "選擇商品規格",
+    "stepQty": "配置購買數量",
+    "stepDetail": "商品詳情與說明",
+    "changelogTag": "UPDATES",
+    "assurance": {
+      "autoDesc": "支付完成後系統自動交付",
+      "manualDesc": "專人核驗快速交付"
+    }
+  },
   "breadcrumb": {
     "label": "麵包屑導航",
     "back": "返回{name}"
@@ -129,7 +156,6 @@
     },
     "featured": {
       "title": "精選商品",
-      "description": "探索我們精心挑選的優質數位資產系列。",
       "empty": "暫無商品",
       "viewAll": "查看全部商品"
     },
@@ -144,7 +170,6 @@
     }
   },
   "products": {
-    "subtitle": "瀏覽我們的精選商品",
     "priceAria": "價格 {price}",
     "promotionPriceAria": "促銷價 {price}",
     "originalPriceAria": "原價 {price}",
@@ -202,8 +227,12 @@
     "deliveryReassuranceManual": "付款成功後由人工為你處理，處理進度與結果會同步到訂單頁與郵箱。",
     "loginToBuy": "登入後購買",
     "addToCart": "加入購物車",
+    "copyAffiliateLink": "複製推廣連結",
+    "copyAffiliateLinkSuccess": "推廣連結已複製",
+    "copyAffiliateLinkFailed": "複製失敗，請手動複製",
+    "affiliateRateHint": "推廣此商品可獲 {rate}% 返利",
+    "affiliateRateNone": "此商品不參與推廣返利",
     "buyNow": "立即購買",
-    "categoryLabel": "分類",
     "fulfillmentLabel": "交付方式",
     "skuTitle": "選擇規格",
     "skuRequired": "請先選擇商品規格再購買",
@@ -557,6 +586,8 @@
       "rechargeStatus": {
         "pending": "待支付",
         "success": "已到帳",
+        "partially_refunded": "部分退款",
+        "refunded": "已退款",
         "failed": "支付失敗",
         "expired": "支付逾期"
       },
@@ -597,6 +628,7 @@
       "affiliateCode": "聯盟ID",
       "copyPromotionUrl": "複製推廣連結",
       "copySuccess": "推廣連結已複製",
+      "disabledNotice": "你的推廣資格已被停用：不會產生新的佣金，提現也已暫停。如有疑問請聯繫站點客服。",
       "conversionRate": "轉化率",
       "conversionDetail": "點擊 {clicks} · 有效訂單 {orders}",
       "pendingCommission": "待確認佣金",

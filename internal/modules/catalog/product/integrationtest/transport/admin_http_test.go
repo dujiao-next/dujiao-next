@@ -551,3 +551,105 @@ func TestAdminProductListFiltersByActiveState(t *testing.T) {
 		t.Fatalf("is_active=0 + non-matching search should be empty, got %+v", got)
 	}
 }
+
+// 返利比例字段遵循三态语义：未携带保留原值，显式 null 清除为继承，数值表示覆盖。
+// 旧后台页面与只改价格的脚本不会发送该字段，此时不能把「不参与返利」的商品改成发佣金。
+func TestUpdateProductAffiliateRateTriState(t *testing.T) {
+	h, db := setupAdminProductHandlerTest(t)
+
+	category := categorydomain.Category{
+		Slug:     "affiliate-tri-state-category",
+		NameJSON: jsonmap.JSON{"zh-CN": "affiliate-tri-state-category"},
+	}
+	if err := db.Create(&category).Error; err != nil {
+		t.Fatalf("create category failed: %v", err)
+	}
+
+	rate := money.FromDecimal(decimal.Zero)
+	product := productdomain.Product{
+		CategoryID:           category.ID,
+		Slug:                 "affiliate-tri-state",
+		TitleJSON:            jsonmap.JSON{"zh-CN": "affiliate-tri-state"},
+		PriceAmount:          money.FromDecimal(decimal.NewFromInt(10)),
+		FulfillmentType:      constants.FulfillmentTypeManual,
+		PurchaseType:         constants.ProductPurchaseMember,
+		ManualStockTotal:     0,
+		IsActive:             true,
+		AffiliateRatePercent: &rate,
+	}
+	if err := db.Create(&product).Error; err != nil {
+		t.Fatalf("create product failed: %v", err)
+	}
+
+	update := func(t *testing.T, extra string) *productdomain.Product {
+		t.Helper()
+		body := fmt.Sprintf(`{"category_id":%d,"slug":"affiliate-tri-state","title":{"zh-CN":"affiliate-tri-state"},"price_amount":10,"purchase_type":"member","fulfillment_type":"manual","manual_stock_total":0,%s"sort_order":0}`, category.ID, extra)
+		req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/v1/admin/products/%d", product.ID), strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = req
+		c.Params = gin.Params{{Key: "id", Value: fmt.Sprintf("%d", product.ID)}}
+
+		h.UpdateProduct(c)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected status 200, got %d body=%s", w.Code, w.Body.String())
+		}
+		reloaded, err := productgormstore.NewProductStore(db).GetByID(fmt.Sprintf("%d", product.ID))
+		if err != nil {
+			t.Fatalf("reload product failed: %v", err)
+		}
+		return reloaded
+	}
+
+	// 未携带字段：保留原来的 0（不参与返利）。
+	if got := update(t, ""); got.AffiliateRatePercent == nil || !got.AffiliateRatePercent.IsZero() {
+		t.Fatalf("missing field should keep 0, got %+v", got.AffiliateRatePercent)
+	}
+
+	// 数值：覆盖为自定义比例。
+	if got := update(t, `"affiliate_rate_percent":25,`); got.AffiliateRatePercent == nil || !got.AffiliateRatePercent.Equal(decimal.NewFromInt(25)) {
+		t.Fatalf("explicit rate should be stored, got %+v", got.AffiliateRatePercent)
+	}
+
+	// 显式 null：清除为继承。
+	if got := update(t, `"affiliate_rate_percent":null,`); got.AffiliateRatePercent != nil {
+		t.Fatalf("explicit null should clear the override, got %+v", got.AffiliateRatePercent)
+	}
+
+	// 旧开关 is_affiliate_enabled：未刷新的旧后台页面只会发它，false 必须真的关掉返利。
+	if got := update(t, `"is_affiliate_enabled":false,`); got.AffiliateRatePercent == nil || !got.AffiliateRatePercent.IsZero() {
+		t.Fatalf("legacy false should store 0, got %+v", got.AffiliateRatePercent)
+	}
+	if got := update(t, `"is_affiliate_enabled":true,`); got.AffiliateRatePercent != nil {
+		t.Fatalf("legacy true should follow the site-wide rate, got %+v", got.AffiliateRatePercent)
+	}
+	// 两个字段同时出现时以新字段为准。
+	if got := update(t, `"is_affiliate_enabled":false,"affiliate_rate_percent":25,`); got.AffiliateRatePercent == nil || !got.AffiliateRatePercent.Equal(decimal.NewFromInt(25)) {
+		t.Fatalf("new field should win over the legacy switch, got %+v", got.AffiliateRatePercent)
+	}
+
+	// 超出范围仍返回 400 而不是 500。
+	body := fmt.Sprintf(`{"category_id":%d,"slug":"affiliate-tri-state","title":{"zh-CN":"affiliate-tri-state"},"price_amount":10,"purchase_type":"member","fulfillment_type":"manual","manual_stock_total":0,"affiliate_rate_percent":150,"sort_order":0}`, category.ID)
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/v1/admin/products/%d", product.ID), strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = req
+	c.Params = gin.Params{{Key: "id", Value: fmt.Sprintf("%d", product.ID)}}
+	h.UpdateProduct(c)
+	// 接口统一用响应体里的 status_code 表达业务错误码。
+	var errResp struct {
+		StatusCode int    `json:"status_code"`
+		Msg        string `json:"msg"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &errResp); err != nil {
+		t.Fatalf("decode error response failed: %v body=%s", err, w.Body.String())
+	}
+	if errResp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("out-of-range rate should return 400, got %d body=%s", errResp.StatusCode, w.Body.String())
+	}
+	if !strings.Contains(errResp.Msg, "0-100") {
+		t.Fatalf("expected affiliate rate error message, got %q", errResp.Msg)
+	}
+}

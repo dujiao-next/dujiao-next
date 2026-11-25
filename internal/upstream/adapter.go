@@ -48,6 +48,11 @@ type ListProductsOpts struct {
 type ProductListResult struct {
 	Total int               `json:"total"`
 	Items []UpstreamProduct `json:"items"`
+	// Page/PageSize 是上游回声的分页参数。上游会把 page_size 压到自己的上限，
+	// 下游翻页时必须以这里为准，否则请求 200 条只拿回 50 条会被误判成最后一页。
+	// 旧版上游不返回这两个字段时为 0，调用方需回退到请求值。
+	Page     int `json:"page"`
+	PageSize int `json:"page_size"`
 	// IncludesInactive 上游是否真的返回了下架商品（响应回声字段）
 	// 旧上游不识别 include_inactive 参数，此字段为 false，下游不可据此推断"missing=已删除"
 	IncludesInactive bool `json:"includes_inactive"`

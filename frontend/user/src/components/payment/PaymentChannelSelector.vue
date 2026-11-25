@@ -4,14 +4,15 @@
       :disabled="isDisabled(channel)"
       :title="isDisabled(channel) ? channelHint(channel) : ''"
       @click="handleSelect(channel)"
-      class="text-left border rounded-xl p-4 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
-      :class="props.modelValue === channel.id && !isDisabled(channel) ? 'border-primary/45 bg-primary/10' : 'bg-card hover:border-foreground/25'">
+      class="text-left p-4 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+      :class="channelClass(props.modelValue === channel.id && !isDisabled(channel))">
       <div class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-2">
           <img v-if="channel.icon" :src="getImageUrl(channel.icon)" loading="lazy" class="h-5 w-5 rounded object-contain shrink-0" />
           <div class="text-foreground font-medium">{{ channel.name }}</div>
         </div>
-        <Badge v-if="props.modelValue === channel.id && !isDisabled(channel)" variant="accent" size="xs">
+        <Check v-if="props.ink && props.modelValue === channel.id && !isDisabled(channel)" class="h-4 w-4 shrink-0" :stroke-width="3" :aria-label="t('payment.selected')" />
+        <Badge v-else-if="props.modelValue === channel.id && !isDisabled(channel)" variant="accent" size="xs">
           {{ t('payment.selected') }}
         </Badge>
       </div>
@@ -33,6 +34,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
+import { Check } from 'lucide-vue-next'
 import { getImageUrl } from '../../utils/image'
 import { Badge } from '@/components/ui/badge'
 
@@ -46,9 +48,16 @@ const props = defineProps<{
   channels: any[]
   modelValue: number | null
   showBalanceOption: boolean
+  // 默认模板用：选中态为墨色描边而非主题色
+  ink?: boolean
   isChannelDisabledForAmount?: (channel?: any) => boolean
   channelAmountLimitHint?: (channel?: any) => string
 }>()
+
+const channelClass = (selected: boolean) => {
+  if (props.ink) return ['rounded-2xl border-2', selected ? 'border-foreground bg-card' : 'border-transparent bg-secondary hover:border-foreground/40']
+  return ['border rounded-xl', selected ? 'border-primary/45 bg-primary/10' : 'bg-card hover:border-foreground/25']
+}
 
 const isDisabled = (channel?: any) => {
   if (!props.isChannelDisabledForAmount) return false

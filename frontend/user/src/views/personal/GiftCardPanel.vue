@@ -55,7 +55,7 @@
             </div>
 
             <div v-if="redeemCaptchaEnabled" class="rounded-xl border px-4 py-3">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{{ t('auth.common.captchaLabel') }}</p>
+              <p class="text-xs font-semibold text-muted-foreground">{{ t('auth.common.captchaLabel') }}</p>
               <div class="mt-2">
                 <ImageCaptcha
                   v-if="captchaProvider === 'image'"

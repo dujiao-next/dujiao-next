@@ -163,3 +163,29 @@ func TestCartRepositoryUpsertUsesProductAndSKUDimension(t *testing.T) {
 		t.Fatalf("second sku quantity should keep 2 got %d", gotSecond.Quantity)
 	}
 }
+
+func TestCartRepositoryUpsertRevivesRemovedItem(t *testing.T) {
+	repo, _ := setupCartRepositoryTest(t)
+	now := time.Now()
+	add := func(quantity int) {
+		t.Helper()
+		item := &domain.Item{UserID: 7, ProductID: 1, SKUID: 2, Quantity: quantity, FulfillmentType: "manual", CreatedAt: now, UpdatedAt: now}
+		if err := repo.Upsert(item); err != nil {
+			t.Fatalf("upsert failed: %v", err)
+		}
+	}
+
+	add(3)
+	if err := repo.DeleteByUserProductSKU(7, 1, 2); err != nil {
+		t.Fatalf("delete failed: %v", err)
+	}
+	add(1)
+
+	items, err := repo.ListByUser(7)
+	if err != nil {
+		t.Fatalf("list failed: %v", err)
+	}
+	if len(items) != 1 || items[0].Quantity != 1 {
+		t.Fatalf("expected one revived item with quantity 1, got %+v", items)
+	}
+}

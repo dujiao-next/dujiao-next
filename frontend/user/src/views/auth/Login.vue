@@ -1,22 +1,16 @@
 <template>
-  <div class="relative flex min-h-screen items-center justify-center bg-background text-foreground theme-auth-page px-4 py-16 sm:px-6">
+  <div class="relative flex min-h-screen items-center justify-center bg-background text-foreground px-4 py-16 sm:px-6">
     <div class="relative z-10 w-full max-w-lg">
-      <div class="mb-4 flex items-center justify-between px-1">
-        <Button as-child variant="ghost" size="sm" class="rounded-full gap-1 text-muted-foreground">
-          <router-link to="/">
-            <ArrowLeft class="h-4 w-4" />
-            {{ t('auth.login.backHome') }}
-          </router-link>
-        </Button>
-        <Badge variant="neutral" size="sm" class="rounded-full">
-          {{ t('navbar.personalCenter') }}
-        </Badge>
+      <div class="mb-4">
+        <router-link to="/" class="theme-pill-link pl-2.5 pr-3.5">
+          <ChevronLeft class="h-3.5 w-3.5" aria-hidden="true" />{{ t('auth.login.backHome') }}
+        </router-link>
       </div>
 
-      <Card class="rounded-3xl p-7 shadow-lg backdrop-blur-sm sm:p-9">
-        <div class="mb-8 text-center">
-          <p class="text-xs font-semibold uppercase tracking-[0.22em] text-primary">{{ brandSiteName }}</p>
-          <h1 class="mt-3 text-3xl font-black text-foreground">
+      <div class="theme-float rounded-[22px] bg-card p-6 sm:rounded-[28px] sm:p-9">
+        <div class="mb-7">
+          <p class="text-[13px] font-semibold text-muted-foreground">{{ brandSiteName }}</p>
+          <h1 class="mt-2 text-[28px] font-bold leading-tight tracking-tight">
             {{ step === 'totp' ? t('auth.login.totp.title') : t('auth.login.title') }}
           </h1>
           <p class="mt-2 text-sm text-muted-foreground">
@@ -29,7 +23,7 @@
           class="space-y-6"
           @submit.prevent="handleVerify2FA"
         >
-          <div class="rounded-xl border bg-secondary px-4 py-2 text-center text-xs text-muted-foreground">
+          <div class="rounded-2xl bg-secondary/60 px-4 py-2 text-center text-xs text-muted-foreground">
             {{ t('auth.login.totp.countdown', { seconds: challengeRemainingSeconds }) }}
           </div>
 
@@ -80,7 +74,7 @@
             <AlertDescription>{{ error }}</AlertDescription>
           </Alert>
 
-          <Button type="submit" :disabled="userAuthStore.loading" class="h-11 w-full font-bold">
+          <Button type="submit" :disabled="userAuthStore.loading" class="h-12 w-full rounded-full bg-foreground font-semibold text-background hover:bg-foreground/85">
             {{ userAuthStore.loading ? t('auth.login.totp.verifying') : t('auth.login.totp.submit') }}
           </Button>
 
@@ -159,7 +153,7 @@
           </FormField>
 
           <div v-if="loginCaptchaEnabled">
-            <label class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            <label class="mb-2 flex items-center gap-1.5 text-[13px] font-semibold text-muted-foreground">
               <ShieldCheck class="h-3.5 w-3.5 opacity-60" />
               {{ t('auth.common.captchaLabel') }}
             </label>
@@ -180,7 +174,7 @@
 
           <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
             <label class="inline-flex items-center gap-2">
-              <input v-model="rememberMe" type="checkbox" class="h-4 w-4 accent-primary" />
+              <Checkbox v-model="rememberMe" />
               {{ t('auth.login.rememberMe') }}
             </label>
             <router-link
@@ -200,13 +194,13 @@
             <AlertDescription>{{ error }}</AlertDescription>
           </Alert>
 
-          <Button type="submit" :disabled="userAuthStore.loading" class="h-11 w-full font-bold">
+          <Button type="submit" :disabled="userAuthStore.loading" class="h-12 w-full rounded-full bg-foreground font-semibold text-background hover:bg-foreground/85">
             <LogIn v-if="!userAuthStore.loading" class="h-4 w-4" />
             {{ userAuthStore.loading ? t('auth.login.submitting') : t('auth.login.submit') }}
           </Button>
 
           <div v-if="showThirdPartyLogin" class="space-y-4 pt-1">
-            <div class="flex items-center gap-3 text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+            <div class="flex items-center gap-3 text-xs text-muted-foreground">
               <span class="h-px flex-1 border-t border-gray-200/80 dark:border-white/10"></span>
               <span>{{ t('auth.login.socialOr') }}</span>
               <span class="h-px flex-1 border-t border-gray-200/80 dark:border-white/10"></span>
@@ -219,7 +213,7 @@
                 </p>
               </div>
               <div v-else-if="showTelegramOidc" class="space-y-2">
-                <Button type="button" variant="secondary" class="h-11 w-full font-semibold" @click="startTelegramOidc">
+                <Button type="button" variant="secondary" class="h-11 w-full rounded-full font-semibold" @click="startTelegramOidc">
                   {{ t('auth.login.telegramOidcButton') }}
                 </Button>
                 <p class="text-center text-xs text-muted-foreground">
@@ -253,17 +247,17 @@
             <p class="text-center text-xs text-muted-foreground">
               {{ t('auth.login.telegramMiniAppEntryHint') }}
             </p>
-            <Button type="button" variant="secondary" class="h-11 w-full font-semibold" @click="openTelegramMiniAppEntry">
+            <Button type="button" variant="secondary" class="h-11 w-full rounded-full font-semibold" @click="openTelegramMiniAppEntry">
               {{ t('auth.login.telegramMiniAppEntryAction') }}
             </Button>
           </div>
         </form>
-      </Card>
+      </div>
 
       <div v-if="registrationEnabled" class="mt-4 text-center">
         <router-link
           :to="registerLink"
-          class="text-muted-foreground transition-colors hover:text-foreground text-sm"
+          class="text-sm font-medium text-foreground underline-offset-4 hover:underline"
         >
           {{ t('auth.login.noAccount') }}
         </router-link>
@@ -281,11 +275,10 @@ import FormField from '../../components/FormField.vue'
 import GoogleIdentityButton from '../../components/auth/GoogleIdentityButton.vue'
 import InviteCodeDialog from '../../components/InviteCodeDialog.vue'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Mail, Lock, ShieldCheck, Eye, EyeOff, LogIn } from 'lucide-vue-next'
+import { ChevronLeft, Mail, Lock, ShieldCheck, Eye, EyeOff, LogIn } from 'lucide-vue-next'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { useLogin } from '../../composables/useLogin'
 
@@ -313,3 +306,12 @@ void imageCaptchaRef
 void turnstileRef
 void telegramWidgetRef
 </script>
+
+<style scoped>
+/* FormField 与 vault 模板共用，这里只把标签收成和注册页一致的样子 */
+:deep(.form-field > label) {
+  font-size: 13px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+</style>

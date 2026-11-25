@@ -8,6 +8,8 @@ import { resetListScrollSignal, resolveListScrollSignal } from '../utils/listScr
 export interface UseProductListOptions {
   pageSize?: number
   homeRouteName?: string
+  /** 翻页后滚动到的纵向位置，默认回到页面顶部 */
+  getScrollTop?: () => number
   categoryRouteName?: string
 }
 
@@ -15,6 +17,7 @@ export function useProductList(options: UseProductListOptions = {}) {
   const {
     pageSize: defaultPageSize = 20,
     homeRouteName = 'home',
+    getScrollTop = () => 0,
     categoryRouteName = 'category-products',
   } = options
 
@@ -29,7 +32,7 @@ export function useProductList(options: UseProductListOptions = {}) {
   const currentPage = ref(1)
   const pageSize = ref(defaultPageSize)
   const totalPages = ref(0)
-  const showFilterDrawer = ref(false)
+  const total = ref(0)
   const expandedParentIds = ref<number[]>([])
 
   const categoryGroups = computed(() => buildCategoryGroups(categories.value))
@@ -82,11 +85,8 @@ export function useProductList(options: UseProductListOptions = {}) {
     }
   }
 
-  const selectCategory = (categoryId: number | null, closeDrawer = false) => {
+  const selectCategory = (categoryId: number | null) => {
     selectedCategory.value = categoryId
-    if (closeDrawer) {
-      showFilterDrawer.value = false
-    }
   }
 
   /**
@@ -145,6 +145,9 @@ export function useProductList(options: UseProductListOptions = {}) {
       products.value = response.data.data || []
       if (response.data.pagination) {
         totalPages.value = response.data.pagination.total_page || 0
+        total.value = Number(response.data.pagination.total ?? 0)
+      } else {
+        total.value = products.value.length
       }
       // 页码超出范围时回落到末页并重新加载
       if (totalPages.value > 0 && page > totalPages.value) {
@@ -287,7 +290,7 @@ export function useProductList(options: UseProductListOptions = {}) {
       debouncedLoadProducts()
       // 关键词变化时已回到第 1 页并重置列表，不需要额外滚动
       if (!keywordChanged) {
-        window.scrollTo({ top: 0, behavior: 'smooth' })
+        window.scrollTo({ top: getScrollTop(), behavior: 'smooth' })
       }
     },
   )
@@ -320,7 +323,7 @@ export function useProductList(options: UseProductListOptions = {}) {
     currentPage,
     pageSize,
     totalPages,
-    showFilterDrawer,
+    total,
     expandedParentIds,
     categoryGroups,
     categoryMap,

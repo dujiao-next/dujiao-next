@@ -12,10 +12,10 @@
     </PanelHeading>
 
     <!-- Tab 切换 -->
-    <div class="flex rounded-xl border bg-card overflow-hidden">
+    <div class="flex gap-1 rounded-full bg-secondary p-1">
       <button
         type="button"
-        class="flex-1 py-3 text-sm font-semibold text-center transition-colors"
+        class="flex-1 rounded-full py-2 text-sm font-semibold text-center transition-colors"
         :class="activeTab === 'product' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'"
         @click="switchTab('product')"
       >
@@ -23,7 +23,7 @@
       </button>
       <button
         type="button"
-        class="flex-1 py-3 text-sm font-semibold text-center transition-colors"
+        class="flex-1 rounded-full py-2 text-sm font-semibold text-center transition-colors"
         :class="activeTab === 'recharge' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'"
         @click="switchTab('recharge')"
       >
@@ -104,7 +104,7 @@
         >
           <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <div class="text-xs uppercase tracking-[0.16em] text-muted-foreground">{{ t('orders.orderNo') }}：{{ order.order_no }}</div>
+              <div class="text-xs tabular-nums text-muted-foreground">{{ t('orders.orderNo') }}：{{ order.order_no }}</div>
               <div class="mt-2 text-lg font-bold text-foreground">{{ formatMoney(order.total_amount, order.currency) }}</div>
               <div v-if="hasDiscount(order)" class="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
                 <Badge v-if="hasDiscountAmount(order.discount_amount)" variant="success" size="sm">
@@ -209,7 +209,7 @@
         >
           <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <div class="text-xs uppercase tracking-[0.16em] text-muted-foreground">{{ t('personalCenter.wallet.rechargeNoLabel') }}：{{ ro.recharge_no }}</div>
+              <div class="text-xs tabular-nums text-muted-foreground">{{ t('personalCenter.wallet.rechargeNoLabel') }}：{{ ro.recharge_no }}</div>
               <div class="mt-2 text-lg font-bold text-foreground">{{ formatMoney(ro.amount, ro.currency) }}</div>
               <div class="mt-2 text-xs text-muted-foreground">{{ formatDate(ro.created_at) }}</div>
             </div>
@@ -384,6 +384,8 @@ const rechargeStatusOptions = computed(() => [
   { value: '', label: t('orders.filters.statusAll') },
   { value: 'pending', label: t('personalCenter.wallet.rechargeStatus.pending') },
   { value: 'success', label: t('personalCenter.wallet.rechargeStatus.success') },
+  { value: 'partially_refunded', label: t('personalCenter.wallet.rechargeStatus.partially_refunded') },
+  { value: 'refunded', label: t('personalCenter.wallet.rechargeStatus.refunded') },
   { value: 'failed', label: t('personalCenter.wallet.rechargeStatus.failed') },
   { value: 'expired', label: t('personalCenter.wallet.rechargeStatus.expired') },
 ])
@@ -454,6 +456,7 @@ const rechargeStatusText = (status?: string) => {
 const rechargeStatusVariant = (status?: string): BadgeTone => {
   const normalized = String(status || '').toLowerCase()
   if (normalized === 'success') return 'success'
+  if (normalized === 'refunded') return 'info'
   if (normalized === 'failed' || normalized === 'expired') return 'danger'
   return 'warning'
 }

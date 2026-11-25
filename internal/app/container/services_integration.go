@@ -17,6 +17,7 @@ import (
 	downstreamcallbackcredentialreader "github.com/dujiao-next/internal/modules/downstreamcallback/infrastructure/credentialreader"
 	downstreamcallbackorderreader "github.com/dujiao-next/internal/modules/downstreamcallback/infrastructure/orderreader"
 	downstreamcallbackqueue "github.com/dujiao-next/internal/modules/downstreamcallback/infrastructure/queueadapter"
+	adminapitokenapp "github.com/dujiao-next/internal/modules/identity/adminapitoken/application"
 	notificationapp "github.com/dujiao-next/internal/modules/notification/application"
 	notificationasyncqueue "github.com/dujiao-next/internal/modules/notification/infrastructure/asyncqueue"
 	notificationfeishu "github.com/dujiao-next/internal/modules/notification/infrastructure/feishu"
@@ -42,6 +43,7 @@ import (
 
 // initIntegrationServices 装配通知、站点对接、支付、采购、渠道与 Telegram 集成。
 func (c *Container) initIntegrationServices() {
+	c.AdminAPITokenService = adminapitokenapp.NewService(c.AdminAPITokenStore, c.AdminStore)
 	c.UserLoginLogService = auditlogapp.NewUserLoginService(c.UserLoginLogRepo)
 	c.AuthzAuditService = auditlogapp.NewAuthzService(c.AuthzAuditLogRepo)
 	c.AdminLoginLogService = auditlogapp.NewAdminLoginService(c.AdminLoginLogRepo)

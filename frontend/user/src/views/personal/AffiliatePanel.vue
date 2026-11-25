@@ -16,6 +16,9 @@
       </div>
 
       <template v-else-if="dashboard?.opened">
+        <Alert v-if="dashboard.status === 'disabled'" class="mb-5" :class="pageAlertToneClass('warning')">
+          <AlertDescription>{{ t('personalCenter.affiliate.disabledNotice') }}</AlertDescription>
+        </Alert>
         <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div class="rounded-xl border p-4 md:col-span-2">
             <div class="text-xs text-muted-foreground">{{ t('personalCenter.affiliate.affiliateCode') }}</div>
@@ -97,7 +100,7 @@
           />
         </div>
         <div class="flex items-end">
-          <Button type="submit" :disabled="submittingWithdraw" class="h-11 w-full px-5 font-bold">
+          <Button type="submit" :disabled="submittingWithdraw || dashboard?.status === 'disabled'" class="h-11 w-full px-5 font-bold">
             {{ submittingWithdraw ? t('personalCenter.affiliate.withdrawing') : t('personalCenter.affiliate.withdrawSubmit') }}
           </Button>
         </div>
@@ -130,8 +133,8 @@
           </TableHeader>
           <TableBody>
             <TableRow v-for="item in commissions" :key="item.id">
-              <TableCell class="px-4 font-mono text-xs text-foreground">-</TableCell>
-              <TableCell class="px-4 font-mono text-xs text-foreground">{{ item.commission_amount }}</TableCell>
+              <TableCell class="px-4 tabular-nums text-xs text-foreground">-</TableCell>
+              <TableCell class="px-4 tabular-nums text-xs text-foreground">{{ item.commission_amount }}</TableCell>
               <TableCell class="px-4">
                 <Badge :variant="commissionStatusVariant(item.status)" size="sm">
                   {{ commissionStatusLabel(item.status) }}
@@ -178,7 +181,7 @@
           </TableHeader>
           <TableBody>
             <TableRow v-for="item in withdraws" :key="item.id">
-              <TableCell class="px-4 font-mono text-xs text-foreground">{{ item.amount }}</TableCell>
+              <TableCell class="px-4 tabular-nums text-xs text-foreground">{{ item.amount }}</TableCell>
               <TableCell class="px-4 text-xs text-muted-foreground">{{ item.channel }}</TableCell>
               <TableCell class="px-4">
                 <Badge :variant="withdrawStatusVariant(item.status)" size="sm">

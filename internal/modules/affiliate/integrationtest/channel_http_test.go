@@ -129,7 +129,7 @@ func setupChannelAffiliateHandlerTest(t *testing.T) (*gorm.DB, *httptest.Server)
 		t.Fatalf("enable affiliate setting failed: %v", err)
 	}
 
-	affiliateSvc := affiliateapp.NewService(affiliateRepo, userRepo, channelAffiliateOrderReader{db: db}, nil, settingSvc)
+	affiliateSvc := affiliateapp.NewService(affiliateRepo, userRepo, channelAffiliateOrderReader{db: db}, nil, nil, settingSvc)
 	userAuthSvc := userauthapp.NewService(&config.Config{}, userRepo, identityRepo, emailVerifyRepo, nil, nil, nil)
 	userAuthSvc.SetAuthUnitOfWork(userauthgormstore.New(db))
 	handler := affiliatetransport.NewChannelHandler(

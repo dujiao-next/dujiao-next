@@ -76,6 +76,33 @@
       "payWechat": "WeChat"
     }
   },
+  "atelier": {
+    "trustAuto": "24/7 automated instant delivery",
+    "autoShort": "Auto Delivery",
+    "manualShort": "Manual Delivery",
+    "buyShort": "Buy",
+    "quickSearch": "Quick Search",
+    "heroSubtitle": "Search by keyword or pick a category to inspect live stock and variants.",
+    "viewCard": "Cards",
+    "viewTable": "Table",
+    "catalogHeading": "All Products",
+    "receiptTitle": "Order Summary",
+    "receiptReady": "READY",
+    "receiptUnavailable": "UNAVAILABLE",
+    "receiptProduct": "Product",
+    "receiptSku": "Variant",
+    "receiptDelivery": "Delivery",
+    "receiptUnitQty": "Unit × Qty",
+    "receiptSubtotal": "Estimated Total",
+    "stepSku": "Select Variant",
+    "stepQty": "Configure Quantity",
+    "stepDetail": "Specifications & Details",
+    "changelogTag": "UPDATES",
+    "assurance": {
+      "autoDesc": "Automatically delivered upon payment",
+      "manualDesc": "Verified & delivered promptly"
+    }
+  },
   "breadcrumb": {
     "label": "Breadcrumb",
     "back": "Back to {name}"
@@ -129,7 +156,6 @@
     },
     "featured": {
       "title": "Featured Products",
-      "description": "Discover our premium collection of digital assets, curated for excellence.",
       "empty": "No products available",
       "viewAll": "View All Products"
     },
@@ -144,7 +170,6 @@
     }
   },
   "products": {
-    "subtitle": "Browse our featured products",
     "priceAria": "Price {price}",
     "promotionPriceAria": "Promotional price {price}",
     "originalPriceAria": "Original price {price}",
@@ -202,8 +227,12 @@
     "deliveryReassuranceManual": "After payment, your order is handled manually. Progress and results are posted to the order page and your email.",
     "loginToBuy": "Login to buy",
     "addToCart": "Add to cart",
+    "copyAffiliateLink": "Copy affiliate link",
+    "copyAffiliateLinkSuccess": "Affiliate link copied",
+    "copyAffiliateLinkFailed": "Copy failed, please copy it manually",
+    "affiliateRateHint": "Earn {rate}% commission by promoting this product",
+    "affiliateRateNone": "This product is not eligible for affiliate commission",
     "buyNow": "Buy now",
-    "categoryLabel": "Category",
     "fulfillmentLabel": "Fulfillment",
     "skuTitle": "Choose SKU",
     "skuRequired": "Please select a SKU before purchase",
@@ -557,6 +586,8 @@
       "rechargeStatus": {
         "pending": "Pending",
         "success": "Credited",
+        "partially_refunded": "Partially Refunded",
+        "refunded": "Refunded",
         "failed": "Failed",
         "expired": "Expired"
       },
@@ -597,6 +628,7 @@
       "affiliateCode": "Affiliate ID",
       "copyPromotionUrl": "Copy URL",
       "copySuccess": "Promotion URL copied",
+      "disabledNotice": "Your affiliate access has been disabled: no new commissions will be earned and withdrawals are paused. Please contact support if you have questions.",
       "conversionRate": "Conversion Rate",
       "conversionDetail": "Clicks {clicks} · Valid Orders {orders}",
       "pendingCommission": "Pending Commission",

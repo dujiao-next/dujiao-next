@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 
 	"github.com/dujiao-next/internal/constants"
-
 	"github.com/hibiken/asynq"
 )
 
 const (
+	// TaskWalletRechargeRefundEmail 钱包充值退款邮件通知任务。
+	TaskWalletRechargeRefundEmail = constants.TaskWalletRechargeRefundEmail
 	// TaskOrderStatusEmail 订单状态邮件通知任务
 	TaskOrderStatusEmail = constants.TaskOrderStatusEmail
 	// TaskOrderAutoFulfill 自动交付任务
@@ -42,6 +43,13 @@ const (
 	// TaskTelegramBroadcast Telegram 群发任务
 	TaskTelegramBroadcast = constants.TaskTelegramBroadcast
 )
+
+// WalletRechargeRefundEmailPayload 钱包充值退款邮件载荷，退款流水用于定位本次退款金额与备注。
+type WalletRechargeRefundEmailPayload struct {
+	RechargeID uint   `json:"recharge_id"`
+	RefundID   uint   `json:"refund_id"`
+	Status     string `json:"status"`
+}
 
 // OrderStatusEmailPayload 订单状态邮件任务载荷
 type OrderStatusEmailPayload struct {
@@ -78,6 +86,15 @@ type NotificationDispatchPayload struct {
 	Locale    string                 `json:"locale"`
 	Force     bool                   `json:"force"`
 	Data      map[string]interface{} `json:"data"`
+}
+
+// NewWalletRechargeRefundEmailTask 创建钱包充值退款邮件任务。
+func NewWalletRechargeRefundEmailTask(payload WalletRechargeRefundEmailPayload) (*asynq.Task, error) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	return asynq.NewTask(TaskWalletRechargeRefundEmail, body), nil
 }
 
 // NewOrderStatusEmailTask 创建订单状态邮件任务

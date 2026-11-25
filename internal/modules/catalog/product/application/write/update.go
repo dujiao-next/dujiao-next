@@ -62,8 +62,14 @@ func (s *WriteService) Update(id string, input CreateProductInput) (*productdoma
 	if input.IsActive != nil {
 		product.IsActive = *input.IsActive
 	}
-	if input.IsAffiliateEnabled != nil {
-		product.IsAffiliateEnabled = *input.IsAffiliateEnabled
+	// 商品写入多数字段是全量替换语义，但返利比例例外：未携带字段时保留原值，
+	// 只有显式携带（含显式 null）才覆盖。旧后台页面与只改价格的脚本不会发送该字段，
+	// 若按“缺省即继承”处理，会把「不参与返利」的商品悄悄改成发佣金。
+	if input.AffiliateRatePercentSet {
+		if err := validateProductAffiliateRate(input.AffiliateRatePercent); err != nil {
+			return nil, err
+		}
+		product.AffiliateRatePercent = input.AffiliateRatePercent
 	}
 	rawPurchaseType := strings.TrimSpace(input.PurchaseType)
 	if rawPurchaseType == "" {

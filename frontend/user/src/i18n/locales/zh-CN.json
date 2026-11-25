@@ -76,6 +76,33 @@
       "payWechat": "微信"
     }
   },
+  "atelier": {
+    "trustAuto": "7×24h 自动化秒级交付",
+    "autoShort": "自动交付",
+    "manualShort": "人工交付",
+    "buyShort": "选购",
+    "quickSearch": "快速检索",
+    "heroSubtitle": "直接输入关键词或选择分类，快速查看实时库存与规格报价。",
+    "viewCard": "精密卡片",
+    "viewTable": "规格横表",
+    "catalogHeading": "全部商品",
+    "receiptTitle": "实时订单回执",
+    "receiptReady": "可下单",
+    "receiptUnavailable": "暂不可购",
+    "receiptProduct": "商品",
+    "receiptSku": "已选规格",
+    "receiptDelivery": "交付方式",
+    "receiptUnitQty": "单价 × 数量",
+    "receiptSubtotal": "预计小计",
+    "stepSku": "选择商品规格",
+    "stepQty": "配置购买数量",
+    "stepDetail": "商品详情与说明",
+    "changelogTag": "UPDATES",
+    "assurance": {
+      "autoDesc": "支付完成后系统自动交付",
+      "manualDesc": "专人核验快速交付"
+    }
+  },
   "breadcrumb": {
     "label": "面包屑导航",
     "back": "返回{name}"
@@ -128,7 +155,6 @@
     },
     "featured": {
       "title": "精选商品",
-      "description": "探索我们精心挑选的优质数字资产系列。",
       "empty": "暂无商品",
       "viewAll": "查看全部商品"
     },
@@ -143,7 +169,6 @@
     }
   },
   "products": {
-    "subtitle": "浏览我们的精选商品",
     "priceAria": "价格 {price}",
     "promotionPriceAria": "促销价 {price}",
     "originalPriceAria": "原价 {price}",
@@ -508,6 +533,8 @@
       "rechargeStatus": {
         "pending": "待支付",
         "success": "已到账",
+        "partially_refunded": "部分退款",
+        "refunded": "已退款",
         "failed": "支付失败",
         "expired": "支付过期"
       },
@@ -548,6 +575,7 @@
       "affiliateCode": "联盟ID",
       "copyPromotionUrl": "复制推广链接",
       "copySuccess": "推广链接已复制",
+      "disabledNotice": "你的推广资格已被停用：不会产生新的佣金，提现也已暂停。如有疑问请联系站点客服。",
       "conversionRate": "转化率",
       "conversionDetail": "点击 {clicks} · 有效订单 {orders}",
       "pendingCommission": "待确认佣金",
@@ -1712,8 +1740,12 @@
     "deliveryReassuranceManual": "付款成功后由人工为你处理，处理进度与结果会同步到订单页与邮箱。",
     "loginToBuy": "登录后购买",
     "addToCart": "加入购物车",
+    "copyAffiliateLink": "复制推广链接",
+    "copyAffiliateLinkSuccess": "推广链接已复制",
+    "copyAffiliateLinkFailed": "复制失败，请手动复制",
+    "affiliateRateHint": "推广此商品可获 {rate}% 返利",
+    "affiliateRateNone": "此商品不参与推广返利",
     "buyNow": "立即购买",
-    "categoryLabel": "分类",
     "fulfillmentLabel": "交付方式",
     "skuTitle": "选择规格",
     "skuRequired": "请选择商品规格后再购买",

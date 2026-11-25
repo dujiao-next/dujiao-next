@@ -20,6 +20,7 @@ type Service struct {
 	userRepo    usercontract.Store
 	orderRepo   affiliatecontract.OrderReader
 	productRepo affiliatecontract.ProductReader
+	skuRepo     affiliatecontract.SKUReader
 	settings    affiliatecontract.SettingsReader
 }
 
@@ -29,6 +30,7 @@ func NewService(
 	userRepo usercontract.Store,
 	orderRepo affiliatecontract.OrderReader,
 	productRepo affiliatecontract.ProductReader,
+	skuRepo affiliatecontract.SKUReader,
 	settings affiliatecontract.SettingsReader,
 ) *Service {
 	return &Service{
@@ -36,6 +38,7 @@ func NewService(
 		userRepo:    userRepo,
 		orderRepo:   orderRepo,
 		productRepo: productRepo,
+		skuRepo:     skuRepo,
 		settings:    settings,
 	}
 }

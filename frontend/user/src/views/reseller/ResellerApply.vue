@@ -23,7 +23,7 @@
     <template v-else>
       <!-- 状态 stepper -->
       <Card class="p-5">
-        <p class="mb-4 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{{ t('resellerConsole.apply.currentStatus') }}: {{ statusText }}</p>
+        <p class="mb-4 text-xs font-semibold text-muted-foreground">{{ t('resellerConsole.apply.currentStatus') }}: {{ statusText }}</p>
         <div class="flex items-start">
           <template v-for="(step, i) in steps" :key="i">
             <div class="flex w-20 shrink-0 flex-col items-center gap-1.5 text-center">

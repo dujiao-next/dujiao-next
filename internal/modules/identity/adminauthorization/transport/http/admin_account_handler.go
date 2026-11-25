@@ -177,6 +177,9 @@ func (h *AdminHandler) UpdateAuthzAdmin(c *gin.Context) {
 		}
 		if admin.IsSuper != nextIsSuper {
 			admin.IsSuper = nextIsSuper
+			// Machine credentials must not become valid again after a
+			// promoted account is later demoted.
+			admin.TokenVersion++
 			updatedFields = append(updatedFields, "is_super")
 		}
 	}

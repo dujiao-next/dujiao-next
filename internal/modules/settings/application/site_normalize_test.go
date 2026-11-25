@@ -7,6 +7,8 @@ import (
 
 	"github.com/dujiao-next/internal/config"
 	"github.com/dujiao-next/internal/constants"
+
+	settingscontract "github.com/dujiao-next/internal/modules/settings/contract"
 )
 
 func TestUpdateOrderSettingNormalized(t *testing.T) {
@@ -489,7 +491,7 @@ func TestUpdateOrderRefundSettingNormalized(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse normalized max_refund_days failed: %v", err)
 	}
-	if maxDays != NormalizeOrderRefundConfig(OrderRefundConfig{MaxRefundDays: 5000}).MaxRefundDays {
+	if maxDays != NormalizeOrderRefundConfig(settingscontract.OrderRefundConfig{MaxRefundDays: 5000}).MaxRefundDays {
 		t.Fatalf("unexpected clamped max_refund_days: %v", result[OrderConfigFieldMaxRefundDays])
 	}
 }
@@ -805,5 +807,26 @@ func TestUpdateSiteSettingRejectsUnsafeCustomContactLinks(t *testing.T) {
 				t.Fatal("invalid custom link persisted")
 			}
 		})
+	}
+}
+
+func TestNormalizeStorefrontTemplate(t *testing.T) {
+	cases := []struct {
+		raw  interface{}
+		want string
+	}{
+		{raw: nil, want: constants.StorefrontTemplateClassic},
+		{raw: "", want: constants.StorefrontTemplateClassic},
+		{raw: "classic", want: constants.StorefrontTemplateClassic},
+		{raw: "vault", want: constants.StorefrontTemplateVault},
+		{raw: "  vault  ", want: constants.StorefrontTemplateVault},
+		{raw: "atelier", want: constants.StorefrontTemplateAtelier},
+		{raw: "  atelier  ", want: constants.StorefrontTemplateAtelier},
+		{raw: "unknown", want: constants.StorefrontTemplateClassic},
+	}
+	for _, tc := range cases {
+		if got := normalizeStorefrontTemplate(tc.raw); got != tc.want {
+			t.Fatalf("normalizeStorefrontTemplate(%v) = %q, want %q", tc.raw, got, tc.want)
+		}
 	}
 }

@@ -1,6 +1,7 @@
 <template>
   <ol
-    class="rounded-2xl border bg-card/80 p-4 backdrop-blur flex items-center list-none"
+    class="flex list-none items-center"
+    :class="plain ? '' : 'rounded-2xl border bg-card/80 p-4 backdrop-blur'"
     :aria-label="t('checkoutSteps.label')"
   >
     <template v-for="(step, idx) in steps" :key="step.key">
@@ -13,14 +14,14 @@
           v-if="idx > 0"
           aria-hidden="true"
           class="flex-1 h-0.5 rounded-full transition-colors"
-          :class="step.status !== 'upcoming' ? 'bg-primary' : 'bg-muted'"
+          :class="step.status === 'upcoming' ? 'bg-muted' : plain ? 'bg-foreground' : 'bg-primary'"
         ></div>
         <div class="flex items-center gap-2 shrink-0">
           <span
             class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors"
-            :class="step.status !== 'upcoming'
-              ? 'bg-primary text-primary-foreground border-transparent'
-              : 'border-border text-muted-foreground'"
+            :class="step.status === 'upcoming'
+              ? 'border-border text-muted-foreground'
+              : plain ? 'border-transparent bg-foreground text-background' : 'border-transparent bg-primary text-primary-foreground'"
           >
             <Check v-if="step.status === 'done'" class="w-3.5 h-3.5" :stroke-width="3" />
             <span v-else>{{ idx + 1 }}</span>
@@ -49,6 +50,8 @@ const props = withDefaults(
   defineProps<{
     currentStep: StepKey
     stepKeys?: StepKey[]
+    // 默认模板用：去掉外框，完成态用墨色而非主题色
+    plain?: boolean
   }>(),
   {
     stepKeys: () => ['cart', 'checkout', 'payment'],

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -199,7 +200,9 @@ func RateLimitMiddleware(client *redis.Client, rule RateLimitRule, keyFunc RateL
 		}
 		if count > int64(rule.MaxRequests) {
 			waitSeconds := int(ttlSeconds)
-			if waitSeconds < 1 {
+			// 负数表示键没有过期时间，按整个窗口等；0 是 Redis 四舍五入后的"不到半秒"，
+			// 落到下面按 1 秒处理，否则 Retry-After 会让下游白等一整个窗口。
+			if ttlSeconds < 0 {
 				waitSeconds = rule.WindowSeconds
 			}
 			if waitSeconds < 1 {
@@ -210,6 +213,8 @@ func RateLimitMiddleware(client *redis.Client, rule RateLimitRule, keyFunc RateL
 				msgKey = "error.rate_limited"
 			}
 			msg := i18n.Sprintf(i18n.ResolveLocale(c), msgKey, waitSeconds)
+			// 标准重试提示：下游适配器据此等待而不是盲目重试。
+			c.Header("Retry-After", strconv.Itoa(waitSeconds))
 			if isChannelAPIRequest(c) {
 				response.ChannelError(c, http.StatusTooManyRequests, response.CodeTooManyRequests, msg, "rate_limit_exceeded")
 			} else {

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	settingscontract "github.com/dujiao-next/internal/modules/settings/contract"
 	walletcontract "github.com/dujiao-next/internal/modules/wallet/contract"
 )
 
@@ -13,17 +14,29 @@ const defaultCurrency = "CNY"
 type Options struct {
 	Repository   walletcontract.Repository
 	Transactions walletcontract.UnitOfWork
+	RefundConfig settingscontract.OrderRefundConfigReader
+	RefundEmails walletcontract.RechargeRefundEmailQueue
 }
 
 type Service struct {
 	repository   walletcontract.Repository
 	transactions walletcontract.UnitOfWork
+	refundConfig settingscontract.OrderRefundConfigReader
+	refundEmails walletcontract.RechargeRefundEmailQueue
 }
 
 var _ walletcontract.UseCase = (*Service)(nil)
 
 func NewService(options Options) *Service {
-	return &Service{repository: options.Repository, transactions: options.Transactions}
+	return &Service{repository: options.Repository, transactions: options.Transactions, refundConfig: options.RefundConfig, refundEmails: options.RefundEmails}
+}
+
+// getRechargeRefundConfig 在进入钱包事务前读取退款期限配置。
+func (s *Service) getRechargeRefundConfig() (settingscontract.OrderRefundConfig, error) {
+	if s.refundConfig == nil {
+		return settingscontract.DefaultOrderRefundConfig(), nil
+	}
+	return s.refundConfig.GetOrderRefundConfig()
 }
 
 func normalizeCurrency(currency string) string {

@@ -1,7 +1,10 @@
 package integrationtest
 
 import (
+	"errors"
 	"fmt"
+	"github.com/dujiao-next/internal/shared/money"
+	"github.com/shopspring/decimal"
 	"testing"
 	"time"
 
@@ -135,6 +138,68 @@ func TestBatchUpdateAffiliateProfileStatus(t *testing.T) {
 	}
 }
 
+// 看板必须带出推广账号状态，前台据此隐藏停用账号的推广入口。
+func TestGetUserDashboardExposesProfileStatus(t *testing.T) {
+	svc, db, _ := setupAffiliateServiceTest(t)
+	if err := db.AutoMigrate(&affiliatedomain.Commission{}, &affiliatedomain.Click{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	for _, status := range []string{constants.AffiliateProfileStatusActive, constants.AffiliateProfileStatusDisabled} {
+		user := createAffiliateTestUser(t, db, status+"@example.com")
+		createAffiliateTestProfile(t, db, user.ID, "ST"+status[:3], status)
+		dashboard, err := svc.GetUserDashboard(user.ID)
+		if err != nil {
+			t.Fatalf("GetUserDashboard(%s): %v", status, err)
+		}
+		if !dashboard.Opened || dashboard.Status != status {
+			t.Fatalf("status %s: opened=%v status=%q", status, dashboard.Opened, dashboard.Status)
+		}
+	}
+}
+
+// 停用的推广账号不能提现，且不能因此冻结或消耗已有的可提现佣金；启用账号作为对照必须成功。
+func TestApplyWithdrawRejectsDisabledProfile(t *testing.T) {
+	svc, db, _ := setupAffiliateServiceTest(t)
+	if err := db.AutoMigrate(&affiliatedomain.Commission{}, &affiliatedomain.WithdrawRequest{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	seed := func(email, code, status string, orderID uint) (userID uint, commissionID uint) {
+		user := createAffiliateTestUser(t, db, email)
+		profile := createAffiliateTestProfile(t, db, user.ID, code, status)
+		commission := affiliatedomain.Commission{
+			AffiliateProfileID: profile.ID, OrderID: orderID, CommissionType: constants.AffiliateCommissionTypeOrder,
+			CommissionAmount: money.FromDecimal(decimal.NewFromInt(50)),
+			Status:           constants.AffiliateCommissionStatusAvailable,
+		}
+		if err := db.Create(&commission).Error; err != nil {
+			t.Fatalf("seed commission: %v", err)
+		}
+		return user.ID, commission.ID
+	}
+	input := affiliateapp.WithdrawApplyInput{Amount: decimal.NewFromInt(10), Channel: "usdt", Account: "acct"}
+
+	disabledUser, disabledCommission := seed("disabled-w@example.com", "WDDIS001", constants.AffiliateProfileStatusDisabled, 1)
+	if _, err := svc.ApplyWithdraw(disabledUser, input); !errors.Is(err, affiliateapp.ErrNotOpened) {
+		t.Fatalf("disabled profile withdraw: err=%v, want ErrNotOpened", err)
+	}
+	var locked affiliatedomain.Commission
+	if err := db.First(&locked, disabledCommission).Error; err != nil {
+		t.Fatalf("reload commission: %v", err)
+	}
+	if locked.WithdrawRequestID != nil || locked.Status != constants.AffiliateCommissionStatusAvailable || locked.CommissionAmount.String() != "50.00" {
+		t.Fatalf("disabled withdraw must leave commission untouched: %+v", locked)
+	}
+	var requests int64
+	if err := db.Model(&affiliatedomain.WithdrawRequest{}).Count(&requests).Error; err != nil || requests != 0 {
+		t.Fatalf("disabled withdraw created %d requests (err=%v)", requests, err)
+	}
+
+	activeUser, _ := seed("active-w@example.com", "WDACT001", constants.AffiliateProfileStatusActive, 2)
+	if _, err := svc.ApplyWithdraw(activeUser, input); err != nil {
+		t.Fatalf("active profile withdraw should succeed: %v", err)
+	}
+}
+
 func setupAffiliateServiceTest(t *testing.T) (*affiliateapp.Service, *gorm.DB, affiliatecontract.Store) {
 	t.Helper()
 
@@ -157,7 +222,7 @@ func setupAffiliateServiceTest(t *testing.T) (*affiliateapp.Service, *gorm.DB, a
 	}
 
 	affiliateRepo := affiliategormstore.New(db)
-	return affiliateapp.NewService(affiliateRepo, userstore.New(db), nil, nil, settingSvc), db, affiliateRepo
+	return affiliateapp.NewService(affiliateRepo, userstore.New(db), nil, nil, nil, settingSvc), db, affiliateRepo
 }
 
 func createAffiliateTestUser(t *testing.T, db *gorm.DB, email string) userdomain.User {

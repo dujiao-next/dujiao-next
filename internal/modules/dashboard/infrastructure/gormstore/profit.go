@@ -6,17 +6,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dujiao-next/internal/constants"
+
+	dashboard "github.com/dujiao-next/internal/modules/dashboard/contract"
 	orderdomain "github.com/dujiao-next/internal/modules/order/domain"
 	paymentdomain "github.com/dujiao-next/internal/modules/payment/domain"
-
-	"github.com/dujiao-next/internal/constants"
-	dashboard "github.com/dujiao-next/internal/modules/dashboard/contract"
 )
-
-func profitOrderStatuses() []string {
-	statuses := append([]string{}, paidOrderStatuses()...)
-	return append(statuses, constants.OrderStatusRefunded)
-}
 
 type refundAdjustmentRow struct {
 	Day                string
@@ -30,6 +25,17 @@ type refundAggregateRow struct {
 	OrderID            uint
 	RefundAmount       float64 `gorm:"column:refund_amount"`
 	PaymentFeeRefunded float64 `gorm:"column:payment_fee_refunded"`
+}
+
+// rechargeFeeRefundRow 按日汇总充值退款退回的渠道手续费。
+type rechargeFeeRefundRow struct {
+	Day                string
+	PaymentFeeRefunded float64
+}
+
+func profitOrderStatuses() []string {
+	statuses := append([]string{}, paidOrderStatuses()...)
+	return append(statuses, constants.OrderStatusRefunded)
 }
 
 // getRefundAdjustments 按退款发生日计算退款金额与同比例冲回的成本。
@@ -127,6 +133,18 @@ func (r *Store) getRefundAdjustments(startAt, endAt time.Time) ([]refundAdjustme
 	return adjustments, nil
 }
 
+// getRechargeFeeRefunds 按退款发生日汇总充值退回的渠道手续费，不调整商品销售收入和商品成本。
+func (r *Store) getRechargeFeeRefunds(startAt, endAt time.Time) ([]rechargeFeeRefundRow, error) {
+	dayExpr := dateGroupExpr(r.db, "wallet_transactions.created_at", startAt.Location(), startAt)
+	timeWhere, timeArgs := timeRangeQuery(r.db, "wallet_transactions.created_at", startAt, endAt)
+	rows := make([]rechargeFeeRefundRow, 0)
+	err := r.db.Table("wallet_transactions").
+		Select(fmt.Sprintf("%s as day, COALESCE(SUM(payment_fee_refunded_amount), 0) as payment_fee_refunded", dayExpr)).
+		Where("deleted_at IS NULL AND recharge_order_id IS NOT NULL AND type = ? AND payment_fee_refunded = ?", constants.WalletTxnTypeAdminRefund, true).
+		Where(timeWhere, timeArgs...).Group(dayExpr).Scan(&rows).Error
+	return rows, err
+}
+
 // GetProfitOverview 获取利润总览统计
 func (r *Store) GetProfitOverview(startAt, endAt time.Time) (dashboard.ProfitOverviewRow, error) {
 	result := dashboard.ProfitOverviewRow{}
@@ -160,6 +178,13 @@ func (r *Store) GetProfitOverview(startAt, endAt time.Time) (dashboard.ProfitOve
 		Where("deleted_at IS NULL AND "+paymentTimeWhere+" AND status = ? AND provider_type <> ? AND fee_policy = ?", paymentArgs...).
 		Scan(&result.PaymentFee).Error; err != nil {
 		return result, err
+	}
+	rechargeFees, err := r.getRechargeFeeRefunds(startAt, endAt)
+	if err != nil {
+		return result, err
+	}
+	for _, row := range rechargeFees {
+		paymentFeeRefunded += row.PaymentFeeRefunded
 	}
 	result.PaymentFee -= paymentFeeRefunded
 	return result, nil
@@ -222,6 +247,20 @@ func (r *Store) GetProfitTrends(startAt, endAt time.Time) ([]dashboard.ProfitTre
 		row.Revenue -= refundRow.RefundAmount
 		row.RefundedCost += refundRow.RefundedCost
 		row.PaymentFee -= refundRow.PaymentFeeRefunded
+		byDay[day] = row
+	}
+	rechargeFees, err := r.getRechargeFeeRefunds(startAt, endAt)
+	if err != nil {
+		return nil, err
+	}
+	for _, refund := range rechargeFees {
+		day := strings.TrimSpace(refund.Day)
+		if day == "" {
+			continue
+		}
+		row := byDay[day]
+		row.Day = day
+		row.PaymentFee -= refund.PaymentFeeRefunded
 		byDay[day] = row
 	}
 	for _, paymentFeeRow := range paymentFeeRows {

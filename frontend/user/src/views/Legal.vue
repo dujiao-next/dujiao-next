@@ -3,26 +3,25 @@
 
     <!-- Navbar is global -->
 
-    <div class="flex-1 container mx-auto px-4 py-20 max-w-4xl relative z-10 mt-12">
+    <div class="container mx-auto max-w-3xl flex-1 px-4 pb-16 pt-24">
       <div v-if="loading" class="flex justify-center py-20">
-        <Loader2 class="w-10 h-10 animate-spin text-primary" />
+        <Loader2 class="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
 
-      <Card v-else class="backdrop-blur-xl rounded-3xl p-8 md:p-12 shadow-2xl">
-        <h1
-          class="text-3xl md:text-4xl font-bold text-foreground mb-10 border-b pb-6 tracking-tight">
+      <div v-else class="theme-float rounded-[22px] bg-card p-5 md:rounded-[28px] md:p-10">
+        <h1 class="mb-8 border-b pb-6 text-[28px] font-bold leading-tight tracking-tight md:text-[40px]">
           {{ title }}
         </h1>
 
         <div
-          class="prose prose-gray dark:prose-invert prose-lg max-w-none prose-headings:font-bold prose-headings:tracking-tight prose-a:no-underline transition-colors theme-prose"
+          class="prose prose-gray max-w-none dark:prose-invert md:prose-lg prose-headings:font-bold prose-headings:tracking-tight prose-a:no-underline transition-colors theme-prose"
           v-html="content"></div>
 
         <div v-if="!content" class="text-center text-muted-foreground py-20 flex flex-col items-center">
           <FileText class="w-12 h-12 mb-4 text-muted-foreground" :stroke-width="1.5" />
           <p class="text-lg font-medium">{{ t('common.noContent') }}</p>
         </div>
-      </Card>
+      </div>
     </div>
   </div>
 </template>
@@ -30,7 +29,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { FileText, Loader2 } from 'lucide-vue-next'
-import { Card } from '@/components/ui/card'
 import { useLegal } from '../composables/useLegal'
 
 const { t } = useI18n()

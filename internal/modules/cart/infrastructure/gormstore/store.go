@@ -67,7 +67,8 @@ func (r *Store) Upsert(item *domain.Item) error {
 		return nil
 	}
 	var existing domain.Item
-	err := r.db.Where("user_id = ? AND product_id = ? AND sku_id = ? AND deleted_at IS NULL", item.UserID, item.ProductID, item.SKUID).First(&existing).Error
+	// 唯一索引不含 deleted_at，软删除的行仍占着键：必须连它一起查出来复活，否则移除后再加入会撞唯一约束
+	err := r.db.Where("user_id = ? AND product_id = ? AND sku_id = ?", item.UserID, item.ProductID, item.SKUID).First(&existing).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return r.db.Create(item).Error
 	}
@@ -79,6 +80,7 @@ func (r *Store) Upsert(item *domain.Item) error {
 		"quantity":         item.Quantity,
 		"fulfillment_type": item.FulfillmentType,
 		"updated_at":       item.UpdatedAt,
+		"deleted_at":       nil,
 	}
 	return r.db.Model(&existing).Updates(updates).Error
 }
