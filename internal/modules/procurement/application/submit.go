@@ -136,9 +136,9 @@ func (s *Service) SubmitToUpstream(procurementOrderID uint) error {
 		"updated_at": now,
 	})
 
-	// 入队轮询任务（30s 延迟，作为回调的 fallback）
+	// 接单后将首次查单立即交给队列，尽快获取自动交付结果。
 	if s.queue != nil {
-		_ = s.queue.EnqueuePoll(procOrder.ID, 30*time.Second)
+		_ = s.queue.EnqueuePoll(procOrder.ID, 0)
 	}
 
 	return nil

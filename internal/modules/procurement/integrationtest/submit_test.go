@@ -40,6 +40,9 @@ func TestSubmitToUpstream_Success(t *testing.T) {
 
 	// mock upstream server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("unexpected upstream method during submission: %s", r.Method)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
 			"ok":       true,
@@ -66,10 +69,14 @@ func TestSubmitToUpstream_Success(t *testing.T) {
 
 	proc := createTestProcurementOrder(t, db, conn.ID, order.ID, order.OrderNo, "pending")
 
-	svc := newTestProcurementService(db, connSvc)
+	queue := &recordingEnqueuer{}
+	svc := newTestProcurementServiceWithQueue(db, connSvc, queue)
 
 	if err := svc.SubmitToUpstream(proc.ID); err != nil {
 		t.Fatalf("SubmitToUpstream: %v", err)
+	}
+	if len(queue.polled) != 1 || queue.polled[0] != (recordedPoll{orderID: proc.ID, delay: 0}) {
+		t.Errorf("expected one immediate poll for procurement %d, got %+v", proc.ID, queue.polled)
 	}
 
 	// 验证采购单状态 = accepted

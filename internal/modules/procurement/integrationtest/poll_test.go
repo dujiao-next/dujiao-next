@@ -164,13 +164,24 @@ func TestSyncAcceptedOrders_WalksAllPages(t *testing.T) {
 	}
 }
 
-type recordingEnqueuer struct{ submitted []uint }
+type recordedPoll struct {
+	orderID uint
+	delay   time.Duration
+}
+
+type recordingEnqueuer struct {
+	submitted []uint
+	polled    []recordedPoll
+}
 
 func (r *recordingEnqueuer) EnqueueSubmit(id uint, _ time.Duration) error {
 	r.submitted = append(r.submitted, id)
 	return nil
 }
-func (r *recordingEnqueuer) EnqueuePoll(uint, time.Duration) error { return nil }
+func (r *recordingEnqueuer) EnqueuePoll(id uint, delay time.Duration) error {
+	r.polled = append(r.polled, recordedPoll{orderID: id, delay: delay})
+	return nil
+}
 
 // 入队失败（如 Redis 重启）留下的 pending 采购单必须被巡检补投，否则订单永远不发货。
 func TestSyncAcceptedOrders_RequeuesStalledSubmissions(t *testing.T) {
