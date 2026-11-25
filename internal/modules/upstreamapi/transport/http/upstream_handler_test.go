@@ -279,6 +279,21 @@ func (l catalogPriceLevels) ResolveCatalogPrice(book memberlevelapp.UserPriceBoo
 	return best, hit, exclusive
 }
 
+func TestUpstreamCatalogCarriesPurchaseLimits(t *testing.T) {
+	product := productdomain.Product{MinPurchaseQuantity: 2, MaxPurchaseQuantity: 8}
+	payload, err := json.Marshal((&Handler{}).toUpstreamProductWithMemberPrice(product, memberlevelapp.UserPriceBook{}, 0, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var upstreamProduct upstreamadapter.UpstreamProduct
+	if err := json.Unmarshal(payload, &upstreamProduct); err != nil {
+		t.Fatal(err)
+	}
+	if upstreamProduct.MinPurchaseQuantity != 2 || upstreamProduct.MaxPurchaseQuantity != 8 {
+		t.Fatalf("upstream purchase limits = %d–%d, want 2–8", upstreamProduct.MinPurchaseQuantity, upstreamProduct.MaxPurchaseQuantity)
+	}
+}
+
 // 上游目录价口径必须与下单一致：专属价与会员等级价取更低者。
 // 专属价比会员价贵时必须让会员价胜出，否则用户会比没有专属价时付得更多。
 func TestUpstreamCatalogPriceTakesLowerOfUserPriceAndLevelPrice(t *testing.T) {

@@ -172,6 +172,9 @@ func TestBatchImportUpstreamProductsAutoCreatesCategory(t *testing.T) {
 					Currency:        "CNY",
 					FulfillmentType: constants.FulfillmentTypeAuto,
 					IsActive:        true,
+
+					MinPurchaseQuantity: 2,
+					MaxPurchaseQuantity: 8,
 					SKUs: []upstream.UpstreamSKU{
 						{ID: 201, SKUCode: "SKU-A", SpecValues: jsonmap.JSON{"name": "A"}, PriceAmount: "10.00", IsActive: true},
 					},
@@ -202,6 +205,9 @@ func TestBatchImportUpstreamProductsAutoCreatesCategory(t *testing.T) {
 	}
 	if imported.CategoryID == 0 {
 		t.Fatalf("expected imported product to be assigned to auto-created category")
+	}
+	if imported.MinPurchaseQuantity != 2 || imported.MaxPurchaseQuantity != 8 {
+		t.Fatalf("expected quantity limits 2–8, got %d–%d", imported.MinPurchaseQuantity, imported.MaxPurchaseQuantity)
 	}
 
 	var category categorydomain.Category

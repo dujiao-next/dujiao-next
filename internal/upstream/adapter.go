@@ -79,6 +79,9 @@ type UpstreamProduct struct {
 	CategoryID       uint                              `json:"category_id"`
 	SKUs             []UpstreamSKU                     `json:"skus"`
 	UpdatedAt        time.Time                         `json:"updated_at"`
+
+	MinPurchaseQuantity int `json:"min_purchase_quantity,omitempty"`
+	MaxPurchaseQuantity int `json:"max_purchase_quantity,omitempty"`
 }
 
 // UpstreamCategory 上游分类信息

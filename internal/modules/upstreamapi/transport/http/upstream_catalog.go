@@ -51,6 +51,9 @@ type upstreamProduct struct {
 	SKUs             []upstreamSKU                     `json:"skus"`
 	CreatedAt        time.Time                         `json:"created_at"`
 	UpdatedAt        time.Time                         `json:"updated_at"`
+
+	MinPurchaseQuantity int `json:"min_purchase_quantity,omitempty"`
+	MaxPurchaseQuantity int `json:"max_purchase_quantity,omitempty"`
 }
 
 type upstreamSKU struct {
@@ -324,6 +327,9 @@ func (h *Handler) toUpstreamProductWithMemberPrice(p productdomain.Product, pric
 		SKUs:             skus,
 		CreatedAt:        p.CreatedAt,
 		UpdatedAt:        p.UpdatedAt,
+
+		MinPurchaseQuantity: productdomain.NormalizePurchaseQuantityLimit(p.MinPurchaseQuantity),
+		MaxPurchaseQuantity: productdomain.NormalizePurchaseQuantityLimit(p.MaxPurchaseQuantity),
 	}
 
 	if mp, ok := h.resolveCatalogPrice(priceBook, memberLevelID, p.ID, 0, p.PriceAmount.Decimal); ok {
