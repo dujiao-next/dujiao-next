@@ -10,12 +10,14 @@ import (
 
 	"github.com/dujiao-next/internal/config"
 	settingstransport "github.com/dujiao-next/internal/modules/settings/transport/http"
+	"github.com/dujiao-next/internal/shared/mailbrand"
 )
 
 type settingsSMTPAdapter struct {
 	settings *settingsapp.Service
 	cfg      *config.Config
 	email    *notificationsmtp.Service
+	brand    mailbrand.Resolver
 }
 
 func (a settingsSMTPAdapter) GetSMTPSetting() (settingsmessaging.SMTPSetting, error) {
@@ -36,7 +38,7 @@ func (a settingsSMTPAdapter) ApplyRuntime(setting settingsmessaging.SMTPSetting)
 func (a settingsSMTPAdapter) SendTest(setting settingsmessaging.SMTPSetting, toEmail, subject, body string) error {
 	configForSend := settingsmessaging.SMTPSettingToConfig(setting)
 	configForSend.Enabled = true
-	err := notificationsmtp.New(&configForSend).SendCustomEmail(toEmail, subject, body)
+	err := notificationsmtp.New(&configForSend, a.brand).SendCustomEmail(toEmail, subject, body)
 	switch {
 	case err == nil:
 		return nil

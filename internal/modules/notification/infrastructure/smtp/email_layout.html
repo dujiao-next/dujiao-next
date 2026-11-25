@@ -1,0 +1,86 @@
+<!doctype html>
+<html{{if .Locale}} lang="{{.Locale}}"{{end}} xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="supported-color-schemes" content="dark">
+  <title>{{.Title}}</title>
+  <style>
+    :root { color-scheme: dark; supported-color-schemes: dark; }
+    html, body { margin: 0; }
+    table { mso-table-lspace: 0; mso-table-rspace: 0; }
+    a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; }
+    @media only screen and (max-width: 480px) {
+      .page-inset { padding: 28px 14px !important; }
+      .brand-inset { padding: 17px 20px !important; }
+      .message-inset { padding: 29px 20px 25px !important; }
+      .foot-inset { padding: 17px 20px !important; }
+      .message-title { font-size: 27px !important; }
+      .verification-code-short { font-size: 37px !important; line-height: 46px !important; }
+    }
+    @media only screen and (min-width: 481px) {
+      .verification-code-short { font-size: 48px !important; line-height: 54px !important; }
+      .verification-code-long { font-size: 42px !important; line-height: 54px !important; }
+    }
+  </style>
+</head>
+<body style="margin: 0; background-color: #11151d; color: #f5f5f7; font-family: 'Geist Sans', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif;">
+  {{if .Validity}}
+  <div aria-hidden="true" style="display: none; visibility: hidden; opacity: 0; max-width: 0; max-height: 0; overflow: hidden; mso-hide: all;">{{.Validity}}</div>
+  {{end}}
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#11151d" style="width: 100%; background-color: #11151d; background-image: linear-gradient(126deg, #162631 0%, #10131a 52%, #211b2d 100%);">
+    <tr>
+      <td align="center" valign="top" class="page-inset" style="padding: 48px 20px;">
+        <!--[if mso]><table role="presentation" align="center" width="568" cellspacing="0" cellpadding="0"><tr><td><![endif]-->
+        <table role="presentation" align="center" width="100%" cellspacing="0" cellpadding="0" bgcolor="#17181c" style="width: 100%; max-width: 568px; table-layout: fixed; border: 1px solid #383e48; border-radius: 19px; border-spacing: 0; background-color: #17181c; box-shadow: 0 18px 56px #080a104d;">
+          {{if .Brand}}
+          <tr>
+            <td class="brand-inset" bgcolor="#1b1c20" style="padding: 19px 30px; background-color: #1b1c20; border-radius: 18px 18px 0 0; border-bottom: 1px solid #343942;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td valign="middle" style="padding-left: 5px; color: #f5f5f7; font-size: 21px; line-height: 26px; font-weight: 750; letter-spacing: -0.55px; overflow-wrap: anywhere;">
+                    {{.Brand}}
+                  </td>
+                  {{if .SiteURL}}
+                  <td align="right" valign="middle" style="padding-left: 10px; font-size: 13px; line-height: 22px; overflow-wrap: anywhere;">
+                    <a href="{{.SiteURL}}" style="color: #8fbfff; text-decoration: none;">{{.SiteHost}}</a>
+                  </td>
+                  {{end}}
+                </tr>
+              </table>
+            </td>
+          </tr>
+          {{end}}
+          <tr>
+            <td class="message-inset" bgcolor="#17181c" style="padding: 34px 30px 29px; background-color: #17181c; background-image: radial-gradient(ellipse at 100% 0%, #1a2a3a 0%, #17181c 62%); border-radius: {{if .Brand}}0{{else}}18px{{end}} {{if .Brand}}0{{else}}18px{{end}} {{if .Footer}}0{{else}}18px{{end}} {{if .Footer}}0{{else}}18px{{end}};">
+              <h1 class="message-title" style="margin: 0 0 10px; color: #f5f5f7; font-size: 33px; line-height: 1.25; font-weight: 750; letter-spacing: -0.035em; overflow-wrap: anywhere;">{{.Title}}</h1>
+              {{if .Lines}}
+              <p style="margin: 0; color: #c6ccd6; font-size: 15px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; word-wrap: break-word;">{{range $index, $line := .Lines}}{{if $index}}<br>{{end}}{{$line}}{{end}}</p>
+              {{end}}
+              {{if .Code}}
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width: 100%; margin: 24px 0 0;">
+                <tr>
+                  <td align="center" bgcolor="#101e2e" style="padding: 22px 12px; background-color: #101e2e; background-image: linear-gradient(112deg, #102033, #162945); border: 1px solid #2d5078; border-radius: 13px;">
+                    <span class="verification-code-{{if gt (len .Code) 6}}long{{else}}short{{end}}" style="display: inline-block; padding-left: 0.18em; color: #a8d2ff; font-family: 'Geist Mono', Consolas, 'SFMono-Regular', 'Courier New', monospace; font-size: {{if gt (len .Code) 6}}24px{{else}}36px{{end}}; font-weight: 700; line-height: 54px; letter-spacing: 0.18em; white-space: nowrap;">{{.Code}}</span>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin: 17px 0 0; color: #c6ccd6; font-size: 14px; line-height: 1.6;"><strong style="color: #aad2ff;">{{.Validity}}</strong>{{.Warning}}</p>
+              {{end}}
+            </td>
+          </tr>
+          {{if .Footer}}
+          <tr>
+            <td class="foot-inset" bgcolor="#1b1c20" style="padding: 18px 30px; background-color: #1b1c20; border-top: 1px solid #343942; border-radius: 0 0 18px 18px;">
+              <p style="margin: 0; color: #a7afbf; font-size: 13px; line-height: 1.65;">{{.Footer}}</p>
+            </td>
+          </tr>
+          {{end}}
+        </table>
+        <!--[if mso]></td></tr></table><![endif]-->
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

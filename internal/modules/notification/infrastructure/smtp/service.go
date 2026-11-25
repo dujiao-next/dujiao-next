@@ -2,9 +2,9 @@ package smtp
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/tls"
-	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"mime"
@@ -51,12 +51,13 @@ func generateMessageID(from string) string {
 
 // Service 邮件发送服务
 type Service struct {
-	cfg *config.EmailConfig
+	cfg   *config.EmailConfig
+	brand mailbrand.Resolver
 }
 
 // New 创建邮件服务
-func New(cfg *config.EmailConfig) *Service {
-	return &Service{cfg: cfg}
+func New(cfg *config.EmailConfig, brand mailbrand.Resolver) *Service {
+	return &Service{cfg: cfg, brand: brand}
 }
 
 // SetConfig 更新运行时邮件配置
@@ -70,16 +71,18 @@ func (s *Service) SetConfig(cfg *config.EmailConfig) {
 // SendVerifyCode 发送邮箱验证码
 func (s *Service) SendVerifyCode(toEmail, code, purpose, locale string, brand mailbrand.Brand) error {
 	subject, body := buildVerifyCodeContent(code, purpose, locale, brand)
-	return s.sendTextEmail(toEmail, subject, body, brand)
+	expiryMinutes := 10
+	if s.cfg != nil && s.cfg.VerifyCode.ExpireMinutes > 0 {
+		expiryMinutes = s.cfg.VerifyCode.ExpireMinutes
+	}
+	layout := verificationEmailLayout(subject, code, purpose, locale, expiryMinutes, brand)
+	return s.sendEmail(toEmail, emailMessage{Subject: subject, Text: body, Layout: layout, Brand: brand})
 }
 
 // SendOrderStatusEmail 发送订单状态通知
 func (s *Service) SendOrderStatusEmail(toEmail string, input notificationcontract.OrderStatusEmailInput, locale string) error {
 	subject, body := buildOrderStatusContent(input, locale)
-	if input.AttachmentName != "" && input.AttachmentContent != "" {
-		return s.sendEmailWithAttachment(toEmail, subject, body, input.AttachmentName, input.AttachmentContent, input.MailBrand)
-	}
-	return s.sendTextEmail(toEmail, subject, body, input.MailBrand)
+	return s.sendOrderEmail(toEmail, subject, body, input, locale)
 }
 
 // SendOrderStatusEmailWithTemplate 使用可配置模板发送订单状态通知
@@ -88,10 +91,22 @@ func (s *Service) SendOrderStatusEmailWithTemplate(toEmail string, input notific
 		return s.SendOrderStatusEmail(toEmail, input, locale)
 	}
 	subject, body := buildOrderStatusContentFromTemplate(input, locale, *tmplSetting)
-	if input.AttachmentName != "" && input.AttachmentContent != "" {
-		return s.sendEmailWithAttachment(toEmail, subject, body, input.AttachmentName, input.AttachmentContent, input.MailBrand)
+	return s.sendOrderEmail(toEmail, subject, body, input, locale)
+}
+
+func (s *Service) sendOrderEmail(toEmail, subject, body string, input notificationcontract.OrderStatusEmailInput, locale string) error {
+	brand := input.MailBrand
+	if strings.TrimSpace(brand.SiteName) == "" {
+		brand.SiteName = input.SiteName
 	}
-	return s.sendTextEmail(toEmail, subject, body, input.MailBrand)
+	if strings.TrimSpace(brand.SiteURL) == "" {
+		brand.SiteURL = input.SiteURL
+	}
+	return s.sendEmail(toEmail, emailMessage{
+		Subject: subject, Text: body, Brand: brand,
+		Layout:         textEmailLayout(subject, body, locale, brand),
+		AttachmentName: input.AttachmentName, AttachmentContent: input.AttachmentContent,
+	})
 }
 
 func buildOrderStatusContentFromTemplate(input notificationcontract.OrderStatusEmailInput, locale string, tmplSetting settingsmessaging.OrderEmailTemplateSetting) (string, string) {
@@ -181,33 +196,37 @@ func (s *Service) SendCustomEmail(toEmail, subject, body string) error {
 	if body == "" {
 		body = "这是一封来自 Dujiao-Next 的 SMTP 测试邮件，说明当前配置可正常发送。"
 	}
-	return s.sendTextEmail(toEmail, subject, body)
+	brand := mailbrand.Brand{}
+	if s.brand != nil {
+		var err error
+		brand, err = s.brand.ResolveEmailBrand(context.Background(), mailbrand.Scope{})
+		if err != nil {
+			logger.Warnw("custom_email_brand_unavailable", "error", err)
+		}
+	}
+	if brand.SiteName == "" && s.cfg != nil {
+		brand.SiteName = s.cfg.FromName
+	}
+	layout := textEmailLayout(subject, body, "", brand)
+	layout.Locale = ""
+	return s.sendEmail(toEmail, emailMessage{
+		Subject: subject, Text: body, Brand: brand, Layout: layout,
+	})
 }
 
-func (s *Service) sendTextEmail(toEmail, subject, body string, brands ...mailbrand.Brand) error {
+func (s *Service) sendEmail(toEmail string, message emailMessage) error {
 	if telegramidentity.IsPlaceholderEmail(toEmail) {
 		return nil
 	}
-	brand := firstMailBrand(brands)
-	from, addr, err := s.prepareSMTPEnvelope(toEmail, brand.FromName)
+	from, addr, err := s.prepareSMTPEnvelope(toEmail, message.Brand.FromName)
 	if err != nil {
 		return err
 	}
-	msg := buildEmailMessage(from, toEmail, subject, body, brand.ReplyTo)
-	return s.sendSMTPMessage(addr, toEmail, []byte(msg))
-}
-
-func (s *Service) sendEmailWithAttachment(toEmail, subject, body, attachName, attachContent string, brands ...mailbrand.Brand) error {
-	if telegramidentity.IsPlaceholderEmail(toEmail) {
-		return nil
-	}
-	brand := firstMailBrand(brands)
-	from, addr, err := s.prepareSMTPEnvelope(toEmail, brand.FromName)
+	msg, err := buildEmailMessage(from, toEmail, message)
 	if err != nil {
 		return err
 	}
-	msg := buildEmailMessageWithAttachment(from, toEmail, subject, body, attachName, attachContent, brand.ReplyTo)
-	return s.sendSMTPMessage(addr, toEmail, []byte(msg))
+	return s.sendSMTPMessage(addr, toEmail, msg)
 }
 
 // prepareSMTPEnvelope 校验配置与收件人，并返回发件地址与 SMTP 服务器地址。
@@ -240,37 +259,6 @@ func (s *Service) sendSMTPMessage(addr, toEmail string, msg []byte) error {
 		return normalizeEmailSendError(sendMailWithStartTLS(addr, s.cfg.Host, s.cfg.From, recipients, msg, s.cfg.Username, s.cfg.Password))
 	}
 	return normalizeEmailSendError(sendMailPlain(addr, s.cfg.Host, s.cfg.From, recipients, msg, s.cfg.Username, s.cfg.Password))
-}
-
-func buildEmailMessageWithAttachment(from, to, subject, body, attachName, attachContent, replyTo string) string {
-	boundary := "----=_DujiaoNextBoundary_" + fmt.Sprintf("%d", len(body)+len(attachContent))
-
-	var buf bytes.Buffer
-	writeStandardHeaders(&buf, from, to, subject, replyTo)
-	buf.WriteString(fmt.Sprintf("Content-Type: multipart/mixed; boundary=\"%s\"\r\n", boundary))
-	buf.WriteString("\r\n")
-
-	// 正文部分
-	buf.WriteString(fmt.Sprintf("--%s\r\n", boundary))
-	buf.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
-	buf.WriteString("Content-Transfer-Encoding: base64\r\n")
-	buf.WriteString("\r\n")
-	buf.WriteString(base64.StdEncoding.EncodeToString([]byte(body)))
-	buf.WriteString("\r\n")
-
-	// 附件部分
-	buf.WriteString(fmt.Sprintf("--%s\r\n", boundary))
-	buf.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
-	buf.WriteString(fmt.Sprintf("Content-Disposition: attachment; filename=\"%s\"\r\n", mime.QEncoding.Encode("UTF-8", attachName)))
-	buf.WriteString("Content-Transfer-Encoding: base64\r\n")
-	buf.WriteString("\r\n")
-	buf.WriteString(base64.StdEncoding.EncodeToString([]byte(attachContent)))
-	buf.WriteString("\r\n")
-
-	// 结束边界
-	buf.WriteString(fmt.Sprintf("--%s--\r\n", boundary))
-
-	return buf.String()
 }
 
 func buildVerifyCodeContent(code, purpose, locale string, brands ...mailbrand.Brand) (string, string) {
@@ -471,19 +459,6 @@ func normalizeReplyToHeader(raw string) string {
 		return ""
 	}
 	return addr.Address
-}
-
-func buildEmailMessage(from, to, subject, body string, replyTo ...string) string {
-	var buf bytes.Buffer
-	resolvedReplyTo := ""
-	if len(replyTo) > 0 {
-		resolvedReplyTo = replyTo[0]
-	}
-	writeStandardHeaders(&buf, from, to, subject, resolvedReplyTo)
-	buf.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
-	buf.WriteString("\r\n")
-	buf.WriteString(body)
-	return buf.String()
 }
 
 func sendMailWithSSL(addr, host, from string, to []string, msg []byte, username, password string) (err error) {

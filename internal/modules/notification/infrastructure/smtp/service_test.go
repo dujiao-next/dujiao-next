@@ -220,10 +220,10 @@ func TestNormalizeEmailSendError(t *testing.T) {
 	}
 }
 
-func TestSendTextEmailSkipTelegramPlaceholder(t *testing.T) {
+func TestSendEmailSkipsTelegramPlaceholder(t *testing.T) {
 	service := &Service{}
-	if err := service.sendTextEmail("telegram_6059928735@login.local", "subject", "body"); err != nil {
-		t.Fatalf("sendTextEmail() should skip telegram placeholder email, got %v", err)
+	if err := service.SendCustomEmail("telegram_6059928735@login.local", "subject", "body"); err != nil {
+		t.Fatalf("send email should skip telegram placeholder email, got %v", err)
 	}
 }
 
@@ -279,7 +279,13 @@ func TestBuildEmailMessageSupportsPerMessageFromNameAndReplyTo(t *testing.T) {
 	if parsedFrom.Name != "白标商店" {
 		t.Fatalf("from display name was encoded incorrectly: %q", parsedFrom.Name)
 	}
-	message := buildEmailMessage(from, "buyer@example.com", "subject", "body", "support@shop.example.test")
+	raw, err := buildEmailMessage(from, "buyer@example.com", emailMessage{
+		Subject: "subject", Text: "body", Brand: mailbrand.Brand{ReplyTo: "support@shop.example.test"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	message := string(raw)
 
 	if !strings.Contains(message, "From: ") || !strings.Contains(message, "<mailer@service.example>") {
 		t.Fatalf("message should retain the authenticated shared sender address: %s", message)
@@ -466,7 +472,7 @@ func TestEmailServiceSendOffice365Integration(t *testing.T) {
 		FromName: "Dujiao Next",
 		UseTLS:   true,
 		UseSSL:   false,
-	})
+	}, nil)
 
 	if err := svc.SendCustomEmail(to, "Office365 SMTP integration test", "This is a real email sent by Service integration test."); err != nil {
 		t.Fatalf("SendCustomEmail() failed: %v", err)
