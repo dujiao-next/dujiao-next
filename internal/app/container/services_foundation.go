@@ -104,7 +104,7 @@ func (c *Container) loadRuntimeSettings() {
 
 // initIdentityAndCatalogServices 装配身份认证、上传、推广与商品读取能力。
 func (c *Container) initIdentityAndCatalogServices() {
-	c.EmailSender = notificationsmtp.New(&c.Config.Email)
+	c.EmailSender = notificationsmtp.New(&c.Config.Email, c.EmailBrandResolver)
 	c.CaptchaService = captchaapp.NewService(c.SettingService, c.Config.Captcha, captchaturnstile.New())
 	c.AuthService = adminauthapp.NewService(c.Config, c.AdminStore)
 	c.TOTPService = admintotpapp.NewService(c.Config, c.AdminStore, cache.Client())
