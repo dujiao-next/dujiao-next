@@ -493,6 +493,250 @@ func TestBuildOrderResultStacksPromotionAndMemberDiscount(t *testing.T) {
 	}
 }
 
+// 专属折扣价按 SKU 原价打折，再与活动价取低：折扣更低时采纳折扣，
+// 并且像一口价一样把活动价差额清零，保持「原价 - 优惠 = 实付」。
+func TestBuildOrderResultAppliesUserDiscountRate(t *testing.T) {
+	dsn := fmt.Sprintf("file:order_service_user_discount_%d?mode=memory&cache=shared", time.Now().UnixNano())
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite failed: %v", err)
+	}
+	if err := db.AutoMigrate(
+		&categorydomain.Category{},
+		&productdomain.Product{},
+		&productdomain.ProductSKU{},
+		&promotiondomain.Promotion{},
+		&userdomain.User{},
+		&memberleveldomain.MemberLevel{},
+		&memberleveldomain.MemberLevelPrice{},
+		&memberleveldomain.UserProductPrice{},
+	); err != nil {
+		t.Fatalf("auto migrate failed: %v", err)
+	}
+
+	now := time.Now()
+	category := categorydomain.Category{
+		Slug:      "user-discount-category",
+		NameJSON:  jsonmap.JSON{"zh-CN": "测试分类"},
+		CreatedAt: now,
+	}
+	if err := db.Create(&category).Error; err != nil {
+		t.Fatalf("create category failed: %v", err)
+	}
+	user := userdomain.User{
+		Email:        "user-discount@example.com",
+		PasswordHash: "hash",
+		Status:       "active",
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("create user failed: %v", err)
+	}
+
+	product := productdomain.Product{
+		CategoryID:      category.ID,
+		Slug:            "user-discount-product",
+		TitleJSON:       jsonmap.JSON{"zh-CN": "专属折扣商品"},
+		PriceAmount:     money.FromDecimal(decimal.NewFromInt(100)),
+		PurchaseType:    constants.ProductPurchaseMember,
+		FulfillmentType: constants.FulfillmentTypeAuto,
+		IsActive:        true,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+	if err := db.Create(&product).Error; err != nil {
+		t.Fatalf("create product failed: %v", err)
+	}
+	sku := productdomain.ProductSKU{
+		ProductID:   product.ID,
+		SKUCode:     productdomain.DefaultSKUCode,
+		PriceAmount: money.FromDecimal(decimal.NewFromInt(100)),
+		IsActive:    true,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	if err := db.Create(&sku).Error; err != nil {
+		t.Fatalf("create sku failed: %v", err)
+	}
+	promotion := promotiondomain.Promotion{
+		Name:       "user-discount-10-percent",
+		ScopeType:  constants.ScopeTypeProduct,
+		ScopeRefID: product.ID,
+		Type:       constants.PromotionTypePercent,
+		Value:      money.FromDecimal(decimal.NewFromInt(10)),
+		MinAmount:  money.FromDecimal(decimal.Zero),
+		IsActive:   true,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+	if err := db.Create(&promotion).Error; err != nil {
+		t.Fatalf("create promotion failed: %v", err)
+	}
+	// 八折专属价：80 < 活动价 90，应当胜出。
+	if err := db.Create(&memberleveldomain.UserProductPrice{
+		UserID:       user.ID,
+		ProductID:    product.ID,
+		SKUID:        sku.ID,
+		DiscountRate: money.FromDecimal(decimal.NewFromInt(80)),
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}).Error; err != nil {
+		t.Fatalf("create user discount failed: %v", err)
+	}
+
+	levelRepo := memberlevelgormstore.NewLevelStore(db)
+	priceRepo := memberlevelgormstore.NewPriceStore(db)
+	svc := NewOrderService(OrderServiceOptions{
+		UserStore:          userstore.New(db),
+		ProductStore:       productgormstore.NewProductStore(db),
+		ProductSKUStore:    productgormstore.NewSKUStore(db),
+		PromotionRepo:      promotiongormstore.New(db),
+		MemberLevelService: memberlevelapp.NewService(levelRepo, priceRepo, memberlevelgormstore.NewUserStore(db), memberlevelgormstore.NewUserPriceStore(db)),
+		ExpireMinutes:      15,
+	})
+
+	result, err := svc.buildOrderResult(orderCreateParams{
+		UserID: user.ID,
+		Items:  []CreateOrderItem{{ProductID: product.ID, SKUID: sku.ID, Quantity: 2}},
+	})
+	if err != nil {
+		t.Fatalf("buildOrderResult failed: %v", err)
+	}
+
+	if !result.OriginalAmount.Equal(decimal.NewFromInt(200)) {
+		t.Fatalf("expected original amount 200, got: %s", result.OriginalAmount.String())
+	}
+	if !result.PromotionDiscountAmount.IsZero() {
+		t.Fatalf("expected promotion discount cleared by exclusive price, got: %s", result.PromotionDiscountAmount.String())
+	}
+	if !result.MemberDiscountAmount.Equal(decimal.NewFromInt(40)) {
+		t.Fatalf("expected member discount amount 40, got: %s", result.MemberDiscountAmount.String())
+	}
+	if !result.TotalAmount.Equal(decimal.NewFromInt(160)) {
+		t.Fatalf("expected total amount 160, got: %s", result.TotalAmount.String())
+	}
+	if len(result.Plans) != 1 {
+		t.Fatalf("expected one plan, got %d", len(result.Plans))
+	}
+	if got := result.Plans[0].Item.UnitPrice.String(); got != "80.00" {
+		t.Fatalf("expected final unit price 80.00, got %s", got)
+	}
+}
+
+// 折扣价仍高于活动价时，活动价必须继续生效，用户不能因为设了专属折扣而多付。
+func TestBuildOrderResultKeepsCheaperPromotionOverUserDiscount(t *testing.T) {
+	dsn := fmt.Sprintf("file:order_service_user_discount_promo_%d?mode=memory&cache=shared", time.Now().UnixNano())
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite failed: %v", err)
+	}
+	if err := db.AutoMigrate(
+		&categorydomain.Category{},
+		&productdomain.Product{},
+		&productdomain.ProductSKU{},
+		&promotiondomain.Promotion{},
+		&userdomain.User{},
+		&memberleveldomain.MemberLevel{},
+		&memberleveldomain.MemberLevelPrice{},
+		&memberleveldomain.UserProductPrice{},
+	); err != nil {
+		t.Fatalf("auto migrate failed: %v", err)
+	}
+
+	now := time.Now()
+	category := categorydomain.Category{
+		Slug:      "user-discount-promo-category",
+		NameJSON:  jsonmap.JSON{"zh-CN": "测试分类"},
+		CreatedAt: now,
+	}
+	if err := db.Create(&category).Error; err != nil {
+		t.Fatalf("create category failed: %v", err)
+	}
+	user := userdomain.User{
+		Email:        "user-discount-promo@example.com",
+		PasswordHash: "hash",
+		Status:       "active",
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("create user failed: %v", err)
+	}
+	product := productdomain.Product{
+		CategoryID:      category.ID,
+		Slug:            "user-discount-promo-product",
+		TitleJSON:       jsonmap.JSON{"zh-CN": "活动更低的商品"},
+		PriceAmount:     money.FromDecimal(decimal.NewFromInt(100)),
+		PurchaseType:    constants.ProductPurchaseMember,
+		FulfillmentType: constants.FulfillmentTypeAuto,
+		IsActive:        true,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+	if err := db.Create(&product).Error; err != nil {
+		t.Fatalf("create product failed: %v", err)
+	}
+	sku := productdomain.ProductSKU{
+		ProductID:   product.ID,
+		SKUCode:     productdomain.DefaultSKUCode,
+		PriceAmount: money.FromDecimal(decimal.NewFromInt(100)),
+		IsActive:    true,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	if err := db.Create(&sku).Error; err != nil {
+		t.Fatalf("create sku failed: %v", err)
+	}
+	if err := db.Create(&promotiondomain.Promotion{
+		Name:       "user-discount-promo-50-percent",
+		ScopeType:  constants.ScopeTypeProduct,
+		ScopeRefID: product.ID,
+		Type:       constants.PromotionTypePercent,
+		Value:      money.FromDecimal(decimal.NewFromInt(50)),
+		MinAmount:  money.FromDecimal(decimal.Zero),
+		IsActive:   true,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}).Error; err != nil {
+		t.Fatalf("create promotion failed: %v", err)
+	}
+	// 95 折专属价：折后 95 高于活动价 50，必须让活动价胜出。
+	if err := db.Create(&memberleveldomain.UserProductPrice{
+		UserID:       user.ID,
+		ProductID:    product.ID,
+		SKUID:        sku.ID,
+		DiscountRate: money.FromDecimal(decimal.NewFromInt(95)),
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}).Error; err != nil {
+		t.Fatalf("create user discount failed: %v", err)
+	}
+
+	svc := NewOrderService(OrderServiceOptions{
+		UserStore:          userstore.New(db),
+		ProductStore:       productgormstore.NewProductStore(db),
+		ProductSKUStore:    productgormstore.NewSKUStore(db),
+		PromotionRepo:      promotiongormstore.New(db),
+		MemberLevelService: memberlevelapp.NewService(memberlevelgormstore.NewLevelStore(db), memberlevelgormstore.NewPriceStore(db), memberlevelgormstore.NewUserStore(db), memberlevelgormstore.NewUserPriceStore(db)),
+		ExpireMinutes:      15,
+	})
+
+	result, err := svc.buildOrderResult(orderCreateParams{
+		UserID: user.ID,
+		Items:  []CreateOrderItem{{ProductID: product.ID, SKUID: sku.ID, Quantity: 2}},
+	})
+	if err != nil {
+		t.Fatalf("buildOrderResult failed: %v", err)
+	}
+	if got := result.Plans[0].Item.UnitPrice.String(); got != "50.00" {
+		t.Fatalf("expected cheaper promotion to win, unit price = %s", got)
+	}
+	if !result.TotalAmount.Equal(decimal.NewFromInt(100)) {
+		t.Fatalf("expected total 100, got %s", result.TotalAmount.String())
+	}
+}
+
 func TestBuildOrderResultRejectsProductMaxPurchaseQuantityExceeded(t *testing.T) {
 	assertBuildOrderResultRejectsPurchaseQuantity(t, orderPurchaseQuantityLimitFixture{
 		dsnPrefix:       "order_service_purchase_limit",

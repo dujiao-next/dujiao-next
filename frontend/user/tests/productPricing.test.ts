@@ -44,6 +44,35 @@ test('专属价必须严格低于基础价才生效', () => {
   assert.equal(resolveUserPriceCents(product, 19, lower), 9500)
 })
 
+test('专属折扣按 SKU 原价折算，且与一口价互斥', () => {
+  // 八折：SKU 19 原价 100 → 80，SKU 20 原价 200 → 160
+  const discount = [{ product_id: 18, sku_id: 0, price_amount: '0.00', discount_rate: '80.00' }]
+  assert.equal(resolveUserPriceCents(product, 19, discount), 8000)
+  assert.equal(resolveUserPriceCents(product, 20, discount), 16000)
+  assert.equal(resolveMemberPriceAmount(product, 19, '100.00', 0, 0, discount), '80.00')
+
+  // 85 折四舍五入到分：99.99 × 0.85 = 84.99（79.99 是八折的结果，这里用另一件商品验证）
+  const oddProduct = { id: 21, price_amount: '99.99', skus: [{ id: 22, price_amount: '99.99', is_active: true }] }
+  const oddDiscount = [{ product_id: 21, sku_id: 0, price_amount: '0.00', discount_rate: '85.00' }]
+  assert.equal(resolveUserPriceCents(oddProduct, 22, oddDiscount), 8499)
+})
+
+test('折扣价高于活动价时让活动价继续生效', () => {
+  // 95 折折后 95，活动价 90 更低 → 返回 null，调用方继续显示活动价 90
+  const discount = [{ product_id: 18, sku_id: 0, price_amount: '0.00', discount_rate: '95.00' }]
+  assert.equal(resolveMemberPriceAmount(product, 19, '90.00', 0, 0, discount), null)
+  // 八折折后 80 低于活动价 90 → 展示 80
+  const deeper = [{ product_id: 18, sku_id: 0, price_amount: '0.00', discount_rate: '80.00' }]
+  assert.equal(resolveMemberPriceAmount(product, 19, '90.00', 0, 0, deeper), '80.00')
+})
+
+test('折扣率越界时不生效', () => {
+  const hundred = [{ product_id: 18, sku_id: 0, price_amount: '0.00', discount_rate: '100.00' }]
+  assert.equal(resolveUserPriceCents(product, 19, hundred), null)
+  const zero = [{ product_id: 18, sku_id: 0, price_amount: '0.00', discount_rate: '0' }]
+  assert.equal(resolveUserPriceCents(product, 19, zero), null)
+})
+
 test('SKU 级专属价优先于商品级，且不跨商品匹配', () => {
   const userPrices = [
     { product_id: 18, sku_id: 0, price_amount: '95.00' },

@@ -14,12 +14,15 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// UserPriceInput 用户专属价输入
+// UserPriceInput 用户专属价输入。
+// PriceAmount 与 DiscountRate 二选一：service 层校验互斥与取值范围，
+// 这里不再用 binding:"required"，否则纯折扣请求会被拒。
 type UserPriceInput struct {
-	UserID      uint    `json:"user_id" binding:"required"`
-	ProductID   uint    `json:"product_id" binding:"required"`
-	SKUID       uint    `json:"sku_id"`
-	PriceAmount float64 `json:"price_amount" binding:"required"`
+	UserID       uint    `json:"user_id" binding:"required"`
+	ProductID    uint    `json:"product_id" binding:"required"`
+	SKUID        uint    `json:"sku_id"`
+	PriceAmount  float64 `json:"price_amount"`
+	DiscountRate float64 `json:"discount_rate"`
 }
 
 // BatchUpsertUserPricesRequest 批量设置用户专属价请求
@@ -150,10 +153,11 @@ func (h *AdminHandler) BatchUpsertUserPrices(c *gin.Context) {
 	prices := make([]memberleveldomain.UserProductPrice, 0, len(req.Prices))
 	for _, p := range req.Prices {
 		prices = append(prices, memberleveldomain.UserProductPrice{
-			UserID:      p.UserID,
-			ProductID:   p.ProductID,
-			SKUID:       p.SKUID,
-			PriceAmount: money.FromDecimal(decimal.NewFromFloat(p.PriceAmount)),
+			UserID:       p.UserID,
+			ProductID:    p.ProductID,
+			SKUID:        p.SKUID,
+			PriceAmount:  money.FromDecimal(decimal.NewFromFloat(p.PriceAmount)),
+			DiscountRate: money.FromDecimal(decimal.NewFromFloat(p.DiscountRate)),
 		})
 	}
 
@@ -205,9 +209,11 @@ func NewUserHandler(prices UserPriceReader, products memberlevelcontract.Product
 }
 
 type userPriceView struct {
-	ProductID     uint         `json:"product_id"`
-	SKUID         uint         `json:"sku_id"`
+	ProductID uint `json:"product_id"`
+	SKUID     uint `json:"sku_id"`
+	// PriceAmount 折扣行为 0；DiscountRate > 0 表示按原价打折，前台据此显示"八折"。
 	PriceAmount   money.Amount `json:"price_amount"`
+	DiscountRate  money.Amount `json:"discount_rate"`
 	ProductSlug   string       `json:"product_slug,omitempty"`
 	ProductTitle  jsonmap.JSON `json:"product_title,omitempty"`
 	ProductActive bool         `json:"product_active"`
@@ -239,7 +245,12 @@ func (h *UserHandler) ListMyPrices(c *gin.Context) {
 				continue
 			}
 		}
-		view := userPriceView{ProductID: p.ProductID, SKUID: p.SKUID, PriceAmount: p.PriceAmount}
+		view := userPriceView{
+			ProductID:    p.ProductID,
+			SKUID:        p.SKUID,
+			PriceAmount:  p.PriceAmount,
+			DiscountRate: p.DiscountRate,
+		}
 		if product, found := productMap[p.ProductID]; found {
 			view.ProductSlug = product.Slug
 			view.ProductTitle = product.Title

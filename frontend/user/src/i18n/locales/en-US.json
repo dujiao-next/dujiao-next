@@ -349,7 +349,8 @@
     },
     "exclusivePrice": {
       "title": "My exclusive prices",
-      "hint": "These products have a fixed price set just for you; it applies at checkout when it is lower than the regular and member prices",
+      "hint": "These products have a fixed price or an exclusive discount set just for you; it applies at checkout when it is lower than the regular and member prices",
+      "discountOff": "{off}% off",
       "unavailable": "Product is off the shelf or unavailable",
       "total": "{n} in total",
       "showAll": "Show all ({n})",

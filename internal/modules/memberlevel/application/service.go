@@ -184,6 +184,10 @@ func (s *Service) ResolveMemberPrice(levelID, productID, skuID uint, basePrice d
 //   - 会员价更低 → 展示会员价；
 //   - 都不低于基础价 → 不命中。
 //
+// exclusive 只对一口价成立：一口价是一个确定的价，压掉活动价是安全的；折扣价按原价
+// 算出、可能仍高于活动价，压掉活动价会让用户看到比实付更贵的价格，因此不置位，
+// 交由展示层在两者之间取低。
+//
 // 上游对接目录和渠道目录都调这一份，避免两边各写一遍后慢慢跑偏。
 func (s *Service) ResolveCatalogPrice(
 	book UserPriceBook, levelID, productID, skuID uint,
@@ -195,8 +199,10 @@ func (s *Service) ResolveCatalogPrice(
 			best, hit = memberPrice, true
 		}
 	}
-	if userPrice, ok := book.Resolve(productID, skuID, base); ok && userPrice.LessThan(best) {
-		best, hit, exclusive = userPrice, true, true
+	if rule, ok := book.Rule(productID, skuID); ok {
+		if userPrice, priceHit := rule.Price(base); priceHit && userPrice.LessThan(best) {
+			best, hit, exclusive = userPrice, true, rule.IsFixed()
+		}
 	}
 	return best, hit, exclusive
 }

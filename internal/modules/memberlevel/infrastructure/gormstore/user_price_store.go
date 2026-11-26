@@ -55,9 +55,10 @@ func (r *UserPriceStore) BatchUpsert(prices []memberleveldomain.UserProductPrice
 				if err := tx.Model(&memberleveldomain.UserProductPrice{}).
 					Where("id = ?", existing.ID).
 					Updates(map[string]interface{}{
-						"price_amount": item.PriceAmount,
-						"deleted_at":   nil,
-						"updated_at":   time.Now(),
+						"price_amount":  item.PriceAmount,
+						"discount_rate": item.DiscountRate,
+						"deleted_at":    nil,
+						"updated_at":    time.Now(),
 					}).Error; err != nil {
 					return err
 				}

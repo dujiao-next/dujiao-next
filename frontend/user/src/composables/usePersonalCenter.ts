@@ -141,11 +141,19 @@ export function usePersonalCenter(sectionGetter: () => PersonalSection) {
         ? formatSkuSpecValues(row.sku_spec_values, loc) || row.sku_code || ''
         : ''
       const active = row.product_active === true && !!row.product_slug
+      // 折扣行的价格随原价浮动，这里只显示折数；具体折后价在商品详情页按当前价计算。
+      const rate = Number(row.discount_rate || 0)
+      const isDiscount = Number.isFinite(rate) && rate > 0 && rate < 100
       return {
         key: `${row.product_id}-${row.sku_id}`,
         title: title || `#${row.product_id}`,
         skuText,
-        priceText: formatPrice(row.price_amount, siteCurrency.value),
+        priceText: isDiscount
+          ? t('personalCenter.exclusivePrice.discountOff', {
+              n: Number((rate / 10).toFixed(1)),
+              off: Number((100 - rate).toFixed(1)),
+            })
+          : formatPrice(row.price_amount, siteCurrency.value),
         to: active ? `/products/${row.product_slug}` : '',
         unavailable: !active,
       }

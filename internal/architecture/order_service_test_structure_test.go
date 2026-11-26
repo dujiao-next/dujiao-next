@@ -53,6 +53,8 @@ func TestOrderServiceTestsAreSplitByResponsibility(t *testing.T) {
 			"TestBuildOrderResultRejectsProductMinPurchaseQuantityNotMet",
 			"TestBuildOrderResultOriginalAmountBeforePromotion",
 			"TestBuildOrderResultRejectsZeroTotalAmountAfterCoupon",
+			"TestBuildOrderResultAppliesUserDiscountRate",
+			"TestBuildOrderResultKeepsCheaperPromotionOverUserDiscount",
 		},
 	}
 

@@ -6,7 +6,8 @@ const normalizeSkuId = (value: unknown) => {
 }
 
 /**
- * 用户专属一口价（SKU 级优先于商品级，且必须低于该 SKU 的基础价）。
+ * 用户专属价（SKU 级优先于商品级，且必须低于该 SKU 的基础价）。
+ * 两种模式：discount_rate 在 (0,100) 时按基础价打折，否则取 price_amount 一口价。
  * 返回分为单位的整数；未命中返回 null。
  */
 export const resolveUserPriceCents = (
@@ -23,13 +24,22 @@ export const resolveUserPriceCents = (
     ? rows.find((p: any) => Number(p?.sku_id || 0) === normalizedSkuId)
     : undefined)
     ?? rows.find((p: any) => Number(p?.sku_id || 0) === 0)
-  const priceCents = amountToCents(row?.price_amount)
-  if (priceCents === null || priceCents <= 0) return null
+  if (!row) return null
   const skus = Array.isArray(product?.skus) ? product.skus : []
   const sku = skus.find((s: any) => Number(s?.id || 0) === normalizedSkuId)
   const skuBase = amountToCents(sku?.price_amount ?? product?.price_amount)
-  if (skuBase === null || priceCents >= skuBase) return null
-  return priceCents
+  if (skuBase === null || skuBase <= 0) return null
+
+  // 折扣模式：与后端 UserPriceRule.Price 同口径，四舍五入到分。
+  const rate = Number(row?.discount_rate || 0)
+  if (Number.isFinite(rate) && rate > 0 && rate < 100) {
+    const discounted = Math.round((skuBase * rate) / 100)
+    return discounted > 0 && discounted < skuBase ? discounted : null
+  }
+
+  const priceCents = amountToCents(row?.price_amount)
+  if (priceCents === null || priceCents <= 0) return null
+  return priceCents < skuBase ? priceCents : null
 }
 
 /**

@@ -139,6 +139,20 @@ const rowProductName = (row: AdminUserProductPrice) => {
   return title || `#${row.product_id}`
 }
 
+// 折扣行的价格随原价浮动，列表里同时展示折数与按当前价折算的金额。
+const userPriceLabel = (row: AdminUserProductPrice) => {
+  const rate = discountRateOf(row)
+  if (rate <= 0) return formatPrice(row.price_amount)
+  const base = row.sku_id ? row.sku_price_amount : row.product_price_amount
+  const empty = base === undefined || base === null || base === ''
+  return t('admin.userPrices.discountSummary', {
+    n: Number((rate / 10).toFixed(1)),
+    off: Number((100 - rate).toFixed(1)),
+    rate,
+    price: empty ? '-' : formatPrice((Number(base) * rate) / 100),
+  })
+}
+
 const removePrice = async (row: AdminUserProductPrice) => {
   const confirmed = await confirmAction({
     description: t('admin.userPrices.confirmDelete'),
@@ -162,7 +176,8 @@ const productKeyword = ref('')
 const productResults = ref<AdminProduct[]>([])
 const productSearching = ref(false)
 const editingProduct = ref<AdminProduct | null>(null)
-const form = reactive({ sku_id: '0', price: '' as number | string })
+// mode 决定提交 price_amount 还是 discount_rate，两者互斥；discount 为 80 表示八折。
+const form = reactive({ sku_id: '0', mode: 'fixed' as 'fixed' | 'discount', price: '' as number | string, discount: '' as number | string })
 
 const activeSkus = computed(() => (editingProduct.value ? listActiveWholesaleSkus(editingProduct.value) : []))
 
@@ -189,8 +204,15 @@ const openModal = () => {
   productResults.value = []
   editingProduct.value = null
   form.sku_id = '0'
+  form.mode = 'fixed'
   form.price = ''
+  form.discount = ''
   showModal.value = true
+}
+
+const discountRateOf = (row: AdminUserProductPrice) => {
+  const rate = Number(row.discount_rate || 0)
+  return Number.isFinite(rate) && rate > 0 && rate < 100 ? rate : 0
 }
 
 const openEdit = async (row: AdminUserProductPrice) => {
@@ -201,7 +223,10 @@ const openEdit = async (row: AdminUserProductPrice) => {
   productResults.value = []
   editingProduct.value = product
   form.sku_id = String(row.sku_id || 0)
-  form.price = Number(row.price_amount)
+  const rate = discountRateOf(row)
+  form.mode = rate > 0 ? 'discount' : 'fixed'
+  form.price = rate > 0 ? '' : Number(row.price_amount)
+  form.discount = rate > 0 ? rate : ''
   showModal.value = true
 }
 
@@ -223,12 +248,37 @@ const selectedBasePrice = computed(() => {
   return product.price_amount
 })
 
+// 折扣模式的实时预览：同时给出折数与折后价，避免把「80」误读成 80 元。
+const discountPreview = computed(() => {
+  const base = selectedBasePrice.value
+  const rate = Number(form.discount)
+  if (base === null || !Number.isFinite(rate) || rate <= 0 || rate >= 100) return ''
+  return t('admin.userPrices.discountPreview', {
+    n: Number((rate / 10).toFixed(1)),
+    off: Number((100 - rate).toFixed(1)),
+    price: formatPrice((Number(base) * rate) / 100),
+  })
+})
+
 const savePrice = async () => {
   if (!selectedUser.value || !editingProduct.value) return
-  const price = Number(form.price)
-  if (!Number.isFinite(price) || price <= 0) {
-    notifyError(t('admin.userPrices.errors.invalidPrice'))
-    return
+  const isDiscount = form.mode === 'discount'
+  let priceAmount = 0
+  let discountRate = 0
+  if (isDiscount) {
+    const rate = Number(form.discount)
+    if (!Number.isFinite(rate) || rate < 1 || rate >= 100) {
+      notifyError(t('admin.userPrices.errors.invalidDiscount'))
+      return
+    }
+    discountRate = rate
+  } else {
+    const price = Number(form.price)
+    if (!Number.isFinite(price) || price <= 0) {
+      notifyError(t('admin.userPrices.errors.invalidPrice'))
+      return
+    }
+    priceAmount = price
   }
   submitting.value = true
   try {
@@ -238,7 +288,8 @@ const savePrice = async () => {
           user_id: selectedUser.value.id,
           product_id: editingProduct.value.id,
           sku_id: Number(form.sku_id) || 0,
-          price_amount: price,
+          price_amount: priceAmount,
+          discount_rate: discountRate,
         },
       ],
     })
@@ -263,7 +314,12 @@ const fetchSiteCurrency = async () => {
 }
 fetchSiteCurrency()
 
-const ruleKeys = ['admin.userPrices.ruleExclusive', 'admin.userPrices.ruleLowerOnly', 'admin.userPrices.ruleSkuFirst']
+const ruleKeys = [
+  'admin.userPrices.ruleExclusive',
+  'admin.userPrices.ruleDiscount',
+  'admin.userPrices.ruleLowerOnly',
+  'admin.userPrices.ruleSkuFirst',
+]
 </script>
 
 <template>
@@ -351,7 +407,7 @@ const ruleKeys = ['admin.userPrices.ruleExclusive', 'admin.userPrices.ruleLowerO
               </TableCell>
               <TableCell class="px-6 py-4">{{ skuLabelOf(row) }}</TableCell>
               <TableCell class="px-6 py-4 font-mono text-muted-foreground">{{ basePriceOf(row) }}</TableCell>
-              <TableCell class="px-6 py-4 font-mono font-medium text-emerald-600 dark:text-emerald-400">{{ formatPrice(row.price_amount) }}</TableCell>
+              <TableCell class="px-6 py-4 font-mono font-medium text-emerald-600 dark:text-emerald-400">{{ userPriceLabel(row) }}</TableCell>
               <TableCell class="px-6 py-4 text-right">
                 <div class="flex justify-end gap-2">
                   <Button size="sm" variant="outline" @click="openEdit(row)">{{ t('admin.userPrices.edit') }}</Button>
@@ -424,6 +480,28 @@ const ruleKeys = ['admin.userPrices.ruleExclusive', 'admin.userPrices.ruleLowerO
             </div>
 
             <div>
+              <label class="mb-1.5 block text-xs font-medium text-muted-foreground">{{ t('admin.userPrices.pricingMode') }}</label>
+              <div class="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  :variant="form.mode === 'fixed' ? 'default' : 'outline'"
+                  @click="form.mode = 'fixed'"
+                >
+                  {{ t('admin.userPrices.modeFixed') }}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  :variant="form.mode === 'discount' ? 'default' : 'outline'"
+                  @click="form.mode = 'discount'"
+                >
+                  {{ t('admin.userPrices.modeDiscount') }}
+                </Button>
+              </div>
+            </div>
+
+            <div v-if="form.mode === 'fixed'">
               <label class="mb-1.5 block text-xs font-medium text-muted-foreground">
                 {{ t('admin.userPrices.userPrice') }}
                 <span v-if="selectedBasePrice !== null" class="ml-2 font-normal">
@@ -431,6 +509,17 @@ const ruleKeys = ['admin.userPrices.ruleExclusive', 'admin.userPrices.ruleLowerO
                 </span>
               </label>
               <Input v-model.number="form.price" type="number" min="0" step="0.01" :placeholder="t('admin.userPrices.pricePlaceholder')" />
+            </div>
+
+            <div v-else>
+              <label class="mb-1.5 block text-xs font-medium text-muted-foreground">
+                {{ t('admin.userPrices.discountRate') }}
+                <span v-if="selectedBasePrice !== null" class="ml-2 font-normal">
+                  {{ t('admin.userPrices.currentBase', { price: formatPrice(selectedBasePrice) }) }}
+                </span>
+              </label>
+              <Input v-model.number="form.discount" type="number" min="1" max="99" step="0.1" :placeholder="t('admin.userPrices.discountPlaceholder')" />
+              <p v-if="discountPreview" class="mt-1.5 text-xs text-muted-foreground">{{ discountPreview }}</p>
             </div>
           </template>
 
