@@ -328,11 +328,11 @@ func (priceTestLevels) LoadUserPriceBook(userID uint) (memberlevelapp.UserPriceB
 	book := memberlevelapp.UserPriceBook{}
 	switch userID {
 	case 7:
-		book["1:0"] = decimal.NewFromInt(85)
-		book["1:1"] = decimal.NewFromInt(85)
+		book.SetFixed(1, 0, decimal.NewFromInt(85))
+		book.SetFixed(1, 1, decimal.NewFromInt(85))
 	case 10:
-		book["1:0"] = decimal.NewFromInt(95)
-		book["1:1"] = decimal.NewFromInt(95)
+		book.SetFixed(1, 0, decimal.NewFromInt(95))
+		book.SetFixed(1, 1, decimal.NewFromInt(95))
 	}
 	return book, nil
 }

@@ -2882,6 +2882,14 @@ const messages = {
         userPrice: '专属价',
         currentBase: '当前价：{price}',
         pricePlaceholder: '请输入专属价',
+        pricingMode: '定价方式',
+        modeFixed: '固定价',
+        modeDiscount: '百分比折扣',
+        discountRate: '折扣比例',
+        discountPlaceholder: '80 表示按原价 80% 结算',
+        discountPreview: '打 {n} 折 · 折后约 {price}',
+        discountSummary: '{n} 折（{rate}%）· 约 {price}',
+        ruleDiscount: '折扣按商品 / SKU 当前售价实时折算，原价调整后无需重新设置。',
         save: '保存',
         saving: '保存中...',
         table: {
@@ -2894,6 +2902,7 @@ const messages = {
         },
         errors: {
           invalidPrice: '请输入大于 0 的价格',
+          invalidDiscount: '折扣需在 1% 到 99% 之间',
         },
       },
       wholesalePrices: {
@@ -7594,6 +7603,14 @@ const messages = {
         userPrice: '專屬價',
         currentBase: '當前價：{price}',
         pricePlaceholder: '請輸入專屬價',
+        pricingMode: '定價方式',
+        modeFixed: '固定價',
+        modeDiscount: '百分比折扣',
+        discountRate: '折扣比例',
+        discountPlaceholder: '80 表示按原價 80% 結算',
+        discountPreview: '打 {n} 折 · 折後約 {price}',
+        discountSummary: '{n} 折（{rate}%）· 約 {price}',
+        ruleDiscount: '折扣按商品 / SKU 當前售價即時折算，原價調整後無需重新設定。',
         save: '儲存',
         saving: '儲存中...',
         table: {
@@ -7606,6 +7623,7 @@ const messages = {
         },
         errors: {
           invalidPrice: '請輸入大於 0 的價格',
+          invalidDiscount: '折扣需在 1% 到 99% 之間',
         },
       },
       wholesalePrices: {
@@ -12306,6 +12324,14 @@ const messages = {
         userPrice: 'User price',
         currentBase: 'Current price: {price}',
         pricePlaceholder: 'Enter price',
+        pricingMode: 'Pricing mode',
+        modeFixed: 'Fixed price',
+        modeDiscount: 'Percentage discount',
+        discountRate: 'Discount',
+        discountPlaceholder: '80 charges 80% of the current price',
+        discountPreview: '{off}% off · about {price}',
+        discountSummary: '{off}% off · about {price}',
+        ruleDiscount: 'The discount follows the current product / SKU price, so price changes need no re-configuration.',
         save: 'Save',
         saving: 'Saving...',
         table: {
@@ -12318,6 +12344,7 @@ const messages = {
         },
         errors: {
           invalidPrice: 'Enter a price greater than 0',
+          invalidDiscount: 'Discount must be between 1% and 99%',
         },
       },
       wholesalePrices: {

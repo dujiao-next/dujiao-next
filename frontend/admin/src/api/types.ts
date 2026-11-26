@@ -323,6 +323,8 @@ export interface AdminUserProductPrice {
   product_id: number
   sku_id: number
   price_amount: number | string
+  // 折扣百分比（80=八折）；>0 时 price_amount 为 0，与固定价二选一
+  discount_rate?: number | string
   created_at: string
   updated_at: string
   // 列表接口随行返回的商品/SKU 摘要，避免后台每行再单独请求商品详情

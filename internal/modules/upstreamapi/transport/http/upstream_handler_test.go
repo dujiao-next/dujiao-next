@@ -261,8 +261,8 @@ func (l catalogPriceLevels) ResolveMemberPrice(levelID, _, _ uint, base decimal.
 func (l catalogPriceLevels) LoadUserPriceBook(userID uint) (memberlevelapp.UserPriceBook, error) {
 	book := memberlevelapp.UserPriceBook{}
 	if userID == 7 {
-		book["18:0"] = l.userPrice
-		book["18:19"] = l.userPrice
+		book.SetFixed(18, 0, l.userPrice)
+		book.SetFixed(18, 19, l.userPrice)
 	}
 	return book, nil
 }

@@ -606,7 +606,7 @@ export const adminAPI = {
   batchUpsertMemberLevelPrices: (data: { prices: Partial<AdminMemberLevelPrice>[] }) => api.post('/admin/member-level-prices/batch', data),
   deleteMemberLevelPrice: (id: number) => api.delete(`/admin/member-level-prices/${id}`),
   getUserProductPrices: (params: { user_id: number; page?: number; page_size?: number }) => api.get('/admin/member-user-prices', { params }),
-  batchUpsertUserProductPrices: (data: { prices: { user_id: number; product_id: number; sku_id: number; price_amount: number }[] }) =>
+  batchUpsertUserProductPrices: (data: { prices: { user_id: number; product_id: number; sku_id: number; price_amount: number; discount_rate?: number }[] }) =>
     api.post('/admin/member-user-prices/batch', data),
   deleteUserProductPrice: (id: number) => api.delete(`/admin/member-user-prices/${id}`),
   setUserMemberLevel: (userId: number, memberLevelId: number) => api.put(`/admin/users/${userId}/member-level`, { member_level_id: memberLevelId }),

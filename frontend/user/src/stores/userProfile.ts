@@ -104,6 +104,8 @@ export const useUserProfileStore = defineStore('user-profile', () => {
         product_id: number
         sku_id: number
         price_amount: string | number
+        // 折扣百分比（80=八折）；>0 时 price_amount 为 0，价格按商品原价折算
+        discount_rate?: string | number
         product_slug?: string
         product_title?: Record<string, string>
         product_active?: boolean
