@@ -60,6 +60,9 @@ type JWTClaims struct {
 	Username     string `json:"username"`
 	TokenVersion uint64 `json:"token_version"`
 	Typ          string `json:"typ,omitempty"`
+	// SessionStartedAt 会话首次登录时间（Unix 秒）。滑动续期时保持不变，
+	// 用于限制整段会话的绝对生命周期；0 表示续期前的旧 token。
+	SessionStartedAt int64 `json:"sst,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -88,17 +91,46 @@ type LoginResult struct {
 
 // GenerateJWT 生成 JWT Token
 func (s *Service) GenerateJWT(admin *admindomain.Admin) (string, time.Time, error) {
-	expiresAt := time.Now().Add(time.Duration(s.cfg.JWT.ExpireHours) * time.Hour)
+	return s.generateJWT(admin, time.Now().Unix())
+}
+
+// RefreshJWT 在不超出会话绝对生命周期的前提下续签管理员 token。
+//
+// sessionStartedAt 取自已通过校验的 token（sst 声明）；为 0 表示续期机制上线前
+// 签发的旧 token，此时以当前时间为会话起点。MaxSessionHours <= 0 表示不限制。
+func (s *Service) RefreshJWT(admin *admindomain.Admin, sessionStartedAt int64) (string, time.Time, error) {
+	if s == nil || s.cfg == nil || admin == nil {
+		return "", time.Time{}, ErrNotFound
+	}
+
+	now := time.Now()
+	if sessionStartedAt <= 0 || sessionStartedAt > now.Unix() {
+		sessionStartedAt = now.Unix()
+	}
+	if maxHours := s.cfg.JWT.MaxSessionHours; maxHours > 0 {
+		deadline := time.Unix(sessionStartedAt, 0).Add(time.Duration(maxHours) * time.Hour)
+		if !now.Before(deadline) {
+			return "", time.Time{}, jwttoken.ErrSessionExpired
+		}
+	}
+
+	return s.generateJWT(admin, sessionStartedAt)
+}
+
+func (s *Service) generateJWT(admin *admindomain.Admin, sessionStartedAt int64) (string, time.Time, error) {
+	now := time.Now()
+	expiresAt := now.Add(time.Duration(s.cfg.JWT.ExpireHours) * time.Hour)
 
 	claims := JWTClaims{
-		AdminID:      admin.ID,
-		Username:     admin.Username,
-		TokenVersion: admin.TokenVersion,
-		Typ:          jwttoken.TypeAccess,
+		AdminID:          admin.ID,
+		Username:         admin.Username,
+		TokenVersion:     admin.TokenVersion,
+		Typ:              jwttoken.TypeAccess,
+		SessionStartedAt: sessionStartedAt,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			NotBefore: jwt.NewNumericDate(time.Now()),
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
 		},
 	}
 

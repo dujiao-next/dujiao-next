@@ -2,6 +2,7 @@ package adminauthhttp
 
 import (
 	"errors"
+	"time"
 
 	ginutil "github.com/dujiao-next/internal/platform/http/ginutil"
 
@@ -9,6 +10,8 @@ import (
 	"github.com/dujiao-next/internal/i18n"
 	captcha "github.com/dujiao-next/internal/modules/captcha/contract"
 	captchahttp "github.com/dujiao-next/internal/modules/captcha/transport/http"
+	admindomain "github.com/dujiao-next/internal/modules/identity/admin/domain"
+	"github.com/dujiao-next/internal/modules/identity/jwttoken"
 	"github.com/dujiao-next/internal/platform/http/response"
 
 	"github.com/gin-gonic/gin"
@@ -46,10 +49,12 @@ type CaptchaVerifier interface {
 	Verify(scene string, payload captchahttp.CaptchaPayloadRequest, clientIP string) error
 }
 
-// LoginAuthService 是管理员登录与改密端口。
+// LoginAuthService 是管理员登录、改密与会话续期端口。
 type LoginAuthService interface {
 	Login(username, password string) (*AuthLoginResult, error)
 	ChangePassword(adminID uint, oldPassword, newPassword string) error
+	GetAdminByID(adminID uint) (*admindomain.Admin, error)
+	RefreshJWT(admin *admindomain.Admin, sessionStartedAt int64) (string, time.Time, error)
 }
 
 // AdminLoginHandler 处理管理员登录与改密 HTTP 请求。
@@ -147,6 +152,52 @@ func (h *AdminLoginHandler) AdminLogin(c *gin.Context) {
 			"username": loginRes.Admin.Username,
 		},
 		"expires_at": loginRes.ExpiresAt.Format("2006-01-02T15:04:05Z07:00"),
+	})
+}
+
+// RefreshSession 为已登录管理员续签 token。
+//
+// 只在会话绝对生命周期内放行：会话起点（sst）由 JWT 携带并在中间件写入上下文，
+// 连续续期不会把这个起点往后推，因此被盗 token 的可用窗口仍然有上限。
+func (h *AdminLoginHandler) RefreshSession(c *gin.Context) {
+	adminID, ok := ginutil.GetAdminID(c)
+	if !ok {
+		return
+	}
+
+	admin, err := h.auth.GetAdminByID(adminID)
+	if err != nil || admin == nil {
+		ginutil.RespondError(c, response.CodeUnauthorized, "error.token_invalid", err)
+		return
+	}
+
+	if value, exists := c.Get("admin_token_version"); exists {
+		if tokenVersion, cast := value.(uint64); cast && tokenVersion != admin.TokenVersion {
+			ginutil.RespondError(c, response.CodeUnauthorized, "error.token_revoked", nil)
+			return
+		}
+	}
+
+	sessionStartedAt := int64(0)
+	if value, exists := c.Get("admin_session_started_at"); exists {
+		if startedAt, cast := value.(int64); cast {
+			sessionStartedAt = startedAt
+		}
+	}
+
+	token, expiresAt, err := h.auth.RefreshJWT(admin, sessionStartedAt)
+	if err != nil {
+		if errors.Is(err, jwttoken.ErrSessionExpired) {
+			ginutil.RespondError(c, response.CodeUnauthorized, "error.session_expired", nil)
+			return
+		}
+		ginutil.RespondError(c, response.CodeInternal, "error.login_failed", err)
+		return
+	}
+
+	response.Success(c, gin.H{
+		"token":      token,
+		"expires_at": expiresAt.Format("2006-01-02T15:04:05Z07:00"),
 	})
 }
 

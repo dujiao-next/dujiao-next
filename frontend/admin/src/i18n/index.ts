@@ -60,6 +60,37 @@ const messages = {
         "invalidated": "账号安全状态已变更"
       }
     },
+    relogin: {
+      title: '登录已过期',
+      subtitle: '重新登录后可继续当前操作，页面上未提交的内容会保留。',
+      username: '用户名',
+      password: '密码',
+      submit: '重新登录',
+      submitting: '登录中…',
+      later: '稍后',
+      totpTitle: '两步验证',
+      totpHint: '请输入身份验证器中的 6 位验证码，或改用恢复码。',
+      totpCode: '验证码',
+      recoveryCode: '恢复码',
+      useRecovery: '改用恢复码',
+      useTotp: '改用验证码',
+      verify: '验证',
+      verifying: '验证中…',
+      back: '返回',
+      captcha: '验证码',
+      errors: {
+        empty: '请输入用户名和密码',
+        failed: '登录失败，请检查账号密码',
+        totpEmpty: '请输入 6 位验证码',
+        recoveryEmpty: '请输入恢复码',
+        totpFailed: '验证失败，请重试',
+      },
+    },
+    draft: {
+      found: '检测到未保存的草稿，是否恢复？',
+      restore: '恢复草稿',
+      discard: '丢弃草稿',
+    },
     common: {
       api: {
         responseMissing: '响应内容为空',
@@ -4772,6 +4803,37 @@ const messages = {
         "invalidated": "帳號安全狀態已變更"
       }
     },
+    relogin: {
+      title: '登入已過期',
+      subtitle: '重新登入後即可繼續目前操作，頁面上未送出的內容會保留。',
+      username: '使用者名稱',
+      password: '密碼',
+      submit: '重新登入',
+      submitting: '登入中…',
+      later: '稍後',
+      totpTitle: '兩步驗證',
+      totpHint: '請輸入驗證器中的 6 位驗證碼，或改用復原碼。',
+      totpCode: '驗證碼',
+      recoveryCode: '復原碼',
+      useRecovery: '改用復原碼',
+      useTotp: '改用驗證碼',
+      verify: '驗證',
+      verifying: '驗證中…',
+      back: '返回',
+      captcha: '驗證碼',
+      errors: {
+        empty: '請輸入使用者名稱與密碼',
+        failed: '登入失敗，請確認帳號密碼',
+        totpEmpty: '請輸入 6 位驗證碼',
+        recoveryEmpty: '請輸入復原碼',
+        totpFailed: '驗證失敗，請重試',
+      },
+    },
+    draft: {
+      found: '偵測到未送出的草稿，是否復原？',
+      restore: '復原草稿',
+      discard: '丟棄草稿',
+    },
     common: {
       api: {
         responseMissing: '回應內容為空',
@@ -9483,6 +9545,37 @@ const messages = {
         "revoked": "Revoked",
         "invalidated": "Account security state changed"
       }
+    },
+    relogin: {
+      title: 'Session expired',
+      subtitle: 'Sign in again to continue. Unsaved content on this page stays as it is.',
+      username: 'Username',
+      password: 'Password',
+      submit: 'Sign in',
+      submitting: 'Signing in…',
+      later: 'Later',
+      totpTitle: 'Two-factor authentication',
+      totpHint: 'Enter the 6-digit code from your authenticator app, or use a recovery code.',
+      totpCode: 'Code',
+      recoveryCode: 'Recovery code',
+      useRecovery: 'Use a recovery code',
+      useTotp: 'Use an authenticator code',
+      verify: 'Verify',
+      verifying: 'Verifying…',
+      back: 'Back',
+      captcha: 'Verification',
+      errors: {
+        empty: 'Enter your username and password',
+        failed: 'Sign-in failed. Check your credentials.',
+        totpEmpty: 'Enter the 6-digit code',
+        recoveryEmpty: 'Enter a recovery code',
+        totpFailed: 'Verification failed. Try again.',
+      },
+    },
+    draft: {
+      found: 'An unsaved draft was found here. Restore it?',
+      restore: 'Restore draft',
+      discard: 'Discard draft',
     },
     common: {
       api: {

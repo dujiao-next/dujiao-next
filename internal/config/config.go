@@ -91,6 +91,9 @@ type JWTConfig struct {
 	SecretKey             string `mapstructure:"secret"`
 	ExpireHours           int    `mapstructure:"expire_hours"`
 	RememberMeExpireHours int    `mapstructure:"remember_me_expire_hours"`
+	// MaxSessionHours 限制会话的绝对生命周期（小时）。0 表示不限制。
+	// 仅管理端滑动续期使用：单次 token 到期后可续期，但整段会话不会超过该时长。
+	MaxSessionHours int `mapstructure:"max_session_hours"`
 }
 
 // BootstrapConfig 启动初始化配置
@@ -339,6 +342,7 @@ func Load() *Config {
 	viper.SetDefault("database.pool.conn_max_idle_time_seconds", 0)
 	viper.SetDefault("jwt.secret", "change-me-in-production")
 	viper.SetDefault("jwt.expire_hours", 24)
+	viper.SetDefault("jwt.max_session_hours", 168)
 	viper.SetDefault("user_jwt.secret", "user-change-me-in-production")
 	viper.SetDefault("user_jwt.expire_hours", 24)
 	viper.SetDefault("user_jwt.remember_me_expire_hours", 168)

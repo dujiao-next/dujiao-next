@@ -31,6 +31,8 @@ import (
 const requestIDKey = "request_id"
 const requestIDHeader = "X-Request-ID"
 const adminIsSuperContextKey = "admin_is_super"
+const adminSessionStartedAtKey = "admin_session_started_at"
+const adminTokenVersionKey = "admin_token_version"
 const authHeaderKey = "Authorization"
 const authSchemeBearer = "Bearer"
 
@@ -216,6 +218,8 @@ func JWTAuthMiddleware(secretKey string, adminRepo admincontract.Store, machineA
 			c.Set("admin_id", claims.AdminID)
 			c.Set("username", claims.Username)
 			c.Set(adminIsSuperContextKey, cached.IsSuper)
+			c.Set(adminSessionStartedAtKey, claims.SessionStartedAt)
+			c.Set(adminTokenVersionKey, claims.TokenVersion)
 			c.Next()
 			return
 		}
@@ -238,6 +242,8 @@ func JWTAuthMiddleware(secretKey string, adminRepo admincontract.Store, machineA
 		c.Set("admin_id", claims.AdminID)
 		c.Set("username", claims.Username)
 		c.Set(adminIsSuperContextKey, admin.IsSuper)
+		c.Set(adminSessionStartedAtKey, claims.SessionStartedAt)
+		c.Set(adminTokenVersionKey, claims.TokenVersion)
 		c.Next()
 	}
 }

@@ -37,6 +37,7 @@ database:
 jwt:
   secret: your-secret-key-change-in-production-please
   expire_hours: 24  # Token 有效期（小时）
+  max_session_hours: 168  # 会话绝对有效期（小时），滑动续期不会超过该上限；0 表示不限制
 
 user_jwt:
   secret: user-secret-key-change-in-production-please

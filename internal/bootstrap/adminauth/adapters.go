@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	totpapplication "github.com/dujiao-next/internal/modules/identity/totp/application"
 	"github.com/dujiao-next/internal/shared/passwordpolicy"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/dujiao-next/internal/cache"
 	auditlogapp "github.com/dujiao-next/internal/modules/auditlog/application"
+	admindomain "github.com/dujiao-next/internal/modules/identity/admin/domain"
 	adminauthapp "github.com/dujiao-next/internal/modules/identity/adminauth/application"
 	adminchallenge "github.com/dujiao-next/internal/modules/identity/adminauth/challenge"
 	admintotpapp "github.com/dujiao-next/internal/modules/identity/adminauth/totp/application"
@@ -114,6 +116,16 @@ func (a adminLoginAuthTransportAdapter) Login(username, password string) (*admin
 
 func (a adminLoginAuthTransportAdapter) ChangePassword(adminID uint, oldPassword, newPassword string) error {
 	return mapAdminAuthTransportError(a.auth.ChangePassword(adminID, oldPassword, newPassword))
+}
+
+func (a adminLoginAuthTransportAdapter) GetAdminByID(adminID uint) (*admindomain.Admin, error) {
+	admin, err := a.auth.GetAdminByID(adminID)
+	return admin, mapAdminAuthTransportError(err)
+}
+
+func (a adminLoginAuthTransportAdapter) RefreshJWT(admin *admindomain.Admin, sessionStartedAt int64) (string, time.Time, error) {
+	token, expiresAt, err := a.auth.RefreshJWT(admin, sessionStartedAt)
+	return token, expiresAt, mapAdminAuthTransportError(err)
 }
 
 type admin2FAAuthTransportAdapter struct {
