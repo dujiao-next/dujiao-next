@@ -130,6 +130,7 @@ func registerAdminRoutes(
 	settingstransport.RegisterAdminAffiliateRoutes(authorized, settingstransport.NewAffiliateHandler(c.SettingService))
 	settingstransport.RegisterAdminTelegramBotRoutes(authorized, settingstransport.NewTelegramBotHandler(c.SettingService))
 	adminauthtransport.RegisterAdminPasswordRoutes(authorized, adminLoginHandler)
+	adminauthtransport.RegisterAdminSessionRoutes(authorized, adminLoginHandler)
 
 	// 系统信息与版本检测
 	systemtransport.RegisterAdminRoutes(authorized, systemtransport.NewAdminHandler(nil))

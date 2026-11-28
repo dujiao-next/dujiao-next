@@ -18,6 +18,14 @@ func RegisterAdmin2FAAuthRoutes(admin gin.IRoutes, handler *Admin2FAHandler, rat
 	admin.POST("/login/verify-2fa", rateLimit, handler.Verify2FA)
 }
 
+// RegisterAdminSessionRoutes 注册登录态管理员会话续期端点。
+func RegisterAdminSessionRoutes(authorized gin.IRoutes, handler *AdminLoginHandler) {
+	if authorized == nil || handler == nil {
+		panic("admin session routes: required dependency is nil")
+	}
+	authorized.POST("/auth/refresh", handler.RefreshSession)
+}
+
 // RegisterAdminPasswordRoutes 注册登录态管理员改密端点。
 func RegisterAdminPasswordRoutes(authorized gin.IRoutes, handler *AdminLoginHandler) {
 	if authorized == nil || handler == nil {
