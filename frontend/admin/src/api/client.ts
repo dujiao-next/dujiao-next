@@ -1,7 +1,7 @@
 import i18n from '@/i18n'
 import type { ApiResponse } from './types'
 import { notifyError } from '@/utils/notify'
-import { adminUrl } from '@/utils/adminBase'
+import { recoverSession } from './session'
 
 export type { ApiResponse }
 
@@ -21,12 +21,9 @@ const createNotifiedError = (message: string): NotifiedError => {
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 const API_PREFIX = '/api/v1'
 
-const redirectToLogin = () => {
-  localStorage.removeItem('admin_token')
-  window.location.href = adminUrl('/login')
-}
-
-const isLoginEndpoint = (url: string) => /\/admin\/login\b/.test(url)
+// 401 不整页跳转：先续期/原地重新登录，成功后重放本次请求。
+// 登录与续期端点自身返回 401 时说明凭据确实无效，不能递归恢复。
+const isAuthEndpoint = (url: string) => /\/admin\/login\b/.test(url) || /\/admin\/auth\/refresh\b/.test(url)
 
 interface RequestOptions {
   params?: Record<string, any>
@@ -87,7 +84,27 @@ async function readBlobErrorMessage(blob: Blob, fallbackMessage: string): Promis
   }
 }
 
-async function request(method: string, path: string, bodyOrOptions?: any, options?: RequestOptions): Promise<{ data: any; headers?: Record<string, string> }> {
+// 登录态失效时先尝试续期/原地重新登录，成功后重放一次本次请求。
+async function recoverAndRetry(
+  method: string,
+  path: string,
+  bodyOrOptions: any,
+  options: RequestOptions | undefined,
+  isRetry: boolean,
+): Promise<{ data: any; headers?: Record<string, string> } | null> {
+  if (isRetry || isAuthEndpoint(path)) return null
+  const token = await recoverSession()
+  if (!token) return null
+  return request(method, path, bodyOrOptions, options, true)
+}
+
+async function request(
+  method: string,
+  path: string,
+  bodyOrOptions?: any,
+  options?: RequestOptions,
+  isRetry = false,
+): Promise<{ data: any; headers?: Record<string, string> }> {
   let body: any = undefined
   let opts: RequestOptions = {}
 
@@ -146,8 +163,9 @@ async function request(method: string, path: string, bodyOrOptions?: any, option
       const message = contentType.includes('application/json')
         ? await readBlobErrorMessage(blob, fallbackMessage)
         : fallbackMessage
-      if (response.status === 401 && !isLoginEndpoint(path)) {
-        redirectToLogin()
+      if (response.status === 401) {
+        const recovered = await recoverAndRetry(method, path, bodyOrOptions, options, isRetry)
+        if (recovered) return recovered
       }
       notifyError(message)
       return Promise.reject(createNotifiedError(message))
@@ -169,8 +187,9 @@ async function request(method: string, path: string, bodyOrOptions?: any, option
     if (!response.ok) {
       const status = response.status
       const message = getHttpErrorMessage(status)
-      if (status === 401 && !isLoginEndpoint(path)) {
-        redirectToLogin()
+      if (status === 401) {
+        const recovered = await recoverAndRetry(method, path, bodyOrOptions, options, isRetry)
+        if (recovered) return recovered
       }
       notifyError(message)
       return Promise.reject(createNotifiedError(message))
@@ -184,8 +203,9 @@ async function request(method: string, path: string, bodyOrOptions?: any, option
   if (!response.ok) {
     const status = response.status
     const message = data?.msg || getHttpErrorMessage(status)
-    if (status === 401 && !isLoginEndpoint(path)) {
-      redirectToLogin()
+    if (status === 401) {
+      const recovered = await recoverAndRetry(method, path, bodyOrOptions, options, isRetry)
+      if (recovered) return recovered
     }
     notifyError(message)
     return Promise.reject(createNotifiedError(message))
@@ -195,9 +215,10 @@ async function request(method: string, path: string, bodyOrOptions?: any, option
   if (typeof data.status_code !== 'undefined' && data.status_code !== 0) {
     const fallbackMessage = t('common.api.requestFailed')
     const message = data.msg || fallbackMessage
-    if (data.status_code === 401 && !isLoginEndpoint(path)) {
+    if (data.status_code === 401) {
+      const recovered = await recoverAndRetry(method, path, bodyOrOptions, options, isRetry)
+      if (recovered) return recovered
       notifyError(message)
-      redirectToLogin()
       return Promise.reject(createNotifiedError(message))
     }
     // 合规声明拦截：消息由路由守卫/页面 wrapper 处理，不展示通用 toast
